@@ -38,6 +38,15 @@ const Navbar = () => {
     if (data) setTokens(data.tokens_balance);
   };
 
+  const checkAdmin = async (userId: string) => {
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "admin");
+    setIsAdmin(!!data && data.length > 0);
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/");
