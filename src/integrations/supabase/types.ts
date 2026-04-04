@@ -44,6 +44,45 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          created_at: string
+          device_uid: string | null
+          display_name: string | null
+          id: string
+          stripe_customer_id: string | null
+          tier: string
+          tokens_balance: number
+          tokens_reset_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_uid?: string | null
+          display_name?: string | null
+          id?: string
+          stripe_customer_id?: string | null
+          tier?: string
+          tokens_balance?: number
+          tokens_reset_at?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_uid?: string | null
+          display_name?: string | null
+          id?: string
+          stripe_customer_id?: string | null
+          tier?: string
+          tokens_balance?: number
+          tokens_reset_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       waitlist: {
         Row: {
           created_at: string
