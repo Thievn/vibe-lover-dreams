@@ -70,6 +70,22 @@ const Navbar = () => {
                 </div>
               )}
               <Link
+                to="/create-character"
+                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Create Character"
+              >
+                <Sparkles className="h-5 w-5" />
+              </Link>
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  title="Admin"
+                >
+                  <Shield className="h-5 w-5" />
+                </Link>
+              )}
+              <Link
                 to="/settings"
                 className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               >
