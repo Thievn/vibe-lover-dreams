@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Settings, LogIn, LogOut, Flame } from "lucide-react";
+import { Settings, LogIn, LogOut, Flame, Sparkles, Shield } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
@@ -8,6 +8,7 @@ const Navbar = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [tokens, setTokens] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -20,7 +21,10 @@ const Navbar = () => {
     });
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-      if (session?.user) fetchTokens(session.user.id);
+      if (session?.user) {
+        fetchTokens(session.user.id);
+        checkAdmin(session.user.id);
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -32,6 +36,15 @@ const Navbar = () => {
       .eq("user_id", userId)
       .single();
     if (data) setTokens(data.tokens_balance);
+  };
+
+  const checkAdmin = async (userId: string) => {
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "admin");
+    setIsAdmin(!!data && data.length > 0);
   };
 
   const handleLogout = async () => {
@@ -55,6 +68,22 @@ const Navbar = () => {
                   <span className="font-medium text-foreground">{tokens.toLocaleString()}</span>
                   <span className="text-muted-foreground hidden sm:inline">tokens</span>
                 </div>
+              )}
+              <Link
+                to="/create-character"
+                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Create Character"
+              >
+                <Sparkles className="h-5 w-5" />
+              </Link>
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  title="Admin"
+                >
+                  <Shield className="h-5 w-5" />
+                </Link>
               )}
               <Link
                 to="/settings"
