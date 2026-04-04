@@ -40,7 +40,7 @@ const CompanionGallery = () => {
           Choose Your Companion
         </h2>
         <p className="text-center text-muted-foreground mb-8 text-sm">
-          20 unique AI companions — every gender, orientation, and fantasy. Zero judgment.
+          50 unique AI companions — every gender, orientation, and fantasy. Zero judgment.
         </p>
 
         {/* Search & Filters */}
