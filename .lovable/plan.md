@@ -1,24 +1,26 @@
 
 
-# Fix: Preview Not Loading
+# Grant Admin Access & Admin Icon
 
-## Diagnosis
+## What This Does
+1. **Insert your admin role** — adds a row to `user_roles` table for your user ID (`92cf2658-fbfa-4d5a-bdb3-27cda6a93771`) with role `admin`
+2. **Verify navbar already shows admin icon** — the existing `Navbar.tsx` already has a Shield icon that appears for admin users (it checks `user_roles` table), so no UI changes needed
 
-The app builds successfully with zero errors. All dependencies are installed. The dev server is running on port 8080. The console logs show only WebSocket HMR connection failures — this is a transient preview connectivity issue, not a code problem.
+## Technical Steps
 
-## Root Cause
+### Step 1: Database Migration
+Run a single SQL migration:
+```sql
+INSERT INTO public.user_roles (user_id, role)
+VALUES ('92cf2658-fbfa-4d5a-bdb3-27cda6a93771', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
+```
 
-The preview iframe's WebSocket connection to the dev server dropped. This prevents the page from hot-reloading and can sometimes cause the preview to appear blank or stuck.
+### Step 2: Verify
+- The Navbar component already calls `checkAdmin()` on login, which queries `user_roles` for the admin role
+- The Shield icon linking to `/admin` already conditionally renders for admin users
+- No code changes required
 
-## Fix
-
-**No code changes needed.** A simple page refresh or a trivial code touch will restart the connection:
-
-1. Make a no-op edit (add a comment or whitespace) to any file to trigger a dev server rebuild and re-establish the preview connection
-2. This will force the preview to reconnect and render the app
-
-## What You Should See After
-
-- The age verification gate (if not previously verified)
-- Or the full landing page with navbar, hero, companion gallery, features, and footer
+## Result
+After the migration runs, log out and back in (or refresh) — the Shield admin icon will appear in your navbar, and you'll have full access to `/admin`.
 
