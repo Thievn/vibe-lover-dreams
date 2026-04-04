@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getCompanionById } from "@/data/companions";
+import { companionImages } from "@/data/companionImages";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import { ArrowLeft, Send, Loader2, Volume2, VolumeX, Zap, AlertOctagon } from "lucide-react";
