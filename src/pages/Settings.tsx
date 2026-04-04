@@ -26,8 +26,8 @@ const Settings = () => {
 
   const handleSave = () => {
     setSaving(true);
-    localStorage.setItem("vicevibe-safeword", safeWord);
-    localStorage.setItem("vicevibe-intensity", intensityLimit.toString());
+    localStorage.setItem("lustforge-safeword", safeWord);
+    localStorage.setItem("lustforge-intensity", intensityLimit.toString());
     setTimeout(() => {
       setSaving(false);
       toast.success("Settings saved!");
