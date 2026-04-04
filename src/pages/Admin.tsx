@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import ParticleBackground from "@/components/ParticleBackground";
 import { motion } from "framer-motion";
-import { Shield, Users, Sparkles, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Shield, Users, Sparkles, CheckCircle, XCircle, Loader2, Palette } from "lucide-react";
+import CompanionManager from "@/components/admin/CompanionManager";
 import { toast } from "sonner";
 
 interface Profile {
@@ -32,7 +33,7 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [characters, setCharacters] = useState<CustomCharacter[]>([]);
-  const [activeTab, setActiveTab] = useState<"users" | "characters">("users");
+  const [activeTab, setActiveTab] = useState<"users" | "characters" | "companions">("companions");
 
   useEffect(() => {
     checkAdmin();
@@ -150,7 +151,7 @@ const Admin = () => {
 
           {/* Tabs */}
           <div className="flex gap-2 mb-6">
-            {(["users", "characters"] as const).map((tab) => (
+            {(["companions", "users", "characters"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -160,10 +161,13 @@ const Admin = () => {
                     : "bg-muted border border-border text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {tab === "users" ? "Users" : "Characters"}
+                {tab === "users" ? "Users" : tab === "characters" ? "Custom Characters" : "Companions"}
               </button>
             ))}
           </div>
+
+          {/* Companions Tab */}
+          {activeTab === "companions" && <CompanionManager />}
 
           {/* Users Tab */}
           {activeTab === "users" && (

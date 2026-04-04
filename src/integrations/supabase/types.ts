@@ -44,6 +44,75 @@ export type Database = {
         }
         Relationships: []
       }
+      companions: {
+        Row: {
+          appearance: string
+          bio: string
+          created_at: string
+          fantasy_starters: Json
+          gender: string
+          gradient_from: string
+          gradient_to: string
+          id: string
+          image_prompt: string | null
+          image_url: string | null
+          is_active: boolean
+          kinks: string[]
+          name: string
+          orientation: string
+          personality: string
+          role: string
+          system_prompt: string
+          tagline: string
+          tags: string[]
+          updated_at: string
+        }
+        Insert: {
+          appearance?: string
+          bio?: string
+          created_at?: string
+          fantasy_starters?: Json
+          gender?: string
+          gradient_from?: string
+          gradient_to?: string
+          id: string
+          image_prompt?: string | null
+          image_url?: string | null
+          is_active?: boolean
+          kinks?: string[]
+          name: string
+          orientation?: string
+          personality?: string
+          role?: string
+          system_prompt?: string
+          tagline?: string
+          tags?: string[]
+          updated_at?: string
+        }
+        Update: {
+          appearance?: string
+          bio?: string
+          created_at?: string
+          fantasy_starters?: Json
+          gender?: string
+          gradient_from?: string
+          gradient_to?: string
+          id?: string
+          image_prompt?: string | null
+          image_url?: string | null
+          is_active?: boolean
+          kinks?: string[]
+          name?: string
+          orientation?: string
+          personality?: string
+          role?: string
+          system_prompt?: string
+          tagline?: string
+          tags?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       custom_characters: {
         Row: {
           approved: boolean

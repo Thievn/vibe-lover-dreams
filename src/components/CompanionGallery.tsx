@@ -1,16 +1,37 @@
 import { useState, useMemo } from "react";
-import { companions, getGenders, getRoles } from "@/data/companions";
+import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import CompanionCard from "./CompanionCard";
-import { Search, Filter, X } from "lucide-react";
+import { Search, Filter, X, Loader2 } from "lucide-react";
 
 const CompanionGallery = () => {
+  const { data: dbCompanions, isLoading } = useCompanions();
   const [search, setSearch] = useState("");
   const [selectedGender, setSelectedGender] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
-  const genders = getGenders();
-  const roles = getRoles();
+  const companions = useMemo(
+    () => (dbCompanions || []).map(dbToCompanion),
+    [dbCompanions]
+  );
+
+  const genders = useMemo(
+    () => [...new Set(companions.map((c) => c.gender))],
+    [companions]
+  );
+  const roles = useMemo(
+    () => [...new Set(companions.map((c) => c.role))],
+    [companions]
+  );
+
+  // Build image map from DB
+  const imageMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    (dbCompanions || []).forEach((c) => {
+      if (c.image_url) map[c.id] = c.image_url;
+    });
+    return map;
+  }, [dbCompanions]);
 
   const filtered = useMemo(() => {
     return companions.filter((c) => {
@@ -23,7 +44,7 @@ const CompanionGallery = () => {
       const matchesRole = !selectedRole || c.role === selectedRole;
       return matchesSearch && matchesGender && matchesRole;
     });
-  }, [search, selectedGender, selectedRole]);
+  }, [search, selectedGender, selectedRole, companions]);
 
   const clearFilters = () => {
     setSearch("");
@@ -33,6 +54,16 @@ const CompanionGallery = () => {
 
   const hasFilters = search || selectedGender || selectedRole;
 
+  if (isLoading) {
+    return (
+      <section id="companions" className="py-16 px-4">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section id="companions" className="py-16 px-4">
       <div className="max-w-7xl mx-auto">
@@ -40,7 +71,7 @@ const CompanionGallery = () => {
           Choose Your Companion
         </h2>
         <p className="text-center text-muted-foreground mb-8 text-sm">
-          50 unique AI companions — every gender, orientation, and fantasy. Zero judgment.
+          {companions.length} unique AI companions — every gender, orientation, and fantasy. Zero judgment.
         </p>
 
         {/* Search & Filters */}
@@ -113,7 +144,7 @@ const CompanionGallery = () => {
         {/* Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {filtered.map((companion, i) => (
-            <CompanionCard key={companion.id} companion={companion} index={i} />
+            <CompanionCard key={companion.id} companion={companion} index={i} imageOverride={imageMap[companion.id]} />
           ))}
         </div>
 

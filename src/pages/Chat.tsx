@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { getCompanionById } from "@/data/companions";
+import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { companionImages } from "@/data/companionImages";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
@@ -20,7 +20,15 @@ interface ChatMessage {
 const Chat = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const companion = getCompanionById(id || "");
+  const { data: dbCompanions } = useCompanions();
+
+  const dbComp = useMemo(
+    () => (dbCompanions || []).find((c) => c.id === id),
+    [dbCompanions, id]
+  );
+  const companion = dbComp ? dbToCompanion(dbComp) : null;
+  const imageUrl = dbComp?.image_url || (id ? companionImages[id] : undefined);
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -122,7 +130,6 @@ const Chat = () => {
   const sendMessage = async () => {
     if (!input.trim() || loading || !user || !companion) return;
 
-    // Token check
     if (tokensBalance < TOKEN_COST) {
       toast.error("You're out of tokens! Upgrade to keep chatting.", {
         action: {
@@ -133,7 +140,6 @@ const Chat = () => {
       return;
     }
 
-    // Safe word check
     if (input.trim().toUpperCase() === safeWord.toUpperCase()) {
       toast.info("🛑 Safe word activated. All activity stopped. You're safe.");
       setInput("");
@@ -202,7 +208,6 @@ const Chat = () => {
         lovense_command: command,
       });
 
-      // Deduct tokens after successful response
       await deductTokens(user.id);
     } catch (err: any) {
       console.error("Chat error:", err);
@@ -212,10 +217,18 @@ const Chat = () => {
     }
   };
 
-  if (!companion) {
+  if (!companion && dbCompanions) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <p className="text-muted-foreground">Companion not found.</p>
+      </div>
+    );
+  }
+
+  if (!companion) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -236,8 +249,8 @@ const Chat = () => {
             background: `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
           }}
         >
-          {companionImages[companion.id] ? (
-            <img src={companionImages[companion.id]} alt={companion.name} className="w-full h-full object-cover object-top" />
+          {imageUrl ? (
+            <img src={imageUrl} alt={companion.name} className="w-full h-full object-cover object-top" />
           ) : (
             <span className="text-lg font-gothic font-bold text-white/90">
               {companion.name.charAt(0)}
