@@ -1,25 +1,30 @@
 
 
-# Generate 5 Missing Portraits Using Grok (xAI Aurora)
+# Rename ViceVibe AI → LustForge AI
 
-## What
-Generate the 5 missing companion portraits using xAI's image generation API (`grok-2-image`) with the prompts you provided, then update the codebase.
+A straightforward find-and-replace across 8 files. No design, color, or functionality changes.
 
-## Steps
+## Changes
 
-1. **Create a script** (`/tmp/gen_grok_images.py`) that calls the xAI image generation endpoint (`https://api.x.ai/v1/images/generations`) using the existing `XAI_API_KEY` secret
-2. **Generate 5 images** with the exact prompts provided for: Kira Lux, Zara Eclipse, Lena Frost, Jaxson Voss, Sage Evergreen
-3. **Save images** to `src/assets/companions/`:
-   - `kira-lux.jpg`
-   - `zara-eclipse.jpg`
-   - `lena-frost.jpg`
-   - `jaxson-voss.jpg`
-   - `sage-evergreen.jpg`
-4. **Update `src/data/companionImages.ts`** — add the 5 new imports and mappings (20/20 complete)
+### 1. Display text replacements
+| File | Change |
+|------|--------|
+| `index.html` | Title, meta author, og:title, twitter:title → "LustForge AI" |
+| `src/components/Navbar.tsx` | "ViceVibe" → "LustForge" |
+| `src/components/HeroSection.tsx` | "ViceVibe" → "LustForge" |
+| `src/components/AgeGate.tsx` | "ViceVibe AI" → "LustForge AI" (description + button) |
+| `src/pages/Auth.tsx` | "Back to ViceVibe" → "Back to LustForge", "Join ViceVibe" → "Join LustForge" |
+| `src/pages/Index.tsx` | Footer text: "ViceVibe AI" → "LustForge AI" |
 
-## Technical Details
-- xAI image API: `POST https://api.x.ai/v1/images/generations` with model `grok-2-image`
-- Uses `XAI_API_KEY` already stored as a secret — will read it from env
-- Response returns base64 image data, decoded and saved as JPG
-- Style should match existing portraits (dark, moody, cyber-goth lighting)
+### 2. localStorage keys (keep working for existing users)
+Rename keys in these files for consistency:
+- `vicevibe-age-verified` → `lustforge-age-verified` (Index.tsx, AgeGate.tsx, Settings.tsx)
+- `vicevibe-safeword` → `lustforge-safeword` (Chat.tsx, Settings.tsx)
+- `vicevibe-intensity` → `lustforge-intensity` (Settings.tsx)
+
+### 3. CSS class references
+- `gradient-vice-text` class stays as-is (internal CSS utility, no user-facing impact)
+
+### 4. Memory update
+- Update `mem://index.md` to reflect "LustForge AI" branding
 
