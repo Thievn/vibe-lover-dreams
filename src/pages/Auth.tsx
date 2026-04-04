@@ -53,7 +53,7 @@ const Auth = () => {
           className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm mb-6 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to ViceVibe
+          Back to LustForge
         </button>
 
         <div className="rounded-2xl border border-border bg-card p-8 glow-purple">
