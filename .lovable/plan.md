@@ -1,60 +1,25 @@
 
 
-# ViceVibe AI — Phase 1 Plan
+# Generate 5 Missing Portraits Using Grok (xAI Aurora)
 
-## 1. Design System & Theme
-- Dark cyber-goth aesthetic: deep black (#0A0A0F) backgrounds, velvet purple (#7B2D8E), neon pink (#FF2D7B), crimson (#DC143C), electric teal (#00FFD4)
-- Glow effects, subtle particle animations, smooth transitions
-- Gothic display font for headings (e.g., Cinzel Decorative), modern sans-serif body (Inter)
-- Custom Tailwind theme with all brand colors and glow utilities
+## What
+Generate the 5 missing companion portraits using xAI's image generation API (`grok-2-image`) with the prompts you provided, then update the codebase.
 
-## 2. Landing Page + 18+ Age Gate
-- Modal age gate on first visit (stored in localStorage): checkbox + consent text
-- Hero section with animated tagline: *"Where Fantasies Take Control"*
-- Glowing CTA buttons, particle background, seductive gradient overlays
-- Disclaimers: adults only, fantasy content, safe-word support
-- Monetization placeholders (Premium tier teaser)
+## Steps
 
-## 3. Companion Gallery (20 Characters)
-- Browseable grid/carousel of all 20 companions on homepage
-- Each card: name, tagline, avatar placeholder (gradient silhouette styled to their vibe until you provide AI art), kink tags
-- Filter/search by gender, orientation, vibe, kink type
-- Click → full profile page
+1. **Create a script** (`/tmp/gen_grok_images.py`) that calls the xAI image generation endpoint (`https://api.x.ai/v1/images/generations`) using the existing `XAI_API_KEY` secret
+2. **Generate 5 images** with the exact prompts provided for: Kira Lux, Zara Eclipse, Lena Frost, Jaxson Voss, Sage Evergreen
+3. **Save images** to `src/assets/companions/`:
+   - `kira-lux.jpg`
+   - `zara-eclipse.jpg`
+   - `lena-frost.jpg`
+   - `jaxson-voss.jpg`
+   - `sage-evergreen.jpg`
+4. **Update `src/data/companionImages.ts`** — add the 5 new imports and mappings (20/20 complete)
 
-## 4. Companion Profile Pages
-- Rich profile: bio, detailed appearance, personality traits, kink list
-- Multiple fantasy/story starters (3-5 per character)
-- "Start Chat" CTA button
-- All 20 companions fully written with detailed system prompts
-
-## 5. Lovable Cloud Setup
-- Enable Lovable Cloud for auth + database
-- Tables: `profiles`, `chat_messages` (conversation history per companion), `companion_favorites`, `user_settings`
-- Email auth (social login can be added later)
-- RLS policies so users only see their own data
-
-## 6. Chat Interface
-- Private 1-on-1 chat room per companion
-- Messages stored in DB for long-term memory (companions remember past sessions)
-- Grok API integration via Edge Function (xAI API key stored as secret)
-- Each companion uses their unique system prompt for in-character responses
-- Lovense command JSON detection in responses (parsed but not executed yet — Phase 2)
-- Visual feedback when toy commands are detected ("🔮 Toy command detected — connect your toy to activate")
-
-## 7. Voice Features (Basic)
-- Text-to-speech for companion responses using ElevenLabs via Lovable Cloud
-- Speech-to-text input option using browser Web Speech API
-
-## 8. Settings Page
-- Safe word configuration
-- Intensity limits (slider 0-100)
-- Privacy toggles
-- Chat history management (clear/export)
-
-## What's Deferred to Phase 2
-- Lovense toy control (actual API calls)
-- Custom companion creator
-- Social login (Google, etc.)
-- Premium/monetization system
-- Advanced voice with per-character voice selection
+## Technical Details
+- xAI image API: `POST https://api.x.ai/v1/images/generations` with model `grok-2-image`
+- Uses `XAI_API_KEY` already stored as a secret — will read it from env
+- Response returns base64 image data, decoded and saved as JPG
+- Style should match existing portraits (dark, moody, cyber-goth lighting)
 
