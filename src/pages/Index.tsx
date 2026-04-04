@@ -8,6 +8,7 @@ import PricingTeaser from "@/components/PricingTeaser";
 import ParticleBackground from "@/components/ParticleBackground";
 import Navbar from "@/components/Navbar";
 
+// Force preview reconnect
 const Index = () => {
   const [ageVerified, setAgeVerified] = useState(() => {
     return localStorage.getItem("lustforge-age-verified") === "true";
