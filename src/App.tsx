@@ -7,6 +7,7 @@ import Index from "./pages/Index.tsx";
 import CompanionProfile from "./pages/CompanionProfile.tsx";
 import Chat from "./pages/Chat.tsx";
 import Auth from "./pages/Auth.tsx";
+import ResetPassword from "./pages/ResetPassword.tsx";
 import Settings from "./pages/Settings.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -23,6 +24,7 @@ const App = () => (
           <Route path="/companion/:id" element={<CompanionProfile />} />
           <Route path="/chat/:id" element={<Chat />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

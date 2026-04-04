@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { getCompanionById } from "@/data/companions";
 import { companionImages } from "@/data/companionImages";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
-import { ArrowLeft, Send, Loader2, Volume2, VolumeX, Zap, AlertOctagon } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Zap, AlertOctagon, Flame } from "lucide-react";
 import { toast } from "sonner";
+
+const TOKEN_COST = 15;
 
 interface ChatMessage {
   id: string;
@@ -23,6 +25,7 @@ const Chat = () => {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [tokensBalance, setTokensBalance] = useState<number>(0);
   const [safeWord] = useState(() => localStorage.getItem("lustforge-safeword") || "RED");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -34,12 +37,31 @@ const Chat = () => {
       }
       setUser(session.user);
       loadChatHistory(session.user.id);
+      fetchTokens(session.user.id);
     });
   }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const fetchTokens = async (userId: string) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("tokens_balance")
+      .eq("user_id", userId)
+      .single();
+    if (data) setTokensBalance(data.tokens_balance);
+  };
+
+  const deductTokens = async (userId: string) => {
+    const newBalance = Math.max(0, tokensBalance - TOKEN_COST);
+    await supabase
+      .from("profiles")
+      .update({ tokens_balance: newBalance })
+      .eq("user_id", userId);
+    setTokensBalance(newBalance);
+  };
 
   const loadChatHistory = async (userId: string) => {
     const { data } = await supabase
@@ -61,7 +83,6 @@ const Chat = () => {
         }))
       );
     } else {
-      // Add initial greeting
       const greeting: ChatMessage = {
         id: "greeting",
         role: "assistant",
@@ -101,9 +122,20 @@ const Chat = () => {
   const sendMessage = async () => {
     if (!input.trim() || loading || !user || !companion) return;
 
+    // Token check
+    if (tokensBalance < TOKEN_COST) {
+      toast.error("You're out of tokens! Upgrade to keep chatting.", {
+        action: {
+          label: "Upgrade",
+          onClick: () => navigate("/"),
+        },
+      });
+      return;
+    }
+
     // Safe word check
     if (input.trim().toUpperCase() === safeWord.toUpperCase()) {
-      toast.info("🛑 Safe word activated. All toy activity stopped. You're safe.");
+      toast.info("🛑 Safe word activated. All activity stopped. You're safe.");
       setInput("");
       const safeMsg: ChatMessage = {
         id: Date.now().toString(),
@@ -127,7 +159,6 @@ const Chat = () => {
     setLoading(true);
 
     try {
-      // Save user message to DB
       await supabase.from("chat_messages").insert({
         user_id: user.id,
         companion_id: companion.id,
@@ -135,7 +166,6 @@ const Chat = () => {
         content: userMsg.content,
       });
 
-      // Build conversation context (last 20 messages for memory)
       const contextMessages = messages.slice(-20).map((m) => ({
         role: m.role,
         content: m.content,
@@ -164,7 +194,6 @@ const Chat = () => {
 
       setMessages((prev) => [...prev, assistantMsg]);
 
-      // Save assistant message to DB
       await supabase.from("chat_messages").insert({
         user_id: user.id,
         companion_id: companion.id,
@@ -172,6 +201,9 @@ const Chat = () => {
         content: cleanText,
         lovense_command: command,
       });
+
+      // Deduct tokens after successful response
+      await deductTokens(user.id);
     } catch (err: any) {
       console.error("Chat error:", err);
       toast.error("Failed to get response. Check your connection.");
@@ -217,6 +249,12 @@ const Chat = () => {
           <p className="text-xs text-primary truncate">{companion.tagline}</p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-xs">
+            <Flame className="h-3 w-3 text-primary" />
+            <span className={`font-medium ${tokensBalance < 100 ? "text-destructive" : "text-foreground"}`}>
+              {tokensBalance.toLocaleString()}
+            </span>
+          </div>
           <button
             onClick={() => {
               toast.info(`🛑 Safe word: "${safeWord}" — Type it anytime to stop everything.`);
@@ -228,6 +266,21 @@ const Chat = () => {
           </button>
         </div>
       </div>
+
+      {/* Token warning */}
+      {tokensBalance < 100 && tokensBalance > 0 && (
+        <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-2 text-center text-xs text-destructive">
+          ⚠️ Low tokens! You have {tokensBalance} left.{" "}
+          <Link to="/" className="underline font-medium">Upgrade for more</Link>
+        </div>
+      )}
+
+      {tokensBalance <= 0 && (
+        <div className="bg-destructive/20 border-b border-destructive/30 px-4 py-3 text-center text-sm text-destructive font-medium">
+          🔒 Out of tokens!{" "}
+          <Link to="/" className="underline">Upgrade now</Link> to keep chatting.
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
@@ -282,20 +335,20 @@ const Chat = () => {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={`Message ${companion.name}...`}
+            placeholder={tokensBalance <= 0 ? "Out of tokens — upgrade to continue" : `Message ${companion.name}...`}
             className="flex-1 px-4 py-3 rounded-xl bg-muted border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
-            disabled={loading}
+            disabled={loading || tokensBalance <= 0}
           />
           <button
             type="submit"
-            disabled={loading || !input.trim()}
+            disabled={loading || !input.trim() || tokensBalance <= 0}
             className="px-4 py-3 rounded-xl bg-primary text-primary-foreground disabled:opacity-30 hover:glow-pink transition-all"
           >
             <Send className="h-5 w-5" />
           </button>
         </form>
         <p className="text-[10px] text-muted-foreground text-center mt-2">
-          Safe word: <span className="text-destructive font-bold">{safeWord}</span> · All content is AI fantasy · 18+ only
+          Safe word: <span className="text-destructive font-bold">{safeWord}</span> · {TOKEN_COST} tokens per message · 18+ only
         </p>
       </div>
     </div>
