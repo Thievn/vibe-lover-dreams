@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { getCompanionById } from "@/data/companions";
+import { companionImages } from "@/data/companionImages";
 import Navbar from "@/components/Navbar";
 import ParticleBackground from "@/components/ParticleBackground";
 import { motion } from "framer-motion";
