@@ -1,24 +1,39 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { getCompanionById } from "@/data/companions";
+import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { companionImages } from "@/data/companionImages";
 import Navbar from "@/components/Navbar";
 import ParticleBackground from "@/components/ParticleBackground";
 import { motion } from "framer-motion";
-import { ArrowLeft, Heart, MessageCircle, Sparkles } from "lucide-react";
+import { ArrowLeft, Heart, MessageCircle, Sparkles, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 
 const CompanionProfile = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const companion = getCompanionById(id || "");
+  const { data: dbCompanions, isLoading } = useCompanions();
   const [user, setUser] = useState<any>(null);
+
+  const dbComp = useMemo(
+    () => (dbCompanions || []).find((c) => c.id === id),
+    [dbCompanions, id]
+  );
+  const companion = dbComp ? dbToCompanion(dbComp) : null;
+  const imageUrl = dbComp?.image_url || (id ? companionImages[id] : undefined);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
     });
   }, []);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!companion) {
     return (
@@ -62,8 +77,8 @@ const CompanionProfile = () => {
                 background: `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
               }}
             >
-              {companionImages[companion.id] ? (
-                <img src={companionImages[companion.id]} alt={companion.name} className="w-full h-full object-cover object-top" />
+              {imageUrl ? (
+                <img src={imageUrl} alt={companion.name} className="w-full h-full object-cover object-top" />
               ) : (
                 <span className="text-8xl font-gothic font-bold text-white/90 drop-shadow-lg">
                   {companion.name.charAt(0)}
@@ -95,7 +110,6 @@ const CompanionProfile = () => {
 
           {/* Details */}
           <div className="grid md:grid-cols-2 gap-6">
-            {/* Appearance */}
             <div className="rounded-xl border border-border bg-card p-5">
               <h3 className="font-gothic text-lg font-bold text-foreground mb-3 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
@@ -104,7 +118,6 @@ const CompanionProfile = () => {
               <p className="text-sm text-muted-foreground leading-relaxed">{companion.appearance}</p>
             </div>
 
-            {/* Personality */}
             <div className="rounded-xl border border-border bg-card p-5">
               <h3 className="font-gothic text-lg font-bold text-foreground mb-3 flex items-center gap-2">
                 <Heart className="h-4 w-4 text-primary" />
@@ -113,7 +126,6 @@ const CompanionProfile = () => {
               <p className="text-sm text-muted-foreground leading-relaxed">{companion.personality}</p>
             </div>
 
-            {/* Kinks */}
             <div className="rounded-xl border border-border bg-card p-5">
               <h3 className="font-gothic text-lg font-bold text-foreground mb-3">Kinks & Interests</h3>
               <div className="flex flex-wrap gap-2">
@@ -125,7 +137,6 @@ const CompanionProfile = () => {
               </div>
             </div>
 
-            {/* Tags */}
             <div className="rounded-xl border border-border bg-card p-5">
               <h3 className="font-gothic text-lg font-bold text-foreground mb-3">Tags</h3>
               <div className="flex flex-wrap gap-2">
