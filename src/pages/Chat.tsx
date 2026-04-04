@@ -23,7 +23,7 @@ const Chat = () => {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const [safeWord] = useState(() => localStorage.getItem("vicevibe-safeword") || "RED");
+  const [safeWord] = useState(() => localStorage.getItem("lustforge-safeword") || "RED");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

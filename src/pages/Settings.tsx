@@ -51,7 +51,7 @@ const Settings = () => {
   };
 
   const handleResetAgeGate = () => {
-    localStorage.removeItem("vicevibe-age-verified");
+    localStorage.removeItem("lustforge-age-verified");
     toast.success("Age gate reset. You'll be asked to verify again.");
     navigate("/");
   };

@@ -58,7 +58,7 @@ const Auth = () => {
 
         <div className="rounded-2xl border border-border bg-card p-8 glow-purple">
           <h1 className="font-gothic text-2xl font-bold text-center gradient-vice-text mb-1">
-            {isLogin ? "Welcome Back" : "Join ViceVibe"}
+            {isLogin ? "Welcome Back" : "Join LustForge"}
           </h1>
           <p className="text-center text-muted-foreground text-sm mb-6">
             {isLogin ? "Sign in to continue your fantasies" : "Create your account to begin"}

@@ -8,7 +8,6 @@ const HeroSection = () => {
 
   return (
     <section className="relative min-h-[80vh] flex items-center justify-center px-4 overflow-hidden">
-      {/* Gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-background pointer-events-none" />
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
 
@@ -31,7 +30,7 @@ const HeroSection = () => {
           transition={{ delay: 0.15, duration: 0.6 }}
           className="font-gothic text-4xl sm:text-5xl md:text-6xl font-bold mb-4 leading-tight"
         >
-          <span className="gradient-vice-text">ViceVibe</span>{" "}
+          <span className="gradient-vice-text">LustForge</span>{" "}
           <span className="text-foreground">AI</span>
         </motion.h1>
 
@@ -41,7 +40,7 @@ const HeroSection = () => {
           transition={{ delay: 0.3, duration: 0.6 }}
           className="text-lg sm:text-xl text-muted-foreground mb-2 italic"
         >
-          Where Fantasies Take Control
+          Forge Your Fantasies
         </motion.p>
 
         <motion.p
@@ -50,9 +49,9 @@ const HeroSection = () => {
           transition={{ delay: 0.4, duration: 0.6 }}
           className="text-sm text-muted-foreground mb-8 max-w-xl mx-auto"
         >
-          AI companions that talk, tease, and make your toys vibrate.
-          Immersive erotic roleplay with real-time Lovense integration — 
-          every gender, every fantasy, zero judgment.
+          AI companions that talk, tease, and connect to your smart toys.
+          Immersive roleplay with real-time device integration —
+          every persona, every scenario, zero judgment.
         </motion.p>
 
         <motion.div
@@ -73,7 +72,7 @@ const HeroSection = () => {
             className="px-8 py-3 rounded-xl border border-border bg-muted/50 text-foreground font-medium hover:border-primary/50 transition-colors inline-flex items-center gap-2"
           >
             <Zap className="h-5 w-5 text-electric-teal" />
-            Connect Your Toy
+            Connect Your Device
           </button>
         </motion.div>
 
@@ -89,7 +88,7 @@ const HeroSection = () => {
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-electric-teal">∞</div>
-            <div>Fantasies</div>
+            <div>Scenarios</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-velvet-purple">🔒</div>
