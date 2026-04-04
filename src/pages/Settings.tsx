@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import ParticleBackground from "@/components/ParticleBackground";
 import { motion } from "framer-motion";
-import { Save, Trash2, Shield, Loader2 } from "lucide-react";
+import { Save, Trash2, Shield, Loader2, Wifi } from "lucide-react";
 import { toast } from "sonner";
 
 const Settings = () => {
@@ -12,6 +12,8 @@ const Settings = () => {
   const [user, setUser] = useState<any>(null);
   const [safeWord, setSafeWord] = useState(() => localStorage.getItem("lustforge-safeword") || "RED");
   const [intensityLimit, setIntensityLimit] = useState(() => parseInt(localStorage.getItem("lustforge-intensity") || "100"));
+  const [deviceUid, setDeviceUid] = useState("");
+  const [savingDevice, setSavingDevice] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -21,8 +23,33 @@ const Settings = () => {
         return;
       }
       setUser(session.user);
+      loadDeviceUid(session.user.id);
     });
   }, []);
+
+  const loadDeviceUid = async (userId: string) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("device_uid")
+      .eq("user_id", userId)
+      .single();
+    if (data?.device_uid) setDeviceUid(data.device_uid);
+  };
+
+  const handleSaveDevice = async () => {
+    if (!user) return;
+    setSavingDevice(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ device_uid: deviceUid.trim() || null })
+      .eq("user_id", user.id);
+    setSavingDevice(false);
+    if (error) {
+      toast.error("Failed to save device UID");
+    } else {
+      toast.success(deviceUid.trim() ? "Device connected!" : "Device disconnected");
+    }
+  };
 
   const handleSave = () => {
     setSaving(true);
