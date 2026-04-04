@@ -41,3 +41,8 @@ export const companionImages: Record<string, string> = {
   "jaxson-voss": jaxsonVoss,
   "sage-evergreen": sageEvergreen,
 };
+
+// Placeholder gradient for companions without portraits yet
+export const getCompanionImage = (id: string): string | null => {
+  return companionImages[id] || null;
+};
