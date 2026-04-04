@@ -151,7 +151,7 @@ const Admin = () => {
 
           {/* Tabs */}
           <div className="flex gap-2 mb-6">
-            {(["users", "characters"] as const).map((tab) => (
+            {(["companions", "users", "characters"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -161,7 +161,7 @@ const Admin = () => {
                     : "bg-muted border border-border text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {tab === "users" ? "Users" : "Characters"}
+                {tab === "users" ? "Users" : tab === "characters" ? "Custom Characters" : "Companions"}
               </button>
             ))}
           </div>
