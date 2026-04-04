@@ -1,16 +1,39 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState, useEffect } from "react";
+import AgeGate from "@/components/AgeGate";
+import HeroSection from "@/components/HeroSection";
+import CompanionGallery from "@/components/CompanionGallery";
+import ParticleBackground from "@/components/ParticleBackground";
+import Navbar from "@/components/Navbar";
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+const Index = () => {
+  const [ageVerified, setAgeVerified] = useState(() => {
+    return localStorage.getItem("vicevibe-age-verified") === "true";
+  });
+
+  if (!ageVerified) {
+    return <AgeGate onVerified={() => setAgeVerified(true)} />;
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div className="min-h-screen bg-background relative">
+      <ParticleBackground />
+      <Navbar />
+      <HeroSection />
+      <CompanionGallery />
+
+      {/* Footer disclaimer */}
+      <footer className="border-t border-border py-8 px-4 text-center">
+        <p className="text-xs text-muted-foreground max-w-2xl mx-auto">
+          ViceVibe AI is strictly for adults 18+. All characters are AI-generated fiction. 
+          All interactions are consensual fantasy. Safe-word support is available in every session. 
+          We do not store explicit chat logs on our servers. Your privacy is paramount.
+        </p>
+        <p className="text-xs text-muted-foreground mt-2">
+          © 2026 ViceVibe AI · <span className="text-primary">Premium</span> coming soon
+        </p>
+      </footer>
     </div>
   );
 };
-
-const Index = PlaceholderIndex;
 
 export default Index;
