@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import type { Companion } from "@/data/companions";
+import { companionImages } from "@/data/companionImages";
 
 interface CompanionCardProps {
   companion: Companion;
@@ -9,6 +10,7 @@ interface CompanionCardProps {
 
 const CompanionCard = ({ companion, index }: CompanionCardProps) => {
   const navigate = useNavigate();
+  const image = companionImages[companion.id];
 
   return (
     <motion.div
@@ -18,17 +20,27 @@ const CompanionCard = ({ companion, index }: CompanionCardProps) => {
       onClick={() => navigate(`/companion/${companion.id}`)}
       className="group cursor-pointer rounded-xl border border-border bg-card overflow-hidden hover:border-primary/50 transition-all duration-300 hover:glow-pink"
     >
-      {/* Avatar gradient */}
       <div
         className="relative h-48 flex items-center justify-center overflow-hidden"
         style={{
           background: `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
         }}
       >
-        <div className="absolute inset-0 bg-background/20" />
-        <span className="relative text-5xl font-gothic font-bold text-white/90 drop-shadow-lg">
-          {companion.name.charAt(0)}
-        </span>
+        {image ? (
+          <img
+            src={image}
+            alt={companion.name}
+            loading="lazy"
+            className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+          />
+        ) : (
+          <>
+            <div className="absolute inset-0 bg-background/20" />
+            <span className="relative text-5xl font-gothic font-bold text-white/90 drop-shadow-lg">
+              {companion.name.charAt(0)}
+            </span>
+          </>
+        )}
         <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full bg-background/70 text-[10px] text-muted-foreground backdrop-blur-sm">
           {companion.role}
         </div>
