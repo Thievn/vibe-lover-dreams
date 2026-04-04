@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Settings, LogIn, LogOut, MessageCircle } from "lucide-react";
+import { Settings, LogIn, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
@@ -27,7 +27,7 @@ const Navbar = () => {
     <nav className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link to="/" className="font-gothic text-xl font-bold gradient-vice-text">
-          ViceVibe
+          LustForge
         </Link>
 
         <div className="flex items-center gap-2">

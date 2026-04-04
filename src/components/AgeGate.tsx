@@ -11,7 +11,7 @@ const AgeGate = ({ onVerified }: AgeGateProps) => {
 
   const handleEnter = () => {
     if (checked) {
-      localStorage.setItem("vicevibe-age-verified", "true");
+      localStorage.setItem("lustforge-age-verified", "true");
       onVerified();
     }
   };
@@ -35,7 +35,7 @@ const AgeGate = ({ onVerified }: AgeGateProps) => {
             Age Verification Required
           </h1>
           <p className="text-muted-foreground text-sm mb-6">
-            ViceVibe AI contains explicit adult content including erotic roleplay and sexual themes. 
+            LustForge AI contains mature adult content including interactive roleplay and adult themes.
             You must be 18 years or older to enter.
           </p>
 
@@ -47,8 +47,8 @@ const AgeGate = ({ onVerified }: AgeGateProps) => {
               className="mt-1 h-5 w-5 rounded border-border accent-primary"
             />
             <span className="text-sm text-foreground">
-              I confirm I am <strong className="text-primary">18 years of age or older</strong> and I consent to viewing explicit adult content. 
-              I understand all content is AI-generated fantasy and not real.
+              I confirm I am <strong className="text-primary">18 years of age or older</strong> and I consent to viewing adult content.
+              I understand all content is AI-generated fiction and not real.
             </span>
           </label>
 
@@ -57,11 +57,11 @@ const AgeGate = ({ onVerified }: AgeGateProps) => {
             disabled={!checked}
             className="w-full py-3 rounded-xl font-bold text-lg transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed bg-primary text-primary-foreground hover:glow-pink"
           >
-            Enter ViceVibe AI
+            Enter LustForge AI
           </button>
 
           <p className="mt-4 text-xs text-muted-foreground">
-            By entering, you agree to our Terms of Service and Privacy Policy. 
+            By entering, you agree to our Terms of Service and Privacy Policy.
             All interactions are private. Safe-word support is available in every chat.
           </p>
         </motion.div>

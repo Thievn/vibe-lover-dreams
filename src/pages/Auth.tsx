@@ -53,12 +53,12 @@ const Auth = () => {
           className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm mb-6 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to ViceVibe
+          Back to LustForge
         </button>
 
         <div className="rounded-2xl border border-border bg-card p-8 glow-purple">
           <h1 className="font-gothic text-2xl font-bold text-center gradient-vice-text mb-1">
-            {isLogin ? "Welcome Back" : "Join ViceVibe"}
+            {isLogin ? "Welcome Back" : "Join LustForge"}
           </h1>
           <p className="text-center text-muted-foreground text-sm mb-6">
             {isLogin ? "Sign in to continue your fantasies" : "Create your account to begin"}

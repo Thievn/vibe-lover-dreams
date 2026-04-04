@@ -10,8 +10,8 @@ import { toast } from "sonner";
 const Settings = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
-  const [safeWord, setSafeWord] = useState(() => localStorage.getItem("vicevibe-safeword") || "RED");
-  const [intensityLimit, setIntensityLimit] = useState(() => parseInt(localStorage.getItem("vicevibe-intensity") || "100"));
+  const [safeWord, setSafeWord] = useState(() => localStorage.getItem("lustforge-safeword") || "RED");
+  const [intensityLimit, setIntensityLimit] = useState(() => parseInt(localStorage.getItem("lustforge-intensity") || "100"));
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -26,8 +26,8 @@ const Settings = () => {
 
   const handleSave = () => {
     setSaving(true);
-    localStorage.setItem("vicevibe-safeword", safeWord);
-    localStorage.setItem("vicevibe-intensity", intensityLimit.toString());
+    localStorage.setItem("lustforge-safeword", safeWord);
+    localStorage.setItem("lustforge-intensity", intensityLimit.toString());
     setTimeout(() => {
       setSaving(false);
       toast.success("Settings saved!");
@@ -51,7 +51,7 @@ const Settings = () => {
   };
 
   const handleResetAgeGate = () => {
-    localStorage.removeItem("vicevibe-age-verified");
+    localStorage.removeItem("lustforge-age-verified");
     toast.success("Age gate reset. You'll be asked to verify again.");
     navigate("/");
   };
