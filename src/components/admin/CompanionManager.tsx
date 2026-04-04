@@ -1,14 +1,21 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAdminCompanions, type DbCompanion } from "@/hooks/useCompanions";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Search, Save, RefreshCw, Plus, Eye, EyeOff, ChevronDown, ChevronUp,
-  Loader2, X, ImageIcon, Palette, ArrowLeft
+  Loader2, X, ImageIcon, Palette, ArrowLeft, Sparkles, MessageSquare, Send, Check, XCircle
 } from "lucide-react";
 
 type ViewMode = "list" | "edit" | "create";
+
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  updates?: Array<{ id: string; fields: Record<string, any> }>;
+  applied?: boolean;
+}
 
 const emptyCompanion: Omit<DbCompanion, "created_at" | "updated_at"> = {
   id: "",
@@ -42,6 +49,22 @@ const CompanionManager = () => {
   const [generating, setGenerating] = useState<Record<string, boolean>>({});
   const [createData, setCreateData] = useState({ ...emptyCompanion, id: `custom-${Date.now()}` });
   const [creatingLoading, setCreatingLoading] = useState(false);
+
+  // Auto-fill state
+  const [autoFillPrompt, setAutoFillPrompt] = useState("");
+  const [autoFilling, setAutoFilling] = useState(false);
+
+  // Admin chat state
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [applyingUpdates, setApplyingUpdates] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
 
   if (isLoading) {
     return (
@@ -152,6 +175,7 @@ const CompanionManager = () => {
 
   const openCreate = () => {
     setCreateData({ ...emptyCompanion, id: `custom-${Date.now()}` });
+    setAutoFillPrompt("");
     setViewMode("create");
   };
 
@@ -197,6 +221,130 @@ const CompanionManager = () => {
     }
   };
 
+  // Auto-fill from prompt using Grok
+  const autoFillFromPrompt = async () => {
+    if (!autoFillPrompt.trim()) {
+      toast.error("Paste a companion profile first.");
+      return;
+    }
+    setAutoFilling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("parse-companion-prompt", {
+        body: { prompt: autoFillPrompt },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      const fields = data.fields;
+      if (!fields) throw new Error("No fields returned");
+
+      // Merge into createData — only fill blank/default values
+      setCreateData((prev) => {
+        const updated = { ...prev };
+        if (fields.name && !prev.name) updated.name = fields.name;
+        if (fields.tagline && !prev.tagline) updated.tagline = fields.tagline;
+        if (fields.gender && prev.gender === "Female") updated.gender = fields.gender;
+        if (fields.orientation && prev.orientation === "Bisexual") updated.orientation = fields.orientation;
+        if (fields.role && prev.role === "Switch") updated.role = fields.role;
+        if (fields.tags?.length && prev.tags.length === 0) updated.tags = fields.tags;
+        if (fields.kinks?.length && prev.kinks.length === 0) updated.kinks = fields.kinks;
+        if (fields.appearance && !prev.appearance) updated.appearance = fields.appearance;
+        if (fields.personality && !prev.personality) updated.personality = fields.personality;
+        if (fields.bio && !prev.bio) updated.bio = fields.bio;
+        if (fields.system_prompt && !prev.system_prompt) updated.system_prompt = fields.system_prompt;
+        if (fields.fantasy_starters?.length && (prev.fantasy_starters as any[]).length === 0) updated.fantasy_starters = fields.fantasy_starters;
+        if (fields.gradient_from && prev.gradient_from === "#7B2D8E") updated.gradient_from = fields.gradient_from;
+        if (fields.gradient_to && prev.gradient_to === "#FF2D7B") updated.gradient_to = fields.gradient_to;
+        if (fields.image_prompt && !prev.image_prompt) updated.image_prompt = fields.image_prompt;
+        // Auto-generate an ID from name if still default
+        if (fields.name && prev.id.startsWith("custom-")) {
+          updated.id = fields.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        }
+        return updated;
+      });
+
+      toast.success("Fields auto-filled from prompt!");
+    } catch (err: any) {
+      toast.error("Auto-fill failed: " + err.message);
+    } finally {
+      setAutoFilling(false);
+    }
+  };
+
+  // Admin chat with Grok
+  const sendChatMessage = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+    const userMsg = chatInput.trim();
+    setChatInput("");
+    setChatMessages((prev) => [...prev, { role: "user", content: userMsg }]);
+    setChatLoading(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-companion-chat", {
+        body: {
+          message: userMsg,
+          companions: (companions || []).map((c) => ({
+            id: c.id, name: c.name, tagline: c.tagline, gender: c.gender,
+            role: c.role, tags: c.tags, is_active: c.is_active,
+          })),
+          chatHistory: chatMessages.map((m) => ({ role: m.role, content: m.content })),
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      if (data.type === "updates") {
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: data.summary || "Ready to apply changes.",
+            updates: data.updates,
+            applied: false,
+          },
+        ]);
+      } else {
+        setChatMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: data.message || "Done." },
+        ]);
+      }
+    } catch (err: any) {
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: `Error: ${err.message}` },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const applyUpdates = async (msgIndex: number) => {
+    const msg = chatMessages[msgIndex];
+    if (!msg?.updates || msg.applied) return;
+    setApplyingUpdates(true);
+
+    try {
+      for (const update of msg.updates) {
+        const { error } = await supabase
+          .from("companions")
+          .update(update.fields as any)
+          .eq("id", update.id);
+        if (error) throw new Error(`Failed to update ${update.id}: ${error.message}`);
+      }
+      setChatMessages((prev) =>
+        prev.map((m, i) => (i === msgIndex ? { ...m, applied: true } : m))
+      );
+      queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
+      queryClient.invalidateQueries({ queryKey: ["companions"] });
+      toast.success("Changes applied!");
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setApplyingUpdates(false);
+    }
+  };
+
   const hasChanges = (id: string) => Object.keys(getEdit(id)).length > 0;
 
   // CREATE VIEW
@@ -207,7 +355,33 @@ const CompanionManager = () => {
           <ArrowLeft className="h-4 w-4" /> Back to list
         </button>
         <h2 className="text-lg font-bold text-foreground">Create New Companion</h2>
-        <p className="text-xs text-muted-foreground">Paste a full companion profile below. All fields are editable.</p>
+
+        {/* Auto-Fill from Prompt */}
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <h4 className="text-sm font-bold text-foreground">Auto-Fill from Prompt</h4>
+          </div>
+          <p className="text-xs text-muted-foreground">Paste a full companion profile from Grok or anywhere else. Grok will parse it and fill in the fields below.</p>
+          <textarea
+            value={autoFillPrompt}
+            onChange={(e) => setAutoFillPrompt(e.target.value)}
+            rows={6}
+            placeholder="Paste your full companion prompt/profile here..."
+            className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm focus:outline-none focus:border-primary transition-colors resize-y"
+          />
+          <button
+            onClick={autoFillFromPrompt}
+            disabled={autoFilling || !autoFillPrompt.trim()}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {autoFilling ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Parsing with Grok...</>
+            ) : (
+              <><Sparkles className="h-4 w-4" /> Auto-Fill Fields</>
+            )}
+          </button>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left: Portrait & Appearance */}
@@ -251,7 +425,7 @@ const CompanionManager = () => {
             <Field label="Kinks (comma-separated)" value={createData.kinks.join(", ")} onChange={(v) => setCreateData(p => ({ ...p, kinks: v.split(",").map(s => s.trim()).filter(Boolean) }))} />
             <TextArea label="Bio" value={createData.bio} onChange={(v) => setCreateData(p => ({ ...p, bio: v }))} rows={3} />
             <TextArea label="Personality" value={createData.personality} onChange={(v) => setCreateData(p => ({ ...p, personality: v }))} rows={3} />
-            <TextArea label="System Prompt" value={createData.system_prompt} onChange={(v) => setCreateData(p => ({ ...p, system_prompt: v }))} rows={6} placeholder="Paste the full system prompt here..." />
+            <TextArea label="Companion Prompt" value={createData.system_prompt} onChange={(v) => setCreateData(p => ({ ...p, system_prompt: v }))} rows={6} placeholder="Paste the full companion prompt here..." />
           </div>
         </div>
 
@@ -361,7 +535,7 @@ const CompanionManager = () => {
             <Field label="Kinks (comma-separated)" value={(val("kinks") as string[]).join(", ")} onChange={(v) => setField(companion.id, "kinks", v.split(",").map(s => s.trim()).filter(Boolean))} />
             <TextArea label="Bio" value={val("bio") as string} onChange={(v) => setField(companion.id, "bio", v)} rows={3} />
             <TextArea label="Personality" value={val("personality") as string} onChange={(v) => setField(companion.id, "personality", v)} rows={3} />
-            <TextArea label="System Prompt" value={val("system_prompt") as string} onChange={(v) => setField(companion.id, "system_prompt", v)} rows={6} />
+            <TextArea label="Companion Prompt" value={val("system_prompt") as string} onChange={(v) => setField(companion.id, "system_prompt", v)} rows={6} />
           </div>
         </div>
 
@@ -446,6 +620,110 @@ const CompanionManager = () => {
       {filtered.length === 0 && (
         <p className="text-center text-muted-foreground py-12">No companions match your search.</p>
       )}
+
+      {/* Admin Chat Panel */}
+      <div className="fixed bottom-4 right-4 z-50">
+        {chatOpen ? (
+          <div className="w-96 h-[500px] rounded-xl border border-primary/30 bg-card shadow-2xl flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/50">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-primary" />
+                <span className="text-sm font-bold text-foreground">Grok Admin Chat</span>
+              </div>
+              <button onClick={() => setChatOpen(false)} className="p-1 rounded hover:bg-muted transition-colors">
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+              {chatMessages.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-8">
+                  Ask Grok to modify companions.<br />
+                  e.g. "Change Lilith's tagline to..."
+                </p>
+              )}
+              {chatMessages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+                    msg.role === "user"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-foreground"
+                  }`}>
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                    {msg.updates && !msg.applied && (
+                      <div className="mt-2 pt-2 border-t border-border/50 space-y-1">
+                        <p className="text-[10px] font-bold opacity-70">
+                          {msg.updates.length} update{msg.updates.length > 1 ? "s" : ""} ready
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => applyUpdates(i)}
+                            disabled={applyingUpdates}
+                            className="flex items-center gap-1 px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs hover:bg-green-500/30 transition-colors disabled:opacity-50"
+                          >
+                            {applyingUpdates ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                            Apply
+                          </button>
+                          <button
+                            onClick={() => setChatMessages(prev => prev.map((m, idx) => idx === i ? { ...m, updates: undefined } : m))}
+                            className="flex items-center gap-1 px-2 py-1 rounded bg-destructive/20 text-destructive text-xs hover:bg-destructive/30 transition-colors"
+                          >
+                            <XCircle className="h-3 w-3" /> Dismiss
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {msg.applied && (
+                      <p className="text-[10px] text-green-400 mt-1 flex items-center gap-1">
+                        <Check className="h-3 w-3" /> Applied
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-muted rounded-lg px-3 py-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="px-4 py-3 border-t border-border">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendChatMessage()}
+                  placeholder="Tell Grok what to change..."
+                  className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm focus:outline-none focus:border-primary transition-colors"
+                />
+                <button
+                  onClick={sendChatMessage}
+                  disabled={chatLoading || !chatInput.trim()}
+                  className="px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setChatOpen(true)}
+            className="p-4 rounded-full bg-primary text-primary-foreground shadow-lg hover:opacity-90 transition-opacity"
+            title="Open Grok Admin Chat"
+          >
+            <MessageSquare className="h-5 w-5" />
+          </button>
+        )}
+      </div>
     </div>
   );
 };

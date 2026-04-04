@@ -115,35 +115,77 @@ export type Database = {
       }
       custom_characters: {
         Row: {
+          appearance: string
           approved: boolean
           avatar_url: string | null
+          bio: string
           created_at: string
+          fantasy_starters: Json
+          gender: string
+          gradient_from: string
+          gradient_to: string
           id: string
+          image_prompt: string | null
+          image_url: string | null
           is_public: boolean
+          kinks: string[]
           name: string
+          orientation: string
           personality: string
+          role: string
+          system_prompt: string
+          tagline: string
+          tags: string[]
           updated_at: string
           user_id: string
         }
         Insert: {
+          appearance?: string
           approved?: boolean
           avatar_url?: string | null
+          bio?: string
           created_at?: string
+          fantasy_starters?: Json
+          gender?: string
+          gradient_from?: string
+          gradient_to?: string
           id?: string
+          image_prompt?: string | null
+          image_url?: string | null
           is_public?: boolean
+          kinks?: string[]
           name: string
+          orientation?: string
           personality?: string
+          role?: string
+          system_prompt?: string
+          tagline?: string
+          tags?: string[]
           updated_at?: string
           user_id: string
         }
         Update: {
+          appearance?: string
           approved?: boolean
           avatar_url?: string | null
+          bio?: string
           created_at?: string
+          fantasy_starters?: Json
+          gender?: string
+          gradient_from?: string
+          gradient_to?: string
           id?: string
+          image_prompt?: string | null
+          image_url?: string | null
           is_public?: boolean
+          kinks?: string[]
           name?: string
+          orientation?: string
           personality?: string
+          role?: string
+          system_prompt?: string
+          tagline?: string
+          tags?: string[]
           updated_at?: string
           user_id?: string
         }
