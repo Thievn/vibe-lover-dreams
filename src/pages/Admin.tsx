@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import ParticleBackground from "@/components/ParticleBackground";
 import { motion } from "framer-motion";
-import { Shield, Users, Sparkles, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Shield, Users, Sparkles, CheckCircle, XCircle, Loader2, Palette } from "lucide-react";
+import CompanionManager from "@/components/admin/CompanionManager";
 import { toast } from "sonner";
 
 interface Profile {
