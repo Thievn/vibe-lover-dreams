@@ -10,8 +10,8 @@ import { toast } from "sonner";
 const Settings = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
-  const [safeWord, setSafeWord] = useState(() => localStorage.getItem("vicevibe-safeword") || "RED");
-  const [intensityLimit, setIntensityLimit] = useState(() => parseInt(localStorage.getItem("vicevibe-intensity") || "100"));
+  const [safeWord, setSafeWord] = useState(() => localStorage.getItem("lustforge-safeword") || "RED");
+  const [intensityLimit, setIntensityLimit] = useState(() => parseInt(localStorage.getItem("lustforge-intensity") || "100"));
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
