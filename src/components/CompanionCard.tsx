@@ -6,11 +6,12 @@ import { companionImages } from "@/data/companionImages";
 interface CompanionCardProps {
   companion: Companion;
   index: number;
+  imageOverride?: string;
 }
 
-const CompanionCard = ({ companion, index }: CompanionCardProps) => {
+const CompanionCard = ({ companion, index, imageOverride }: CompanionCardProps) => {
   const navigate = useNavigate();
-  const image = companionImages[companion.id];
+  const image = imageOverride || companionImages[companion.id];
 
   return (
     <motion.div
