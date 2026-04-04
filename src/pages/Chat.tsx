@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getCompanionById } from "@/data/companions";
+import { companionImages } from "@/data/companionImages";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import { ArrowLeft, Send, Loader2, Volume2, VolumeX, Zap, AlertOctagon } from "lucide-react";
@@ -198,14 +199,18 @@ const Chat = () => {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div
-          className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+          className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 overflow-hidden"
           style={{
             background: `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
           }}
         >
-          <span className="text-lg font-gothic font-bold text-white/90">
-            {companion.name.charAt(0)}
-          </span>
+          {companionImages[companion.id] ? (
+            <img src={companionImages[companion.id]} alt={companion.name} className="w-full h-full object-cover object-top" />
+          ) : (
+            <span className="text-lg font-gothic font-bold text-white/90">
+              {companion.name.charAt(0)}
+            </span>
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="font-bold text-foreground text-sm truncate">{companion.name}</h2>

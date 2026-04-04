@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { getCompanionById } from "@/data/companions";
+import { companionImages } from "@/data/companionImages";
 import Navbar from "@/components/Navbar";
 import ParticleBackground from "@/components/ParticleBackground";
 import { motion } from "framer-motion";
@@ -56,14 +57,18 @@ const CompanionProfile = () => {
           {/* Header */}
           <div className="flex flex-col md:flex-row gap-6 mb-8">
             <div
-              className="w-full md:w-64 h-64 rounded-2xl flex items-center justify-center shrink-0"
+              className="w-full md:w-64 h-64 rounded-2xl flex items-center justify-center shrink-0 overflow-hidden"
               style={{
                 background: `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
               }}
             >
-              <span className="text-8xl font-gothic font-bold text-white/90 drop-shadow-lg">
-                {companion.name.charAt(0)}
-              </span>
+              {companionImages[companion.id] ? (
+                <img src={companionImages[companion.id]} alt={companion.name} className="w-full h-full object-cover object-top" />
+              ) : (
+                <span className="text-8xl font-gothic font-bold text-white/90 drop-shadow-lg">
+                  {companion.name.charAt(0)}
+                </span>
+              )}
             </div>
 
             <div className="flex-1">
