@@ -166,6 +166,9 @@ const Admin = () => {
             ))}
           </div>
 
+          {/* Companions Tab */}
+          {activeTab === "companions" && <CompanionManager />}
+
           {/* Users Tab */}
           {activeTab === "users" && (
             <div className="rounded-xl border border-border bg-card overflow-hidden">
