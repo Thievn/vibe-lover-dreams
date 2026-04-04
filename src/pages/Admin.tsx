@@ -33,7 +33,7 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [characters, setCharacters] = useState<CustomCharacter[]>([]);
-  const [activeTab, setActiveTab] = useState<"users" | "characters">("users");
+  const [activeTab, setActiveTab] = useState<"users" | "characters" | "companions">("companions");
 
   useEffect(() => {
     checkAdmin();
