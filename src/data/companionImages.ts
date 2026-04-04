@@ -8,6 +8,7 @@ import theoSpark from "@/assets/companions/theo-spark.jpg";
 import ravenNox from "@/assets/companions/raven-nox.jpg";
 import diegoCortez from "@/assets/companions/diego-cortez.jpg";
 import kaiNeon from "@/assets/companions/kai-neon.jpg";
+import biancaRose from "@/assets/companions/bianca-rose.jpg";
 import romanSteel from "@/assets/companions/roman-steel.jpg";
 import priyaSharma from "@/assets/companions/priya-sharma.jpg";
 import elaraMoon from "@/assets/companions/elara-moon.jpg";
@@ -24,6 +25,7 @@ export const companionImages: Record<string, string> = {
   "raven-nox": ravenNox,
   "diego-cortez": diegoCortez,
   "kai-neon": kaiNeon,
+  "bianca-rose": biancaRose,
   "roman-steel": romanSteel,
   "priya-sharma": priyaSharma,
   "elara-moon": elaraMoon,
