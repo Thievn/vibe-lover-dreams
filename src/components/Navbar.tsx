@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Settings, LogIn, LogOut } from "lucide-react";
+import { Settings, LogIn, LogOut, Flame } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
@@ -7,16 +7,32 @@ import type { User } from "@supabase/supabase-js";
 const Navbar = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
+  const [tokens, setTokens] = useState<number | null>(null);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchTokens(session.user.id);
+      } else {
+        setTokens(null);
+      }
     });
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      if (session?.user) fetchTokens(session.user.id);
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  const fetchTokens = async (userId: string) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("tokens_balance")
+      .eq("user_id", userId)
+      .single();
+    if (data) setTokens(data.tokens_balance);
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -33,6 +49,13 @@ const Navbar = () => {
         <div className="flex items-center gap-2">
           {user ? (
             <>
+              {tokens !== null && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted border border-border text-sm">
+                  <Flame className="h-4 w-4 text-primary" />
+                  <span className="font-medium text-foreground">{tokens.toLocaleString()}</span>
+                  <span className="text-muted-foreground hidden sm:inline">tokens</span>
+                </div>
+              )}
               <Link
                 to="/settings"
                 className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
