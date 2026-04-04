@@ -13,6 +13,11 @@ import romanSteel from "@/assets/companions/roman-steel.jpg";
 import priyaSharma from "@/assets/companions/priya-sharma.jpg";
 import elaraMoon from "@/assets/companions/elara-moon.jpg";
 import tylerKane from "@/assets/companions/tyler-kane.jpg";
+import kiraLux from "@/assets/companions/kira-lux.jpg";
+import zaraEclipse from "@/assets/companions/zara-eclipse.jpg";
+import lenaFrost from "@/assets/companions/lena-frost.jpg";
+import jaxsonVoss from "@/assets/companions/jaxson-voss.jpg";
+import sageEvergreen from "@/assets/companions/sage-evergreen.jpg";
 
 export const companionImages: Record<string, string> = {
   "lilith-vesper": lilithVesper,
@@ -30,4 +35,9 @@ export const companionImages: Record<string, string> = {
   "priya-sharma": priyaSharma,
   "elara-moon": elaraMoon,
   "tyler-kane": tylerKane,
+  "kira-lux": kiraLux,
+  "zara-eclipse": zaraEclipse,
+  "lena-frost": lenaFrost,
+  "jaxson-voss": jaxsonVoss,
+  "sage-evergreen": sageEvergreen,
 };
