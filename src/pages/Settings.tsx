@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import ParticleBackground from "@/components/ParticleBackground";
 import { motion } from "framer-motion";
-import { Save, Trash2, Shield, Loader2, Wifi } from "lucide-react";
+import { Save, Trash2, Shield, Loader2, Wifi, WifiOff, QrCode } from "lucide-react";
 import { toast } from "sonner";
 
 const Settings = () => {
@@ -13,8 +13,13 @@ const Settings = () => {
   const [safeWord, setSafeWord] = useState(() => localStorage.getItem("lustforge-safeword") || "RED");
   const [intensityLimit, setIntensityLimit] = useState(() => parseInt(localStorage.getItem("lustforge-intensity") || "100"));
   const [deviceUid, setDeviceUid] = useState("");
-  const [savingDevice, setSavingDevice] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // QR connection state
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+  const [polling, setPolling] = useState(false);
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -25,6 +30,10 @@ const Settings = () => {
       setUser(session.user);
       loadDeviceUid(session.user.id);
     });
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
   }, []);
 
   const loadDeviceUid = async (userId: string) => {
@@ -36,18 +45,81 @@ const Settings = () => {
     if (data?.device_uid) setDeviceUid(data.device_uid);
   };
 
-  const handleSaveDevice = async () => {
+  const handleConnectToy = async () => {
     if (!user) return;
-    setSavingDevice(true);
+    setQrLoading(true);
+    setQrCodeUrl(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("lovense-qrcode", {
+        body: {},
+      });
+
+      if (error) throw error;
+
+      if (data?.qrCodeUrl) {
+        setQrCodeUrl(data.qrCodeUrl);
+        startPolling();
+      } else {
+        toast.error("Could not generate QR code");
+      }
+    } catch (err: any) {
+      console.error("QR code error:", err);
+      toast.error("Failed to generate connection QR code");
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
+  const startPolling = () => {
+    setPolling(true);
+    let attempts = 0;
+    const maxAttempts = 60; // 3 minutes at 3s intervals
+
+    pollRef.current = setInterval(async () => {
+      attempts++;
+      if (attempts >= maxAttempts) {
+        stopPolling();
+        setQrCodeUrl(null);
+        toast.error("Connection timed out. Try again.");
+        return;
+      }
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("device_uid")
+        .eq("user_id", user.id)
+        .single();
+
+      if (data?.device_uid && data.device_uid !== deviceUid) {
+        setDeviceUid(data.device_uid);
+        stopPolling();
+        setQrCodeUrl(null);
+        toast.success("🎉 Device connected successfully!");
+      }
+    }, 3000);
+  };
+
+  const stopPolling = () => {
+    setPolling(false);
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!user) return;
     const { error } = await supabase
       .from("profiles")
-      .update({ device_uid: deviceUid.trim() || null })
+      .update({ device_uid: null })
       .eq("user_id", user.id);
-    setSavingDevice(false);
+
     if (error) {
-      toast.error("Failed to save device UID");
+      toast.error("Failed to disconnect device");
     } else {
-      toast.success(deviceUid.trim() ? "Device connected!" : "Device disconnected");
+      setDeviceUid("");
+      toast.success("Device disconnected");
     }
   };
 
@@ -103,7 +175,7 @@ const Settings = () => {
               <div>
                 <label className="block text-sm text-foreground mb-1">Safe Word</label>
                 <p className="text-xs text-muted-foreground mb-2">
-                  Type this in any chat to immediately stop all activity and toy control.
+                  Type this in any chat to immediately stop all activity and device control.
                 </p>
                 <input
                   type="text"
@@ -116,10 +188,10 @@ const Settings = () => {
 
               <div>
                 <label className="block text-sm text-foreground mb-1">
-                  Toy Intensity Limit: <span className="text-primary font-bold">{intensityLimit}%</span>
+                  Device Intensity Limit: <span className="text-primary font-bold">{intensityLimit}%</span>
                 </label>
                 <p className="text-xs text-muted-foreground mb-2">
-                  Maximum intensity AI companions can send to your toy.
+                  Maximum intensity AI companions can send to your device.
                 </p>
                 <input
                   type="range"
@@ -143,31 +215,71 @@ const Settings = () => {
           {/* Device Connection */}
           <div className="rounded-xl border border-border bg-card p-6 mb-6">
             <h2 className="font-gothic text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-              <Wifi className="h-5 w-5 text-accent" />
+              {deviceUid ? (
+                <Wifi className="h-5 w-5 text-accent" />
+              ) : (
+                <WifiOff className="h-5 w-5 text-muted-foreground" />
+              )}
               Device Connection
             </h2>
-            <p className="text-xs text-muted-foreground mb-3">
-              Enter your device UID from the companion hardware app to enable toy integration.
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={deviceUid}
-                onChange={(e) => setDeviceUid(e.target.value)}
-                placeholder="Enter device UID"
-                className="flex-1 px-4 py-3 rounded-xl bg-muted border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-accent transition-colors"
-              />
-              <button
-                onClick={handleSaveDevice}
-                disabled={savingDevice}
-                className="px-4 py-3 rounded-xl bg-accent text-accent-foreground font-medium text-sm hover:scale-[1.02] transition-transform disabled:opacity-50 flex items-center gap-2"
-              >
-                {savingDevice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Save
-              </button>
-            </div>
-            {deviceUid && (
-              <p className="text-xs text-accent mt-2">✓ Device UID configured</p>
+
+            {deviceUid ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-accent/10 border border-accent/20">
+                  <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                  <span className="text-sm text-accent font-medium">Device connected</span>
+                </div>
+                <button
+                  onClick={handleDisconnect}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-destructive/30 text-destructive text-sm hover:bg-destructive/10 transition-colors"
+                >
+                  <WifiOff className="h-4 w-4" />
+                  Disconnect Device
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Scan the QR code with your Lovense Remote app to connect your device.
+                </p>
+
+                {qrCodeUrl ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="bg-white p-4 rounded-xl">
+                      <img
+                        src={qrCodeUrl}
+                        alt="Scan to connect device"
+                        className="w-48 h-48"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground animate-pulse">
+                      Waiting for connection...
+                    </p>
+                    <button
+                      onClick={() => {
+                        stopPolling();
+                        setQrCodeUrl(null);
+                      }}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleConnectToy}
+                    disabled={qrLoading}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-accent text-accent-foreground font-medium text-sm hover:scale-[1.02] transition-transform disabled:opacity-50"
+                  >
+                    {qrLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <QrCode className="h-4 w-4" />
+                    )}
+                    Connect Device
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
