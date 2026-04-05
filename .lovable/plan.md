@@ -1,93 +1,79 @@
 
 
-# Lovense Integration Upgrade
+# Feature Breakdown — Collection & Fusion System
 
-## Summary
-Replace the manual device UID entry with a proper QR-code-based connection flow via the Lovense Standard API, add a callback endpoint to auto-store the device UID, wire up auto-execution of toy commands from chat, and add a global emergency stop button.
+The large feature request needs to be split into smaller, independently implementable pieces. Here's the breakdown with a suggested order:
 
-## What changes
+---
 
-### 1. Add three new secrets
-- `LOVENSE_DEVELOPER_TOKEN`
-- `LOVENSE_AES_KEY`
-- `LOVENSE_AES_IV`
+## Phase 1: Companion Collection Cards
 
-You'll be prompted to paste each value securely. No secrets are exposed to the frontend.
+**What:** A "My Collection" page showing all companions the user has chatted with as collectible cards with rarity tiers and visual flair.
 
-### 2. New Edge Function: `lovense-callback`
-Receives POST callbacks from Lovense after QR scan. Extracts the device UID from the callback payload, looks up the user via a temporary pairing token stored in the database, and saves `device_uid` to their `profiles` row. Returns 200 OK.
+- New page `/collection` with route in App.tsx
+- Query `chat_messages` to find distinct companions the user has interacted with
+- Display each as a styled card with rarity borders (Common → Mythic) based on chat count or companion attributes
+- Show affinity meter (based on message count), tags, and personality summary
+- Add nav link to Navbar
 
-Requires a new `lovense_pairings` table to temporarily map a session token to a user_id so the callback knows which user scanned the code.
+**No new tables needed** — derive collection from existing `chat_messages` + `companions` data.
 
-### 3. New Edge Function: `lovense-qrcode`
-Authenticated endpoint that:
-1. Generates a unique pairing token and stores it in `lovense_pairings` with the user's ID
-2. Calls the Lovense API (`https://api.lovense.com/api/lan/getQrCode`) with the developer token and a callback URL pointing to the `lovense-callback` function
-3. Returns the QR code image URL to the frontend
+---
 
-### 4. Update `send-device-command` Edge Function
-- Accept `intensity` as 0-100 scale (currently clamped to 0-20 — will scale: `Math.round(intensity / 5)`)
-- Accept `pattern` field for pattern commands
-- Add a `stop` command type that sends `Function` with `Stop` action
-- Read user's intensity limit from profile or accept it from the client (already partially there)
+## Phase 2: Device Pattern Library
 
-### 5. Update Settings page — Replace manual UID with QR connection
-- Remove the manual "Enter device UID" text field
-- Add a "Connect Toy" button that calls the `lovense-qrcode` function
-- Display the returned QR code in a modal/card for scanning
-- Poll the user's profile every 3 seconds to detect when `device_uid` is set (callback received)
-- Show connection status: "Scanning...", "Connected!", or "Disconnected"
-- Keep a "Disconnect" button that clears `device_uid`
+**What:** A `user_device_patterns` table and UI to save, name, and trigger custom device command presets.
 
-### 6. Update Chat page — Auto-execute toy commands
-Currently the chat page parses `lovense_command` from AI responses and displays it, but doesn't execute it. Add:
-- After parsing a command from the AI response, automatically call `send-device-command` if the user has a `device_uid` set
-- Scale intensity by the user's configured intensity limit (from localStorage)
-- Show status toast: "Command sent to toy" or error message
-- Load `device_uid` from profile on mount to know if a toy is connected
+- New table `user_device_patterns` (user_id, name, description, command_json, unlocked_at)
+- UI section on the Collection page or Settings to view saved patterns
+- "Trigger" button on each pattern card that calls `send-device-command`
+- Patterns can be created manually or auto-generated later
 
-### 7. Global Emergency Stop Button
-- Add a floating stop button component (red octagon icon) that appears on every page when the user has a connected toy (`device_uid` exists)
-- Clicking it calls `send-device-command` with `{ command: "Stop", intensity: 0, duration: 0 }`
-- Shows toast: "All toys stopped"
-- Rendered in `App.tsx` layout, checks profile for `device_uid`
+---
 
-### 8. Database migration
-```sql
-CREATE TABLE public.lovense_pairings (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  pairing_token text NOT NULL UNIQUE,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  expires_at timestamptz NOT NULL DEFAULT (now() + interval '10 minutes')
-);
+## Phase 3: Companion Fusion System
 
-ALTER TABLE public.lovense_pairings ENABLE ROW LEVEL SECURITY;
+**What:** A "Fusion Chamber" page where users pick 2 companions, spend ChatTokens, and an AI generates a new hybrid companion.
 
-CREATE POLICY "Users can view their own pairings"
-  ON public.lovense_pairings FOR SELECT
-  TO authenticated
-  USING (auth.uid() = user_id);
+- New page `/fusion` with drag-and-drop or select-two UI
+- Costs configurable ChatTokens (e.g. 50) or daily energy (new `fusion_energy` column on profiles, resets via cron or on-demand check)
+- Calls an edge function that sends both companions' profiles to Grok (XAI_API_KEY) and asks it to generate a blended companion (name, appearance, personality, kinks, bio, system prompt, fantasy starters)
+- Also generates 1-3 named device command patterns as part of the result
+- Saves the new companion to `custom_characters` (owned by user) and patterns to `user_device_patterns`
+- Success toast with unlock summary
 
-CREATE POLICY "Users can insert their own pairings"
-  ON public.lovense_pairings FOR INSERT
-  TO authenticated
-  WITH CHECK (auth.uid() = user_id);
-```
+---
 
-## Files to create/modify
+## Phase 4: Fusion Ritual Chat
 
-| File | Action |
-|------|--------|
-| Migration SQL | New `lovense_pairings` table |
-| `supabase/functions/lovense-qrcode/index.ts` | New — generates QR code via Lovense API |
-| `supabase/functions/lovense-callback/index.ts` | New — receives callback, stores device UID |
-| `supabase/functions/send-device-command/index.ts` | Update — add stop command, fix intensity scaling |
-| `src/pages/Settings.tsx` | Replace manual UID with QR flow |
-| `src/pages/Chat.tsx` | Auto-execute toy commands from AI responses |
-| `src/components/EmergencyStop.tsx` | New — floating stop button |
-| `src/App.tsx` | Add EmergencyStop component to layout |
+**What:** Instead of instant fusion, run a short multi-character group chat scene narrated by Grok before generating the result.
 
-## What stays the same
-All existing UI theme, colors, branding, companions, pricing, token system, and other features remain untouched. Toy connection is available to all account tiers (free and paid).
+- New edge function `fusion-ritual-chat` that manages a multi-character conversation with a special system prompt combining both parent companions
+- Frontend shows a special chat UI for the ritual (read-only or interactive)
+- During the ritual, AI can emit device commands that auto-execute
+- When ritual concludes, trigger the fusion generation from Phase 3
+- New patterns unlocked during the ritual are used contextually
+
+---
+
+## Phase 5: Lineage Log
+
+**What:** A visual history page showing all fusions and their results.
+
+- New table `fusion_log` (user_id, parent_1_id, parent_2_id, offspring_id, patterns_unlocked, lore_text, created_at)
+- New page `/lineage` with a tree/timeline view
+- Each entry shows parents, offspring card, and the AI-generated lore narrative
+- Clicking an offspring navigates to their profile/chat
+
+---
+
+## Suggested implementation order
+
+1. **Phase 1** — Collection Cards (standalone, no new tables)
+2. **Phase 2** — Pattern Library (new table + simple UI)
+3. **Phase 3** — Fusion System (core feature, edge function + DB)
+4. **Phase 4** — Ritual Chat (enhanced fusion experience)
+5. **Phase 5** — Lineage Log (history tracking)
+
+Each phase is a self-contained request you can send individually. Want me to start with Phase 1?
 
