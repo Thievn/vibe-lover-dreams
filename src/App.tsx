@@ -12,6 +12,7 @@ import Settings from "./pages/Settings.tsx";
 import CreateCharacter from "./pages/CreateCharacter.tsx";
 import Admin from "./pages/Admin.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import EmergencyStop from "./components/EmergencyStop.tsx";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/admin" element={<Admin />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        <EmergencyStop />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

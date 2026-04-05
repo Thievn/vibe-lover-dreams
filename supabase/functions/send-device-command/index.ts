@@ -33,14 +33,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { command, intensity, duration } = await req.json();
-
-    if (!command || typeof intensity !== "number") {
-      return new Response(JSON.stringify({ error: "Missing command or intensity" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const { command, intensity, duration, pattern } = await req.json();
 
     // Get user's device UID from profile
     const { data: profile } = await supabase
@@ -50,7 +43,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (!profile?.device_uid) {
-      return new Response(JSON.stringify({ error: "No device connected. Add your device UID in Settings." }), {
+      return new Response(JSON.stringify({ error: "No device connected. Connect your device in Settings." }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -64,11 +57,52 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Clamp intensity to user's configured limit
-    const clampedIntensity = Math.min(Math.max(0, Math.round(intensity)), 20);
-    const clampedDuration = Math.min(Math.max(1, duration || 5), 30);
+    // Handle stop command
+    if (command === "Stop" || command === "stop") {
+      const lovenseResponse = await fetch("https://api.lovense.com/api/lan/v2/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: developerToken,
+          uid: profile.device_uid,
+          command: "Function",
+          action: "Stop",
+          apiVer: 1,
+        }),
+      });
 
-    // Send command via Lovense Standard API
+      const result = await lovenseResponse.json();
+      return new Response(JSON.stringify({ success: true, result }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!command || typeof intensity !== "number") {
+      return new Response(JSON.stringify({ error: "Missing command or intensity" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Scale intensity from 0-100 to 0-20 (Lovense API range)
+    const scaledIntensity = Math.min(Math.max(0, Math.round((intensity / 100) * 20)), 20);
+    const clampedDuration = Math.min(Math.max(1, Math.round((duration || 5000) / 1000)), 30);
+
+    // Handle pattern command
+    let action: string;
+    if (command === "pattern" && pattern) {
+      action = `Preset:${pattern}`;
+    } else {
+      // Map commands: vibrate, pulse, rotate
+      const commandMap: Record<string, string> = {
+        vibrate: "Vibrate",
+        pulse: "Vibrate",
+        rotate: "Rotate",
+      };
+      const mappedCommand = commandMap[command] || "Vibrate";
+      action = `${mappedCommand}:${scaledIntensity}`;
+    }
+
     const lovenseResponse = await fetch("https://api.lovense.com/api/lan/v2/command", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -76,7 +110,7 @@ Deno.serve(async (req) => {
         token: developerToken,
         uid: profile.device_uid,
         command: "Function",
-        action: `${command}:${clampedIntensity}`,
+        action,
         timeSec: clampedDuration,
         apiVer: 1,
       }),

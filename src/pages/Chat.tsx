@@ -35,6 +35,7 @@ const Chat = () => {
   const [user, setUser] = useState<any>(null);
   const [tokensBalance, setTokensBalance] = useState<number>(0);
   const [safeWord] = useState(() => localStorage.getItem("lustforge-safeword") || "RED");
+  const [hasDevice, setHasDevice] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,12 +47,22 @@ const Chat = () => {
       setUser(session.user);
       loadChatHistory(session.user.id);
       fetchTokens(session.user.id);
+      checkDevice(session.user.id);
     });
   }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const checkDevice = async (userId: string) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("device_uid")
+      .eq("user_id", userId)
+      .single();
+    setHasDevice(!!data?.device_uid);
+  };
 
   const fetchTokens = async (userId: string) => {
     const { data } = await supabase
@@ -127,6 +138,41 @@ const Chat = () => {
     return { cleanText: text, command: null };
   };
 
+  const executeDeviceCommand = async (command: any) => {
+    if (!hasDevice || !command) return;
+
+    const intensityLimit = parseInt(localStorage.getItem("lustforge-intensity") || "100");
+    const scaledIntensity = Math.round((command.intensity || 50) * (intensityLimit / 100));
+
+    try {
+      const { error } = await supabase.functions.invoke("send-device-command", {
+        body: {
+          command: command.command || "vibrate",
+          intensity: scaledIntensity,
+          duration: command.duration || 5000,
+          pattern: command.pattern,
+        },
+      });
+
+      if (error) throw error;
+      toast.success("⚡ Command sent to device", { duration: 2000 });
+    } catch (err: any) {
+      console.error("Device command error:", err);
+      toast.error("Failed to send command to device");
+    }
+  };
+
+  const handleEmergencyStop = async () => {
+    try {
+      await supabase.functions.invoke("send-device-command", {
+        body: { command: "Stop", intensity: 0, duration: 0 },
+      });
+      toast.success("🛑 All devices stopped");
+    } catch {
+      toast.error("Failed to stop device");
+    }
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || loading || !user || !companion) return;
 
@@ -143,6 +189,12 @@ const Chat = () => {
     if (input.trim().toUpperCase() === safeWord.toUpperCase()) {
       toast.info("🛑 Safe word activated. All activity stopped. You're safe.");
       setInput("");
+
+      // Also send emergency stop if device connected
+      if (hasDevice) {
+        handleEmergencyStop();
+      }
+
       const safeMsg: ChatMessage = {
         id: Date.now().toString(),
         role: "assistant",
@@ -208,6 +260,11 @@ const Chat = () => {
         lovense_command: command,
       });
 
+      // Auto-execute device command if connected
+      if (command && hasDevice) {
+        executeDeviceCommand(command);
+      }
+
       await deductTokens(user.id);
     } catch (err: any) {
       console.error("Chat error:", err);
@@ -262,6 +319,9 @@ const Chat = () => {
           <p className="text-xs text-primary truncate">{companion.tagline}</p>
         </div>
         <div className="flex items-center gap-2">
+          {hasDevice && (
+            <div className="w-2 h-2 rounded-full bg-accent animate-pulse" title="Device connected" />
+          )}
           <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-xs">
             <Flame className="h-3 w-3 text-primary" />
             <span className={`font-medium ${tokensBalance < 100 ? "text-destructive" : "text-foreground"}`}>
@@ -313,10 +373,14 @@ const Chat = () => {
             >
               <p className="whitespace-pre-wrap">{msg.content}</p>
               {msg.lovenseCommand && (
-                <div className="mt-2 px-3 py-2 rounded-lg bg-electric-teal/10 border border-electric-teal/20 text-electric-teal text-xs flex items-center gap-2">
+                <div className="mt-2 px-3 py-2 rounded-lg bg-accent/10 border border-accent/20 text-accent text-xs flex items-center gap-2">
                   <Zap className="h-3 w-3" />
-                  Toy command: {msg.lovenseCommand.command} at {msg.lovenseCommand.intensity}%
-                  <span className="text-muted-foreground ml-1">(Connect toy to activate)</span>
+                  Device: {msg.lovenseCommand.command} at {msg.lovenseCommand.intensity}%
+                  {hasDevice ? (
+                    <span className="text-accent ml-1">✓ Sent</span>
+                  ) : (
+                    <span className="text-muted-foreground ml-1">(Connect device to activate)</span>
+                  )}
                 </div>
               )}
             </div>
