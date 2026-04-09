@@ -7,23 +7,21 @@ import { Flame } from "lucide-react";
 // Default imports (these files use export default)
 import HeroSection from "@/components/HeroSection";
 import FeaturesGrid from "@/components/FeaturesGrid";
+import WaitlistSection from "@/components/WaitlistSection";
 import PricingTeaser from "@/components/PricingTeaser";
 import Navbar from "@/components/Navbar";
-import WaitlistSection from "@/components/WaitlistSection";
 
-// Named imports
+// Named import for NavLink
 import { NavLink } from "@/components/NavLink";
 
 const Index = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
-  const [isDevMode] = useState(true); // forced true so we can see the dev badge
+  const [isDevMode] = useState(true);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user);
-      }
+      if (session?.user) setUser(session.user);
     });
   }, []);
 
@@ -39,15 +37,15 @@ const Index = () => {
     <div className="min-h-screen bg-background relative overflow-hidden">
       <ParticleBackground />
 
-      {/* Visible Dev Build Indicator - proves the new deployment is live */}
-      {isDevMode && (
-        <div className="fixed top-4 right-4 z-50 bg-black/90 backdrop-blur-md border border-red-500/50 rounded-full px-4 py-1.5 text-xs text-red-400 font-mono shadow-lg">
-          DEV BUILD • {new Date().toLocaleTimeString()}
-        </div>
-      )}
-
       <Navbar>
         <NavLink to="/auth">Sign In</NavLink>
+        
+        {/* DEV BUILD badge moved to top bar (non-blocking) */}
+        {isDevMode && (
+          <div className="ml-auto mr-4 px-4 py-1 text-xs font-mono bg-black/70 text-red-400 border border-red-500/30 rounded-full">
+            DEV BUILD • {new Date().toLocaleTimeString()}
+          </div>
+        )}
       </Navbar>
 
       <HeroSection onGetStarted={handleGetStarted} />
