@@ -20,7 +20,7 @@ const HeroSection = () => {
         >
           <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-medium">
             <Sparkles className="h-3 w-3" />
-            Strictly 18+ · AI-Powered Companions
+            Powered by Grok and Lovense
           </span>
         </motion.div>
 
@@ -49,9 +49,7 @@ const HeroSection = () => {
           transition={{ delay: 0.4, duration: 0.6 }}
           className="text-sm text-muted-foreground mb-8 max-w-xl mx-auto"
         >
-          AI companions that talk, tease, and connect to your smart toys.
-          Immersive roleplay with real-time device integration —
-          every persona, every scenario, zero judgment.
+          AI Companions That Talk, Tease, and Make Your Toys Obey.
         </motion.p>
 
         <motion.div

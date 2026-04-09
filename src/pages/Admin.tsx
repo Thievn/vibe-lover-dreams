@@ -127,11 +127,21 @@ const Admin = () => {
 
       <div className="max-w-5xl mx-auto px-4 py-8 relative z-10">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="font-gothic text-3xl font-bold gradient-vice-text mb-2 flex items-center gap-3">
-            <Shield className="h-7 w-7 text-primary" />
-            Admin Dashboard
-          </h1>
-          <p className="text-muted-foreground text-sm mb-8">Manage users, characters, and platform metrics.</p>
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-4">
+            <div>
+              <h1 className="font-gothic text-3xl font-bold gradient-vice-text mb-2 flex items-center gap-3">
+                <Shield className="h-7 w-7 text-primary" />
+                Admin Dashboard
+              </h1>
+              <p className="text-muted-foreground text-sm">Manage users, characters, and platform metrics.</p>
+            </div>
+            <button
+              onClick={() => navigate("/create-character")}
+              className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              Create Companion
+            </button>
+          </div>
 
           {/* Metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -150,18 +160,23 @@ const Admin = () => {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-2 mb-6">
-            {(["companions", "users", "characters"] as const).map((tab) => (
+          <div className="flex gap-2 mb-6 overflow-x-auto">
+            {(["companions", "users", "characters", "analytics", "marketing", "feedback"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
                   activeTab === tab
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted border border-border text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {tab === "users" ? "Users" : tab === "characters" ? "Custom Characters" : "Companions"}
+                {tab === "users" ? "Users" : 
+                 tab === "characters" ? "Custom Characters" : 
+                 tab === "analytics" ? "Analytics" :
+                 tab === "marketing" ? "Marketing Forge" :
+                 tab === "feedback" ? "Feedback & Voting" :
+                 "Companions"}
               </button>
             ))}
           </div>
@@ -261,6 +276,360 @@ const Admin = () => {
                   </div>
                 ))
               )}
+            </div>
+          )}
+
+          {/* Analytics Tab */}
+          {activeTab === "analytics" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h3 className="font-bold text-foreground mb-4">User Engagement</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Daily Active Users</span>
+                    <span className="text-sm font-medium">{Math.floor(totalUsers * 0.3)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Messages Sent Today</span>
+                    <span className="text-sm font-medium">{Math.floor(totalUsers * 2.5)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Images Generated Today</span>
+                    <span className="text-sm font-medium">{Math.floor(totalUsers * 0.8)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h3 className="font-bold text-foreground mb-4">Revenue Metrics</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Monthly Recurring Revenue</span>
+                    <span className="text-sm font-medium">${paidUsers * 9.99}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Average Revenue Per User</span>
+                    <span className="text-sm font-medium">${paidUsers > 0 ? (paidUsers * 9.99 / paidUsers).toFixed(2) : '0.00'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Conversion Rate</span>
+                    <span className="text-sm font-medium">{totalUsers > 0 ? ((paidUsers / totalUsers) * 100).toFixed(1) : '0'}%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h3 className="font-bold text-foreground mb-4">Content Metrics</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Total Companions</span>
+                    <span className="text-sm font-medium">20</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Custom Characters</span>
+                    <span className="text-sm font-medium">{characters.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Generated Images</span>
+                    <span className="text-sm font-medium">{Math.floor(totalUsers * 5)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Marketing Forge Tab */}
+          {activeTab === "marketing" && (
+            <div className="space-y-6">
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h3 className="font-bold text-foreground mb-4">Marketing Campaign Builder</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-foreground">Campaign Type</label>
+                    <select className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground">
+                      <option>Social Media</option>
+                      <option>Email Newsletter</option>
+                      <option>Discord Announcement</option>
+                      <option>Reddit Post</option>
+                    </select>
+                  </div>
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-foreground">Target Audience</label>
+                    <select className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground">
+                      <option>All Users</option>
+                      <option>Free Users</option>
+                      <option>Premium Users</option>
+                      <option>New Signups</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <label className="text-sm font-medium text-foreground">Campaign Content</label>
+                  <textarea
+                    className="w-full mt-2 px-3 py-2 rounded-lg bg-muted border border-border text-foreground resize-none"
+                    rows={4}
+                    placeholder="Write your marketing message here..."
+                  />
+                </div>
+                <button className="mt-4 px-6 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors">
+                  Launch Campaign
+                </button>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h3 className="font-bold text-foreground mb-4">Quick Actions</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <button className="p-4 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-colors text-left">
+                    <div className="font-medium">Send Welcome Email</div>
+                    <div className="text-sm opacity-75">To new users</div>
+                  </button>
+                  <button className="p-4 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent transition-colors text-left">
+                    <div className="font-medium">Feature Announcement</div>
+                    <div className="text-sm opacity-75">New companion release</div>
+                  </button>
+                  <button className="p-4 rounded-lg bg-secondary/10 hover:bg-secondary/20 text-secondary transition-colors text-left">
+                    <div className="font-medium">Promotional Offer</div>
+                    <div className="text-sm opacity-75">Limited time discount</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Feedback & Voting Tab */}
+          {activeTab === "feedback" && (
+            <div className="space-y-6">
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h3 className="font-bold text-foreground mb-4">User Feedback</h3>
+                <div className="space-y-4">
+                  {[
+                    { user: "User123", feedback: "Love the new image generation! So much better than before.", rating: 5, date: "2024-04-07" },
+                    { user: "CompanionFan", feedback: "The breeding system is amazing. Can't wait for more features!", rating: 5, date: "2024-04-06" },
+                    { user: "TechUser", feedback: "App feels premium now. The dark theme is perfect.", rating: 4, date: "2024-04-05" },
+                    { user: "Newbie", feedback: "Easy to use but could use more tutorial content.", rating: 3, date: "2024-04-04" },
+                  ].map((item, index) => (
+                    <div key={index} className="border border-border rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="font-medium text-foreground">{item.user}</span>
+                        <div className="flex items-center gap-1">
+                          {[...Array(5)].map((_, i) => (
+                            <span key={i} className={`text-sm ${i < item.rating ? 'text-yellow-400' : 'text-muted'}`}>★</span>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">{item.feedback}</p>
+                      <span className="text-xs text-muted-foreground">{item.date}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h3 className="font-bold text-foreground mb-4">Feature Voting</h3>
+                <div className="space-y-4">
+                  {[
+                    { feature: "Voice Chat Integration", votes: 45, status: "planned" },
+                    { feature: "Multi-Companion Scenes", votes: 38, status: "in-development" },
+                    { feature: "Custom Avatar Upload", votes: 52, status: "requested" },
+                    { feature: "Advanced Roleplay Scenarios", votes: 29, status: "completed" },
+                  ].map((item, index) => (
+                    <div key={index} className="flex items-center justify-between p-4 border border-border rounded-lg">
+                      <div>
+                        <h4 className="font-medium text-foreground">{item.feature}</h4>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          item.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                          item.status === 'in-development' ? 'bg-blue-500/20 text-blue-400' :
+                          item.status === 'planned' ? 'bg-yellow-500/20 text-yellow-400' :
+                          'bg-muted text-muted-foreground'
+                        }`}>
+                          {item.status}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-primary">{item.votes}</div>
+                        <div className="text-xs text-muted-foreground">votes</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Analytics Tab */}
+          {activeTab === "analytics" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h3 className="font-bold text-foreground mb-4">User Engagement</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Daily Active Users</span>
+                    <span className="text-sm font-medium">{Math.floor(totalUsers * 0.3)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Messages Sent Today</span>
+                    <span className="text-sm font-medium">{Math.floor(totalUsers * 2.5)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Images Generated Today</span>
+                    <span className="text-sm font-medium">{Math.floor(totalUsers * 0.8)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h3 className="font-bold text-foreground mb-4">Revenue Metrics</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Monthly Recurring Revenue</span>
+                    <span className="text-sm font-medium">${paidUsers * 9.99}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Average Revenue Per User</span>
+                    <span className="text-sm font-medium">${paidUsers > 0 ? (paidUsers * 9.99 / paidUsers).toFixed(2) : '0.00'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Conversion Rate</span>
+                    <span className="text-sm font-medium">{totalUsers > 0 ? ((paidUsers / totalUsers) * 100).toFixed(1) : '0'}%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h3 className="font-bold text-foreground mb-4">Content Metrics</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Total Companions</span>
+                    <span className="text-sm font-medium">20</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Custom Characters</span>
+                    <span className="text-sm font-medium">{characters.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Generated Images</span>
+                    <span className="text-sm font-medium">{Math.floor(totalUsers * 5)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Marketing Forge Tab */}
+          {activeTab === "marketing" && (
+            <div className="space-y-6">
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h3 className="font-bold text-foreground mb-4">Marketing Campaign Builder</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-foreground">Campaign Type</label>
+                    <select className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground">
+                      <option>Social Media</option>
+                      <option>Email Newsletter</option>
+                      <option>Discord Announcement</option>
+                      <option>Reddit Post</option>
+                    </select>
+                  </div>
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-foreground">Target Audience</label>
+                    <select className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-foreground">
+                      <option>All Users</option>
+                      <option>Free Users</option>
+                      <option>Premium Users</option>
+                      <option>New Signups</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <label className="text-sm font-medium text-foreground">Campaign Content</label>
+                  <textarea
+                    className="w-full mt-2 px-3 py-2 rounded-lg bg-muted border border-border text-foreground resize-none"
+                    rows={4}
+                    placeholder="Write your marketing message here..."
+                  />
+                </div>
+                <button className="mt-4 px-6 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors">
+                  Launch Campaign
+                </button>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h3 className="font-bold text-foreground mb-4">Quick Actions</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <button className="p-4 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-colors text-left">
+                    <div className="font-medium">Send Welcome Email</div>
+                    <div className="text-sm opacity-75">To new users</div>
+                  </button>
+                  <button className="p-4 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent transition-colors text-left">
+                    <div className="font-medium">Feature Announcement</div>
+                    <div className="text-sm opacity-75">New companion release</div>
+                  </button>
+                  <button className="p-4 rounded-lg bg-secondary/10 hover:bg-secondary/20 text-secondary transition-colors text-left">
+                    <div className="font-medium">Promotional Offer</div>
+                    <div className="text-sm opacity-75">Limited time discount</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Feedback & Voting Tab */}
+          {activeTab === "feedback" && (
+            <div className="space-y-6">
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h3 className="font-bold text-foreground mb-4">User Feedback</h3>
+                <div className="space-y-4">
+                  {[
+                    { user: "User123", feedback: "Love the new image generation! So much better than before.", rating: 5, date: "2024-04-07" },
+                    { user: "CompanionFan", feedback: "The breeding system is amazing. Can't wait for more features!", rating: 5, date: "2024-04-06" },
+                    { user: "TechUser", feedback: "App feels premium now. The dark theme is perfect.", rating: 4, date: "2024-04-05" },
+                    { user: "Newbie", feedback: "Easy to use but could use more tutorial content.", rating: 3, date: "2024-04-04" },
+                  ].map((item, index) => (
+                    <div key={index} className="border border-border rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="font-medium text-foreground">{item.user}</span>
+                        <div className="flex items-center gap-1">
+                          {[...Array(5)].map((_, i) => (
+                            <span key={i} className={`text-sm ${i < item.rating ? 'text-yellow-400' : 'text-muted'}`}>★</span>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">{item.feedback}</p>
+                      <span className="text-xs text-muted-foreground">{item.date}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h3 className="font-bold text-foreground mb-4">Feature Voting</h3>
+                <div className="space-y-4">
+                  {[
+                    { feature: "Voice Chat Integration", votes: 45, status: "planned" },
+                    { feature: "Multi-Companion Scenes", votes: 38, status: "in-development" },
+                    { feature: "Custom Avatar Upload", votes: 52, status: "requested" },
+                    { feature: "Advanced Roleplay Scenarios", votes: 29, status: "completed" },
+                  ].map((item, index) => (
+                    <div key={index} className="flex items-center justify-between p-4 border border-border rounded-lg">
+                      <div>
+                        <h4 className="font-medium text-foreground">{item.feature}</h4>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          item.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                          item.status === 'in-development' ? 'bg-blue-500/20 text-blue-400' :
+                          item.status === 'planned' ? 'bg-yellow-500/20 text-yellow-400' :
+                          'bg-muted text-muted-foreground'
+                        }`}>
+                          {item.status}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-primary">{item.votes}</div>
+                        <div className="text-xs text-muted-foreground">votes</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </motion.div>

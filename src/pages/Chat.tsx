@@ -1,13 +1,20 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { companionImages } from "@/data/companionImages";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
-import { ArrowLeft, Send, Loader2, Zap, AlertOctagon, Flame } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Zap, AlertOctagon, Flame, Image as ImageIcon, Heart, Sparkles, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
+import { ImageViewer } from "@/components/ImageViewer";
+import { ImageMessage } from "@/components/ImageMessage";
+import { BreedingRitual } from "@/components/BreedingRitual";
+import { useCompanionRelationship } from "@/hooks/useCompanionRelationship";
+import { getToys, sendCommand, testToy, generatePairingQR, disconnectToy, LovenseToy, LovenseCommand } from "@/lib/lovense";
+import createCompanionSystemPrompt from '@/lib/companionSystemPrompts';
 
 const TOKEN_COST = 15;
+const IMAGE_TOKEN_COST = 75;
 
 interface ChatMessage {
   id: string;
@@ -15,6 +22,12 @@ interface ChatMessage {
   content: string;
   lovenseCommand?: any;
   timestamp: Date;
+  imageUrl?: string;
+  imageId?: string;
+  imagePrompt?: string;
+  generatedImageId?: string;
+  savedToCompanionGallery?: boolean;
+  savedToPersonalGallery?: boolean;
 }
 
 const Chat = () => {
@@ -29,14 +42,35 @@ const Chat = () => {
   const companion = dbComp ? dbToCompanion(dbComp) : null;
   const imageUrl = dbComp?.image_url || (id ? companionImages[id] : undefined);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [tokensBalance, setTokensBalance] = useState<number>(0);
   const [safeWord] = useState(() => localStorage.getItem("lustforge-safeword") || "RED");
-  const [hasDevice, setHasDevice] = useState(false);
+  const [connectedToys, setConnectedToys] = useState<LovenseToy[]>([]);
+  const [viewingImage, setViewingImage] = useState<ChatMessage | null>(null);
+  const [showBreedingRitual, setShowBreedingRitual] = useState(false);
+  const [activePattern, setActivePattern] = useState<string>(() => localStorage.getItem("lustforge-active-pattern") || "steady");
+  const [patternSending, setPatternSending] = useState(false);
+  const [pairingUrl, setPairingUrl] = useState<string | null>(null);
+  const [pairingLoading, setPairingLoading] = useState(false);
+  const [starterPrompt, setStarterPrompt] = useState<string | null>(null);
+  const [starterTitle, setStarterTitle] = useState<string | null>(null);
+  const [intensity, setIntensity] = useState<number>(() => parseInt(localStorage.getItem("lustforge-intensity") || "50"));
+  const [isPatternPersistent, setIsPatternPersistent] = useState<boolean>(false);
+  const starterSentRef = useRef(false);
+  const location = useLocation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const {
+    relationship,
+    gifts,
+    loading: relationshipLoading,
+    refresh: refreshRelationship,
+  } = useCompanionRelationship(companion?.id || "");
+
+  const hasDevice = connectedToys.length > 0;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -52,16 +86,33 @@ const Chat = () => {
   }, []);
 
   useEffect(() => {
+    if (!location.state) return;
+    const state = location.state as { starterPrompt?: string; starterTitle?: string };
+    if (state.starterPrompt) {
+      setStarterPrompt(state.starterPrompt);
+      setStarterTitle(state.starterTitle || null);
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    if (!user || !starterPrompt || starterSentRef.current || loading) return;
+    if (messages.length === 1 && messages[0].role === "assistant" && messages[0].id === "greeting") {
+      starterSentRef.current = true;
+      sendMessage(starterPrompt);
+    }
+  }, [starterPrompt, user, messages, loading]);
+
+    useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    localStorage.setItem("lustforge-intensity", intensity.toString());
+  }, [intensity]);
+
   const checkDevice = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("device_uid")
-      .eq("user_id", userId)
-      .single();
-    setHasDevice(!!data?.device_uid);
+    const toys = await getToys(userId);
+    setConnectedToys(toys);
   };
 
   const fetchTokens = async (userId: string) => {
@@ -80,6 +131,113 @@ const Chat = () => {
       .update({ tokens_balance: newBalance })
       .eq("user_id", userId);
     setTokensBalance(newBalance);
+  };
+
+  const deductImageTokens = async (userId: string) => {
+    const newBalance = Math.max(0, tokensBalance - IMAGE_TOKEN_COST);
+    await supabase
+      .from("profiles")
+      .update({ tokens_balance: newBalance })
+      .eq("user_id", userId);
+    setTokensBalance(newBalance);
+  };
+
+  const isImageRequest = (text: string): boolean => {
+    const imageKeywords = [
+      'image', 'picture', 'photo', 'pic', 'send pic', 'send a picture',
+      'selfie', 'nude', 'spicy', 'hot', 'sexy', 'nudes', 'show', 'pose',
+      'take a photo', 'picture of you', 'image of you', 'photo of you',
+      'draw', 'generate', 'create image', 'create a picture',
+      'what do you look like', 'show yourself', 'let me see you',
+      'generate image', 'generate picture'
+    ];
+    const lowerText = text.toLowerCase();
+    return imageKeywords.some(keyword => lowerText.includes(keyword));
+  };
+
+  const generateImage = async (userRequest: string, userId: string): Promise<any> => {
+    if (!companion || !dbComp) return null;
+
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-grok-image", {
+        body: {
+          companionId: companion.id,
+          userRequest,
+          companionData: {
+            name: companion.name,
+            appearance: companion.appearance,
+            gender: companion.gender,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      const imageUrl = data?.imageUrl || data?.image_url;
+      const imageId = data?.imageId || data?.id;
+
+      if (!imageUrl) throw new Error("No image generated");
+
+      return {
+        imageUrl,
+        imageId,
+        timestamp: data?.timestamp,
+      };
+    } catch (err: any) {
+      console.error("Image generation error:", err);
+      toast.error("Failed to generate image");
+      return null;
+    }
+  };
+
+  const saveImageToCompanionGallery = async (imageId: string) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase
+        .from("generated_images")
+        .update({ saved_to_companion_gallery: true })
+        .eq("id", imageId)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      // Update message state to reflect save
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.generatedImageId === imageId
+            ? { ...msg, savedToCompanionGallery: true }
+            : msg
+        )
+      );
+    } catch (err) {
+      console.error("Failed to save to companion gallery:", err);
+      throw err;
+    }
+  };
+
+  const saveImageToPersonalGallery = async (imageId: string) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase
+        .from("generated_images")
+        .update({ saved_to_personal_gallery: true })
+        .eq("id", imageId)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      // Update message state to reflect save
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.generatedImageId === imageId
+            ? { ...msg, savedToPersonalGallery: true }
+            : msg
+        )
+      );
+    } catch (err) {
+      console.error("Failed to save to personal gallery:", err);
+      throw err;
+    }
   };
 
   const loadChatHistory = async (userId: string) => {
@@ -139,27 +297,130 @@ const Chat = () => {
   };
 
   const executeDeviceCommand = async (command: any) => {
-    if (!hasDevice || !command) return;
+    if (!user || connectedToys.length === 0 || !command) return;
 
     const intensityLimit = parseInt(localStorage.getItem("lustforge-intensity") || "100");
     const scaledIntensity = Math.round((command.intensity || 50) * (intensityLimit / 100));
 
-    try {
-      const { error } = await supabase.functions.invoke("send-device-command", {
-        body: {
-          command: command.command || "vibrate",
-          intensity: scaledIntensity,
-          duration: command.duration || 5000,
-          pattern: command.pattern,
-        },
-      });
+    const lovenseCommand: LovenseCommand = {
+      command: command.command || "vibrate",
+      intensity: Math.min(20, Math.max(0, scaledIntensity)),
+      duration: command.duration || 5000,
+      pattern: command.pattern,
+    };
 
-      if (error) throw error;
-      toast.success("⚡ Command sent to device", { duration: 2000 });
+    try {
+      const success = await sendCommand(user.id, lovenseCommand);
+      if (success) {
+        toast.success("⚡ Command sent to device", { duration: 2000 });
+      } else {
+        toast.error("Failed to send command to device");
+      }
     } catch (err: any) {
       console.error("Device command error:", err);
       toast.error("Failed to send command to device");
     }
+  };
+
+    const handleConnectToy = async () => {
+    if (!user) return;
+    setPairingLoading(true);
+    const url = await generatePairingQR(user.id);
+    setPairingUrl(url);
+    setPairingLoading(false);
+    if (url) {
+      toast.success("Pairing link is ready. Open it in a new tab to connect your device.");
+    } else {
+      toast.error("Failed to create pairing link.");
+    }
+  };
+
+  const handleDisconnectToy = async () => {
+    if (!user) return;
+    const success = await disconnectToy(user.id);
+    if (success) {
+      setConnectedToys([]);
+      toast.success("Toy disconnected.");
+    } else {
+      toast.error("Failed to disconnect toy.");
+    }
+  };
+
+  const handleSendPattern = async (pattern?: string, customIntensity?: number, persistent?: boolean) => {
+    if (!user || !hasDevice) {
+      toast.error("No connected device available.");
+      return;
+    }
+    setPatternSending(true);
+    const intensityLimit = customIntensity !== undefined ? customIntensity : intensity;
+    const patternIntensity = Math.min(20, Math.max(0, Math.round(intensityLimit * 0.18))); // Scale to 0-20 range for Lovense
+    const command: LovenseCommand = {
+      command: "vibrate",
+      intensity: patternIntensity,
+      duration: persistent ? 0 : 8000, // 0 for persistent (no auto-stop)
+      pattern: pattern || activePattern,
+    };
+    const success = await sendCommand(user.id, command);
+    setPatternSending(false);
+    if (success) {
+      if (pattern) setActivePattern(pattern);
+      setIsPatternPersistent(!!persistent);
+      toast.success(`Pattern “${pattern || activePattern}” sent to ${connectedToys[0].name}.`);
+    } else {
+      toast.error("Failed to send pattern.");
+    }
+  };
+
+  const handleStopAll = async () => {
+    if (!user || !hasDevice) {
+      toast.error("No connected device available.");
+      return;
+    }
+    setPatternSending(true);
+    const command: LovenseCommand = {
+      command: "stop",
+      intensity: 0,
+      duration: 0,
+    };
+    const success = await sendCommand(user.id, command);
+    setPatternSending(false);
+    if (success) {
+      setIsPatternPersistent(false);
+      toast.success(`All patterns stopped on ${connectedToys[0].name}.`);
+    } else {
+      toast.error("Failed to stop patterns.");
+    }
+  };
+
+  const handleTestToy = async () => {
+    if (!user || !hasDevice) {
+      toast.error("No connected device available.");
+      return;
+    }
+    const success = await testToy(user.id, connectedToys[0].id);
+    if (success) {
+      toast.success("Toy test successful.");
+    } else {
+      toast.error("Toy test failed.");
+    }
+  };
+
+  const handleStartBreedingRitual = () => {
+    setShowBreedingRitual(true);
+  };
+
+  const handleBreedingComplete = (offspring: any) => {
+    setShowBreedingRitual(false);
+    refreshRelationship();
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `breeding-${Date.now()}`,
+        role: "assistant",
+        content: `The ritual is complete. ${companion.name} has gifted you a new offspring: ${offspring.name}.`,
+        timestamp: new Date(),
+      },
+    ]);
   };
 
   const handleEmergencyStop = async () => {
@@ -167,17 +428,38 @@ const Chat = () => {
       await supabase.functions.invoke("send-device-command", {
         body: { command: "Stop", intensity: 0, duration: 0 },
       });
+      setIsPatternPersistent(false);
       toast.success("🛑 All devices stopped");
     } catch {
       toast.error("Failed to stop device");
     }
   };
 
-  const sendMessage = async () => {
-    if (!input.trim() || loading || !user || !companion) return;
+  const toggleToyEnabled = (toyId: string) => {
+    setConnectedToys(prevToys =>
+      prevToys.map(toy =>
+        toy.id === toyId ? { ...toy, enabled: !toy.enabled } : toy
+      )
+    );
+    // Note: Backend support for per-toy enable/disable would be needed for full functionality
+  };
 
-    if (tokensBalance < TOKEN_COST) {
-      toast.error("You're out of tokens! Upgrade to keep chatting.", {
+  const sendMessage = async (overrideText?: string) => {
+    const messageText = overrideText?.trim() ?? input.trim();
+    if (!messageText || loading || !user || !companion) return;
+
+    // If starter prompt or auto-send is used, clear the input field but keep it from blocking.
+    if (overrideText) {
+      setInput("");
+    }
+
+    // Check if it's an image request
+    const requestingImage = isImageRequest(messageText);
+    const requiredTokens = requestingImage ? IMAGE_TOKEN_COST : TOKEN_COST;
+
+    if (tokensBalance < requiredTokens) {
+      const tokenType = requestingImage ? "image generation" : "messaging";
+      toast.error(`Not enough tokens for ${tokenType}. You need ${requiredTokens} but only have ${tokensBalance}.`, {
         action: {
           label: "Upgrade",
           onClick: () => navigate("/"),
@@ -186,12 +468,12 @@ const Chat = () => {
       return;
     }
 
-    if (input.trim().toUpperCase() === safeWord.toUpperCase()) {
+    if (messageText.toUpperCase() === safeWord.toUpperCase()) {
       toast.info("🛑 Safe word activated. All activity stopped. You're safe.");
       setInput("");
 
       // Also send emergency stop if device connected
-      if (hasDevice) {
+      if (connectedToys.length > 0) {
         handleEmergencyStop();
       }
 
@@ -208,7 +490,7 @@ const Chat = () => {
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: "user",
-      content: input.trim(),
+      content: messageText,
       timestamp: new Date(),
     };
 
@@ -224,51 +506,126 @@ const Chat = () => {
         content: userMsg.content,
       });
 
-      const contextMessages = messages.slice(-20).map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      // If image is requested, generate it
+      if (requestingImage) {
+        const imageResult = await generateImage(userMsg.content, user.id);
+        
+        if (imageResult) {
+          // Add image response message
+          const imageMsg: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content: `*creates a captivating image just for you*`,
+            imageUrl: imageResult.imageUrl,
+            imageId: imageResult.imageId,
+            generatedImageId: imageResult.imageId,
+            imagePrompt: userMsg.content,
+            timestamp: new Date(),
+            savedToCompanionGallery: false,
+            savedToPersonalGallery: false,
+          };
 
-      const { data, error } = await supabase.functions.invoke("chat-with-companion", {
-        body: {
-          companionId: companion.id,
-          messages: [...contextMessages, { role: "user", content: userMsg.content }],
-          systemPrompt: companion.systemPrompt,
-          companionName: companion.name,
-        },
-      });
+          setMessages((prev) => [...prev, imageMsg]);
 
-      if (error) throw error;
+          // Deduct image tokens
+          await deductImageTokens(user.id);
+          
+          toast.success(`✨ Image generated! (${IMAGE_TOKEN_COST} tokens deducted)`, {
+            duration: 3000,
+          });
+        } else {
+          // If image generation fails, provide a chat response instead
+          const contextMessages = messages.slice(-20).map((m) => ({
+            role: m.role,
+            content: m.content,
+          }));
 
-      const { cleanText, command } = parseLovenseCommand(data.response || data.message || "");
+          const { data, error } = await supabase.functions.invoke("chat-with-companion", {
+            body: {
+              companionId: companion.id,
+              messages: [...contextMessages, { role: "user", content: userMsg.content }],
+              systemPrompt: createCompanionSystemPrompt(companion.name, {}, connectedToys.length > 0 ? connectedToys.map(toy => toy.name).join(', ') : "No toys connected"),
+              companionName: companion.name,
+            },
+          });
 
-      const assistantMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: cleanText,
-        lovenseCommand: command,
-        timestamp: new Date(),
-      };
+          if (error) throw error;
 
-      setMessages((prev) => [...prev, assistantMsg]);
+          const { cleanText, command } = parseLovenseCommand(data.response || data.message || "");
 
-      await supabase.from("chat_messages").insert({
-        user_id: user.id,
-        companion_id: companion.id,
-        role: "assistant",
-        content: cleanText,
-        lovense_command: command,
-      });
+          const assistantMsg: ChatMessage = {
+            id: (Date.now() + 2).toString(),
+            role: "assistant",
+            content: cleanText,
+            lovenseCommand: command,
+            timestamp: new Date(),
+          };
 
-      // Auto-execute device command if connected
-      if (command && hasDevice) {
-        executeDeviceCommand(command);
+          setMessages((prev) => [...prev, assistantMsg]);
+
+          await supabase.from("chat_messages").insert({
+            user_id: user.id,
+            companion_id: companion.id,
+            role: "assistant",
+            content: cleanText,
+            lovense_command: command,
+          });
+
+          if (command && hasDevice) {
+            executeDeviceCommand(command);
+          }
+
+          await deductTokens(user.id);
+        }
+      } else {
+        // Regular chat message
+        const contextMessages = messages.slice(-20).map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
+
+        const { data, error } = await supabase.functions.invoke("chat-with-companion", {
+          body: {
+            companionId: companion.id,
+            messages: [...contextMessages, { role: "user", content: userMsg.content }],
+            systemPrompt: createCompanionSystemPrompt(companion.name, {}, connectedToys.length > 0 ? connectedToys.map(toy => toy.name).join(', ') : "No toys connected"),
+            companionName: companion.name,
+            connectedToys: connectedToys,
+          },
+        });
+
+        if (error) throw error;
+
+        const { cleanText, command } = parseLovenseCommand(data.response || data.message || "");
+
+        const assistantMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: cleanText,
+          lovenseCommand: command,
+          timestamp: new Date(),
+        };
+
+        setMessages((prev) => [...prev, assistantMsg]);
+
+        await supabase.from("chat_messages").insert({
+          user_id: user.id,
+          companion_id: companion.id,
+          role: "assistant",
+          content: cleanText,
+          lovense_command: command,
+        });
+
+        // Auto-execute device command if connected
+        if (command && connectedToys.length > 0) {
+          executeDeviceCommand(command);
+        }
+
+        await deductTokens(user.id);
       }
-
-      await deductTokens(user.id);
     } catch (err: any) {
       console.error("Chat error:", err);
-      toast.error("Failed to get response. Check your connection.");
+      toast.error("Failed to process your request. Check your connection.");
     } finally {
       setLoading(false);
     }
@@ -319,8 +676,13 @@ const Chat = () => {
           <p className="text-xs text-primary truncate">{companion.tagline}</p>
         </div>
         <div className="flex items-center gap-2">
-          {hasDevice && (
-            <div className="w-2 h-2 rounded-full bg-accent animate-pulse" title="Device connected" />
+          {connectedToys.length > 0 && (
+            <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-accent/10 text-accent text-xs">
+              <Zap className="h-3 w-3" />
+              <span className="font-medium">
+                {connectedToys[0].name} ({connectedToys[0].type})
+              </span>
+            </div>
           )}
           <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-xs">
             <Flame className="h-3 w-3 text-primary" />
@@ -338,6 +700,176 @@ const Chat = () => {
             <AlertOctagon className="h-5 w-5" />
           </button>
         </div>
+      </div>
+
+            <div className="border-b border-border bg-card/80 backdrop-blur-xl px-4 py-4 space-y-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2">
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Toy Control</p>
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="rounded-full bg-muted px-3 py-1 text-xs text-foreground">
+                {hasDevice ? `${connectedToys[0].name} (${connectedToys[0].status})` : "No toy connected"}
+              </span>
+              <span className="rounded-full bg-muted px-3 py-1 text-xs text-foreground">
+                Affection: {relationship?.affection_level ?? 0}%
+              </span>
+              <span className="rounded-full bg-muted px-3 py-1 text-xs text-foreground">
+                Breeding Stage: {relationship?.breeding_stage ?? 0} / 3
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {hasDevice ? (
+              <>
+                <button
+                  onClick={handleTestToy}
+                  className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  Test Toy
+                </button>
+                <button
+                  onClick={handleDisconnectToy}
+                  className="rounded-xl bg-destructive px-4 py-2 text-xs font-semibold text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                >
+                  Disconnect
+                </button>
+                <button
+                  onClick={handleStopAll}
+                  className="rounded-xl bg-destructive/80 px-4 py-2 text-xs font-semibold text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                >
+                  Stop All
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={handleConnectToy}
+                disabled={pairingLoading}
+                className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {pairingLoading ? "Pairing..." : "Connect Toy"}
+              </button>
+            )}
+            <button
+              onClick={handleStartBreedingRitual}
+              className="rounded-xl bg-secondary px-4 py-2 text-xs font-semibold text-foreground hover:bg-secondary/90 transition-colors"
+            >
+              Start Breeding Ritual
+            </button>
+          </div>
+        </div>
+
+        {hasDevice && (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+              <button
+                onClick={() => handleSendPattern("tease", intensity, isPatternPersistent)}
+                className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                  activePattern === "tease"
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-foreground hover:bg-muted/90'
+                }`}
+              >
+                Tease
+              </button>
+              <button
+                onClick={() => handleSendPattern("pulse", intensity, isPatternPersistent)}
+                className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                  activePattern === "pulse"
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-foreground hover:bg-muted/90'
+                }`}
+              >
+                Pulse
+              </button>
+              {connectedToys[0].capabilities.includes("thrust") && (
+                <button
+                  onClick={() => handleSendPattern("thrust", intensity, isPatternPersistent)}
+                  className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                    activePattern === "thrust"
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-foreground hover:bg-muted/90'
+                  }`}
+                >
+                  Thrust
+                </button>
+              )}
+              <button
+                onClick={() => handleSendPattern(activePattern, Math.min(100, intensity + 20), isPatternPersistent)}
+                className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors bg-muted text-foreground hover:bg-muted/90`}
+              >
+                Intensify
+              </button>
+              <button
+                onClick={() => handleSendPattern(activePattern, Math.max(0, intensity - 20), isPatternPersistent)}
+                className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors bg-muted text-foreground hover:bg-muted/90`}
+              >
+                Slow Down
+              </button>
+              <button
+                onClick={() => setIsPatternPersistent(!isPatternPersistent)}
+                className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                  isPatternPersistent
+                    ? 'bg-accent text-accent-foreground'
+                    : 'bg-muted text-foreground hover:bg-muted/90'
+                }`}
+              >
+                {isPatternPersistent ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+                Persistent
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2 items-center justify-between">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <span className="text-xs text-muted-foreground">Intensity:</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="10"
+                  value={intensity}
+                  onChange={(e) => setIntensity(parseInt(e.target.value))}
+                  className="w-full sm:w-48 accent-primary"
+                />
+                <span className="text-xs text-foreground">{intensity}%</span>
+              </div>
+              <button
+                onClick={() => handleSendPattern(undefined, intensity, isPatternPersistent)}
+                disabled={!hasDevice || patternSending}
+                className="rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-accent-foreground hover:bg-accent/90 transition-colors disabled:opacity-50"
+              >
+                {patternSending ? "Sending pattern..." : `Send ${activePattern}`}
+              </button>
+              {pairingUrl && !hasDevice && (
+                <a
+                  href={pairingUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl bg-primary/10 px-4 py-2 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+                >
+                  Open pairing portal
+                </a>
+              )}
+            </div>
+
+            {connectedToys.length > 1 && (
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-xs text-muted-foreground">Enabled Toys:</span>
+                {connectedToys.map(toy => (
+                  <button
+                    key={toy.id}
+                    onClick={() => toggleToyEnabled(toy.id)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                      toy.enabled ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    {toy.name} {toy.enabled ? '✓' : '✗'}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Token warning */}
@@ -371,16 +903,39 @@ const Chat = () => {
                   : "bg-card border border-border text-foreground rounded-bl-md"
               }`}
             >
-              <p className="whitespace-pre-wrap">{msg.content}</p>
+              {/* Image display */}
+              {msg.imageUrl ? (
+                <ImageMessage
+                  imageUrl={msg.imageUrl}
+                  prompt={msg.imagePrompt || "Generated image"}
+                  onImageClick={() => setViewingImage(msg)}
+                  companionName={companion.name}
+                />
+              ) : (
+                <p className="whitespace-pre-wrap">{msg.content}</p>
+              )}
+
               {msg.lovenseCommand && (
                 <div className="mt-2 px-3 py-2 rounded-lg bg-accent/10 border border-accent/20 text-accent text-xs flex items-center gap-2">
                   <Zap className="h-3 w-3" />
-                  Device: {msg.lovenseCommand.command} at {msg.lovenseCommand.intensity}%
-                  {hasDevice ? (
-                    <span className="text-accent ml-1">✓ Sent</span>
+                  {connectedToys.length > 0 ? (
+                    <>
+                      {connectedToys[0].name}: {msg.lovenseCommand.command} at {msg.lovenseCommand.intensity}%
+                      <span className="text-accent ml-1">✓ Sent</span>
+                    </>
                   ) : (
-                    <span className="text-muted-foreground ml-1">(Connect device to activate)</span>
+                    <>
+                      Device: {msg.lovenseCommand.command} at {msg.lovenseCommand.intensity}%
+                      <span className="text-muted-foreground ml-1">(Connect device to activate)</span>
+                    </>
                   )}
+                </div>
+              )}
+
+              {/* Save status for images */}
+              {msg.imageUrl && (msg.savedToCompanionGallery || msg.savedToPersonalGallery) && (
+                <div className="mt-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-green-500 text-xs flex items-center gap-2">
+                  ✓ Saved to {msg.savedToCompanionGallery ? `${companion.name}'s gallery` : "your personal gallery"}
                 </div>
               )}
             </div>
@@ -391,7 +946,7 @@ const Chat = () => {
             <div className="bg-card border border-border rounded-2xl rounded-bl-md px-4 py-3">
               <div className="flex items-center gap-2 text-muted-foreground text-sm">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {companion.name} is typing...
+                {companion.name} is {isImageRequest(input) ? "creating..." : "typing..."}
               </div>
             </div>
           </div>
@@ -412,22 +967,55 @@ const Chat = () => {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={tokensBalance <= 0 ? "Out of tokens — upgrade to continue" : `Message ${companion.name}...`}
+            placeholder={
+              tokensBalance <= 0
+                ? "Out of tokens — upgrade to continue"
+                : `Message ${companion.name}... (ask for selfies or pics!)`
+            }
             className="flex-1 px-4 py-3 rounded-xl bg-muted border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
             disabled={loading || tokensBalance <= 0}
           />
           <button
             type="submit"
             disabled={loading || !input.trim() || tokensBalance <= 0}
-            className="px-4 py-3 rounded-xl bg-primary text-primary-foreground disabled:opacity-30 hover:glow-pink transition-all"
+            className="px-4 py-3 rounded-xl bg-primary text-primary-foreground disabled:opacity-30 hover:glow-pink transition-all flex items-center gap-2"
+            title={isImageRequest(input) ? `Generate image (${IMAGE_TOKEN_COST} tokens)` : `Send message (${TOKEN_COST} tokens)`}
           >
-            <Send className="h-5 w-5" />
+            {isImageRequest(input) ? (
+              <>
+                <ImageIcon className="h-5 w-5" />
+              </>
+            ) : (
+              <Send className="h-5 w-5" />
+            )}
           </button>
         </form>
         <p className="text-[10px] text-muted-foreground text-center mt-2">
-          Safe word: <span className="text-destructive font-bold">{safeWord}</span> · {TOKEN_COST} tokens per message · 18+ only
+          Safe word: <span className="text-destructive font-bold">{safeWord}</span> · {TOKEN_COST} tokens/message · {IMAGE_TOKEN_COST} tokens/image · 18+ only
         </p>
       </div>
+
+      {/* Image Viewer Modal */}
+      {viewingImage && viewingImage.imageUrl && viewingImage.generatedImageId && (
+        <ImageViewer
+          imageUrl={viewingImage.imageUrl}
+          imageId={viewingImage.generatedImageId}
+          companionName={companion.name}
+          prompt={viewingImage.imagePrompt || "Generated image"}
+          onSaveToCompanionGallery={saveImageToCompanionGallery}
+          onSaveToPersonalGallery={saveImageToPersonalGallery}
+          onClose={() => setViewingImage(null)}
+        />
+      )}
+
+      {showBreedingRitual && companion && (
+        <BreedingRitual
+          companionId={companion.id}
+          companionName={companion.name}
+          onClose={() => setShowBreedingRitual(false)}
+          onComplete={handleBreedingComplete}
+        />
+      )}
     </div>
   );
 };

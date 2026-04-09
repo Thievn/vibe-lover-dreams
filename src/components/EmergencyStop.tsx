@@ -1,49 +1,57 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { OctagonX } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
+import { getToys, sendCommand, type LovenseToy } from "@/lib/lovense";
 
 const EmergencyStop = () => {
-  const [hasDevice, setHasDevice] = useState(false);
+  const [connectedToys, setConnectedToys] = useState<LovenseToy[]>([]);
   const [stopping, setStopping] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    const checkDevice = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return;
+    const checkToys = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user?.id) {
+          setConnectedToys([]);
+          setUserId(null);
+          return;
+        }
 
-      const { data } = await supabase
-        .from("profiles")
-        .select("device_uid")
-        .eq("user_id", session.user.id)
-        .single();
-
-      setHasDevice(!!data?.device_uid);
+        setUserId(session.user.id);
+        const toys = await getToys(session.user.id);
+        setConnectedToys(toys);
+      } catch (error) {
+        console.error("Failed to check toys:", error);
+        setConnectedToys([]);
+      }
     };
 
-    checkDevice();
+    checkToys();
 
-    // Re-check when auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      checkDevice();
-    });
+    // Re-check periodically
+    const interval = setInterval(checkToys, 30000); // Check every 30 seconds
 
-    return () => subscription.unsubscribe();
+    return () => clearInterval(interval);
   }, []);
 
   const handleStop = async () => {
+    if (!userId) {
+      toast.error("No authenticated user found.");
+      return;
+    }
+
     setStopping(true);
     try {
-      const { error } = await supabase.functions.invoke("send-device-command", {
-        body: { command: "Stop", intensity: 0, duration: 0 },
-      });
-
-      if (error) throw error;
+      // Stop all connected toys
+      await sendCommand(userId, { command: "stop", intensity: 0, duration: 0 });
       toast.success("🛑 All devices stopped");
-    } catch (err: any) {
-      console.error("Emergency stop error:", err);
-      toast.error("Failed to stop device — try again");
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      console.error("Emergency stop error:", error);
+      toast.error("Failed to stop devices — try again");
     } finally {
       setStopping(false);
     }
@@ -51,7 +59,7 @@ const EmergencyStop = () => {
 
   return (
     <AnimatePresence>
-      {hasDevice && (
+      {connectedToys.length > 0 && (
         <motion.button
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}

@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index.tsx";
 import CompanionProfile from "./pages/CompanionProfile.tsx";
 import Chat from "./pages/Chat.tsx";
@@ -25,12 +26,28 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/companion/:id" element={<CompanionProfile />} />
-          <Route path="/chat/:id" element={<Chat />} />
+          <Route path="/chat/:id" element={
+            <ProtectedRoute>
+              <Chat />
+            </ProtectedRoute>
+          } />
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/create-character" element={<CreateCharacter />} />
-          <Route path="/admin" element={<Admin />} />
+          <Route path="/settings" element={
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          } />
+          <Route path="/create-character" element={
+            <ProtectedRoute>
+              <CreateCharacter />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin" element={
+            <ProtectedRoute>
+              <Admin />
+            </ProtectedRoute>
+          } />
           <Route path="*" element={<NotFound />} />
         </Routes>
         <EmergencyStop />

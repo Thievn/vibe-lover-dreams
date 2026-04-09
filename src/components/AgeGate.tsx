@@ -22,48 +22,103 @@ const AgeGate = ({ onVerified }: AgeGateProps) => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-xl"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-2xl"
       >
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-          className="mx-4 max-w-md w-full rounded-2xl border border-border bg-card p-8 text-center glow-purple"
-        >
-          <ShieldCheck className="mx-auto mb-4 h-16 w-16 text-primary" />
-          <h1 className="font-gothic text-2xl font-bold text-primary mb-2">
-            Age Verification Required
-          </h1>
-          <p className="text-muted-foreground text-sm mb-6">
-            LustForge AI contains mature adult content including interactive roleplay and adult themes.
-            You must be 18 years or older to enter.
-          </p>
-
-          <label className="flex items-start gap-3 text-left cursor-pointer mb-6 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors">
-            <input
-              type="checkbox"
-              checked={checked}
-              onChange={(e) => setChecked(e.target.checked)}
-              className="mt-1 h-5 w-5 rounded border-border accent-primary"
+        {/* Animated background particles */}
+        <div className="absolute inset-0 overflow-hidden">
+          {[...Array(20)].map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute w-1 h-1 bg-primary/30 rounded-full"
+              initial={{
+                x: Math.random() * window.innerWidth,
+                y: Math.random() * window.innerHeight,
+                opacity: 0
+              }}
+              animate={{
+                y: [null, -20, window.innerHeight + 20],
+                opacity: [0, 1, 0]
+              }}
+              transition={{
+                duration: Math.random() * 3 + 2,
+                repeat: Infinity,
+                delay: Math.random() * 2
+              }}
             />
-            <span className="text-sm text-foreground">
-              I confirm I am <strong className="text-primary">18 years of age or older</strong> and I consent to viewing adult content.
-              I understand all content is AI-generated fiction and not real.
-            </span>
-          </label>
+          ))}
+        </div>
 
-          <button
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0, y: 50 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+          className="mx-4 max-w-lg w-full rounded-3xl border-2 border-primary/50 bg-card/95 backdrop-blur-xl p-10 text-center shadow-2xl shadow-primary/20 glow-purple"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.5, type: "spring", stiffness: 300 }}
+          >
+            <ShieldCheck className="mx-auto mb-6 h-20 w-20 text-primary drop-shadow-lg" />
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="font-gothic text-3xl md:text-4xl font-bold text-primary mb-3"
+          >
+            18+ Age Verification
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+            className="text-muted-foreground text-base mb-8 leading-relaxed"
+          >
+            LustForge AI contains explicit adult content, interactive roleplay,
+            and real-time smart device integration. This experience is designed
+            exclusively for consenting adults.
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8 }}
+          >
+            <label className="flex items-start gap-4 text-left cursor-pointer mb-8 p-4 rounded-xl border-2 border-border/50 hover:border-primary/50 transition-all duration-300 bg-muted/20 hover:bg-muted/40">
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => setChecked(e.target.checked)}
+                className="mt-1 h-5 w-5 rounded border-2 border-border accent-primary focus:ring-primary/50"
+              />
+              <span className="text-sm text-foreground leading-relaxed">
+                I confirm I am <strong className="text-primary text-lg">18 years of age or older</strong> and I consent to viewing and interacting with adult content. I understand this is a fictional AI experience.
+              </span>
+            </label>
+          </motion.div>
+
+          <motion.button
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.9 }}
             onClick={handleEnter}
             disabled={!checked}
-            className="w-full py-3 rounded-xl font-bold text-lg transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed bg-primary text-primary-foreground hover:glow-pink"
+            className="w-full px-8 py-4 rounded-xl bg-primary text-primary-foreground font-bold text-lg glow-pink hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-300 shadow-lg shadow-primary/30"
           >
             Enter LustForge AI
-          </button>
+          </motion.button>
 
-          <p className="mt-4 text-xs text-muted-foreground">
-            By entering, you agree to our Terms of Service and Privacy Policy.
-            All interactions are private. Safe-word support is available in every chat.
-          </p>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.0 }}
+            className="text-xs text-muted-foreground mt-4"
+          >
+            By entering, you agree to our terms of service and privacy policy.
+          </motion.p>
         </motion.div>
       </motion.div>
     </AnimatePresence>

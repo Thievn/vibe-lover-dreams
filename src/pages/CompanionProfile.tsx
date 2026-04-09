@@ -43,12 +43,17 @@ const CompanionProfile = () => {
     );
   }
 
-  const handleStartChat = () => {
+  const handleStartChat = (starterPrompt?: string, starterTitle?: string) => {
     if (!user) {
       navigate("/auth");
       return;
     }
-    navigate(`/chat/${companion.id}`);
+    navigate(`/chat/${companion.id}`, {
+      state: {
+        starterPrompt,
+        starterTitle,
+      },
+    });
   };
 
   return (
@@ -159,7 +164,7 @@ const CompanionProfile = () => {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.1 * i }}
-                  onClick={handleStartChat}
+                  onClick={() => handleStartChat(starter.description, starter.title)}
                   className="cursor-pointer rounded-xl border border-border bg-card p-4 hover:border-primary/50 hover:glow-pink transition-all"
                 >
                   <h4 className="font-bold text-foreground text-sm mb-1">{starter.title}</h4>
