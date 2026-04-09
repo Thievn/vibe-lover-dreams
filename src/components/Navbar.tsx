@@ -15,10 +15,12 @@ const Navbar = () => {
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchTokens(session.user.id);
+        checkAdmin(session.user.id);
       } else {
         setTokens(null);
       }
     });
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -26,6 +28,7 @@ const Navbar = () => {
         checkAdmin(session.user.id);
       }
     });
+
     return () => subscription.unsubscribe();
   }, []);
 
@@ -43,8 +46,9 @@ const Navbar = () => {
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
-      .eq("role", "admin");
-    setIsAdmin(!!data && data.length > 0);
+      .eq("role", "admin")
+      .single();
+    setIsAdmin(!!data);
   };
 
   const handleLogout = async () => {
