@@ -9,16 +9,8 @@ export default function FeaturesGrid() {
     { icon: Crown, title: "HYBRID CREATION SYSTEM", desc: "Breed two companions to create unique hybrids", color: "#FF2D7B" },
     { icon: Heart, title: "CONVERSATION MEMORY", desc: "Companions remember your history", color: "#00FFD4" },
     { icon: Shield, title: "PRIVACY FIRST", desc: "No logging of private content", color: "#7B2D8E" },
-    { icon: Book, title: "FANTASY SCENARIOS", desc: "Pre-built scenario starters for every companion", color: "#FF2D7B" },
+    { icon: Book, title: "FANTASY SCENARIOS", desc: "Pre-built scenario starters", color: "#FF2D7B" },
     { icon: Zap, title: "INTENSITY CONTROLS", desc: "Set device intensity limits", color: "#00FFD4" },
-    { icon: Mic, title: "VOICE CHAT", desc: "Talk to your companions with real-time voice", comingSoon: true },
-    { icon: ImageIcon, title: "AI IMAGE GENERATION", desc: "Companions send custom-generated images", comingSoon: true },
-    { icon: Users, title: "CUSTOM COMPANIONS", desc: "Build companions from scratch", comingSoon: true },
-    { icon: Heart, title: "RELATIONSHIP SYSTEM", desc: "Companions develop feelings over time", comingSoon: true },
-    { icon: Gamepad2, title: "INTERACTIVE SCENARIOS", desc: "Branching storylines with choices", comingSoon: true },
-    { icon: Globe, title: "MULTI-LANGUAGE", desc: "20+ languages supported", comingSoon: true },
-    { icon: Star, title: "FAVORITES & COLLECTIONS", desc: "Save your favorite moments", comingSoon: true },
-    { icon: Sparkles, title: "MOOD DETECTION", desc: "AI adapts tone and intensity", comingSoon: true },
   ];
 
   return (
@@ -35,16 +27,13 @@ export default function FeaturesGrid() {
           {features.map((feature, index) => (
             <div
               key={index}
-              className="group relative bg-black/80 border border-white/10 hover:border-[#FF2D7B] rounded-3xl p-6 transition-all duration-300 hover:-translate-y-1 h-full"
+              className="group relative bg-black/80 border border-white/10 hover:border-[#FF2D7B] rounded-3xl p-6 transition-all duration-300 hover:-translate-y-1 h-full flex flex-col"
             >
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-5">
                 <feature.icon className="h-8 w-8" style={{ color: feature.color }} />
-                {feature.comingSoon && (
-                  <span className="text-[10px] uppercase tracking-widest bg-white/10 text-white/70 px-3 py-1 rounded-2xl">Coming Soon</span>
-                )}
               </div>
               <h3 className="text-xl font-bold text-white mb-2">{feature.title}</h3>
-              <p className="text-white/70 text-sm leading-relaxed">{feature.desc}</p>
+              <p className="text-white/70 text-sm leading-relaxed flex-1">{feature.desc}</p>
             </div>
           ))}
         </div>
