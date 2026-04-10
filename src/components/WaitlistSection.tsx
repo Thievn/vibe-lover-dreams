@@ -3,7 +3,7 @@ import { Mail, CheckCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const RESEND_API_KEY = "re_aRPn4ihy_JQkVztvMhVgSHjzRMAm87tu6"; // ← Put your real Resend API key here
+const RESEND_API_KEY = "re_eMMAdWuM_FstRbrNKpxH29FQmjQVU9uPx"; // ← REPLACE WITH YOUR REAL RESEND API KEY
 
 export default function WaitlistSection() {
   const [email, setEmail] = useState("");
@@ -18,15 +18,17 @@ export default function WaitlistSection() {
     setIsLoading(true);
 
     try {
-      // 1. Save to Supabase
+      // Save to Supabase
       const { error: dbError } = await supabase
         .from("waitlist")
         .insert([{ email: trimmedEmail }]);
 
-      if (dbError && dbError.code !== "23505") throw dbError;
+      if (dbError && dbError.code !== "23505") {
+        throw dbError;
+      }
 
-      // 2. Send notification to you via Resend
-      await fetch("https://api.resend.com/emails", {
+      // Send notification via Resend (client-side)
+      const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -45,9 +47,15 @@ export default function WaitlistSection() {
         }),
       });
 
+      if (!res.ok) {
+        throw new Error("Failed to send notification");
+      }
+
       setIsSuccess(true);
       setEmail("");
-      toast.success("You're officially on the waitlist! 🎉");
+      toast.success("You're officially on the waitlist! 🎉", {
+        description: "We'll notify you when we launch.",
+      });
 
     } catch (err: any) {
       console.error(err);
