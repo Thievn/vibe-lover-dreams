@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Mail, CheckCircle } from "lucide-react";
+import { Mail, CheckCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -10,26 +10,34 @@ export default function WaitlistSection() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
+    if (!email.trim()) return;
 
     setIsLoading(true);
 
     try {
       const { error } = await supabase
         .from("waitlist")
-        .insert([{ email: email.trim().toLowerCase() }]);
+        .insert([{ 
+          email: email.trim().toLowerCase() 
+        }]);
 
-      if (error) throw error;
-
-      setIsSuccess(true);
-      setEmail("");
-      toast.success("You're on the waitlist! 🎉 We'll email you when we launch.");
-      
-      // Reset success message after 5 seconds
-      setTimeout(() => setIsSuccess(false), 5000);
-    } catch (error: any) {
-      console.error(error);
-      toast.error(error.message || "Something went wrong. Please try again.");
+      if (error) {
+        if (error.code === '23505') {
+          toast.info("You're already on the waitlist! 🎉");
+        } else {
+          throw error;
+        }
+      } else {
+        setIsSuccess(true);
+        setEmail("");
+        toast.success("Email accepted! You're officially on the waitlist.", {
+          description: "We'll send you an update when we launch.",
+          duration: 5000,
+        });
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Failed to join waitlist. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -46,14 +54,22 @@ export default function WaitlistSection() {
           </h2>
           
           <p className="text-muted-foreground text-sm mb-6">
-            Get early access to premium features, new companions, and exclusive updates. No spam — ever.
+            Get early access when we launch. No spam, ever.
           </p>
 
           {isSuccess ? (
-            <div className="flex flex-col items-center gap-3 py-8 text-primary">
-              <CheckCircle className="h-12 w-12" />
-              <p className="font-bold text-lg">You're on the list!</p>
-              <p className="text-muted-foreground text-sm">We'll notify you as soon as we open the gates.</p>
+            <div className="py-10 flex flex-col items-center gap-4">
+              <CheckCircle className="h-16 w-16 text-primary" />
+              <div>
+                <p className="text-2xl font-bold text-foreground">You're In! 🎉</p>
+                <p className="text-muted-foreground mt-2">We'll email you as soon as LustForge opens.</p>
+              </div>
+              <button 
+                onClick={() => setIsSuccess(false)}
+                className="mt-4 text-primary hover:underline text-sm"
+              >
+                Join with another email
+              </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
@@ -71,9 +87,16 @@ export default function WaitlistSection() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-bold glow-pink hover:scale-105 transition-transform disabled:opacity-50 flex items-center justify-center gap-2 whitespace-nowrap"
+                className="px-8 py-3 rounded-xl bg-primary text-primary-foreground font-bold glow-pink hover:scale-105 transition-transform disabled:opacity-50 flex items-center justify-center gap-2 min-w-[140px]"
               >
-                {isLoading ? "Joining..." : "Join Waitlist"}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Joining...
+                  </>
+                ) : (
+                  "Join Waitlist"
+                )}
               </button>
             </form>
           )}
