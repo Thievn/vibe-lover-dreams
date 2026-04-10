@@ -9,31 +9,36 @@ export default function FeaturesGrid() {
     { icon: Crown, title: "HYBRID CREATION SYSTEM", desc: "Breed two companions to create unique hybrids", color: "#FF2D7B" },
     { icon: Heart, title: "CONVERSATION MEMORY", desc: "Companions remember your history", color: "#00FFD4" },
     { icon: Shield, title: "PRIVACY FIRST", desc: "No logging of private content", color: "#7B2D8E" },
-    { icon: Book, title: "FANTASY SCENARIOS", desc: "Pre-built scenario starters", color: "#FF2D7B" },
-    { icon: Zap, title: "INTENSITY CONTROLS", desc: "Set device intensity limits", color: "#00FFD4" },
+    { icon: Book, title: "FANTASY SCENARIOS", desc: "Pre-built scenario starters for every companion", color: "#FF2D7B" },
+    { icon: Zap, title: "INTENSITY CONTROLS", desc: "Set device intensity limits for a comfortable experience", color: "#00FFD4" },
+    { icon: Mic, title: "VOICE CHAT", desc: "Talk to your companions with real-time voice synthesis", comingSoon: true },
+    { icon: ImageIcon, title: "AI IMAGE GENERATION", desc: "Companions send custom-generated images", comingSoon: true },
+    { icon: Users, title: "CUSTOM COMPANIONS", desc: "Build companions from scratch", comingSoon: true },
+    { icon: Heart, title: "RELATIONSHIP SYSTEM", desc: "Companions develop feelings and relationship dynamics over time", comingSoon: true },
   ];
 
   return (
-    <section className="py-20 px-6 bg-black/60">
+    <section className="py-16 px-4 relative overflow-hidden">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-12">
-          <h2 className="text-5xl font-bold tracking-widest bg-gradient-to-r from-[#FF2D7B] via-[#00FFD4] to-[#7B2D8E] bg-clip-text text-transparent">
-            BUILT FOR PLEASURE
-          </h2>
-          <p className="text-white/70 mt-3 text-lg">Features designed for the most immersive AI companion experience</p>
+          <h2 className="font-gothic text-3xl md:text-4xl font-bold gradient-vice-text mb-3">BUILT FOR PLEASURE</h2>
+          <p className="text-muted-foreground text-sm max-w-lg mx-auto">Features designed for the most immersive AI companion experience. MVP features are live — more launching soon.</p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {features.map((feature, index) => (
             <div
               key={index}
-              className="group relative bg-black/80 border border-white/10 hover:border-[#FF2D7B] rounded-3xl p-6 transition-all duration-300 hover:-translate-y-1 h-full flex flex-col"
+              className="relative rounded-xl border p-5 transition-all duration-300 hover:border-primary/40 bg-card border-border hover:glow-pink"
             >
-              <div className="flex items-center justify-between mb-5">
-                <feature.icon className="h-8 w-8" style={{ color: feature.color }} />
+              <div className="mb-3 text-primary">
+                <feature.icon className="h-5 w-5" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">{feature.title}</h3>
-              <p className="text-white/70 text-sm leading-relaxed flex-1">{feature.desc}</p>
+              <h3 className="font-semibold text-sm text-foreground mb-1">{feature.title}</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">{feature.desc}</p>
+              {feature.comingSoon && (
+                <span className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-secondary/20 text-secondary text-[10px] font-medium">Coming Soon</span>
+              )}
             </div>
           ))}
         </div>
