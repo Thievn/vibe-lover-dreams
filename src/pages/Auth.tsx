@@ -39,7 +39,7 @@ export default function Auth() {
         });
         if (error) throw error;
         toast.success("Signed in successfully");
-        navigate("/admin"); // Change this if your dashboard route is different
+        navigate("/dashboard");
       }
     } catch (error: any) {
       toast.error(error.message || "Authentication failed");
