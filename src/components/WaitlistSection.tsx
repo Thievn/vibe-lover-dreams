@@ -10,19 +10,18 @@ export default function WaitlistSection() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail) return;
 
     setIsLoading(true);
 
     try {
       const { error } = await supabase
         .from("waitlist")
-        .insert([{ 
-          email: email.trim().toLowerCase() 
-        }]);
+        .insert([{ email: trimmedEmail }]);
 
       if (error) {
-        if (error.code === '23505') {
+        if (error.code === "23505") { // unique violation
           toast.info("You're already on the waitlist! 🎉");
         } else {
           throw error;
@@ -30,14 +29,14 @@ export default function WaitlistSection() {
       } else {
         setIsSuccess(true);
         setEmail("");
-        toast.success("Email accepted! You're officially on the waitlist.", {
-          description: "We'll send you an update when we launch.",
-          duration: 5000,
+        toast.success("You're officially on the waitlist! 🎉", {
+          description: "We'll notify you when LustForge launches.",
+          duration: 6000,
         });
       }
     } catch (err: any) {
-      console.error(err);
-      toast.error("Failed to join waitlist. Please try again.");
+      console.error("Waitlist error:", err);
+      toast.error("Failed to join waitlist. Please try again later.");
     } finally {
       setIsLoading(false);
     }
@@ -60,10 +59,8 @@ export default function WaitlistSection() {
           {isSuccess ? (
             <div className="py-10 flex flex-col items-center gap-4">
               <CheckCircle className="h-16 w-16 text-primary" />
-              <div>
-                <p className="text-2xl font-bold text-foreground">You're In! 🎉</p>
-                <p className="text-muted-foreground mt-2">We'll email you as soon as LustForge opens.</p>
-              </div>
+              <p className="text-2xl font-bold text-foreground">You're In! 🎉</p>
+              <p className="text-muted-foreground">We'll email you as soon as we open the gates.</p>
               <button 
                 onClick={() => setIsSuccess(false)}
                 className="mt-4 text-primary hover:underline text-sm"
