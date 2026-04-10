@@ -20,8 +20,11 @@ const Index = () => {
     });
   }, []);
 
+ // Temporary: scroll to waitlist instead of going to broken auth
   const handleGetStarted = () => {
-    navigate("/auth"); // temporary - we'll improve this later
+    document.getElementById("waitlist")?.scrollIntoView({ 
+      behavior: "smooth" 
+    });
   };
 
   return (
