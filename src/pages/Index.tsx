@@ -4,15 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
 import { Flame } from "lucide-react";
 
-// Default imports (these files use export default)
 import HeroSection from "@/components/HeroSection";
 import FeaturesGrid from "@/components/FeaturesGrid";
 import WaitlistSection from "@/components/WaitlistSection";
 import PricingTeaser from "@/components/PricingTeaser";
 import Navbar from "@/components/Navbar";
-
-// Named import for NavLink
-import { NavLink } from "@/components/NavLink";
+import NavLink from "@/components/NavLink";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -39,8 +36,6 @@ const Index = () => {
 
       <Navbar>
         <NavLink to="/auth">Sign In</NavLink>
-        
-        {/* DEV BUILD badge moved to top bar (non-blocking) */}
         {isDevMode && (
           <div className="ml-auto mr-4 px-4 py-1 text-xs font-mono bg-black/70 text-red-400 border border-red-500/30 rounded-full">
             DEV BUILD • {new Date().toLocaleTimeString()}
