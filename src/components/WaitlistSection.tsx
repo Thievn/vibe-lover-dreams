@@ -3,6 +3,8 @@ import { Mail, CheckCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+const RESEND_API_KEY = "re_aRPn4ihy_JQkVztvMhVgSHjzRMAm87tu6"; // ← Put your real Resend API key here
+
 export default function WaitlistSection() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -16,27 +18,40 @@ export default function WaitlistSection() {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase
+      // 1. Save to Supabase
+      const { error: dbError } = await supabase
         .from("waitlist")
         .insert([{ email: trimmedEmail }]);
 
-      if (error) {
-        if (error.code === "23505") { // unique violation
-          toast.info("You're already on the waitlist! 🎉");
-        } else {
-          throw error;
-        }
-      } else {
-        setIsSuccess(true);
-        setEmail("");
-        toast.success("You're officially on the waitlist! 🎉", {
-          description: "We'll notify you when LustForge launches.",
-          duration: 6000,
-        });
-      }
+      if (dbError && dbError.code !== "23505") throw dbError;
+
+      // 2. Send notification to you via Resend
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${RESEND_API_KEY}`,
+        },
+        body: JSON.stringify({
+          from: "heythere@lustforge.app",
+          to: "lustforgeapp@gmail.com",
+          subject: `New Waitlist Signup: ${trimmedEmail}`,
+          html: `
+            <h2>New Waitlist Signup</h2>
+            <p><strong>Email:</strong> ${trimmedEmail}</p>
+            <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+            <p>Check the Supabase waitlist table for details.</p>
+          `,
+        }),
+      });
+
+      setIsSuccess(true);
+      setEmail("");
+      toast.success("You're officially on the waitlist! 🎉");
+
     } catch (err: any) {
-      console.error("Waitlist error:", err);
-      toast.error("Failed to join waitlist. Please try again later.");
+      console.error(err);
+      toast.error("Failed to join waitlist. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -61,12 +76,6 @@ export default function WaitlistSection() {
               <CheckCircle className="h-16 w-16 text-primary" />
               <p className="text-2xl font-bold text-foreground">You're In! 🎉</p>
               <p className="text-muted-foreground">We'll email you as soon as we open the gates.</p>
-              <button 
-                onClick={() => setIsSuccess(false)}
-                className="mt-4 text-primary hover:underline text-sm"
-              >
-                Join with another email
-              </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
