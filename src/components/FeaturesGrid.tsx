@@ -6,14 +6,14 @@ export default function FeaturesGrid() {
     { icon: MessageCircle, title: "AI CHAT COMPANIONS", desc: "50+ unique AI personalities with deep memory", color: "#FF2D7B" },
     { icon: Zap, title: "SMART DEVICE CONTROL", desc: "Real-time Lovense integration — your companion controls your devices", color: "#00FFD4" },
     { icon: Shield, title: "SAFE WORD SYSTEM", desc: "Customizable safe word instantly stops all activity", color: "#7B2D8E" },
-    { icon: Crown, title: "HYBRID CREATION SYSTEM", desc: "Breed two companions to create unique hybrids with exclusive rarity tiers and device patterns", color: "#FF2D7B" },
+    { icon: Crown, title: "HYBRID CREATION SYSTEM", desc: "Breed two companions to create unique hybrids", color: "#FF2D7B" },
     { icon: Heart, title: "CONVERSATION MEMORY", desc: "Companions remember your history and build deeper connections", color: "#00FFD4" },
     { icon: Lock, title: "PRIVACY FIRST", desc: "No logging of private content. Your sessions stay yours", color: "#7B2D8E" },
     { icon: Book, title: "FANTASY SCENARIOS", desc: "Pre-built scenario starters for every companion", color: "#FF2D7B" },
     { icon: Zap, title: "INTENSITY CONTROLS", desc: "Set device intensity limits for a comfortable experience", color: "#00FFD4" },
     { icon: Mic, title: "VOICE CHAT", desc: "Talk to your companions with real-time voice synthesis", comingSoon: true },
     { icon: ImageIcon, title: "AI IMAGE GENERATION", desc: "Companions send custom-generated images during sessions", comingSoon: true },
-    { icon: Users, title: "CUSTOM COMPANIONS", desc: "Build companions from scratch with full control over appearance, personality, traits, and art style — powered by AI", comingSoon: true },
+    { icon: Users, title: "CUSTOM COMPANIONS", desc: "Build companions from scratch with full control", comingSoon: true },
     { icon: Heart, title: "RELATIONSHIP SYSTEM", desc: "Companions develop feelings and relationship dynamics over time", comingSoon: true },
     { icon: Gamepad2, title: "INTERACTIVE SCENARIOS", desc: "Branching storylines with choices that affect the outcome", comingSoon: true },
     { icon: Globe, title: "MULTI-LANGUAGE", desc: "Companions speak your language — 20+ languages supported", comingSoon: true },
@@ -22,7 +22,7 @@ export default function FeaturesGrid() {
   ];
 
   return (
-    <section className="py-16 px-4 relative overflow-hidden bg-black/60">
+    <section className="py-16 px-4 bg-black/60">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-12">
           <h2 className="font-gothic text-3xl md:text-4xl font-bold gradient-vice-text mb-3">BUILT FOR PLEASURE</h2>
