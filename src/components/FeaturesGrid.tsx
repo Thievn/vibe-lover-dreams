@@ -1,82 +1,65 @@
 import { useState } from "react";
-import { RefreshCw } from "lucide-react";
-
-const featuredCompanions = [
-  {
-    name: "Ravyn Nocturne",
-    title: "Dark Seductress of Your Nightmares",
-    image: "/assets/raven-nox-B2Lyg3eu.jpg", // replace with your actual image path if needed
-  },
-  {
-    name: "Kira Lux",
-    title: "Bratty, Beautiful, Unbreakable",
-    image: "/assets/kira-lux-BAQtoFWU.jpg",
-  },
-  {
-    name: "Lena Frost",
-    title: "Cold Hands, Colder Heart",
-    image: "/assets/lena-frost-CaLMRX9B.jpg",
-  },
-  {
-    name: "Sage Evergreen",
-    title: "Wild, Untamed, Addictive",
-    image: "/assets/sage-evergreen-B9k12EVN.jpg",
-  },
-  {
-    name: "Nova Quinn",
-    title: "Cosmic Tease from Another Galaxy",
-    image: "/assets/nova-quinn-BDTGLlmD.jpg",
-  },
-  {
-    name: "Lilith Vesper",
-    title: "Your Personal Goth Mommy",
-    image: "/assets/lilith-vesper-DgzRo18X.jpg",
-  },
-];
+import { Zap, Shield, Heart, Crown, Mic, Image, Users, Sparkles, Book, Bell, Star, Globe, Gamepad2, Headphones } from "lucide-react";
 
 export default function FeaturesGrid() {
-  const [companions, setCompanions] = useState(featuredCompanions);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const refreshCompanions = () => {
-    // Shuffle for refresh effect
-    const shuffled = [...featuredCompanions].sort(() => Math.random() - 0.5);
-    setCompanions(shuffled);
-  };
+  const features = [
+    { icon: Zap, title: "AI CHAT COMPANIONS", desc: "50+ unique AI personalities with deep memory", color: "#FF2D7B" },
+    { icon: Shield, title: "SMART DEVICE CONTROL", desc: "Real-time Lovense integration", color: "#00FFD4" },
+    { icon: Shield, title: "SAFE WORD SYSTEM", desc: "Customizable safe word instantly stops all activity", color: "#7B2D8E" },
+    { icon: Crown, title: "HYBRID CREATION SYSTEM", desc: "Breed two companions to create unique hybrids", color: "#FF2D7B" },
+    { icon: Heart, title: "CONVERSATION MEMORY", desc: "Companions remember your history", color: "#00FFD4" },
+    { icon: Shield, title: "PRIVACY FIRST", desc: "No logging of private content", color: "#7B2D8E" },
+    { icon: Book, title: "FANTASY SCENARIOS", desc: "Pre-built scenario starters for every companion", color: "#FF2D7B" },
+    { icon: Zap, title: "INTENSITY CONTROLS", desc: "Set device intensity limits", color: "#00FFD4" },
+    { icon: Mic, title: "VOICE CHAT", desc: "Talk to your companions with real-time voice", comingSoon: true },
+    { icon: Image, title: "AI IMAGE GENERATION", desc: "Companions send custom-generated images", comingSoon: true },
+    { icon: Users, title: "CUSTOM COMPANIONS", desc: "Build companions from scratch", comingSoon: true },
+    { icon: Heart, title: "RELATIONSHIP SYSTEM", desc: "Companions develop feelings over time", comingSoon: true },
+    { icon: Gamepad2, title: "INTERACTIVE SCENARIOS", desc: "Branching storylines with choices", comingSoon: true },
+    { icon: Globe, title: "MULTI-LANGUAGE", desc: "20+ languages supported", comingSoon: true },
+    { icon: Star, title: "FAVORITES & COLLECTIONS", desc: "Save your favorite moments", comingSoon: true },
+    { icon: Sparkles, title: "MOOD DETECTION", desc: "AI adapts tone and intensity", comingSoon: true },
+  ];
 
   return (
-    <section className="py-16 px-6 bg-black/40">
+    <section className="py-20 px-6 bg-black/60">
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-4xl font-gothic tracking-widest text-white">
-            61+ COMPANIONS &amp; GROWING
+        {/* BUILT FOR PLEASURE */}
+        <div className="text-center mb-12">
+          <h2 className="text-5xl font-bold tracking-widest bg-gradient-to-r from-[#FF2D7B] via-[#00FFD4] to-[#7B2D8E] bg-clip-text text-transparent">
+            BUILT FOR PLEASURE
           </h2>
-          <button
-            onClick={refreshCompanions}
-            className="flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl transition-all border border-white/20"
-          >
-            <RefreshCw className="h-4 w-4" />
-            <span className="text-sm font-medium">Refresh Companions</span>
-          </button>
+          <p className="text-white/70 mt-3 text-lg">Features designed for the most immersive AI companion experience</p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-          {companions.map((companion, index) => (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {features.map((feature, index) => (
             <div
               key={index}
-              className="group relative overflow-hidden rounded-3xl bg-black border border-white/10 hover:border-pink-500 transition-all duration-300"
+              className="group relative bg-black/80 border border-white/10 hover:border-[#FF2D7B] rounded-3xl p-8 transition-all duration-300 hover:-translate-y-1"
             >
-              <img
-                src={companion.image}
-                alt={companion.name}
-                className="w-full h-80 object-cover group-hover:scale-105 transition-transform duration-500"
-              />
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-6">
-                <h3 className="text-xl font-bold text-white">{companion.name}</h3>
-                <p className="text-pink-300 text-sm">{companion.title}</p>
+              <div className="flex items-center justify-between mb-6">
+                <feature.icon className="h-9 w-9" style={{ color: feature.color }} />
+                {feature.comingSoon && (
+                  <span className="text-xs uppercase tracking-widest bg-white/10 text-white/70 px-3 py-1 rounded-2xl">Coming Soon</span>
+                )}
               </div>
+              <h3 className="text-2xl font-bold text-white mb-2">{feature.title}</h3>
+              <p className="text-white/70 leading-relaxed">{feature.desc}</p>
             </div>
           ))}
         </div>
+
+        {/* THE CREATION & CUSTOMIZATION SYSTEM */}
+        <div className="mt-24 text-center">
+          <h2 className="text-4xl font-bold tracking-widest text-white mb-4">THE CREATION &amp; CUSTOMIZATION SYSTEM</h2>
+          <p className="text-white/70 max-w-2xl mx-auto">Build companions from scratch with limitless customization — or breed two together to create entirely new AI personalities.</p>
+        </div>
+
+        {/* 4 creation cards would go here if you want them added next — let me know */}
+
       </div>
     </section>
   );
