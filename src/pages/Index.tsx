@@ -4,7 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
+import CreationSystem from "@/components/CreationSystem";
 import FeaturesGrid from "@/components/FeaturesGrid";
+import Testimonials from "@/components/Testimonials";
 import WaitlistSection from "@/components/WaitlistSection";
 
 const Index = () => {
@@ -19,11 +21,7 @@ const Index = () => {
   }, []);
 
   const handleGetStarted = () => {
-    if (user) {
-      navigate("/companion/lilith-vesper");
-    } else {
-      navigate("/auth");
-    }
+    navigate("/auth"); // temporary - we'll improve this later
   };
 
   return (
@@ -39,7 +37,9 @@ const Index = () => {
       <Navbar />
 
       <HeroSection onGetStarted={handleGetStarted} />
+      <CreationSystem />
       <FeaturesGrid />
+      <Testimonials />
       <WaitlistSection />
 
       <footer className="border-t border-border py-10 px-4">
