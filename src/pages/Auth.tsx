@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -80,9 +80,9 @@ export default function Auth() {
 
       if (authError) throw authError;
 
-      // Insert or update profile
+      const { data: { user } } = await supabase.auth.getUser();
       const { error: profileError } = await supabase.from("profiles").upsert({
-        id: supabase.auth.getUser()?.data.user?.id || "",
+        id: user?.id,
         username: data.username,
         email: data.email,
       });
@@ -124,8 +124,15 @@ export default function Auth() {
     }
   };
 
+  const toggleMode = () => {
+    setMode(mode === "signIn" ? "signUp" : "signIn");
+    signUpForm.reset();
+    signInForm.reset();
+  };
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center py-12 px-4 relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-background pointer-events-none" />
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
       <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full bg-secondary/5 blur-[100px] pointer-events-none" />
 
@@ -161,182 +168,166 @@ export default function Auth() {
           </button>
         </div>
 
-        <AnimatePresence mode="wait">
-          {mode === "signIn" ? (
-            <motion.form
-              key="signIn"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              onSubmit={signInForm.handleSubmit(onSubmitSignIn)}
-              className="space-y-4"
-            >
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Email or Username
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <input
-                    {...signInForm.register("identifier")}
-                    type="text"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
-                    placeholder="Enter email or username"
-                  />
-                </div>
-                {signInForm.formState.errors.identifier && (
-                  <p className="text-xs text-destructive mt-1">{signInForm.formState.errors.identifier.message}</p>
-                )}
+        {mode === "signIn" ? (
+          <form onSubmit={signInForm.handleSubmit(onSubmitSignIn)} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Email or Username
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  {...signInForm.register("identifier")}
+                  type="text"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                  placeholder="Enter email or username"
+                />
               </div>
+              {signInForm.formState.errors.identifier && (
+                <p className="text-xs text-destructive mt-1">{signInForm.formState.errors.identifier.message}</p>
+              )}
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <input
-                    {...signInForm.register("password")}
-                    type={showPassword ? "text" : "password"}
-                    className="w-full pl-10 pr-10 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
-                    placeholder="Enter password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                {signInForm.formState.errors.password && (
-                  <p className="text-xs text-destructive mt-1">{signInForm.formState.errors.password.message}</p>
-                )}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  {...signInForm.register("password")}
+                  type={showPassword ? "text" : "password"}
+                  className="w-full pl-10 pr-10 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                  placeholder="Enter password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
+              {signInForm.formState.errors.password && (
+                <p className="text-xs text-destructive mt-1">{signInForm.formState.errors.password.message}</p>
+              )}
+            </div>
 
-              <div className="flex items-center justify-between">
-                <label className="flex items-center space-x-2 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded"
-                  />
-                  <span className="text-muted-foreground">Remember me</span>
-                </label>
-                <Link to="/reset-password" className="text-xs text-primary hover:underline">
-                  Forgot Password?
-                </Link>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium glow-pink hover:scale-105 transition-all disabled:opacity-50 text-sm"
-              >
-                {loading ? "Signing In..." : "Sign In"}
-              </button>
-            </motion.form>
-          ) : (
-            <motion.form
-              key="signUp"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              onSubmit={signUpForm.handleSubmit(onSubmitSignUp)}
-              className="space-y-4"
-            >
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Username</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <input
-                    {...signUpForm.register("username")}
-                    type="text"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
-                    placeholder="Choose username"
-                  />
-                </div>
-                {signUpForm.formState.errors.username && (
-                  <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.username.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Email</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <input
-                    {...signUpForm.register("email")}
-                    type="email"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
-                    placeholder="Enter email"
-                  />
-                </div>
-                {signUpForm.formState.errors.email && (
-                  <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.email.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <input
-                    {...signUpForm.register("password")}
-                    type={showPassword ? "text" : "password"}
-                    className="w-full pl-10 pr-10 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
-                    placeholder="Enter password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                {signUpForm.formState.errors.password && (
-                  <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.password.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Confirm Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <input
-                    {...signUpForm.register("confirmPassword")}
-                    type={showPassword ? "text" : "password"}
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
-                    placeholder="Confirm password"
-                  />
-                </div>
-                {signUpForm.formState.errors.confirmPassword && (
-                  <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.confirmPassword.message}</p>
-                )}
-              </div>
-
-              <div className="flex items-center space-x-2">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center space-x-2 text-xs">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="rounded"
                 />
-                <label className="text-xs text-muted-foreground cursor-pointer select-none">
-                  Remember me
-                </label>
-              </div>
+                <span className="text-muted-foreground">Remember me</span>
+              </label>
+              <Link to="/reset-password" className="text-xs text-primary hover:underline">
+                Forgot Password?
+              </Link>
+            </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium glow-pink hover:scale-105 transition-all disabled:opacity-50 text-sm"
-              >
-                {loading ? "Creating Account..." : "Create Account"}
-              </button>
-            </motion.form>
-          )}
-        </AnimatePresence>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium glow-pink hover:scale-105 transition-all disabled:opacity-50 text-sm"
+            >
+              {loading ? "Signing In..." : "Sign In"}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={signUpForm.handleSubmit(onSubmitSignUp)} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Username</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  {...signUpForm.register("username")}
+                  type="text"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                  placeholder="Choose username"
+                />
+              </div>
+              {signUpForm.formState.errors.username && (
+                <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.username.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Email</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  {...signUpForm.register("email")}
+                  type="email"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                  placeholder="Enter email"
+                />
+              </div>
+              {signUpForm.formState.errors.email && (
+                <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.email.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  {...signUpForm.register("password")}
+                  type={showPassword ? "text" : "password"}
+                  className="w-full pl-10 pr-10 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                  placeholder="Enter password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              {signUpForm.formState.errors.password && (
+                <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.password.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Confirm Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  {...signUpForm.register("confirmPassword")}
+                  type={showPassword ? "text" : "password"}
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                  placeholder="Confirm password"
+                />
+              </div>
+              {signUpForm.formState.errors.confirmPassword && (
+                <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.confirmPassword.message}</p>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="rounded"
+              />
+              <label className="text-xs text-muted-foreground cursor-pointer select-none">
+                Remember me
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium glow-pink hover:scale-105 transition-all disabled:opacity-50 text-sm"
+            >
+              {loading ? "Creating Account..." : "Create Account"}
+            </button>
+          </form>
+        )}
 
         <div className="mt-6 text-center text-xs text-muted-foreground">
           By signing up, you agree to our Terms of Service and Privacy Policy.
