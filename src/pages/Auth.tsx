@@ -1,168 +1,346 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Eye, EyeOff, Flame } from "lucide-react";
+import { User, Lock, Mail, Check, Eye, EyeOff } from "lucide-react";
+
+const signUpSchema = z.object({
+  username: z.string().min(3, "Username must be at least 3 characters").max(20),
+  email: z.string().email("Invalid email"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+const signInSchema = z.object({
+  identifier: z.string().min(1, "Email or username required"),
+  password: z.string().min(1, "Password required"),
+});
+
+type SignUpFormData = z.infer<typeof signUpSchema>;
+type SignInFormData = z.infer<typeof signInSchema>;
 
 export default function Auth() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password || (isSignUp && !username)) {
-      toast.error("Please fill in all required fields");
-      return;
+  useEffect(() => {
+    const savedRemember = localStorage.getItem("rememberMe");
+    const savedIdentifier = localStorage.getItem("identifier");
+    if (savedRemember === "true" && savedIdentifier) {
+      setRememberMe(true);
     }
+  }, []);
 
-    if (isSignUp && password !== confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
+  useEffect(() => {
+    if (rememberMe) {
+      localStorage.setItem("rememberMe", "true");
+    } else {
+      localStorage.removeItem("rememberMe");
+      localStorage.removeItem("identifier");
     }
+  }, [rememberMe]);
 
-    setIsLoading(true);
+  const signUpForm = useForm<SignUpFormData>({
+    resolver: zodResolver(signUpSchema),
+    defaultValues: {
+      username: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
+  });
 
+  const signInForm = useForm<SignInFormData>({
+    resolver: zodResolver(signInSchema),
+    defaultValues: {
+      identifier: "",
+      password: "",
+    },
+  });
+
+  const onSubmitSignUp = async (data: SignUpFormData) => {
+    setLoading(true);
     try {
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email: email.trim().toLowerCase(),
-          password,
-          options: { data: { username: username.trim() } }
-        });
-        if (error) throw error;
-        toast.success("Account created! Please sign in.");
-        setIsSignUp(false);
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: email.trim().toLowerCase(),
-          password,
-        });
-        if (error) throw error;
-        toast.success("Welcome back");
-        navigate("/dashboard");
-      }
+      const { error: authError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: { username: data.username },
+        },
+      });
+
+      if (authError) throw authError;
+
+      // Insert or update profile
+      const { error: profileError } = await supabase.from("profiles").upsert({
+        id: supabase.auth.getUser()?.data.user?.id || "",
+        username: data.username,
+        email: data.email,
+      });
+
+      if (profileError) throw profileError;
+
+      toast.success("Account created successfully! Redirecting to dashboard...");
+      navigate("/dashboard");
     } catch (error: any) {
-      toast.error(error.message || "Authentication failed");
+      toast.error(error.message || "Sign up failed");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
+    }
+  };
+
+  const onSubmitSignIn = async (data: SignInFormData) => {
+    setLoading(true);
+    try {
+      if (rememberMe) {
+        localStorage.setItem("identifier", data.identifier);
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email: data.identifier.includes("@") ? data.identifier : undefined,
+        password: data.password,
+        options: {
+          emailRedirectTo: window.location.origin + "/dashboard",
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success("Signed in successfully! Redirecting to dashboard...");
+      navigate("/dashboard");
+    } catch (error: any) {
+      toast.error(error.message || "Sign in failed");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-10">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-purple-600/20">
-            <Flame className="h-10 w-10 text-primary" />
-          </div>
-          <h1 className="font-gothic text-5xl font-bold gradient-vice-text tracking-tighter">LUSTFORGE</h1>
-          <p className="text-muted-foreground mt-2">Waitlist Mode • Exclusive Access</p>
+    <div className="min-h-screen bg-background flex items-center justify-center py-12 px-4 relative overflow-hidden">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full bg-secondary/5 blur-[100px] pointer-events-none" />
+
+      <div className="max-w-md w-full bg-card/90 backdrop-blur-xl border border-border rounded-2xl p-8 shadow-2xl relative z-10">
+        <div className="text-center mb-8">
+          <h1 className="font-gothic text-lg font-bold gradient-vice-text mb-2">LustForge AI</h1>
+          <p className="text-sm text-muted-foreground">Access your empire</p>
         </div>
 
-        <div className="bg-card border border-border/50 rounded-3xl p-8 shadow-xl">
-          <h2 className="text-2xl font-bold text-center mb-8 text-white">
-            {isSignUp ? "Create Your Account" : "Sign In"}
-          </h2>
+        {/* Mode Toggle */}
+        <div className="flex mb-6">
+          <button
+            type="button"
+            onClick={() => setMode("signIn")}
+            className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
+              mode === "signIn"
+                ? "bg-primary text-primary-foreground glow-pink shadow-lg"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+          >
+            Sign In
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("signUp")}
+            className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
+              mode === "signUp"
+                ? "bg-primary text-primary-foreground glow-pink shadow-lg"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+          >
+            Sign Up
+          </button>
+        </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <input
-              type="email"
-              placeholder="Email Address"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3.5 rounded-2xl bg-muted border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-all"
-              required
-            />
-
-            {isSignUp && (
-              <input
-                type="text"
-                placeholder="Username (unique)"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-3.5 rounded-2xl bg-muted border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-all"
-                required
-              />
-            )}
-
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3.5 rounded-2xl bg-muted border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-all"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
-            </div>
-
-            {isSignUp && (
-              <div className="relative">
-                <input
-                  type={showConfirmPassword ? "text" : "password"}
-                  placeholder="Confirm Password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-3.5 rounded-2xl bg-muted border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-all"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
+        <AnimatePresence mode="wait">
+          {mode === "signIn" ? (
+            <motion.form
+              key="signIn"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              onSubmit={signInForm.handleSubmit(onSubmitSignIn)}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Email or Username
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    {...signInForm.register("identifier")}
+                    type="text"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                    placeholder="Enter email or username"
+                  />
+                </div>
+                {signInForm.formState.errors.identifier && (
+                  <p className="text-xs text-destructive mt-1">{signInForm.formState.errors.identifier.message}</p>
+                )}
               </div>
-            )}
 
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="accent-primary"
-              />
-              <span className="text-sm text-muted-foreground">Remember me</span>
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    {...signInForm.register("password")}
+                    type={showPassword ? "text" : "password"}
+                    className="w-full pl-10 pr-10 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                    placeholder="Enter password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {signInForm.formState.errors.password && (
+                  <p className="text-xs text-destructive mt-1">{signInForm.formState.errors.password.message}</p>
+                )}
+              </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-primary to-pink-600 text-primary-foreground font-bold text-base hover:scale-[1.02] transition-all disabled:opacity-50"
+              <div className="flex items-center justify-between">
+                <label className="flex items-center space-x-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span className="text-muted-foreground">Remember me</span>
+                </label>
+                <Link to="/reset-password" className="text-xs text-primary hover:underline">
+                  Forgot Password?
+                </Link>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium glow-pink hover:scale-105 transition-all disabled:opacity-50 text-sm"
+              >
+                {loading ? "Signing In..." : "Sign In"}
+              </button>
+            </motion.form>
+          ) : (
+            <motion.form
+              key="signUp"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              onSubmit={signUpForm.handleSubmit(onSubmitSignUp)}
+              className="space-y-4"
             >
-              {isLoading ? "Processing..." : isSignUp ? "Create Account" : "Sign In"}
-            </button>
-          </form>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Username</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    {...signUpForm.register("username")}
+                    type="text"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                    placeholder="Choose username"
+                  />
+                </div>
+                {signUpForm.formState.errors.username && (
+                  <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.username.message}</p>
+                )}
+              </div>
 
-          <div className="text-center mt-6">
-            <button
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="text-primary hover:underline text-sm"
-            >
-              {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Create one"}
-            </button>
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    {...signUpForm.register("email")}
+                    type="email"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                    placeholder="Enter email"
+                  />
+                </div>
+                {signUpForm.formState.errors.email && (
+                  <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.email.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    {...signUpForm.register("password")}
+                    type={showPassword ? "text" : "password"}
+                    className="w-full pl-10 pr-10 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                    placeholder="Enter password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {signUpForm.formState.errors.password && (
+                  <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.password.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Confirm Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    {...signUpForm.register("confirmPassword")}
+                    type={showPassword ? "text" : "password"}
+                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                    placeholder="Confirm password"
+                  />
+                </div>
+                {signUpForm.formState.errors.confirmPassword && (
+                  <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.confirmPassword.message}</p>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="rounded"
+                />
+                <label className="text-xs text-muted-foreground cursor-pointer select-none">
+                  Remember me
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium glow-pink hover:scale-105 transition-all disabled:opacity-50 text-sm"
+              >
+                {loading ? "Creating Account..." : "Create Account"}
+              </button>
+            </motion.form>
+          )}
+        </AnimatePresence>
+
+        <div className="mt-6 text-center text-xs text-muted-foreground">
+          By signing up, you agree to our Terms of Service and Privacy Policy.
         </div>
-
-        <p className="text-center text-xs text-muted-foreground mt-8">
-          Exclusive access during waitlist phase.
-        </p>
       </div>
     </div>
   );
