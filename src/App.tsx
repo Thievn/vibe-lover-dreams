@@ -1,73 +1,126 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { useState, useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { Toaster } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import Index from "./pages/Index";
-import CompanionProfile from "./pages/CompanionProfile";
-import Chat from "./pages/Chat";
 import Auth from "./pages/Auth";
-import ResetPassword from "./pages/ResetPassword";
-import Settings from "./pages/Settings";
+import Dashboard from "./pages/Dashboard";
+import Chat from "./pages/Chat";
+import CompanionProfile from "./pages/CompanionProfile";
 import CompanionCreator from "./pages/CompanionCreator";
-import Dashboard from "./pages/Dashboard";   // ← Make sure this file exists
-import Account from "./pages/Account";     // ← Make sure this file exists
+import Settings from "./pages/Settings";
 import Admin from "./pages/Admin";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
-import EmergencyStop from "./components/EmergencyStop";
+import Account from "./pages/Account";
 
-const queryClient = new QueryClient();
+// Auth Wrapper Component (protects routes)
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const navigate = useNavigate();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsAuthenticated(!!session);
+      setLoading(false);
+      if (!session) {
+        navigate("/auth");
+      }
+    };
+    checkAuth();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsAuthenticated(!!session);
+      if (!session && event === "SIGNED_OUT") {
+        navigate("/auth");
+      }
+    });
+
+    return () => listener?.subscription.unsubscribe();
+  }, [navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  return isAuthenticated ? <>{children}</> : <Navigate to="/auth" replace />;
+};
+
+// Main App Component
+function App() {
+  return (
+    <Router>
+      <div className="min-h-screen bg-background text-foreground font-sans">
         <Routes>
+          {/* Public Routes */}
           <Route path="/" element={<Index />} />
-          <Route path="/companion/:id" element={<CompanionProfile />} />
-          <Route path="/chat/:id" element={
-            <ProtectedRoute>
-              <Chat />
-            </ProtectedRoute>
-          } />
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/settings" element={
-            <ProtectedRoute>
-              <Settings />
-            </ProtectedRoute>
-          } />
-          <Route path="/companion-creator" element={
-            <ProtectedRoute>
-              <CompanionCreator />
-            </ProtectedRoute>
-          } />
-          {/* Dashboard - this is where users should land after login */}
-          <Route path="/dashboard" element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          {/* Account page */}
-          <Route path="/account" element={
-            <ProtectedRoute>
-              <Account />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin" element={
-            <ProtectedRoute>
-              <Admin />
-            </ProtectedRoute>
-          } />
+          <Route path="/account" element={<Account />} />
+
+          {/* Protected Routes */}
+          <Route 
+            path="/dashboard" 
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/chat" 
+            element={
+              <ProtectedRoute>
+                <Chat />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/companions/:id" 
+            element={
+              <ProtectedRoute>
+                <CompanionProfile />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/create-companion" 
+            element={
+              <ProtectedRoute>
+                <CompanionCreator />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/settings" 
+            element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin" 
+            element={
+              <ProtectedRoute>
+                <Admin />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* 404 */}
           <Route path="*" element={<NotFound />} />
         </Routes>
-        <EmergencyStop />
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+        <Toaster position="top-right" richColors closeButton />
+      </div>
+    </Router>
+  );
+}
 
 export default App;
