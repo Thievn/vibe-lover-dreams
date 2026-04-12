@@ -47,8 +47,8 @@ const Index = () => {
       <ParticleBackground />
 
       {isDevMode && (
-        <div className="fixed top-4 right-4 z-50 bg-black/90 backdrop-blur-md border border-red-500/50 rounded-full px-4 py-1.5 text-xs text-red-400 font-mono shadow-lg">
-          DEV BUILD • {new Date().toLocaleTimeString()}
+        <div className="fixed top-4 right-4 z-50 bg-black/70 backdrop-blur-md rounded-full px-3 py-1 text-xs text-muted-foreground font-mono shadow-sm border border-border/50">
+          • {new Date().toLocaleString()}
         </div>
       )}
 
