@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";  // Added back useEffect for ProtectedRoute
+import { useState, useEffect, Component, ReactNode } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,10 +18,49 @@ import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import EighteenPlusDisclaimer from "./pages/EighteenPlusDisclaimer";
 
+// Simple Error Boundary to catch runtime errors and prevent black screen
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error?: string }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): { hasError: boolean } {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
+    this.setState({ error: error.message });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center p-4 text-foreground">
+          <div className="text-center max-w-md bg-card rounded-lg p-6 border shadow-lg">
+            <h2 className="text-2xl font-bold text-destructive mb-4">Oops! Something went wrong</h2>
+            <p className="text-muted-foreground mb-2">Error: {this.state.error || 'Unknown error'}</p>
+            <p className="text-sm mb-4">Check the console for details. Try refreshing.</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const navigate = useNavigate();
+  const navigate = useNavigate();  // Safe here (child of Router)
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -29,9 +68,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
         const { data: { session } } = await supabase.auth.getSession();
         setIsAuthenticated(!!session);
         setLoading(false);
-        if (!session) {
-          navigate("/auth", { replace: true });
-        }
+        // No immediate navigate—let <Navigate> in Routes handle unauth
       } catch (error) {
         console.error("Auth check failed:", error);
         setLoading(false);
@@ -61,90 +98,93 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 function App() {
-  // Synchronous initial state from localStorage to prevent initial false render
+  // Synchronous initial state with SSR safety—no useNavigate here to avoid context error
   const [ageConfirmed, setAgeConfirmed] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('ageConfirmed') === 'true';
     }
-    return false; // SSR fallback
+    return false;
   });
-  const navigate = useNavigate();
 
   const handleAgeConfirm = () => {
-    localStorage.setItem('ageConfirmed', 'true');
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ageConfirmed', 'true');
+    }
     setAgeConfirmed(true);
-    // Use SPA navigation to avoid full reload and flicker
-    navigate('/', { replace: true });
+    // Use window.location for reliable redirect (no hook needed, no context issue)
+    window.location.href = '/';
   };
 
   return (
     <Router>
-      <div className="min-h-screen bg-background text-foreground font-sans relative">
-        {!ageConfirmed && <AgeGate onConfirm={handleAgeConfirm} />}
-        
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/account" element={<Account />} />
+      <ErrorBoundary>
+        <div className="min-h-screen bg-background text-foreground font-sans relative">
+          {!ageConfirmed && <AgeGate onConfirm={handleAgeConfirm} />}
           
-          <Route path="/terms-of-service" element={<TermsOfService />} />
-          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-          <Route path="/18-plus-disclaimer" element={<EighteenPlusDisclaimer />} />
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/account" element={<Account />} />
+            
+            <Route path="/terms-of-service" element={<TermsOfService />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/18-plus-disclaimer" element={<EighteenPlusDisclaimer />} />
 
-          <Route 
-            path="/dashboard" 
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/chat" 
-            element={
-              <ProtectedRoute>
-                <Chat />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/companions/:id" 
-            element={
-              <ProtectedRoute>
-                <CompanionProfile />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/create-companion" 
-            element={
-              <ProtectedRoute>
-                <CompanionCreator />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/settings" 
-            element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/admin" 
-            element={
-              <ProtectedRoute>
-                <Admin />
-              </ProtectedRoute>
-            } 
-          />
+            <Route 
+              path="/dashboard" 
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/chat" 
+              element={
+                <ProtectedRoute>
+                  <Chat />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/companions/:id" 
+              element={
+                <ProtectedRoute>
+                  <CompanionProfile />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/create-companion" 
+              element={
+                <ProtectedRoute>
+                  <CompanionCreator />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/settings" 
+              element={
+                <ProtectedRoute>
+                  <Settings />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin" 
+              element={
+                <ProtectedRoute>
+                  <Admin />
+                </ProtectedRoute>
+              } 
+            />
 
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-        <Toaster position="top-right" richColors closeButton />
-      </div>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+          <Toaster position="top-right" richColors closeButton />
+        </div>
+      </ErrorBoundary>
     </Router>
   );
 }

@@ -12,20 +12,35 @@ import WaitlistSection from "@/components/WaitlistSection";
 const Index = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
+  const [userLoading, setUserLoading] = useState(true);
   const [isDevMode] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) setUser(session.user);
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (session?.user) setUser(session.user);
+      })
+      .catch((error) => {
+        console.error("Failed to get session in Index:", error);
+      })
+      .finally(() => setUserLoading(false));
   }, []);
 
- // Temporary: scroll to waitlist instead of going to broken auth
+  // Temporary: scroll to waitlist instead of going to broken auth
   const handleGetStarted = () => {
     document.getElementById("waitlist")?.scrollIntoView({ 
       behavior: "smooth" 
     });
   };
+
+  // Fallback if components fail to load
+  if (userLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-foreground">Loading landing page...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -38,7 +53,6 @@ const Index = () => {
       )}
 
       <Navbar />
-
       <HeroSection onGetStarted={handleGetStarted} />
       <CreationSystem />
       <FeaturesGrid />
