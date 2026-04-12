@@ -1,27 +1,88 @@
 import { motion } from "framer-motion";
 import { Flame, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface HeroSectionProps {
   onGetStarted: () => void;
 }
 
-const companions = [
-  { name: "Miko \"Circuit\" Kane", subtitle: "Level Up Your Love Life", img: "https://dcefctvhojiyiginnwuj.supabase.co/storage/v1/object/public/companion-portraits/miko-circuit-kane.png" },
-  { name: "Flicker \"Spark\"", subtitle: "Follow the Light to Fun", img: "https://dcefctvhojiyiginnwuj.supabase.co/storage/v1/object/public/companion-portraits/flicker-spark.png" },
-  { name: "Kaelen Veyra", subtitle: "A tender touch to ignite your deepest desires.", img: "https://dcefctvhojiyiginnwuj.supabase.co/storage/v1/object/public/companion-portraits/kaelen-veyra.png" },
-  { name: "Tyler Kane", subtitle: "Your Roommate Has a Secret", img: "https://dcefctvhojiyiginnwuj.supabase.co/storage/v1/object/public/companion-portraits/tyler-kane.png" },
-  { name: "Velvet Eclipse", subtitle: "Between Worlds, Between Sheets", img: "https://dcefctvhojiyiginnwuj.supabase.co/storage/v1/object/public/companion-portraits/velvet-eclipse.png" },
-  { name: "Kira Lux", subtitle: "Bratty, Beautiful, Unbreakable", img: "https://dcefctvhojiyiginnwuj.supabase.co/storage/v1/object/public/companion-portraits/kira-lux.png" },
-];
+interface Companion {
+  name: string;
+  subtitle: string;
+  img: string;
+}
 
 export default function HeroSection({ onGetStarted }: HeroSectionProps) {
-  const [shuffled, setShuffled] = useState(companions);
+  const [shuffled, setShuffled] = useState<Companion[]>([]);
 
+  // Array of random subtitles (customize these for your site)
+  const possibleSubtitles = [
+    "Level Up Your Love Life",
+    "Your Roommate Has a Secret",
+    "A tender touch to ignite your deepest desires",
+    "Electric Nights Await",
+    "Between Worlds, Between Sheets",
+    "Bratty, Beautiful, Unbreakable",
+    "Follow the Light to Fun",
+    "Chilled Passions in the Heat of Night",
+    "Unlock the Hybrid Within",
+    "Vibrations That Speak to Your Soul",
+    "Rare Encounters, Epic Connections",
+    "Forge Fantasies That Feel Real",
+    // Add more here for variety (e.g., "Toy-Controlled Temptations")
+  ];
+
+  // Function to generate a companion with random subtitle
+  const generateCompanionWithRandomSubtitle = (name: string, img: string): Companion => ({
+    name,
+    subtitle: possibleSubtitles[Math.floor(Math.random() * possibleSubtitles.length)],  // Always random
+    img,
+  });
+
+  // Dynamic load from src/assets/companions/ folder
+  useEffect(() => {
+    const importImages = import.meta.glob('./assets/companions/*.{png,jpg,jpeg,webp}', { 
+      query: '?url', 
+      import: 'default', 
+      eager: true 
+    });
+    
+    const loadedCompanions: Companion[] = Object.entries(importImages).map(([path, imgUrl]) => {
+      // Extract name from filename (e.g., 'kai-neon.jpg' → 'Kai Neon')
+      const filename = path.split('/').pop() || '';
+      const nameWithoutExt = filename.replace(/\.(png|jpg|jpeg|webp)$/i, '');
+      const formattedName = nameWithoutExt
+        .split(/[-_]/)  // Split on dashes/underscores
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+
+      // Always assign random subtitle (non-optional)
+      return generateCompanionWithRandomSubtitle(formattedName, imgUrl as string);
+    });
+
+    setShuffled(loadedCompanions);  // Initial order with random subtitles
+  }, []);
+
+  // Shuffle: Reorder + re-randomize subtitles (non-optional)
   const shuffleCompanions = () => {
-    const shuffledArray = [...companions].sort(() => Math.random() - 0.5);
-    setShuffled(shuffledArray);
+    const shuffledArray = [...shuffled].sort(() => Math.random() - 0.5);
+    // Re-randomize subtitles for this shuffle
+    const withNewSubtitles = shuffledArray.map(comp => ({
+      ...comp,
+      subtitle: possibleSubtitles[Math.floor(Math.random() * possibleSubtitles.length)]
+    }));
+    setShuffled(withNewSubtitles);
   };
+
+  if (shuffled.length === 0) {
+    return (
+      <section className="relative min-h-[80vh] flex items-center justify-center px-4 overflow-hidden">
+        <div className="text-center text-muted-foreground">
+          Loading companions... (Add images to src/assets/companions/)
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="relative min-h-[80vh] flex items-center justify-center px-4 overflow-hidden">
@@ -68,10 +129,10 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
           </button>
         </motion.div>
 
-        {/* Stats */}
+        {/* Stats - dynamic count */}
         <div className="mt-12 flex justify-center items-end gap-8 text-muted-foreground text-xs">
           <div className="text-center">
-            <div className="text-2xl font-bold text-primary">61+</div>
+            <div className="text-2xl font-bold text-primary">{shuffled.length}+</div>
             <div>Companions & Growing</div>
           </div>
           <div className="text-center">
@@ -84,7 +145,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
           </div>
         </div>
 
-        {/* Companion Carousel */}
+        {/* Dynamic Carousel */}
         <div className="mt-14 relative max-w-2xl mx-auto">
           <button 
             onClick={shuffleCompanions}
@@ -102,6 +163,13 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
                     src={comp.img} 
                     alt={comp.name} 
                     className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500" 
+                    onError={(e) => {
+                      // Fallback gradient if image fails
+                      const target = e.target as HTMLImageElement;
+                      target.style.background = 'linear-gradient(135deg, #ff1493, #00bfff)';
+                      target.style.backgroundSize = 'cover';
+                      target.src = '';  // Hide broken img
+                    }}
                   />
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3">
                     <p className="text-sm font-bold text-white truncate">{comp.name}</p>
