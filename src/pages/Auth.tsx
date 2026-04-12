@@ -327,7 +327,12 @@ export default function Auth() {
         )}
 
         <div className="mt-4 text-center">
-          <p className="text-xs text-muted-foreground">By signing up, you agree to our Terms of Service and Privacy Policy.</p>
+          <p className="text-xs text-muted-foreground">
+            By signing up, you agree to our{' '}
+            <Link to="/terms-of-service" className="text-primary hover:underline">Terms of Service</Link>{' '}
+            and{' '}
+            <Link to="/privacy-policy" className="text-primary hover:underline">Privacy Policy</Link>.
+          </p>
         </div>
       </div>
     </div>
