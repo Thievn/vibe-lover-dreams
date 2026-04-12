@@ -1,127 +1,122 @@
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ShieldCheck } from "lucide-react";
+import React, { useEffect, useState } from 'react';
 
 interface AgeGateProps {
-  onVerified: () => void;
+  onConfirm: () => void;
 }
 
-const AgeGate = ({ onVerified }: AgeGateProps) => {
-  const [checked, setChecked] = useState(false);
+const AgeGate: React.FC&lt;AgeGateProps&gt; = ({ onConfirm }) =&gt; {
+  const [showModal, setShowModal] = useState(true);
 
-  const handleEnter = () => {
-    if (checked) {
-      localStorage.setItem("lustforge-age-verified", "true");
-      onVerified();
+  useEffect(() =&gt; {
+    const hasConfirmedAge = localStorage.getItem('ageConfirmed');
+    if (hasConfirmedAge) {
+      setShowModal(false);
+      onConfirm();
     }
+  }, [onConfirm]);
+
+  const handleConfirm = () =&gt; {
+    localStorage.setItem('ageConfirmed', 'true');
+    setShowModal(false);
+    onConfirm();
   };
 
+  const handleDeny = () =&gt; {
+    // Redirect to a safe page or close
+    window.location.href = 'https://www.google.com'; // Example safe redirect
+  };
+
+  if (!showModal) return null;
+
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-2xl"
-      >
-        {/* Animated background particles */}
-        <div className="absolute inset-0 overflow-hidden">
-          {[...Array(20)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute w-1 h-1 bg-primary/30 rounded-full"
-              initial={{
-                x: Math.random() * window.innerWidth,
-                y: Math.random() * window.innerHeight,
-                opacity: 0
-              }}
-              animate={{
-                y: [null, -20, window.innerHeight + 20],
-                opacity: [0, 1, 0]
-              }}
-              transition={{
-                duration: Math.random() * 3 + 2,
-                repeat: Infinity,
-                delay: Math.random() * 2
-              }}
-            />
-          ))}
-        </div>
-
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0, y: 50 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-          className="mx-4 max-w-lg w-full rounded-3xl border-2 border-primary/50 bg-card/95 backdrop-blur-xl p-10 text-center shadow-2xl shadow-primary/20 glow-purple"
-        >
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.5, type: "spring", stiffness: 300 }}
-          >
-            <ShieldCheck className="mx-auto mb-6 h-20 w-20 text-primary drop-shadow-lg" />
-          </motion.div>
-
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="font-gothic text-3xl md:text-4xl font-bold text-primary mb-3"
-          >
-            18+ Age Verification
-          </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-            className="text-muted-foreground text-base mb-8 leading-relaxed"
-          >
-            LustForge AI contains explicit adult content, interactive roleplay,
-            and real-time smart device integration. This experience is designed
-            exclusively for consenting adults.
-          </motion.p>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8 }}
-          >
-            <label className="flex items-start gap-4 text-left cursor-pointer mb-8 p-4 rounded-xl border-2 border-border/50 hover:border-primary/50 transition-all duration-300 bg-muted/20 hover:bg-muted/40">
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={(e) => setChecked(e.target.checked)}
-                className="mt-1 h-5 w-5 rounded border-2 border-border accent-primary focus:ring-primary/50"
-              />
-              <span className="text-sm text-foreground leading-relaxed">
-                I confirm I am <strong className="text-primary text-lg">18 years of age or older</strong> and I consent to viewing and interacting with adult content. I understand this is a fictional AI experience.
-              </span>
-            </label>
-          </motion.div>
-
-          <motion.button
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.9 }}
-            onClick={handleEnter}
-            disabled={!checked}
-            className="w-full px-8 py-4 rounded-xl bg-primary text-primary-foreground font-bold text-lg glow-pink hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-300 shadow-lg shadow-primary/30"
-          >
-            Enter LustForge AI
-          </motion.button>
-
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.0 }}
-            className="text-xs text-muted-foreground mt-4"
-          >
-            By entering, you agree to our terms of service and privacy policy.
-          </motion.p>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+    &lt;div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100vw',
+      height: '100vh',
+      backgroundColor: 'rgba(0, 0, 0, 0.95)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 9999,
+      fontFamily: "'Cinzel', serif", // Gothic font
+      color: '#e0e0e0',
+    }}&gt;
+      &lt;div style={{
+        textAlign: 'center',
+        padding: '2rem',
+        maxWidth: '500px',
+        background: 'linear-gradient(145deg, #1a1a1a, #2d1b1b)',
+        borderRadius: '15px',
+        border: '2px solid #8b0000',
+        boxShadow: '0 0 30px rgba(139, 0, 0, 0.5)',
+      }}&gt;
+        &lt;h1 style={{
+          fontSize: '4rem',
+          marginBottom: '1rem',
+          color: '#ff4500',
+          textShadow: '0 0 10px #ff4500',
+        }}&gt;
+          🔥 18+ 🔥
+        &lt;/h1&gt;
+        &lt;p style={{
+          fontSize: '1.2rem',
+          lineHeight: '1.6',
+          marginBottom: '2rem',
+          color: '#ccc',
+        }}&gt;
+          This site contains adult content, AI companions, and real-time Lovense toy control. You must be 18 or older to enter.
+        &lt;/p&gt;
+        &lt;div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}&gt;
+          &lt;button
+            onClick={handleConfirm}
+            style={{
+              padding: '1rem 2rem',
+              fontSize: '1.1rem',
+              background: 'linear-gradient(145deg, #228b22, #ff1493)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              boxShadow: '0 0 20px rgba(255, 20, 147, 0.5)',
+              transition: 'all 0.3s ease',
+            }}
+            onMouseEnter={(e) =&gt; {
+              e.currentTarget.style.boxShadow = '0 0 30px rgba(255, 20, 147, 0.8)';
+              e.currentTarget.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(e) =&gt; {
+              e.currentTarget.style.boxShadow = '0 0 20px rgba(255, 20, 147, 0.5)';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+          &gt;
+            I am 18+
+          &lt;/button&gt;
+          &lt;button
+            onClick={handleDeny}
+            style={{
+              padding: '1rem 2rem',
+              fontSize: '1.1rem',
+              background: 'linear-gradient(145deg, #333, #555)',
+              color: 'white',
+              border: '1px solid #666',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+            }}
+            onMouseEnter={(e) =&gt; {
+              e.currentTarget.style.background = 'linear-gradient(145deg, #555, #777)';
+            }}
+            onMouseLeave={(e) =&gt; {
+              e.currentTarget.style.background = 'linear-gradient(145deg, #333, #555)';
+            }}
+          &gt;
+            I am not 18+
+          &lt;/button&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
   );
 };
 
