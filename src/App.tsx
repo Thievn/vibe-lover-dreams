@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import AgeGate from "./components/AgeGate";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -13,8 +14,10 @@ import Admin from "./pages/Admin";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import Account from "./pages/Account";
+import TermsOfService from "./pages/TermsOfService";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import EighteenPlusDisclaimer from "./pages/EighteenPlusDisclaimer";
 
-// Auth Wrapper Component (protects routes)
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -52,19 +55,36 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return isAuthenticated ? <>{children}</> : <Navigate to="/auth" replace />;
 };
 
-// Main App Component
 function App() {
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+
+  useEffect(() => {
+    const hasConfirmedAge = localStorage.getItem('ageConfirmed');
+    if (hasConfirmedAge === 'true') {
+      setAgeConfirmed(true);
+    }
+  }, []);
+
+  if (!ageConfirmed) {
+    return <AgeGate onConfirm={() => {
+      localStorage.setItem('ageConfirmed', 'true');
+      setAgeConfirmed(true);
+    }} />;
+  }
+
   return (
     <Router>
       <div className="min-h-screen bg-background text-foreground font-sans">
         <Routes>
-          {/* Public Routes */}
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/account" element={<Account />} />
+          
+          <Route path="/terms-of-service" element={<TermsOfService />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/18-plus-disclaimer" element={<EighteenPlusDisclaimer />} />
 
-          {/* Protected Routes */}
           <Route 
             path="/dashboard" 
             element={
@@ -114,7 +134,6 @@ function App() {
             } 
           />
 
-          {/* 404 */}
           <Route path="*" element={<NotFound />} />
         </Routes>
         <Toaster position="top-right" richColors closeButton />

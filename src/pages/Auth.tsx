@@ -1,3 +1,6 @@
+// Full overwrite to fix truncation/EOF error. Complete Auth.tsx with all logic, no incomplete JSX.
+
+// Full code:
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
