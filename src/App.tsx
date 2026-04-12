@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import AgeGate from "./components/AgeGate";
@@ -21,28 +21,29 @@ import EighteenPlusDisclaimer from "./pages/EighteenPlusDisclaimer";
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const navigate = useNavigate();
+
+  // Note: useNavigate removed here too—handle redirects in parent if needed
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setIsAuthenticated(!!session);
-      setLoading(false);
-      if (!session) {
-        navigate("/auth");
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setIsAuthenticated(!!session);
+        setLoading(false);
+        // Redirect logic moved to avoid context issues; use window.location if needed
+      } catch (error) {
+        console.error("Auth check failed:", error);
+        setLoading(false);
       }
     };
     checkAuth();
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       setIsAuthenticated(!!session);
-      if (!session && event === "SIGNED_OUT") {
-        navigate("/auth");
-      }
     });
 
     return () => listener?.subscription.unsubscribe();
-  }, [navigate]);
+  }, []);
 
   if (loading) {
     return (
@@ -52,6 +53,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     );
   }
 
+  // Simplified: Use Navigate for unauth, but no navigate hook here
   return isAuthenticated ? <>{children}</> : <Navigate to="/auth" replace />;
 };
 
@@ -65,16 +67,22 @@ function App() {
     }
   }, []);
 
-  if (!ageConfirmed) {
-    return <AgeGate onConfirm={() => {
+  const handleAgeConfirm = () => {
+    try {
       localStorage.setItem('ageConfirmed', 'true');
       setAgeConfirmed(true);
-    }} />;
-  }
+      // Force redirect to landing page (reliable in production)
+      window.location.href = '/';
+    } catch (error) {
+      console.error("Age confirmation failed:", error);
+    }
+  };
 
   return (
     <Router>
-      <div className="min-h-screen bg-background text-foreground font-sans">
+      <div className="min-h-screen bg-background text-foreground font-sans relative">
+        {!ageConfirmed && <AgeGate onConfirm={handleAgeConfirm} />}
+        
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
