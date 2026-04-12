@@ -15,7 +15,7 @@ interface Companion {
 export default function HeroSection({ onGetStarted }: HeroSectionProps) {
   const [shuffled, setShuffled] = useState<Companion[]>([]);
 
-  // Array of random subtitles (customize these for your site)
+  // Array of random subtitles (customize these)
   const possibleSubtitles = [
     "Level Up Your Love Life",
     "Your Roommate Has a Secret",
@@ -29,44 +29,46 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
     "Vibrations That Speak to Your Soul",
     "Rare Encounters, Epic Connections",
     "Forge Fantasies That Feel Real",
-    // Add more here for variety (e.g., "Toy-Controlled Temptations")
   ];
 
-  // Function to generate a companion with random subtitle
+  // Generate companion with random subtitle (always random, non-optional)
   const generateCompanionWithRandomSubtitle = (name: string, img: string): Companion => ({
     name,
-    subtitle: possibleSubtitles[Math.floor(Math.random() * possibleSubtitles.length)],  // Always random
+    subtitle: possibleSubtitles[Math.floor(Math.random() * possibleSubtitles.length)],
     img,
   });
 
-  // Dynamic load from src/assets/companions/ folder
+  // Dynamic load from src/assets/companions/ folder (fixed relative path)
   useEffect(() => {
-    const importImages = import.meta.glob('./assets/companions/*.{png,jpg,jpeg,webp}', { 
+    const importImages = import.meta.glob('../assets/companions/*.{png,jpg,jpeg,webp,gif}', { 
       query: '?url', 
       import: 'default', 
       eager: true 
     });
     
+    console.log('Glob found images:', Object.keys(importImages));  // Debug: Check console for found files
+
     const loadedCompanions: Companion[] = Object.entries(importImages).map(([path, imgUrl]) => {
-      // Extract name from filename (e.g., 'kai-neon.jpg' → 'Kai Neon')
+      // Extract name from filename
       const filename = path.split('/').pop() || '';
-      const nameWithoutExt = filename.replace(/\.(png|jpg|jpeg|webp)$/i, '');
+      const nameWithoutExt = filename.replace(/\.(png|jpg|jpeg|webp|gif)$/i, '');
       const formattedName = nameWithoutExt
-        .split(/[-_]/)  // Split on dashes/underscores
+        .split(/[-_]/)
         .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
         .join(' ');
 
-      // Always assign random subtitle (non-optional)
+      // Always assign random subtitle
       return generateCompanionWithRandomSubtitle(formattedName, imgUrl as string);
     });
 
-    setShuffled(loadedCompanions);  // Initial order with random subtitles
+    console.log('Loaded companions:', loadedCompanions);  // Debug: See processed array
+
+    setShuffled(loadedCompanions);  // Initial with random subtitles
   }, []);
 
-  // Shuffle: Reorder + re-randomize subtitles (non-optional)
+  // Shuffle: Reorder + re-randomize subtitles (always happens)
   const shuffleCompanions = () => {
     const shuffledArray = [...shuffled].sort(() => Math.random() - 0.5);
-    // Re-randomize subtitles for this shuffle
     const withNewSubtitles = shuffledArray.map(comp => ({
       ...comp,
       subtitle: possibleSubtitles[Math.floor(Math.random() * possibleSubtitles.length)]
@@ -164,11 +166,10 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
                     alt={comp.name} 
                     className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500" 
                     onError={(e) => {
-                      // Fallback gradient if image fails
                       const target = e.target as HTMLImageElement;
                       target.style.background = 'linear-gradient(135deg, #ff1493, #00bfff)';
                       target.style.backgroundSize = 'cover';
-                      target.src = '';  // Hide broken img
+                      target.src = '';
                     }}
                   />
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3">
