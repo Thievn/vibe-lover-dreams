@@ -15,14 +15,12 @@ interface Companion {
 export default function HeroSection({ onGetStarted }: HeroSectionProps) {
   const [shuffled, setShuffled] = useState<Companion[]>([]);
 
-  // Array of random subtitles (customize these)
+  // Array of random fallback subtitles (for unmatched names)
   const possibleSubtitles = [
     "Level Up Your Love Life",
-    "Your Roommate Has a Secret",
     "A tender touch to ignite your deepest desires",
     "Electric Nights Await",
     "Between Worlds, Between Sheets",
-    "Bratty, Beautiful, Unbreakable",
     "Follow the Light to Fun",
     "Chilled Passions in the Heat of Night",
     "Unlock the Hybrid Within",
@@ -31,14 +29,36 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
     "Forge Fantasies That Feel Real",
   ];
 
-  // Generate companion with random subtitle (always random, non-optional)
-  const generateCompanionWithRandomSubtitle = (name: string, img: string): Companion => ({
+  // Subtitle map: Specific matching subtitles per companion name (customize/add here)
+  const subtitleMap: Record<string, string> = {
+    'Tyler Kane': 'Your Roommate Has a Secret',
+    'Kira Lux': 'Bratty, Beautiful, Unbreakable',
+    'Lena Frost': 'Chilled Passions in the Heat of Night',
+    'Bianca Rose': 'A tender touch to ignite your deepest desires',
+    'Elara Moon': 'Between Worlds, Between Sheets',
+    'Zara Eclipse': 'Electric Nights Await',
+    'Jaxson Voss': 'Unlock the Hybrid Within',
+    'Sage Evergreen': 'Rare Encounters, Epic Connections',
+    'Raven Nox': 'Vibrations That Speak to Your Soul',
+    'Diego Cortez': 'Follow the Light to Fun',
+    // Add more for your companions, e.g.:
+    // 'Kai Neon': 'Electric Nights Await',
+    // 'Lilith Vesper': 'Forge Fantasies That Feel Real',
+  };
+
+  // Function to get subtitle: Match first, random fallback (non-optional)
+  const getSubtitle = (name: string): string => {
+    return subtitleMap[name as keyof typeof subtitleMap] || possibleSubtitles[Math.floor(Math.random() * possibleSubtitles.length)];
+  };
+
+  // Generate companion with matching subtitle
+  const generateCompanionWithSubtitle = (name: string, img: string): Companion => ({
     name,
-    subtitle: possibleSubtitles[Math.floor(Math.random() * possibleSubtitles.length)],
+    subtitle: getSubtitle(name),  // Prioritizes match, falls back to random
     img,
   });
 
-  // Dynamic load from src/assets/companions/ folder (fixed relative path)
+  // Dynamic load from src/assets/companions/ folder
   useEffect(() => {
     const importImages = import.meta.glob('../assets/companions/*.{png,jpg,jpeg,webp,gif}', { 
       query: '?url', 
@@ -46,8 +66,6 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
       eager: true 
     });
     
-    console.log('Glob found images:', Object.keys(importImages));  // Debug: Check console for found files
-
     const loadedCompanions: Companion[] = Object.entries(importImages).map(([path, imgUrl]) => {
       // Extract name from filename
       const filename = path.split('/').pop() || '';
@@ -57,23 +75,23 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
         .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
         .join(' ');
 
-      // Always assign random subtitle
-      return generateCompanionWithRandomSubtitle(formattedName, imgUrl as string);
+      // Assign matching subtitle (or random fallback)
+      return generateCompanionWithSubtitle(formattedName, imgUrl as string);
     });
 
-    console.log('Loaded companions:', loadedCompanions);  // Debug: See processed array
-
-    setShuffled(loadedCompanions);  // Initial with random subtitles
+    // Limit to exactly 6 cards (first 6 if more; all if fewer)
+    const limitedCompanions = loadedCompanions.slice(0, 6);
+    setShuffled(limitedCompanions);  // Initial with matching subtitles
   }, []);
 
-  // Shuffle: Reorder + re-randomize subtitles (always happens)
+  // Shuffle: Reorder the 6 cards + re-assign matching/random subtitles (always happens)
   const shuffleCompanions = () => {
     const shuffledArray = [...shuffled].sort(() => Math.random() - 0.5);
-    const withNewSubtitles = shuffledArray.map(comp => ({
+    const withUpdatedSubtitles = shuffledArray.map(comp => ({
       ...comp,
-      subtitle: possibleSubtitles[Math.floor(Math.random() * possibleSubtitles.length)]
+      subtitle: getSubtitle(comp.name)  // Re-get match/random for each
     }));
-    setShuffled(withNewSubtitles);
+    setShuffled(withUpdatedSubtitles);
   };
 
   if (shuffled.length === 0) {
@@ -131,10 +149,10 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
           </button>
         </motion.div>
 
-        {/* Stats - dynamic count */}
+        {/* Stats - fixed to 6+ for the display limit */}
         <div className="mt-12 flex justify-center items-end gap-8 text-muted-foreground text-xs">
           <div className="text-center">
-            <div className="text-2xl font-bold text-primary">{shuffled.length}+</div>
+            <div className="text-2xl font-bold text-primary">6+</div>
             <div>Companions & Growing</div>
           </div>
           <div className="text-center">
@@ -147,7 +165,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
           </div>
         </div>
 
-        {/* Dynamic Carousel */}
+        {/* 6-Card Carousel */}
         <div className="mt-14 relative max-w-2xl mx-auto">
           <button 
             onClick={shuffleCompanions}
