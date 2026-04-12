@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { useState, useEffect } from "react";  // Added back useEffect for ProtectedRoute
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import AgeGate from "./components/AgeGate";
@@ -21,8 +21,7 @@ import EighteenPlusDisclaimer from "./pages/EighteenPlusDisclaimer";
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  // Note: useNavigate removed here too—handle redirects in parent if needed
+  const navigate = useNavigate();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -30,7 +29,9 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
         const { data: { session } } = await supabase.auth.getSession();
         setIsAuthenticated(!!session);
         setLoading(false);
-        // Redirect logic moved to avoid context issues; use window.location if needed
+        if (!session) {
+          navigate("/auth", { replace: true });
+        }
       } catch (error) {
         console.error("Auth check failed:", error);
         setLoading(false);
@@ -40,10 +41,13 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       setIsAuthenticated(!!session);
+      if (!session && event === "SIGNED_OUT") {
+        navigate("/auth", { replace: true });
+      }
     });
 
     return () => listener?.subscription.unsubscribe();
-  }, []);
+  }, [navigate]);
 
   if (loading) {
     return (
@@ -53,29 +57,24 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     );
   }
 
-  // Simplified: Use Navigate for unauth, but no navigate hook here
   return isAuthenticated ? <>{children}</> : <Navigate to="/auth" replace />;
 };
 
 function App() {
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
-
-  useEffect(() => {
-    const hasConfirmedAge = localStorage.getItem('ageConfirmed');
-    if (hasConfirmedAge === 'true') {
-      setAgeConfirmed(true);
+  // Synchronous initial state from localStorage to prevent initial false render
+  const [ageConfirmed, setAgeConfirmed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('ageConfirmed') === 'true';
     }
-  }, []);
+    return false; // SSR fallback
+  });
+  const navigate = useNavigate();
 
   const handleAgeConfirm = () => {
-    try {
-      localStorage.setItem('ageConfirmed', 'true');
-      setAgeConfirmed(true);
-      // Force redirect to landing page (reliable in production)
-      window.location.href = '/';
-    } catch (error) {
-      console.error("Age confirmation failed:", error);
-    }
+    localStorage.setItem('ageConfirmed', 'true');
+    setAgeConfirmed(true);
+    // Use SPA navigation to avoid full reload and flicker
+    navigate('/', { replace: true });
   };
 
   return (
