@@ -1,55 +1,32 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Settings, LogIn, LogOut, Flame, Sparkles, Shield } from "lucide-react";
+import { Flame, Shield, LogIn, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
-import type { User } from "@supabase/supabase-js";
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
-  const [tokens, setTokens] = useState<number | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchTokens(session.user.id);
-        checkAdmin(session.user.id);
-      } else {
-        setTokens(null);
+
+      if (session?.user?.email === "lustforgeapp@gmail.com") {
+        setIsAdmin(true);
       }
+    };
+
+    checkUser();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setIsAdmin(session?.user?.email === "lustforgeapp@gmail.com");
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchTokens(session.user.id);
-        checkAdmin(session.user.id);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    return () => listener.subscription.unsubscribe();
   }, []);
-
-  const fetchTokens = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("tokens_balance")
-      .eq("user_id", userId)
-      .single();
-    if (data) setTokens(data.tokens_balance);
-  };
-
-  const checkAdmin = async (userId: string) => {
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("role", "admin")
-      .single();
-    setIsAdmin(!!data);
-  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -57,59 +34,50 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
-      <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link to="/" className="font-gothic text-xl font-bold gradient-vice-text">
-          LustForge
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-md border-b border-white/10">
+      <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
+        {/* Logo */}
+        <Link to="/" className="flex items-center gap-3">
+          <Flame className="h-8 w-8 text-pink-500" />
+          <span className="font-gothic text-2xl tracking-widest gradient-vice-text">LUSTFORGE</span>
         </Link>
 
-        <div className="flex items-center gap-2">
+        {/* Right side links */}
+        <div className="flex items-center gap-6 text-sm">
           {user ? (
             <>
-              {tokens !== null && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted border border-border text-sm">
-                  <Flame className="h-4 w-4 text-primary" />
-                  <span className="font-medium text-foreground">{tokens.toLocaleString()}</span>
-                  <span className="text-muted-foreground hidden sm:inline">tokens</span>
-                </div>
-              )}
-              <Link
-                to="/create-character"
-                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                title="Create Character"
-              >
-                <Sparkles className="h-5 w-5" />
+              <Link to="/dashboard" className="hover:text-pink-400 transition-colors">
+                Dashboard
               </Link>
+
+              {/* Admin Button - ONLY visible to you */}
               {isAdmin && (
                 <Link
                   to="/admin"
-                  className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                  title="Admin"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium hover:scale-105 transition-all shadow-lg shadow-purple-500/30"
                 >
-                  <Shield className="h-5 w-5" />
+                  <Shield className="h-4 w-4" />
+                  Admin Panel
                 </Link>
               )}
-              <Link
-                to="/settings"
-                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <Settings className="h-5 w-5" />
-              </Link>
+
               <button
                 onClick={handleLogout}
-                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                className="text-sm text-muted-foreground hover:text-white transition-colors"
               >
-                <LogOut className="h-5 w-5" />
+                Logout
               </button>
             </>
           ) : (
-            <Link
-              to="/auth"
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:glow-pink transition-all"
-            >
-              <LogIn className="h-4 w-4" />
-              Sign In
-            </Link>
+            <>
+              <Link to="/" className="hover:text-pink-400 transition-colors">Home</Link>
+              <Link
+                to="/auth"
+                className="px-6 py-2.5 rounded-2xl bg-pink-600 hover:bg-pink-700 text-white font-medium transition-all"
+              >
+                Sign In
+              </Link>
+            </>
           )}
         </div>
       </div>
