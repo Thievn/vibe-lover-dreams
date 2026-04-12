@@ -62,7 +62,7 @@ const Index = () => {
       <footer className="border-t border-border py-10 px-4">
         <div className="max-w-4xl mx-auto text-center space-y-3 text-xs text-muted-foreground">
           <p><strong className="text-foreground/80">18+ Only.</strong> By using LustForge AI, you confirm you are at least 18 years of age. All characters are AI-generated fiction. No real persons are depicted. All interactions are consensual fantasy simulations.</p>
-          <p>Safe-word support is available in every session. We do not store private chat logs on our servers. Your privacy is paramount. For data deletion requests, contact <a href="mailto:lustforgeapp@gmail.com" className="text-primary hover:underline">lustforgeapp@gmail.com</a>.</p>
+          <p>Safe-word support is available in every session. We do not store private chat logs on our servers. Your privacy is paramount. For data deletion requests, contact <a href="mailto:support@lustforge.app" className="text-primary hover:underline">support@lustforge.app</a>.</p>
           <p>© 2026 LustForge AI · <span className="text-primary">Premium</span> coming soon</p>
           <p className="tracking-widest uppercase">Powered by <span className="text-primary/80 text-glow-pink font-medium">Grok</span> • <span className="text-accent/80 text-glow-teal font-medium">Lovense</span></p>
         </div>
