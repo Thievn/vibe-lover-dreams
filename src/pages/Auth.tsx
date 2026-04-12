@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { User, Lock, Mail, Check, Eye, EyeOff } from "lucide-react";
+import { User, Lock, Mail, Eye, EyeOff } from "lucide-react";
 
 const signUpSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters").max(20),
@@ -29,6 +29,7 @@ export default function Auth() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -124,32 +125,26 @@ export default function Auth() {
     }
   };
 
-  const toggleMode = () => {
-    setMode(mode === "signIn" ? "signUp" : "signIn");
-    signUpForm.reset();
-    signInForm.reset();
-  };
-
   return (
     <div className="min-h-screen bg-background flex items-center justify-center py-12 px-4 relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-background pointer-events-none" />
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
       <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full bg-secondary/5 blur-[100px] pointer-events-none" />
 
-      <div className="max-w-md w-full bg-card/90 backdrop-blur-xl border border-border rounded-2xl p-8 shadow-2xl relative z-10">
-        <div className="text-center mb-8">
-          <h1 className="font-gothic text-lg font-bold gradient-vice-text mb-2">LustForge AI</h1>
-          <p className="text-sm text-muted-foreground">Access your empire</p>
+      <div className="max-w-sm w-full bg-card/90 backdrop-blur-xl border border-border rounded-2xl p-6 shadow-2xl relative z-10">
+        <div className="text-center mb-6">
+          <h1 className="font-gothic text-base font-bold gradient-vice-text mb-1">LustForge AI</h1>
+          <p className="text-xs text-muted-foreground">Access your empire</p>
         </div>
 
         {/* Mode Toggle */}
-        <div className="flex mb-6">
+        <div className="flex mb-4">
           <button
             type="button"
             onClick={() => setMode("signIn")}
-            className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
               mode === "signIn"
-                ? "bg-primary text-primary-foreground glow-pink shadow-lg"
+                ? "bg-primary text-primary-foreground glow-pink shadow-sm"
                 : "bg-muted text-muted-foreground hover:bg-muted/80"
             }`}
           >
@@ -158,9 +153,9 @@ export default function Auth() {
           <button
             type="button"
             onClick={() => setMode("signUp")}
-            className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
               mode === "signUp"
-                ? "bg-primary text-primary-foreground glow-pink shadow-lg"
+                ? "bg-primary text-primary-foreground glow-pink shadow-sm"
                 : "bg-muted text-muted-foreground hover:bg-muted/80"
             }`}
           >
@@ -169,45 +164,41 @@ export default function Auth() {
         </div>
 
         {mode === "signIn" ? (
-          <form onSubmit={signInForm.handleSubmit(onSubmitSignIn)} className="space-y-4">
+          <form onSubmit={signInForm.handleSubmit(onSubmitSignIn)} className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Email or Username
-              </label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                 <input
                   {...signInForm.register("identifier")}
                   type="text"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
-                  placeholder="Enter email or username"
+                  className="w-full pl-9 pr-4 py-2 rounded-lg bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                  placeholder="Email or Username"
                 />
               </div>
               {signInForm.formState.errors.identifier && (
-                <p className="text-xs text-destructive mt-1">{signInForm.formState.errors.identifier.message}</p>
+                <p className="text-xs text-destructive">{signInForm.formState.errors.identifier.message}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Password</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                 <input
                   {...signInForm.register("password")}
                   type={showPassword ? "text" : "password"}
-                  className="w-full pl-10 pr-10 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
-                  placeholder="Enter password"
+                  className="w-full pl-9 pr-9 py-2 rounded-lg bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                  placeholder="Password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                 </button>
               </div>
               {signInForm.formState.errors.password && (
-                <p className="text-xs text-destructive mt-1">{signInForm.formState.errors.password.message}</p>
+                <p className="text-xs text-destructive">{signInForm.formState.errors.password.message}</p>
               )}
             </div>
 
@@ -229,81 +220,84 @@ export default function Auth() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium glow-pink hover:scale-105 transition-all disabled:opacity-50 text-sm"
+              className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-medium glow-pink hover:scale-105 transition-all disabled:opacity-50 text-sm"
             >
               {loading ? "Signing In..." : "Sign In"}
             </button>
           </form>
         ) : (
-          <form onSubmit={signUpForm.handleSubmit(onSubmitSignUp)} className="space-y-4">
+          <form onSubmit={signUpForm.handleSubmit(onSubmitSignUp)} className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Username</label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                 <input
                   {...signUpForm.register("username")}
                   type="text"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
-                  placeholder="Choose username"
+                  className="w-full pl-9 pr-4 py-2 rounded-lg bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                  placeholder="Username"
                 />
               </div>
               {signUpForm.formState.errors.username && (
-                <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.username.message}</p>
+                <p className="text-xs text-destructive">{signUpForm.formState.errors.username.message}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Email</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                 <input
                   {...signUpForm.register("email")}
                   type="email"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
-                  placeholder="Enter email"
+                  className="w-full pl-9 pr-4 py-2 rounded-lg bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                  placeholder="Email"
                 />
               </div>
               {signUpForm.formState.errors.email && (
-                <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.email.message}</p>
+                <p className="text-xs text-destructive">{signUpForm.formState.errors.email.message}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Password</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                 <input
                   {...signUpForm.register("password")}
                   type={showPassword ? "text" : "password"}
-                  className="w-full pl-10 pr-10 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
-                  placeholder="Enter password"
+                  className="w-full pl-9 pr-9 py-2 rounded-lg bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                  placeholder="Password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                 </button>
               </div>
               {signUpForm.formState.errors.password && (
-                <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.password.message}</p>
+                <p className="text-xs text-destructive">{signUpForm.formState.errors.password.message}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Confirm Password</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                 <input
                   {...signUpForm.register("confirmPassword")}
-                  type={showPassword ? "text" : "password"}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
-                  placeholder="Confirm password"
+                  type={showConfirmPassword ? "text" : "password"}
+                  className="w-full pl-9 pr-9 py-2 rounded-lg bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
+                  placeholder="Confirm Password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showConfirmPassword ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                </button>
               </div>
               {signUpForm.formState.errors.confirmPassword && (
-                <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.confirmPassword.message}</p>
+                <p className="text-xs text-destructive">{signUpForm.formState.errors.confirmPassword.message}</p>
               )}
             </div>
 
@@ -322,15 +316,15 @@ export default function Auth() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium glow-pink hover:scale-105 transition-all disabled:opacity-50 text-sm"
+              className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-medium glow-pink hover:scale-105 transition-all disabled:opacity-50 text-sm"
             >
               {loading ? "Creating Account..." : "Create Account"}
             </button>
           </form>
         )}
 
-        <div className="mt-6 text-center text-xs text-muted-foreground">
-          By signing up, you agree to our Terms of Service and Privacy Policy.
+        <div className="mt-4 text-center">
+          <p className="text-xs text-destructive">Only lustforgeapp@gmail.com is allowed</p>
         </div>
       </div>
     </div>
