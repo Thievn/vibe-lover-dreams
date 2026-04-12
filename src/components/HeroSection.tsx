@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Flame, RefreshCw } from "lucide-react";
 import { useState, useEffect } from "react";
+import { getCompanionImage, companionImages } from "../data/companionImages";  // Static originals
 
 interface HeroSectionProps {
   onGetStarted: () => void;
@@ -10,17 +11,21 @@ interface Companion {
   name: string;
   subtitle: string;
   img: string;
+  isPlaceholder?: boolean;
 }
 
 export default function HeroSection({ onGetStarted }: HeroSectionProps) {
   const [shuffled, setShuffled] = useState<Companion[]>([]);
+  const [allCompanions, setAllCompanions] = useState<Companion[]>([]);
 
-  // Array of random fallback subtitles (for unmatched names)
+  // Random fallback subtitles
   const possibleSubtitles = [
     "Level Up Your Love Life",
+    "Your Roommate Has a Secret",
     "A tender touch to ignite your deepest desires",
     "Electric Nights Await",
     "Between Worlds, Between Sheets",
+    "Bratty, Beautiful, Unbreakable",
     "Follow the Light to Fun",
     "Chilled Passions in the Heat of Night",
     "Unlock the Hybrid Within",
@@ -29,7 +34,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
     "Forge Fantasies That Feel Real",
   ];
 
-  // Subtitle map: Specific matching subtitles per companion name (customize/add here)
+  // Subtitle map: Specific matching per name
   const subtitleMap: Record<string, string> = {
     'Tyler Kane': 'Your Roommate Has a Secret',
     'Kira Lux': 'Bratty, Beautiful, Unbreakable',
@@ -41,64 +46,118 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
     'Sage Evergreen': 'Rare Encounters, Epic Connections',
     'Raven Nox': 'Vibrations That Speak to Your Soul',
     'Diego Cortez': 'Follow the Light to Fun',
-    // Add more for your companions, e.g.:
-    // 'Kai Neon': 'Electric Nights Await',
-    // 'Lilith Vesper': 'Forge Fantasies That Feel Real',
+    'Lilith Vesper': 'Forge Fantasies That Feel Real',
+    'Finn Blaze': 'Level Up Your Love Life',
+    // Add more for your companions
   };
 
-  // Function to get subtitle: Match first, random fallback (non-optional)
+  // Get subtitle: Match first, random fallback
   const getSubtitle = (name: string): string => {
     return subtitleMap[name as keyof typeof subtitleMap] || possibleSubtitles[Math.floor(Math.random() * possibleSubtitles.length)];
   };
 
-  // Generate companion with matching subtitle
-  const generateCompanionWithSubtitle = (name: string, img: string): Companion => ({
+  // Generate companion
+  const generateCompanion = (name: string, img: string, isPlaceholder = false): Companion => ({
     name,
-    subtitle: getSubtitle(name),  // Prioritizes match, falls back to random
+    subtitle: getSubtitle(name),
     img,
+    isPlaceholder,
   });
 
-  // Dynamic load from src/assets/companions/ folder
+  // Separate static globs for each folder (all literals, build-safe)
   useEffect(() => {
-    const importImages = import.meta.glob('../assets/companions/*.{png,jpg,jpeg,webp,gif}', { 
-      query: '?url', 
-      import: 'default', 
-      eager: true 
+    // Glob 1: src/assets/companions/ (recursive for subfolders)
+    const glob1 = import.meta.glob('../assets/companions/**/*.{png,jpg,jpeg,webp,gif}', { 
+      query: '?url', import: 'default', eager: true 
     });
-    
-    const loadedCompanions: Companion[] = Object.entries(importImages).map(([path, imgUrl]) => {
-      // Extract name from filename
-      const filename = path.split('/').pop() || '';
-      const nameWithoutExt = filename.replace(/\.(png|jpg|jpeg|webp|gif)$/i, '');
-      const formattedName = nameWithoutExt
+
+    // Glob 2: public/companions/ (recursive)
+    const glob2 = import.meta.glob('/companions/**/*.{png,jpg,jpeg,webp,gif}', { 
+      query: '?url', import: 'default', eager: true 
+    });
+
+    // Glob 3: src/images/companions/ (alternative, recursive)
+    const glob3 = import.meta.glob('../images/companions/**/*.{png,jpg,jpeg,webp,gif}', { 
+      query: '?url', import: 'default', eager: true 
+    });
+
+    // Glob 4: public/assets/portraits/ (common for originals, recursive)
+    const glob4 = import.meta.glob('/assets/portraits/**/*.{png,jpg,jpeg,webp,gif}', { 
+      query: '?url', import: 'default', eager: true 
+    });
+
+    // Process each glob into companions
+    const processGlob = (globObj: Record<string, string | { default: string }>, basePath: string): Companion[] => {
+      return Object.entries(globObj).map(([path, imgUrl]) => {
+        const filename = path.split('/').pop() || '';
+        const nameWithoutExt = filename.replace(/\.(png|jpg|jpeg|webp|gif)$/i, '');
+        const formattedName = nameWithoutExt
+          .split(/[-_]/)
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ');
+
+        const url = typeof imgUrl === 'string' ? imgUrl : imgUrl.default;
+        return generateCompanion(formattedName, url);
+      });
+    };
+
+    const dynamicFromGlob1 = processGlob(glob1, '../assets/companions');
+    const dynamicFromGlob2 = processGlob(glob2, '/companions');
+    const dynamicFromGlob3 = processGlob(glob3, '../images/companions');
+    const dynamicFromGlob4 = processGlob(glob4, '/assets/portraits');
+
+    // Combine all dynamic
+    const allDynamic = [...dynamicFromGlob1, ...dynamicFromGlob2, ...dynamicFromGlob3, ...dynamicFromGlob4];
+
+    // Load static originals from companionImages.ts (placeholders if no img)
+    const staticKeys = Object.keys(companionImages);
+    const staticCompanions = staticKeys.map(key => {
+      const img = getCompanionImage(key);
+      const formattedName = key
         .split(/[-_]/)
         .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
         .join(' ');
-
-      // Assign matching subtitle (or random fallback)
-      return generateCompanionWithSubtitle(formattedName, imgUrl as string);
+      const placeholderImg = img || 'linear-gradient(135deg, #ff1493, #00bfff)';
+      return generateCompanion(formattedName, placeholderImg, !img);
     });
 
-    // Limit to exactly 6 cards (first 6 if more; all if fewer)
-    const limitedCompanions = loadedCompanions.slice(0, 6);
-    setShuffled(limitedCompanions);  // Initial with matching subtitles
+    // Full pool: Dynamic + static (no duplicates by name)
+    const fullPool = [
+      ...allDynamic,
+      ...staticCompanions.filter(s => !allDynamic.some(d => d.name.toLowerCase() === s.name.toLowerCase()))
+    ];
+    setAllCompanions(fullPool);  // Full for stats
+
+    console.log('Total companions found:', fullPool.length, fullPool);  // Debug
+
+    // Initial 6: Random from full pool
+    const initialSix = getRandomSix(fullPool);
+    setShuffled(initialSix);
   }, []);
 
-  // Shuffle: Reorder the 6 cards + re-assign matching/random subtitles (always happens)
+  // Get random 6 from full pool
+  const getRandomSix = (pool: Companion[]): Companion[] => {
+    const shuffledPool = [...pool].sort(() => Math.random() - 0.5);
+    return shuffledPool.slice(0, 6);
+  };
+
+  // Shuffle: New random 6 from full pool + re-assign subtitles
   const shuffleCompanions = () => {
-    const shuffledArray = [...shuffled].sort(() => Math.random() - 0.5);
-    const withUpdatedSubtitles = shuffledArray.map(comp => ({
+    const newSix = getRandomSix(allCompanions);
+    const withUpdatedSubtitles = newSix.map(comp => ({
       ...comp,
-      subtitle: getSubtitle(comp.name)  // Re-get match/random for each
+      subtitle: getSubtitle(comp.name)
     }));
     setShuffled(withUpdatedSubtitles);
   };
 
-  if (shuffled.length === 0) {
+  const totalCompanions = allCompanions.length;
+
+  if (totalCompanions === 0) {
     return (
       <section className="relative min-h-[80vh] flex items-center justify-center px-4 overflow-hidden">
         <div className="text-center text-muted-foreground">
-          Loading companions... (Add images to src/assets/companions/)
+          No companions found. Check folder paths or add images.
         </div>
       </section>
     );
@@ -149,10 +208,10 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
           </button>
         </motion.div>
 
-        {/* Stats - fixed to 6+ for the display limit */}
+        {/* Stats - dynamic total from full pool */}
         <div className="mt-12 flex justify-center items-end gap-8 text-muted-foreground text-xs">
           <div className="text-center">
-            <div className="text-2xl font-bold text-primary">6+</div>
+            <div className="text-2xl font-bold text-primary">{totalCompanions}+</div>
             <div>Companions & Growing</div>
           </div>
           <div className="text-center">
@@ -165,7 +224,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
           </div>
         </div>
 
-        {/* 6-Card Carousel */}
+        {/* 6-Card Carousel - random 6 from full pool */}
         <div className="mt-14 relative max-w-2xl mx-auto">
           <button 
             onClick={shuffleCompanions}
@@ -178,18 +237,28 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {shuffled.map((comp, index) => (
               <div key={index} className="rounded-2xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden hover:border-primary/40 transition-all hover:scale-[1.02] group">
-                <div className="w-full aspect-[3/4] relative" style={{ background: "linear-gradient(135deg, rgb(255, 20, 147), rgb(0, 191, 255))" }}>
-                  <img 
-                    src={comp.img} 
-                    alt={comp.name} 
-                    className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500" 
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.background = 'linear-gradient(135deg, #ff1493, #00bfff)';
-                      target.style.backgroundSize = 'cover';
-                      target.src = '';
-                    }}
-                  />
+                <div className="w-full aspect-[3/4] relative">
+                  {comp.isPlaceholder ? (
+                    // Placeholder for static originals without images
+                    <div 
+                      className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500 bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center"
+                      style={{ background: "linear-gradient(135deg, #ff1493, #00bfff)" }}
+                    >
+                      <span className="text-white/70 text-xs font-medium">Coming Soon</span>
+                    </div>
+                  ) : (
+                    <img 
+                      src={comp.img} 
+                      alt={comp.name} 
+                      className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500" 
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.background = 'linear-gradient(135deg, #ff1493, #00bfff)';
+                        target.style.backgroundSize = 'cover';
+                        target.src = '';
+                      }}
+                    />
+                  )}
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3">
                     <p className="text-sm font-bold text-white truncate">{comp.name}</p>
                     <p className="text-[10px] text-white/70 truncate">{comp.subtitle}</p>
