@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { User, Lock, Mail, Eye, EyeOff } from "lucide-react";
+import { User, Lock, Mail, Eye, EyeOff, Flame } from "lucide-react";
 
 const signUpSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters").max(20),
@@ -133,7 +133,10 @@ export default function Auth() {
 
       <div className="max-w-sm w-full bg-card/90 backdrop-blur-xl border border-border rounded-2xl p-6 shadow-2xl relative z-10">
         <div className="text-center mb-6">
-          <h1 className="font-gothic text-base font-bold gradient-vice-text mb-1">LustForge AI</h1>
+          <Flame className="h-6 w-6 text-primary mx-auto mb-2" />
+          <h1 className="font-gothic text-lg font-bold mb-1">
+            <span className="gradient-vice-text">LustForge</span> <span className="text-foreground">AI</span>
+          </h1>
           <p className="text-xs text-muted-foreground">Access your empire</p>
         </div>
 
@@ -324,7 +327,7 @@ export default function Auth() {
         )}
 
         <div className="mt-4 text-center">
-          <p className="text-xs text-destructive">Only lustforgeapp@gmail.com is allowed</p>
+          <p className="text-xs text-muted-foreground">By signing up, you agree to our Terms of Service and Privacy Policy.</p>
         </div>
       </div>
     </div>
