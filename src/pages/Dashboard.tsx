@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Users,
@@ -138,13 +138,8 @@ export default function Dashboard() {
         }
         setUser(session.user);
 
-        const { data: roleData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", session.user.id)
-          .eq("role", "admin")
-          .single();
-        setIsAdmin(!!roleData);
+        // Simple and reliable admin check
+        setIsAdmin(session.user.email === "lustforgeapp@gmail.com");
 
         setToyConnected(Math.random() > 0.5);
       } catch (err) {
@@ -213,6 +208,17 @@ export default function Dashboard() {
               )}
             </div>
 
+            {/* ADMIN BUTTON - Only visible to lustforgeapp@gmail.com */}
+            {isAdmin && (
+              <button
+                onClick={() => navigate("/admin")}
+                className="flex items-center gap-2 px-5 py-2 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-medium hover:scale-105 transition-all"
+              >
+                <Shield className="h-4 w-4" />
+                Admin Panel
+              </button>
+            )}
+
             {/* Profile */}
             <button
               onClick={() => setSidebarOpen(true)}
@@ -239,7 +245,6 @@ export default function Dashboard() {
               className="fixed lg:relative inset-y-0 left-0 z-40 w-[260px] bg-card/95 backdrop-blur-xl border-r border-border shadow-2xl"
             >
               <div className="flex flex-col h-full">
-                {/* Sidebar Header */}
                 <div className="flex items-center justify-between p-6 border-b border-border">
                   <Link to="/" className="font-gothic text-base font-bold gradient-vice-text">
                     LustForge
@@ -252,7 +257,6 @@ export default function Dashboard() {
                   </button>
                 </div>
 
-                {/* Navigation */}
                 <nav className="flex-1 px-4 py-6 space-y-1">
                   {sidebarItems.map((item) => (
                     <button
@@ -273,17 +277,7 @@ export default function Dashboard() {
                   ))}
                 </nav>
 
-                {/* Footer */}
                 <div className="p-4 border-t border-border space-y-2">
-                  {isAdmin && (
-                    <Link
-                      to="/admin"
-                      className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-yellow-400 hover:bg-yellow-500/10 transition-all"
-                    >
-                      <Shield className="h-5 w-5" />
-                      Admin Panel
-                    </Link>
-                  )}
                   <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
@@ -467,7 +461,6 @@ export default function Dashboard() {
               </motion.div>
             )}
 
-            {/* Placeholder for other tabs */}
             {activeTab !== "dashboard" && activeTab !== "collection" && (
               <motion.div
                 key={activeTab}
@@ -486,7 +479,6 @@ export default function Dashboard() {
         </main>
       </div>
 
-      {/* Overlay for mobile sidebar */}
       {sidebarOpen && (
         <motion.div
           initial={{ opacity: 0 }}
