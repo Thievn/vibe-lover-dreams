@@ -99,7 +99,6 @@ export default function Dashboard() {
           navigate("/auth");
           return;
         }
-
         setUser(session.user);
         setIsAdmin(session.user.email === "lustforgeapp@gmail.com");
         setToyConnected(Math.random() > 0.5);
@@ -155,7 +154,9 @@ export default function Dashboard() {
             <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-white/5 lg:hidden">
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="font-gothic text-xl font-bold text-white">Welcome back, <span className="text-pink-400">{displayName}</span></h1>
+            <h1 className="font-gothic text-xl font-bold text-white">
+              Welcome back, <span className="text-pink-400">{displayName}</span>
+            </h1>
           </div>
 
           <div className="flex items-center gap-4">
@@ -174,11 +175,11 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Admin Button - Only for you */}
+            {/* Admin Button */}
             {isAdmin && (
               <button
                 onClick={() => navigate("/admin")}
-                className="flex items-center gap-2 px-5 py-2 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-medium hover:scale-[1.03] transition-all shadow-lg shadow-purple-500/30"
+                className="flex items-center gap-2 px-5 py-2 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-medium hover:scale-105 transition-all"
               >
                 <Shield className="h-4 w-4" />
                 Admin Panel
@@ -208,7 +209,6 @@ export default function Dashboard() {
               exit={{ x: -280 }}
               className="fixed lg:static inset-y-0 left-0 z-50 w-72 bg-zinc-950/95 backdrop-blur-xl border-r border-white/10"
             >
-              {/* Sidebar content - your original sidebar logic stays */}
               <div className="p-6">
                 <div className="flex justify-between items-center mb-8">
                   <span className="font-gothic text-xl tracking-widest text-white">LUSTFORGE</span>
@@ -252,7 +252,7 @@ export default function Dashboard() {
                 exit={{ opacity: 0, y: -20 }}
                 className="max-w-7xl mx-auto space-y-12"
               >
-                {/* Stats */}
+                {/* Stats Row */}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   {[
                     { icon: Users, label: "Companions", value: 12, color: "text-pink-400" },
@@ -327,7 +327,7 @@ export default function Dashboard() {
                           className={`bg-zinc-950 border-2 ${rs.border} rounded-3xl overflow-hidden hover:${rs.glow} transition-all duration-300 group cursor-pointer`}
                         >
                           <div className="h-56 bg-gradient-to-br from-zinc-900 to-black relative flex items-center justify-center">
-                            <div className="text-6xl opacity-10">🖤</div>
+                            <div className="text-7xl opacity-10">🖤</div>
                           </div>
                           <div className="p-6">
                             <div className="flex justify-between mb-3">
@@ -353,7 +353,6 @@ export default function Dashboard() {
               </motion.div>
             )}
 
-            {/* Other tabs placeholder */}
             {activeTab !== "dashboard" && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
