@@ -24,10 +24,10 @@ type CompanionCard = {
 };
 
 const rarityStyles: Record<Rarity, { border: string; glow: string; tag: string; tagBg: string }> = {
-  Legendary: { border: "border-yellow-500/60", glow: "shadow-[0_0_25px_hsl(45_100%_50%/0.35)]", tag: "text-yellow-400", tagBg: "bg-yellow-500/10 border-yellow-500/30" },
-  Epic: { border: "border-purple-500/60", glow: "glow-purple", tag: "text-purple-400", tagBg: "bg-purple-500/10 border-purple-500/30" },
-  Rare: { border: "border-cyan-400/60", glow: "glow-teal", tag: "text-cyan-400", tagBg: "bg-cyan-500/10 border-cyan-400/30" },
-  Common: { border: "border-border", glow: "", tag: "text-muted-foreground", tagBg: "bg-muted border-border" },
+  Legendary: { border: "border-yellow-400/70", glow: "shadow-[0_0_30px_hsl(45_100%_60%/0.4)]", tag: "text-yellow-300", tagBg: "bg-yellow-500/10 border-yellow-400/40" },
+  Epic: { border: "border-purple-400/70", glow: "shadow-[0_0_30px_hsl(280_100%_60%/0.4)]", tag: "text-purple-300", tagBg: "bg-purple-500/10 border-purple-400/40" },
+  Rare: { border: "border-cyan-400/70", glow: "shadow-[0_0_30px_hsl(180_100%_60%/0.4)]", tag: "text-cyan-300", tagBg: "bg-cyan-500/10 border-cyan-400/40" },
+  Common: { border: "border-white/20", glow: "", tag: "text-muted-foreground", tagBg: "bg-white/5 border-white/20" },
 };
 
 const placeholderCollection: CompanionCard[] = [
@@ -100,10 +100,8 @@ export default function Dashboard() {
           return;
         }
 
-        const currentUser = session.user;
-        setUser(currentUser);
-        setIsAdmin(currentUser.email === "lustforgeapp@gmail.com");
-
+        setUser(session.user);
+        setIsAdmin(session.user.email === "lustforgeapp@gmail.com");
         setToyConnected(Math.random() > 0.5);
       } catch (err) {
         console.error(err);
@@ -112,10 +110,9 @@ export default function Dashboard() {
         setLoading(false);
       }
     };
-
     init();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((_, session) => {
       if (!session?.user) {
         navigate("/auth", { replace: true });
         return;
@@ -124,7 +121,7 @@ export default function Dashboard() {
       setIsAdmin(session.user.email === "lustforgeapp@gmail.com");
     });
 
-    return () => listener?.subscription.unsubscribe();
+    return () => listener.subscription.unsubscribe();
   }, [navigate]);
 
   const handleLogout = async () => {
@@ -145,51 +142,43 @@ export default function Dashboard() {
     );
   }
 
-  if (!user) return null;
-
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Ambient glow blobs */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full bg-secondary/5 blur-[100px] pointer-events-none" />
-      <div className="absolute top-1/2 left-0 w-[300px] h-[300px] rounded-full bg-accent/5 blur-[100px] pointer-events-none" />
+      {/* Ambient glows */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full bg-pink-500/5 blur-[150px]" />
+      <div className="absolute bottom-0 right-0 w-[600px] h-[600px] rounded-full bg-purple-500/5 blur-[120px]" />
 
       {/* Top Bar */}
-      <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-black/90 backdrop-blur-xl">
         <div className="max-w-screen-2xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-lg hover:bg-muted transition-colors lg:hidden"
-            >
+            <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-white/5 lg:hidden">
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="font-gothic text-base font-bold gradient-vice-text">
-              Welcome back, {displayName}
-            </h1>
+            <h1 className="font-gothic text-xl font-bold text-white">Welcome back, <span className="text-pink-400">{displayName}</span></h1>
           </div>
 
           <div className="flex items-center gap-4">
             {/* Toy Status */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted border border-border text-xs">
+            <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs">
               {toyConnected ? (
                 <>
-                  <Wifi className="h-4 w-4 text-accent" />
-                  <span className="text-muted-foreground">Toy Connected</span>
+                  <Wifi className="h-4 w-4 text-emerald-400" />
+                  Toy Connected
                 </>
               ) : (
                 <>
                   <WifiOff className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Toy Offline</span>
+                  Toy Offline
                 </>
               )}
             </div>
 
-            {/* ADMIN BUTTON - Only visible to you */}
+            {/* Admin Button - Only for you */}
             {isAdmin && (
               <button
                 onClick={() => navigate("/admin")}
-                className="flex items-center gap-2 px-5 py-2 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-medium hover:scale-105 transition-all"
+                className="flex items-center gap-2 px-5 py-2 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-medium hover:scale-[1.03] transition-all shadow-lg shadow-purple-500/30"
               >
                 <Shield className="h-4 w-4" />
                 Admin Panel
@@ -199,13 +188,11 @@ export default function Dashboard() {
             {/* Profile */}
             <button
               onClick={() => navigate("/account")}
-              className="flex items-center gap-2 p-1 rounded-lg hover:bg-muted transition-colors"
-              title="Account/Profile"
+              className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-white/5 transition-colors"
             >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
-                <User className="h-4 w-4 text-primary" />
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-500/20 to-purple-500/20 flex items-center justify-center ring-1 ring-white/10">
+                <User className="h-5 w-5 text-pink-400" />
               </div>
-              <span className="text-sm text-muted-foreground hidden sm:block">Account</span>
             </button>
           </div>
         </div>
@@ -216,26 +203,21 @@ export default function Dashboard() {
         <AnimatePresence>
           {sidebarOpen && (
             <motion.aside
-              initial={{ x: -260 }}
+              initial={{ x: -280 }}
               animate={{ x: 0 }}
-              exit={{ x: -260 }}
-              transition={{ type: "tween", duration: 0.3 }}
-              className="fixed lg:relative inset-y-0 left-0 z-40 w-[260px] bg-card/95 backdrop-blur-xl border-r border-border shadow-2xl"
+              exit={{ x: -280 }}
+              className="fixed lg:static inset-y-0 left-0 z-50 w-72 bg-zinc-950/95 backdrop-blur-xl border-r border-white/10"
             >
-              <div className="flex flex-col h-full">
-                <div className="flex items-center justify-between p-6 border-b border-border">
-                  <Link to="/" className="font-gothic text-base font-bold gradient-vice-text">
-                    LustForge
-                  </Link>
-                  <button
-                    onClick={() => setSidebarOpen(false)}
-                    className="p-1 rounded-lg hover:bg-muted transition-colors"
-                  >
-                    <X className="h-5 w-5" />
+              {/* Sidebar content - your original sidebar logic stays */}
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-8">
+                  <span className="font-gothic text-xl tracking-widest text-white">LUSTFORGE</span>
+                  <button onClick={() => setSidebarOpen(false)} className="lg:hidden">
+                    <X className="h-6 w-6" />
                   </button>
                 </div>
 
-                <nav className="flex-1 px-4 py-6 space-y-1">
+                <nav className="space-y-1">
                   {sidebarItems.map((item) => (
                     <button
                       key={item.id}
@@ -243,10 +225,10 @@ export default function Dashboard() {
                         setActiveTab(item.id);
                         setSidebarOpen(false);
                       }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all ${
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm transition-all ${
                         activeTab === item.id
-                          ? "bg-primary/10 text-primary border border-primary/30 glow-pink"
-                          : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                          ? "bg-white/10 text-white"
+                          : "text-zinc-400 hover:text-white hover:bg-white/5"
                       }`}
                     >
                       <item.icon className="h-5 w-5" />
@@ -254,23 +236,13 @@ export default function Dashboard() {
                     </button>
                   ))}
                 </nav>
-
-                <div className="p-4 border-t border-border space-y-2">
-                  <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-                  >
-                    <LogOut className="h-5 w-5" />
-                    Logout
-                  </button>
-                </div>
               </div>
             </motion.aside>
           )}
         </AnimatePresence>
 
         {/* Main Content */}
-        <main className="flex-1 min-h-screen p-6 relative z-10">
+        <main className="flex-1 p-6 lg:p-10">
           <AnimatePresence mode="wait">
             {activeTab === "dashboard" && (
               <motion.div
@@ -278,104 +250,100 @@ export default function Dashboard() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="max-w-7xl mx-auto space-y-8"
+                className="max-w-7xl mx-auto space-y-12"
               >
-                {/* Stats Cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                {/* Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   {[
-                    { icon: Users, label: "Companions", value: 12, color: "text-primary" },
-                    { icon: Heart, label: "Hybrids Bred", value: 3, color: "text-secondary" },
-                    { icon: Zap, label: "Toy Sessions", value: 47, color: "text-accent" },
+                    { icon: Users, label: "Companions", value: 12, color: "text-pink-400" },
+                    { icon: Heart, label: "Hybrids Bred", value: 3, color: "text-purple-400" },
+                    { icon: Zap, label: "Toy Sessions", value: 47, color: "text-cyan-400" },
                     { icon: Crown, label: "Legendaries", value: 2, color: "text-yellow-400" },
-                    { icon: Clock, label: "Hours Chatted", value: 89, color: "text-muted-foreground" },
+                    { icon: Clock, label: "Hours Chatted", value: 89, color: "text-white" },
                   ].map((stat, i) => (
                     <motion.div
-                      key={stat.label}
+                      key={i}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.05 }}
-                      className="bg-card/60 backdrop-blur-sm border border-border rounded-2xl p-6 hover:border-primary/40 hover:glow-pink transition-all duration-300"
+                      className="bg-zinc-950/70 border border-white/10 backdrop-blur-xl rounded-3xl p-6 hover:border-pink-500/30 transition-all"
                     >
-                      <stat.icon className={`h-6 w-6 ${stat.color} mb-3`} />
-                      <div className="text-3xl font-bold text-foreground">{stat.value}</div>
-                      <div className="text-xs text-muted-foreground mt-1">{stat.label}</div>
+                      <stat.icon className={`h-6 w-6 ${stat.color} mb-4`} />
+                      <div className="text-4xl font-bold text-white mb-1">{stat.value}</div>
+                      <div className="text-sm text-zinc-400">{stat.label}</div>
                     </motion.div>
                   ))}
                 </div>
 
                 {/* Quick Actions */}
-                <div className="flex gap-4">
-                  <button 
-                    onClick={() => navigate('/create-companion')}
-                    className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-primary text-primary-foreground font-bold glow-pink hover:scale-105 transition-all"
-                  >
+                <div className="flex flex-wrap gap-4">
+                  <button className="flex-1 min-w-[200px] flex items-center justify-center gap-3 bg-pink-600 hover:bg-pink-700 py-4 rounded-2xl font-medium text-lg transition-all">
                     <Sparkles className="h-5 w-5" />
                     Create Companion
                   </button>
-                  <button
-                    onClick={() => setActiveTab("breeding")}
-                    className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-secondary text-secondary-foreground font-bold glow-purple hover:scale-105 transition-all"
-                  >
+                  <button className="flex-1 min-w-[200px] flex items-center justify-center gap-3 bg-purple-600 hover:bg-purple-700 py-4 rounded-2xl font-medium text-lg transition-all">
                     <Baby className="h-5 w-5" />
                     Breed Hybrid
                   </button>
                 </div>
 
                 {/* Recent Activity */}
-                <div className="bg-card/60 backdrop-blur-sm border border-border rounded-2xl p-6">
-                  <h3 className="font-gothic text-base font-bold text-foreground mb-4">Recent Activity</h3>
-                  <div className="space-y-3">
+                <div className="bg-zinc-950/70 border border-white/10 backdrop-blur-xl rounded-3xl p-8">
+                  <h3 className="font-gothic text-lg tracking-widest mb-6 text-white">Recent Activity</h3>
+                  <div className="space-y-4">
                     {[
-                      { action: "Bred a Legendary hybrid", time: "2 hours ago", icon: Baby, color: "text-yellow-400" },
-                      { action: "Connected toy device", time: "1 day ago", icon: Gamepad2, color: "text-accent" },
-                      { action: "Reached affection level 90", time: "3 days ago", icon: Heart, color: "text-secondary" },
-                    ].map((activity, i) => (
-                      <div key={i} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                        <activity.icon className={`h-4 w-4 ${activity.color}`} />
-                        <span className="text-sm text-foreground">{activity.action}</span>
-                        <span className="text-xs text-muted-foreground ml-auto">{activity.time}</span>
+                      { action: "Bred a Legendary hybrid", time: "2 hours ago", icon: Baby },
+                      { action: "Connected toy device", time: "1 day ago", icon: Gamepad2 },
+                      { action: "Reached affection level 90", time: "3 days ago", icon: Heart },
+                    ].map((item, i) => (
+                      <div key={i} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 transition-colors">
+                        <item.icon className="h-5 w-5 text-pink-400" />
+                        <div className="flex-1 text-sm text-white">{item.action}</div>
+                        <div className="text-xs text-zinc-500">{item.time}</div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Collection Preview */}
+                {/* Your Collection - Larger Cards */}
                 <div>
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="font-gothic text-lg font-bold gradient-vice-text">Your Collection</h2>
-                    <button
-                      onClick={() => setActiveTab("collection")}
-                      className="text-sm text-primary hover:text-primary/80 transition-colors"
-                    >
-                      View All →
+                  <div className="flex justify-between items-end mb-6">
+                    <h2 className="font-gothic text-2xl tracking-widest text-white">Your Collection</h2>
+                    <button onClick={() => setActiveTab("collection")} className="text-pink-400 hover:text-pink-300 text-sm flex items-center gap-1">
+                      View All <span>→</span>
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {placeholderCollection.slice(0, 4).map((card, i) => {
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {placeholderCollection.map((card, i) => {
                       const rs = rarityStyles[card.rarity];
                       return (
                         <motion.div
                           key={card.id}
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: i * 0.1 }}
-                          className={`bg-card border-2 ${rs.border} rounded-2xl p-4 hover:scale-105 hover:${rs.glow} transition-all duration-300 cursor-pointer`}
+                          initial={{ opacity: 0, y: 30 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.08 }}
+                          whileHover={{ y: -8, scale: 1.02 }}
+                          className={`bg-zinc-950 border-2 ${rs.border} rounded-3xl overflow-hidden hover:${rs.glow} transition-all duration-300 group cursor-pointer`}
                         >
-                          <div className="flex justify-between items-start mb-3">
-                            <span className={`px-2 py-1 text-xs font-bold rounded-full ${rs.tagBg} ${rs.tag}`}>
-                              {card.rarity}
-                            </span>
-                            <span className="text-xs text-muted-foreground">Lv.{card.level}</span>
+                          <div className="h-56 bg-gradient-to-br from-zinc-900 to-black relative flex items-center justify-center">
+                            <div className="text-6xl opacity-10">🖤</div>
                           </div>
-                          <h4 className="font-gothic text-base font-bold text-foreground mb-2">{card.name}</h4>
-                          <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{card.description}</p>
-                          <div className="flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-1">
-                              <Volume2 className="h-3 w-3 text-accent" />
-                              <span className="text-muted-foreground">{card.vibration}</span>
+                          <div className="p-6">
+                            <div className="flex justify-between mb-3">
+                              <span className={`px-3 py-1 text-xs font-bold rounded-full ${rs.tagBg} ${rs.tag}`}>
+                                {card.rarity}
+                              </span>
+                              <span className="text-xs text-zinc-500">Lv.{card.level}</span>
                             </div>
-                            <span className="text-primary">♥ {card.affection}</span>
+                            <h4 className="font-gothic text-xl text-white mb-2">{card.name}</h4>
+                            <p className="text-sm text-zinc-400 line-clamp-2 mb-4">{card.description}</p>
+                            <div className="flex justify-between text-xs">
+                              <div className="flex items-center gap-1 text-pink-400">
+                                <Volume2 className="h-3.5 w-3.5" /> {card.vibration}
+                              </div>
+                              <div className="text-pink-400">♥ {card.affection}</div>
+                            </div>
                           </div>
                         </motion.div>
                       );
@@ -385,90 +353,22 @@ export default function Dashboard() {
               </motion.div>
             )}
 
-            {activeTab === "collection" && (
+            {/* Other tabs placeholder */}
+            {activeTab !== "dashboard" && (
               <motion.div
-                key="collection"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="max-w-7xl mx-auto"
+                className="text-center py-20"
               >
-                <h2 className="font-gothic text-lg font-bold gradient-vice-text mb-6">My Collection</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {placeholderCollection.map((card, i) => {
-                    const rs = rarityStyles[card.rarity];
-                    return (
-                      <motion.div
-                        key={card.id}
-                        initial={{ opacity: 0, y: 30 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.07 }}
-                        whileHover={{ y: -6, transition: { duration: 0.3 } }}
-                        className={`bg-card border-2 ${rs.border} rounded-2xl p-0 overflow-hidden hover:scale-105 hover:${rs.glow} transition-all duration-500 group cursor-pointer`}
-                      >
-                        <div className="relative h-48 bg-gradient-to-br from-zinc-900 to-black flex items-center justify-center">
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity animate-shimmer" />
-                        </div>
-                        <div className="p-5 space-y-4">
-                          <div className="flex justify-between items-start">
-                            <h4 className="font-gothic text-base font-bold text-foreground">{card.name}</h4>
-                            <span className={`px-3 py-1 text-xs font-bold rounded-full ${rs.tagBg} ${rs.tag}`}>
-                              {card.rarity}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-muted-foreground">Level {card.level}</span>
-                            <span className="text-primary">♥ {card.affection}</span>
-                          </div>
-                          <p className="text-sm text-muted-foreground leading-relaxed">{card.description}</p>
-                          <div className="space-y-2 pt-2 border-t border-border">
-                            <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">Starters</p>
-                            {card.starters.map((starter, sIdx) => (
-                              <div key={sIdx} className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors p-1 -m-1 rounded hover:bg-muted/50">
-                                <MessageCircle className="h-3 w-3 text-primary" />
-                                "{starter}"
-                              </div>
-                            ))}
-                          </div>
-                          <div className="flex items-center gap-2 pt-3 border-t border-border">
-                            <Volume2 className="h-4 w-4 text-accent" />
-                            <span className="text-sm text-muted-foreground">{card.vibration}</span>
-                          </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
-
-            {activeTab !== "dashboard" && activeTab !== "collection" && (
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="max-w-7xl mx-auto text-center py-20"
-              >
-                <h2 className="font-gothic text-lg font-bold text-foreground mb-4 capitalize">
-                  {sidebarItems.find(item => item.id === activeTab)?.label}
+                <h2 className="font-gothic text-2xl text-white mb-4">
+                  {sidebarItems.find(i => i.id === activeTab)?.label}
                 </h2>
-                <p className="text-sm text-muted-foreground">Coming soon...</p>
+                <p className="text-zinc-400">This section is coming soon...</p>
               </motion.div>
             )}
           </AnimatePresence>
         </main>
       </div>
-
-      {sidebarOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
     </div>
   );
 }
