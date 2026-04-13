@@ -100,8 +100,9 @@ export default function Dashboard() {
           return;
         }
 
-        setUser(session.user);
-        setIsAdmin(session.user.email === "lustforgeapp@gmail.com");
+        const currentUser = session.user;
+        setUser(currentUser);
+        setIsAdmin(currentUser.email === "lustforgeapp@gmail.com");
 
         setToyConnected(Math.random() > 0.5);
       } catch (err) {
@@ -111,12 +112,24 @@ export default function Dashboard() {
         setLoading(false);
       }
     };
+
     init();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session?.user) {
+        navigate("/auth", { replace: true });
+        return;
+      }
+      setUser(session.user);
+      setIsAdmin(session.user.email === "lustforgeapp@gmail.com");
+    });
+
+    return () => listener?.subscription.unsubscribe();
   }, [navigate]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate("/");
+    navigate("/auth", { replace: true });
   };
 
   const displayName = user?.user_metadata?.username || user?.email?.split("@")[0] || "Forgemaster";
@@ -131,6 +144,8 @@ export default function Dashboard() {
       </div>
     );
   }
+
+  if (!user) return null;
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -170,7 +185,7 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* ADMIN BUTTON - ONLY for you */}
+            {/* ADMIN BUTTON - Only visible to you */}
             {isAdmin && (
               <button
                 onClick={() => navigate("/admin")}
@@ -183,8 +198,9 @@ export default function Dashboard() {
 
             {/* Profile */}
             <button
-              onClick={() => setSidebarOpen(true)}
+              onClick={() => navigate("/account")}
               className="flex items-center gap-2 p-1 rounded-lg hover:bg-muted transition-colors"
+              title="Account/Profile"
             >
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
                 <User className="h-4 w-4 text-primary" />
@@ -196,7 +212,7 @@ export default function Dashboard() {
       </header>
 
       <div className="flex">
-        {/* Sidebar - your original sidebar stays the same */}
+        {/* Sidebar */}
         <AnimatePresence>
           {sidebarOpen && (
             <motion.aside
@@ -206,13 +222,15 @@ export default function Dashboard() {
               transition={{ type: "tween", duration: 0.3 }}
               className="fixed lg:relative inset-y-0 left-0 z-40 w-[260px] bg-card/95 backdrop-blur-xl border-r border-border shadow-2xl"
             >
-              {/* Your original sidebar code here - unchanged */}
               <div className="flex flex-col h-full">
                 <div className="flex items-center justify-between p-6 border-b border-border">
                   <Link to="/" className="font-gothic text-base font-bold gradient-vice-text">
                     LustForge
                   </Link>
-                  <button onClick={() => setSidebarOpen(false)} className="p-1 rounded-lg hover:bg-muted transition-colors">
+                  <button
+                    onClick={() => setSidebarOpen(false)}
+                    className="p-1 rounded-lg hover:bg-muted transition-colors"
+                  >
                     <X className="h-5 w-5" />
                   </button>
                 </div>
@@ -251,7 +269,7 @@ export default function Dashboard() {
           )}
         </AnimatePresence>
 
-        {/* Main Content - your original content stays the same */}
+        {/* Main Content */}
         <main className="flex-1 min-h-screen p-6 relative z-10">
           <AnimatePresence mode="wait">
             {activeTab === "dashboard" && (
@@ -287,11 +305,17 @@ export default function Dashboard() {
 
                 {/* Quick Actions */}
                 <div className="flex gap-4">
-                  <button className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-primary text-primary-foreground font-bold glow-pink hover:scale-105 transition-all">
+                  <button 
+                    onClick={() => navigate('/create-companion')}
+                    className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-primary text-primary-foreground font-bold glow-pink hover:scale-105 transition-all"
+                  >
                     <Sparkles className="h-5 w-5" />
                     Create Companion
                   </button>
-                  <button className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-secondary text-secondary-foreground font-bold glow-purple hover:scale-105 transition-all">
+                  <button
+                    onClick={() => setActiveTab("breeding")}
+                    className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-secondary text-secondary-foreground font-bold glow-purple hover:scale-105 transition-all"
+                  >
                     <Baby className="h-5 w-5" />
                     Breed Hybrid
                   </button>
@@ -361,9 +385,14 @@ export default function Dashboard() {
               </motion.div>
             )}
 
-            {/* Collection Tab and other tabs remain the same as your original code */}
             {activeTab === "collection" && (
-              <motion.div key="collection" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="max-w-7xl mx-auto">
+              <motion.div
+                key="collection"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="max-w-7xl mx-auto"
+              >
                 <h2 className="font-gothic text-lg font-bold gradient-vice-text mb-6">My Collection</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {placeholderCollection.map((card, i) => {
