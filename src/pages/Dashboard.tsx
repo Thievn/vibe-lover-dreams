@@ -24,10 +24,10 @@ type CompanionCard = {
 };
 
 const rarityStyles: Record<Rarity, { border: string; glow: string; tag: string; tagBg: string }> = {
-  Legendary: { border: "border-yellow-400/70", glow: "shadow-[0_0_30px_hsl(45_100%_60%/0.4)]", tag: "text-yellow-300", tagBg: "bg-yellow-500/10 border-yellow-400/40" },
-  Epic: { border: "border-purple-400/70", glow: "shadow-[0_0_30px_hsl(280_100%_60%/0.4)]", tag: "text-purple-300", tagBg: "bg-purple-500/10 border-purple-400/40" },
-  Rare: { border: "border-cyan-400/70", glow: "shadow-[0_0_30px_hsl(180_100%_60%/0.4)]", tag: "text-cyan-300", tagBg: "bg-cyan-500/10 border-cyan-400/40" },
-  Common: { border: "border-white/20", glow: "", tag: "text-muted-foreground", tagBg: "bg-white/5 border-white/20" },
+  Legendary: { border: "border-yellow-400/70", glow: "shadow-[0_0_25px_hsl(45_100%_60%/0.35)]", tag: "text-yellow-300", tagBg: "bg-yellow-500/10 border-yellow-400/40" },
+  Epic: { border: "border-purple-400/70", glow: "shadow-[0_0_25px_hsl(280_100%_60%/0.35)]", tag: "text-purple-300", tagBg: "bg-purple-500/10 border-purple-400/40" },
+  Rare: { border: "border-cyan-400/70", glow: "shadow-[0_0_25px_hsl(180_100%_60%/0.35)]", tag: "text-cyan-300", tagBg: "bg-cyan-500/10 border-cyan-400/40" },
+  Common: { border: "border-white/20", glow: "", tag: "text-muted-foreground", tagBg: "bg-white/5 border-white/30" },
 };
 
 const placeholderCollection: CompanionCard[] = [
@@ -144,8 +144,8 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Ambient glows */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full bg-pink-500/5 blur-[150px]" />
-      <div className="absolute bottom-0 right-0 w-[600px] h-[600px] rounded-full bg-purple-500/5 blur-[120px]" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[900px] rounded-full bg-pink-500/5 blur-[160px]" />
+      <div className="absolute bottom-0 right-0 w-[700px] h-[700px] rounded-full bg-purple-500/5 blur-[130px]" />
 
       {/* Top Bar */}
       <header className="sticky top-0 z-50 border-b border-white/10 bg-black/90 backdrop-blur-xl">
@@ -155,7 +155,7 @@ export default function Dashboard() {
               <Menu className="h-5 w-5" />
             </button>
             <h1 className="font-gothic text-xl font-bold text-white">
-              Welcome back, <span className="text-pink-400">{displayName}</span>
+              Welcome back, <span className="text-zinc-300">{displayName}</span>
             </h1>
           </div>
 
@@ -191,8 +191,8 @@ export default function Dashboard() {
               onClick={() => navigate("/account")}
               className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-white/5 transition-colors"
             >
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-500/20 to-purple-500/20 flex items-center justify-center ring-1 ring-white/10">
-                <User className="h-5 w-5 text-pink-400" />
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-zinc-700 to-zinc-800 flex items-center justify-center ring-1 ring-white/10">
+                <User className="h-5 w-5 text-zinc-300" />
               </div>
             </button>
           </div>
@@ -266,9 +266,9 @@ export default function Dashboard() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.05 }}
-                      className="bg-zinc-950/70 border border-white/10 backdrop-blur-xl rounded-3xl p-6 hover:border-pink-500/30 transition-all"
+                      className="bg-zinc-950/70 border border-white/10 backdrop-blur-xl rounded-3xl p-6 hover:border-pink-500/30 transition-all group"
                     >
-                      <stat.icon className={`h-6 w-6 ${stat.color} mb-4`} />
+                      <stat.icon className={`h-6 w-6 ${stat.color} mb-4 group-hover:scale-110 transition-transform`} />
                       <div className="text-4xl font-bold text-white mb-1">{stat.value}</div>
                       <div className="text-sm text-zinc-400">{stat.label}</div>
                     </motion.div>
@@ -277,11 +277,11 @@ export default function Dashboard() {
 
                 {/* Quick Actions */}
                 <div className="flex flex-wrap gap-4">
-                  <button className="flex-1 min-w-[200px] flex items-center justify-center gap-3 bg-pink-600 hover:bg-pink-700 py-4 rounded-2xl font-medium text-lg transition-all">
+                  <button className="flex-1 min-w-[200px] flex items-center justify-center gap-3 bg-pink-600 hover:bg-pink-700 py-4 rounded-2xl font-medium text-lg transition-all active:scale-95">
                     <Sparkles className="h-5 w-5" />
                     Create Companion
                   </button>
-                  <button className="flex-1 min-w-[200px] flex items-center justify-center gap-3 bg-purple-600 hover:bg-purple-700 py-4 rounded-2xl font-medium text-lg transition-all">
+                  <button className="flex-1 min-w-[200px] flex items-center justify-center gap-3 bg-purple-600 hover:bg-purple-700 py-4 rounded-2xl font-medium text-lg transition-all active:scale-95">
                     <Baby className="h-5 w-5" />
                     Breed Hybrid
                   </button>
@@ -305,7 +305,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Your Collection - Larger Cards */}
+                {/* Your Collection - Normal Trading Card Size */}
                 <div>
                   <div className="flex justify-between items-end mb-6">
                     <h2 className="font-gothic text-2xl tracking-widest text-white">Your Collection</h2>
@@ -323,20 +323,20 @@ export default function Dashboard() {
                           initial={{ opacity: 0, y: 30 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: i * 0.08 }}
-                          whileHover={{ y: -8, scale: 1.02 }}
-                          className={`bg-zinc-950 border-2 ${rs.border} rounded-3xl overflow-hidden hover:${rs.glow} transition-all duration-300 group cursor-pointer`}
+                          whileHover={{ y: -6 }}
+                          className={`bg-zinc-950 border-2 ${rs.border} rounded-3xl overflow-hidden hover:${rs.glow} transition-all duration-300 group cursor-pointer aspect-[3/4.2]`}
                         >
-                          <div className="h-56 bg-gradient-to-br from-zinc-900 to-black relative flex items-center justify-center">
-                            <div className="text-7xl opacity-10">🖤</div>
+                          <div className="relative h-[62%] bg-gradient-to-br from-zinc-900 to-black flex items-center justify-center overflow-hidden">
+                            <div className="text-8xl opacity-10">🖤</div>
                           </div>
-                          <div className="p-6">
+                          <div className="p-5">
                             <div className="flex justify-between mb-3">
                               <span className={`px-3 py-1 text-xs font-bold rounded-full ${rs.tagBg} ${rs.tag}`}>
                                 {card.rarity}
                               </span>
                               <span className="text-xs text-zinc-500">Lv.{card.level}</span>
                             </div>
-                            <h4 className="font-gothic text-xl text-white mb-2">{card.name}</h4>
+                            <h4 className="font-gothic text-lg text-white mb-2">{card.name}</h4>
                             <p className="text-sm text-zinc-400 line-clamp-2 mb-4">{card.description}</p>
                             <div className="flex justify-between text-xs">
                               <div className="flex items-center gap-1 text-pink-400">
