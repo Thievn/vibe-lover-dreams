@@ -1,234 +1,1086 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import type { User } from "@supabase/supabase-js";
 import {
-  Layers, Trophy, Zap, Shield, Settings, LogOut, 
-  Search, Filter, Sparkles, Plus, TrendingUp,
-  Clock, User, Menu, X, LayoutGrid, Eye
+  Activity,
+  Bell,
+  ChevronRight,
+  Crown,
+  Dna,
+  Flame,
+  Gamepad2,
+  Heart,
+  ImagePlus,
+  LayoutDashboard,
+  Layers,
+  LogOut,
+  MessageSquare,
+  Settings,
+  Shield,
+  Sparkles,
+  TrendingUp,
+  UserRound,
+  Wand2,
+  X,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
+import { getToys } from "@/lib/lovense";
+import { cn } from "@/lib/utils";
+import ParticleBackground from "@/components/ParticleBackground";
+import { Progress } from "@/components/ui/progress";
+import { companions, type Companion } from "@/data/companions";
 
-/** * TCG STYLE CONFIG 
- * Mimicking the "Rarity" borders found in modern TCGs.
- */
-type Rarity = "Legendary" | "Secret Rare" | "Ultra Rare" | "Common";
+const ADMIN_EMAIL = "lustforgeapp@gmail.com";
+const NEON_PINK = "#FF2D7B";
 
-const rarityStyles: Record<Rarity, { border: string; glow: string; holo: string }> = {
-  "Legendary": { 
-    border: "border-amber-400/60", 
-    glow: "shadow-[0_0_25px_rgba(251,191,36,0.3)]", 
-    holo: "bg-gradient-to-tr from-amber-500/20 via-yellow-200/40 to-amber-500/20" 
-  },
-  "Secret Rare": { 
-    border: "border-purple-400/60", 
-    glow: "shadow-[0_0_25px_rgba(168,85,247,0.3)]", 
-    holo: "bg-gradient-to-tr from-indigo-500/20 via-purple-300/40 to-pink-500/20" 
-  },
-  "Ultra Rare": { 
-    border: "border-cyan-400/60", 
-    glow: "shadow-[0_0_25px_rgba(34,211,238,0.3)]", 
-    holo: "bg-gradient-to-tr from-blue-500/20 via-cyan-200/40 to-teal-500/20" 
-  },
-  "Common": { 
-    border: "border-slate-700", 
-    glow: "", 
-    holo: "bg-slate-800/50" 
-  },
-};
+type NavId = "dashboard" | "collection" | "breeding" | "toy" | "history";
 
-export default function TCGDashboard() {
+const NAV_ITEMS: { id: NavId; label: string; icon: typeof LayoutDashboard }[] = [
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "collection", label: "My Collection", icon: Layers },
+  { id: "breeding", label: "Breeding Chamber", icon: Dna },
+  { id: "toy", label: "Toy Control", icon: Gamepad2 },
+  { id: "history", label: "Chat History", icon: MessageSquare },
+];
+
+const DASHBOARD_STATS = [
+  { key: "companions", label: "Companions", value: "12", accent: "text-primary" },
+  { key: "hybrids", label: "Hybrids Bred", value: "7", accent: "text-accent" },
+  { key: "toySessions", label: "Toy Sessions", value: "48", accent: "text-[#FF2D7B]" },
+  { key: "legendaries", label: "Legendaries", value: "3", accent: "text-velvet-purple" },
+  { key: "hours", label: "Hours Chatted", value: "186", accent: "text-primary/80" },
+] as const;
+
+const HOT_IDS = ["lilith-vesper", "jax-harlan", "kira-lux", "elara-moon", "zara-eclipse"];
+const COLLECTION_PREVIEW = companions.slice(0, 8);
+
+const RECENT_ACTIVITY = [
+  { t: "2m ago", msg: "Lilith Vesper sent a pulse pattern to your toy.", tone: "pink" as const },
+  { t: "18m ago", msg: "Hybrid “Velvet Storm” reached affection tier II.", tone: "teal" as const },
+  { t: "1h ago", msg: "New legendary pull: Elara Moon (shimmer frame).", tone: "purple" as const },
+  { t: "3h ago", msg: "Credit bundle renewed — +500 forge credits.", tone: "pink" as const },
+  { t: "Yesterday", msg: "Session saved to Chat History (private device only).", tone: "teal" as const },
+];
+
+const MOCK_THREADS = [
+  { title: "Midnight ritual with Lilith", preview: "Don't move until I say so, pet…", at: "Today" },
+  { title: "Jax — cabin aftercare", preview: "Already missin' you. Coffee's on.", at: "Yesterday" },
+  { title: "Kira — brat tax", preview: "You owe me three edges. Pay up.", at: "Mon" },
+];
+
+const AFFECTION_ROWS: { name: string; pct: number; tier: string }[] = [
+  { name: "Lilith Vesper", pct: 88, tier: "Obsessed" },
+  { name: "Jax Harlan", pct: 72, tier: "Devoted" },
+  { name: "Kira Lux", pct: 61, tier: "Smitten" },
+];
+
+function displayName(user: User | null): string {
+  if (!user) return "Forgemaster";
+  const meta = user.user_metadata as Record<string, string | undefined> | undefined;
+  return meta?.full_name || meta?.name || user.email?.split("@")[0] || "Forgemaster";
+}
+
+function avatarUrl(user: User | null): string | undefined {
+  const meta = user?.user_metadata as Record<string, string | undefined> | undefined;
+  return meta?.avatar_url;
+}
+
+function initials(user: User | null): string {
+  const n = displayName(user);
+  const parts = n.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return n.slice(0, 2).toUpperCase();
+}
+
+export default function Dashboard() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("vault");
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [activeNav, setActiveNav] = useState<NavId>("dashboard");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [detail, setDetail] = useState<Companion | null>(null);
+  const [toyConnected, setToyConnected] = useState(false);
+  const [toyLabel, setToyLabel] = useState<string | null>(null);
+  const [notifySessions, setNotifySessions] = useState(true);
+  const [notifyMarketing, setNotifyMarketing] = useState(false);
+  const [privateMode, setPrivateMode] = useState(true);
+
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  const isAdmin = user?.email === ADMIN_EMAIL;
+  const hotCompanions = companions.filter((c) => HOT_IDS.includes(c.id));
+
+  const refreshToy = useCallback(async (uid: string) => {
+    try {
+      const toys = await getToys(uid);
+      if (toys.length > 0 && toys[0].status === "online") {
+        setToyConnected(true);
+        setToyLabel(toys[0].name);
+      } else if (toys.length > 0) {
+        setToyConnected(false);
+        setToyLabel(toys[0].name);
+      } else {
+        setToyConnected(false);
+        setToyLabel(null);
+      }
+    } catch {
+      setToyConnected(false);
+      setToyLabel(null);
+    }
+  }, []);
 
   useEffect(() => {
-    const checkUser = async () => {
+    let cancelled = false;
+    (async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) navigate("/auth");
-      setLoading(false);
+      if (!session) {
+        navigate("/auth", { replace: true });
+        return;
+      }
+      if (!cancelled) {
+        setUser(session.user);
+        await refreshToy(session.user.id);
+      }
+      if (!cancelled) setAuthLoading(false);
+    })();
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (!session) {
+        navigate("/auth", { replace: true });
+        return;
+      }
+      setUser(session.user);
+      void refreshToy(session.user.id);
+    });
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
     };
-    checkUser();
-  }, [navigate]);
+  }, [navigate, refreshToy]);
 
-  if (loading) return <div className="min-h-screen bg-[#050507] flex items-center justify-center"><Sparkles className="animate-pulse text-purple-500" /></div>;
+  useEffect(() => {
+    if (!profileOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [profileOpen]);
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    navigate("/");
+    toast.success("Signed out — return soon.");
+  };
+
+  const openSettings = () => {
+    setSettingsOpen(true);
+    setProfileOpen(false);
+  };
+
+  const handleNav = (id: NavId) => {
+    setActiveNav(id);
+    if (id !== "history") setSettingsOpen(false);
+  };
+
+  const handleSettingsNav = () => {
+    setActiveNav("dashboard");
+    setSettingsOpen(true);
+  };
+
+  const quickImageGen = () => {
+    toast.message("Image forge", {
+      description: "Opening the visual forge — premium queue coming soon.",
+    });
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center font-sans">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex flex-col items-center gap-4"
+        >
+          <Flame className="h-10 w-10 text-primary animate-pulse" style={{ color: NEON_PINK }} />
+          <p className="text-sm text-muted-foreground tracking-wide">Awakening your vault…</p>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#050507] text-slate-100 selection:bg-purple-500/40">
-      
-      {/* AMBIENT BACKGROUND LIGHTING */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-purple-600/10 blur-[120px] rounded-full" />
-        <div className="absolute top-1/2 -right-24 w-80 h-80 bg-blue-600/10 blur-[120px] rounded-full" />
-      </div>
+    <div className="min-h-screen bg-background text-foreground font-sans relative overflow-hidden">
+      <ParticleBackground />
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.07] via-transparent to-background pointer-events-none" />
+      <div
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[min(900px,100vw)] h-[500px] rounded-full blur-[140px] pointer-events-none opacity-40"
+        style={{ background: `radial-gradient(ellipse at center, ${NEON_PINK}33, transparent 65%)` }}
+      />
+      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-accent/5 blur-[120px] rounded-full pointer-events-none" />
 
-      <div className="relative z-10 flex h-screen">
-        
-        {/* MINIMALIST NAV BAR */}
-        <aside className="w-20 border-r border-white/5 bg-black/40 backdrop-blur-xl flex flex-col items-center py-8 gap-10">
-          <div className="p-3 bg-gradient-to-br from-purple-500 to-blue-500 rounded-2xl shadow-lg shadow-purple-500/20">
-            <Layers className="text-white w-6 h-6" />
+      <div className="relative z-10 flex min-h-screen">
+        {/* Sidebar */}
+        <aside className="hidden md:flex w-[260px] shrink-0 flex-col border-r border-border/80 bg-black/50 backdrop-blur-xl py-8 px-5">
+          <div className="mb-10 px-1">
+            <Link to="/" className="flex items-center gap-2 group">
+              <Flame className="h-7 w-7 shrink-0" style={{ color: NEON_PINK }} />
+              <span className="font-gothic text-xl tracking-[0.2em] gradient-vice-text leading-tight">
+                LUSTFORGE
+              </span>
+            </Link>
+            <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground mt-2 pl-1">
+              Command Deck
+            </p>
           </div>
-          <nav className="flex flex-col gap-6">
-            <NavIcon icon={LayoutGrid} active />
-            <NavIcon icon={Trophy} />
-            <NavIcon icon={TrendingUp} />
-            <NavIcon icon={Settings} />
+
+          <nav className="flex flex-col gap-1.5 flex-1">
+            {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => handleNav(id)}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition-all border border-transparent",
+                  activeNav === id && !settingsOpen
+                    ? "bg-primary/10 text-primary border-primary/25 shadow-[0_0_20px_rgba(255,45,123,0.12)]"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/5 hover:border-border/60",
+                )}
+              >
+                <Icon className={cn("h-5 w-5 shrink-0", activeNav === id && !settingsOpen && "text-[#FF2D7B]")} />
+                {label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={handleSettingsNav}
+              className={cn(
+                "flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition-all border mt-2",
+                settingsOpen
+                  ? "bg-velvet-purple/20 text-accent border-accent/30 glow-teal"
+                  : "text-muted-foreground border-transparent hover:text-foreground hover:bg-white/5 hover:border-border/60",
+              )}
+            >
+              <span className="relative flex h-5 w-5 items-center justify-center shrink-0">
+                <span className="absolute h-2 w-2 rounded-full bg-accent animate-pulse opacity-60 left-0 top-0" />
+                <Settings className="h-5 w-5 relative" />
+              </span>
+              Settings
+            </button>
           </nav>
+
+          <div className="mt-auto pt-8 border-t border-border/60 space-y-3">
+            <div className="rounded-xl border border-border/80 bg-card/40 px-3 py-3 backdrop-blur-sm">
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Daily credits</p>
+              <p className="font-gothic text-2xl text-primary mt-1" style={{ color: NEON_PINK }}>
+                340
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-1">Resets at midnight UTC</p>
+            </div>
+            <Link
+              to="/"
+              className="block text-center text-xs text-muted-foreground hover:text-primary transition-colors py-2"
+            >
+              ← Back to site
+            </Link>
+          </div>
         </aside>
 
-        {/* CONTENT AREA */}
-        <main className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar">
-          
-          {/* TOP DASHBOARD BAR */}
-          <header className="flex flex-col lg:flex-row items-center justify-between mb-10 gap-6">
+        {/* Main column */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Top bar */}
+          <header className="shrink-0 border-b border-border/80 bg-black/40 backdrop-blur-xl px-4 sm:px-8 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400">
-                Collector Vault
+              <h1 className="font-gothic text-2xl sm:text-3xl font-bold tracking-tight">
+                <span className="text-foreground">Welcome back, </span>
+                <span className="gradient-vice-text">{displayName(user)}</span>
               </h1>
-              <div className="flex items-center gap-2 text-slate-500 text-sm mt-1">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Live Market: +2.4% Today
-              </div>
+              <p className="text-sm text-muted-foreground mt-1 italic">
+                Your forge is live — every pulse, every whisper, yours to command.
+              </p>
             </div>
 
-            <div className="flex items-center gap-4 w-full lg:w-auto">
-              <div className="relative flex-1 lg:w-80">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                <input 
-                  type="text" 
-                  placeholder="Search cards in vault..." 
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all"
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <div
+                className={cn(
+                  "flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium backdrop-blur-md",
+                  toyConnected
+                    ? "border-accent/40 bg-accent/10 text-accent"
+                    : "border-border bg-card/50 text-muted-foreground",
+                )}
+              >
+                <span
+                  className={cn(
+                    "h-2 w-2 rounded-full shrink-0",
+                    toyConnected ? "bg-accent shadow-[0_0_8px_hsl(170_100%_50%)]" : "bg-muted-foreground/50",
+                  )}
                 />
+                {toyConnected ? `Toy connected${toyLabel ? `: ${toyLabel}` : ""}` : "Toy standby"}
               </div>
-              <button className="p-2.5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors">
-                <Filter size={20} />
-              </button>
+
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-velvet-purple to-primary shadow-lg shadow-primary/25 hover:scale-[1.02] transition-transform border border-white/10"
+                >
+                  <Shield className="h-4 w-4" />
+                  Admin Panel
+                </Link>
+              )}
+
+              <div className="relative" ref={profileRef}>
+                <button
+                  type="button"
+                  onClick={() => setProfileOpen((o) => !o)}
+                  className="relative rounded-full p-0.5 ring-2 ring-primary/40 hover:ring-primary transition-all glow-pink"
+                  aria-expanded={profileOpen}
+                  aria-haspopup="menu"
+                >
+                  {avatarUrl(user) ? (
+                    <img
+                      src={avatarUrl(user)}
+                      alt=""
+                      className="h-11 w-11 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="h-11 w-11 rounded-full flex items-center justify-center text-sm font-bold text-primary-foreground font-sans"
+                      style={{ background: `linear-gradient(135deg, ${NEON_PINK}, hsl(280 50% 35%))` }}
+                    >
+                      {initials(user)}
+                    </div>
+                  )}
+                </button>
+
+                <AnimatePresence>
+                  {profileOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 28 }}
+                      className="absolute right-0 top-[calc(100%+10px)] w-56 rounded-2xl border border-border/80 bg-card/95 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden z-50"
+                    >
+                      <div className="px-4 py-3 border-b border-border/60 bg-white/[0.03]">
+                        <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                      </div>
+                      <div className="p-1.5">
+                        <Link
+                          to="/account"
+                          onClick={() => setProfileOpen(false)}
+                          className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                        >
+                          <UserRound className="h-4 w-4" />
+                          Account
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={openSettings}
+                          className="w-full flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-left text-foreground hover:bg-accent/10 hover:text-accent transition-colors"
+                        >
+                          <Bell className="h-4 w-4" />
+                          Preferences
+                        </button>
+                        <button
+                          type="button"
+                          onClick={signOut}
+                          className="w-full flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-left text-destructive hover:bg-destructive/10 transition-colors"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          Sign out
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
           </header>
 
-          {/* BENTO STATS */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            <BentoStat label="Total Collection" value="1,248" sub="Cards Owned" icon={Layers} />
-            <BentoStat label="Portfolio Value" value="$14,205.00" sub="+$420.50 (24h)" icon={TrendingUp} isPositive />
-            <BentoStat label="Ranked Tier" value="Master" sub="Global Rank: #402" icon={Trophy} />
-          </div>
-
-          {/* THE "SHOWCASE" GRID */}
-          <section>
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <Sparkles size={20} className="text-purple-400" />
-                Premier Collection
-              </h2>
-              <button className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-purple-400 hover:text-purple-300 transition-colors">
-                Full Binder <X className="rotate-45" size={14} />
+          {/* Mobile nav strip */}
+          <div className="md:hidden flex gap-1 overflow-x-auto border-b border-border/60 bg-black/30 px-2 py-2 scrollbar-thin">
+            {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => handleNav(id)}
+                className={cn(
+                  "shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium whitespace-nowrap",
+                  activeNav === id && !settingsOpen ? "bg-primary/15 text-primary" : "text-muted-foreground",
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
               </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-              <CardItem 
-                name="Shadow Monarch" 
-                rarity="Secret Rare" 
-                grade="10" 
-                price="2,400"
-                image="🎴" 
-              />
-              <CardItem 
-                name="Aether Wyvern" 
-                rarity="Ultra Rare" 
-                grade="9.5" 
-                price="850"
-                image="🐉" 
-              />
-               <CardItem 
-                name="Solar Flare" 
-                rarity="Legendary" 
-                grade="9" 
-                price="1,200"
-                image="☀️" 
-              />
-               <CardItem 
-                name="Deep Sea Siren" 
-                rarity="Common" 
-                grade="8.5" 
-                price="12"
-                image="🧜‍♀️" 
-              />
-            </div>
-          </section>
-        </main>
-      </div>
-    </div>
-  );
-}
-
-/** * UI COMPONENTS 
- */
-
-function NavIcon({ icon: Icon, active = false }: any) {
-  return (
-    <div className={`p-3 cursor-pointer rounded-xl transition-all ${active ? 'bg-purple-500/10 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.15)]' : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'}`}>
-      <Icon size={24} />
-    </div>
-  );
-}
-
-function BentoStat({ label, value, sub, icon: Icon, isPositive }: any) {
-  return (
-    <div className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-md relative overflow-hidden group hover:bg-white/[0.07] transition-all">
-      <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
-        <Icon size={120} />
-      </div>
-      <div className="text-slate-400 text-sm font-medium">{label}</div>
-      <div className="text-3xl font-bold mt-2">{value}</div>
-      <div className={`text-xs mt-2 font-bold ${isPositive ? 'text-emerald-400' : 'text-slate-500'}`}>{sub}</div>
-    </div>
-  );
-}
-
-function CardItem({ name, rarity, grade, price, image }: any) {
-  const style = rarityStyles[rarity as Rarity] || rarityStyles["Common"];
-  
-  return (
-    <motion.div 
-      whileHover={{ y: -10, scale: 1.02 }}
-      className={`relative group rounded-[2rem] border-2 ${style.border} ${style.glow} bg-black p-1 overflow-hidden`}
-    >
-      {/* HOLO OVERLAY EFFECT */}
-      <div className={`absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity pointer-events-none ${style.holo}`} />
-      
-      <div className="bg-[#0c0c10] rounded-[1.8rem] p-4 flex flex-col h-full relative z-10">
-        {/* ART WORK CONTAINER */}
-        <div className="aspect-[3/4] rounded-2xl bg-gradient-to-b from-slate-800 to-slate-900 mb-4 flex items-center justify-center text-6xl shadow-inner overflow-hidden relative">
-          {image}
-          {/* Card Shine Reflection */}
-          <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-        </div>
-
-        {/* CARD INFO */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className={`text-[10px] font-black uppercase tracking-widest ${style.border.replace('border-', 'text-')}`}>
-              {rarity}
-            </span>
-            <div className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded-lg border border-white/10">
-              <span className="text-[10px] text-slate-500 font-bold">GRADE</span>
-              <span className="text-xs font-bold text-white">{grade}</span>
-            </div>
-          </div>
-          
-          <h3 className="text-xl font-bold truncate tracking-tight">{name}</h3>
-          
-          <div className="flex items-center justify-between pt-2 border-t border-white/5">
-            <div className="text-lg font-mono font-bold text-white">${price}</div>
-            <button className="p-2 bg-purple-500/10 hover:bg-purple-500 text-purple-400 hover:text-white rounded-lg transition-all">
-              <Eye size={16} />
+            ))}
+            <button
+              type="button"
+              onClick={handleSettingsNav}
+              className={cn(
+                "shrink-0 rounded-lg px-3 py-2 text-xs font-medium whitespace-nowrap",
+                settingsOpen ? "bg-accent/15 text-accent" : "text-muted-foreground",
+              )}
+            >
+              Settings
             </button>
           </div>
+
+          <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 pb-24">
+            {activeNav === "dashboard" && (
+              <DashboardHome
+                onOpenCard={setDetail}
+                onCreate={() => navigate("/create-companion")}
+                onBreed={() => {
+                  setActiveNav("breeding");
+                  toast.message("Breeding Chamber", { description: "Prepare your lineages." });
+                }}
+                quickImageGen={quickImageGen}
+              />
+            )}
+            {activeNav === "collection" && (
+              <CollectionView companions={COLLECTION_PREVIEW} onOpenCard={setDetail} />
+            )}
+            {activeNav === "breeding" && <BreedingView onStartChat={() => navigate("/chat")} />}
+            {activeNav === "toy" && (
+              <ToyControlView
+                connected={toyConnected}
+                label={toyLabel}
+                onRefresh={() => user && void refreshToy(user.id)}
+                onOpenChat={() => navigate("/chat")}
+              />
+            )}
+            {activeNav === "history" && <ChatHistoryView onOpenChat={() => navigate("/chat")} />}
+          </main>
+        </div>
+
+        {/* Settings panel */}
+        <AnimatePresence>
+          {settingsOpen && (
+            <>
+              <motion.button
+                type="button"
+                aria-label="Close settings"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setSettingsOpen(false)}
+                className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm md:left-[260px]"
+              />
+              <motion.aside
+                initial={{ x: "100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "100%" }}
+                transition={{ type: "spring", stiffness: 280, damping: 32 }}
+                className="fixed right-0 top-0 z-[70] h-full w-full max-w-md border-l border-border/80 bg-[hsl(240_15%_5%)]/95 backdrop-blur-2xl shadow-[-20px_0_60px_rgba(0,0,0,0.5)] flex flex-col"
+              >
+                <div className="flex items-center justify-between px-6 py-5 border-b border-border/60">
+                  <h2 className="font-gothic text-2xl gradient-vice-text">Settings</h2>
+                  <button
+                    type="button"
+                    onClick={() => setSettingsOpen(false)}
+                    className="p-2 rounded-xl hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
+                  <section>
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">
+                      Identity
+                    </h3>
+                    <div className="rounded-2xl border border-border/80 bg-card/40 p-4 space-y-2">
+                      <p className="text-sm text-foreground">{displayName(user)}</p>
+                      <p className="text-xs text-muted-foreground break-all">{user?.email}</p>
+                    </div>
+                  </section>
+                  <section>
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">
+                      Notifications
+                    </h3>
+                    <ToggleRow
+                      label="Session summaries"
+                      description="Gentle nudges after long chats."
+                      checked={notifySessions}
+                      onChange={setNotifySessions}
+                    />
+                    <ToggleRow
+                      label="Product drops"
+                      description="Rare companions & hybrid events."
+                      checked={notifyMarketing}
+                      onChange={setNotifyMarketing}
+                    />
+                  </section>
+                  <section>
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">
+                      Privacy
+                    </h3>
+                    <ToggleRow
+                      label="Local-only history"
+                      description="Keep transcripts on this device when possible."
+                      checked={privateMode}
+                      onChange={setPrivateMode}
+                    />
+                    <Link
+                      to="/privacy-policy"
+                      className="mt-3 inline-flex items-center gap-1 text-sm text-accent hover:underline"
+                    >
+                      Privacy policy <ChevronRight className="h-4 w-4" />
+                    </Link>
+                  </section>
+                  <section>
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">
+                      Device
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Pair or calibrate Lovense from a live session for full haptic sync.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSettingsOpen(false);
+                        navigate("/chat");
+                      }}
+                      className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold glow-pink hover:opacity-95 transition-opacity"
+                      style={{ backgroundColor: NEON_PINK }}
+                    >
+                      Open live session
+                    </button>
+                  </section>
+                </div>
+                <div className="p-6 border-t border-border/60">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toast.success("Preferences saved");
+                      setSettingsOpen(false);
+                    }}
+                    className="w-full py-3 rounded-xl border border-accent/40 text-accent font-semibold hover:bg-accent/10 transition-colors"
+                  >
+                    Save changes
+                  </button>
+                </div>
+              </motion.aside>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* Card detail modal */}
+        <AnimatePresence>
+          {detail && (
+            <>
+              <motion.button
+                type="button"
+                className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-md"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setDetail(null)}
+                aria-label="Close"
+              />
+              <motion.div
+                role="dialog"
+                aria-modal="true"
+                initial={{ opacity: 0, scale: 0.94, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.94, y: 20 }}
+                transition={{ type: "spring", stiffness: 280, damping: 26 }}
+                className="fixed left-1/2 top-1/2 z-[90] w-[min(92vw,480px)] -translate-x-1/2 -translate-y-1/2 rounded-[1.75rem] border-2 border-primary/30 bg-card/95 backdrop-blur-2xl overflow-hidden shadow-[0_0_60px_rgba(255,45,123,0.15)]"
+              >
+                <div
+                  className="aspect-[4/5] relative"
+                  style={{
+                    background: `linear-gradient(160deg, ${detail.gradientFrom}, ${detail.gradientTo})`,
+                  }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-6 space-y-2">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/40 px-2 py-0.5 text-[10px] uppercase tracking-widest text-white/90">
+                      <Crown className="h-3 w-3 text-primary" style={{ color: NEON_PINK }} />
+                      Premium card
+                    </span>
+                    <h3 className="font-gothic text-3xl text-white text-glow-pink">{detail.name}</h3>
+                    <p className="text-sm text-white/80 italic">{detail.tagline}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDetail(null)}
+                    className="absolute top-4 right-4 p-2 rounded-full bg-black/50 text-white hover:bg-black/70"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="p-6 space-y-4 border-t border-border/60">
+                  <p className="text-sm text-muted-foreground line-clamp-4">{detail.bio}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {detail.tags.slice(0, 5).map((tag) => (
+                      <span
+                        key={tag}
+                        className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-md bg-velvet-purple/20 text-velvet-purple border border-velvet-purple/30"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-3">
+                    <Link
+                      to={`/companions/${detail.id}`}
+                      onClick={() => setDetail(null)}
+                      className="flex-1 text-center py-3 rounded-xl border border-border hover:border-primary/50 hover:text-primary transition-colors text-sm font-semibold"
+                    >
+                      Full profile
+                    </Link>
+                    <Link
+                      to="/chat"
+                      onClick={() => setDetail(null)}
+                      className="flex-1 text-center py-3 rounded-xl text-sm font-semibold text-primary-foreground glow-pink"
+                      style={{ backgroundColor: NEON_PINK }}
+                    >
+                      Enter chat
+                    </Link>
+                  </div>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+function ToggleRow({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start justify-between gap-4 rounded-xl border border-border/60 bg-card/30 px-4 py-3 mb-2 cursor-pointer hover:border-primary/25 transition-colors">
+      <span>
+        <span className="text-sm font-medium text-foreground block">{label}</span>
+        <span className="text-xs text-muted-foreground">{description}</span>
+      </span>
+      <input
+        type="checkbox"
+        className="mt-1 h-4 w-4 rounded border-border accent-[#FF2D7B]"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+    </label>
+  );
+}
+
+function DashboardHome({
+  onOpenCard,
+  onCreate,
+  onBreed,
+  quickImageGen,
+}: {
+  onOpenCard: (c: Companion) => void;
+  onCreate: () => void;
+  onBreed: () => void;
+  quickImageGen: () => void;
+}) {
+  const hotCompanions = companions.filter((c) => HOT_IDS.includes(c.id));
+
+  return (
+    <div className="space-y-10 max-w-6xl mx-auto">
+      <div className="md:hidden rounded-2xl border border-primary/25 bg-card/60 backdrop-blur-md px-4 py-3 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">Daily credits</p>
+          <p className="font-gothic text-2xl text-primary" style={{ color: NEON_PINK }}>
+            340
+          </p>
+        </div>
+        <p className="text-[11px] text-muted-foreground text-right max-w-[10rem]">Resets midnight UTC · spend in forge</p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        {DASHBOARD_STATS.map((s, i) => (
+          <motion.div
+            key={s.key}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            className="rounded-2xl border border-border/80 bg-card/50 backdrop-blur-md p-4 sm:p-5 relative overflow-hidden group"
+          >
+            <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-primary/5 blur-2xl group-hover:bg-primary/10 transition-colors" />
+            <p className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-muted-foreground font-semibold">
+              {s.label}
+            </p>
+            <p className={cn("font-gothic text-2xl sm:text-3xl mt-2", s.accent)}>{s.value}</p>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Quick actions */}
+      <div className="flex flex-col sm:flex-row flex-wrap gap-4">
+        <motion.button
+          type="button"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={onCreate}
+          className="flex-1 min-w-[200px] flex items-center justify-center gap-3 rounded-2xl py-4 px-6 font-semibold text-primary-foreground shadow-lg border border-white/10"
+          style={{ background: `linear-gradient(135deg, ${NEON_PINK}, hsl(280 50% 35%))` }}
+        >
+          <Sparkles className="h-5 w-5" />
+          Create Companion
+        </motion.button>
+        <motion.button
+          type="button"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={onBreed}
+          className="flex-1 min-w-[200px] flex items-center justify-center gap-3 rounded-2xl py-4 px-6 font-semibold text-primary-foreground border border-accent/40 bg-accent/20 text-accent hover:bg-accent/30 transition-colors"
+        >
+          <Dna className="h-5 w-5" />
+          Breed Hybrid
+        </motion.button>
+        <motion.button
+          type="button"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={quickImageGen}
+          className="flex items-center justify-center gap-2 rounded-2xl py-4 px-5 border border-border bg-card/60 text-sm font-semibold text-foreground hover:border-primary/40 hover:text-primary transition-colors"
+        >
+          <Wand2 className="h-5 w-5 text-accent" />
+          Quick image gen
+        </motion.button>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-8">
+        {/* Collection */}
+        <section className="lg:col-span-2 space-y-4">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h2 className="font-gothic text-2xl sm:text-3xl flex items-center gap-2">
+                <Layers className="h-7 w-7 text-primary shrink-0" style={{ color: NEON_PINK }} />
+                Your Collection
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">Tap a card to reveal the full fantasy sheet.</p>
+            </div>
+            <span className="text-xs text-muted-foreground uppercase tracking-widest hidden sm:block">
+              TCG preview
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+            {COLLECTION_PREVIEW.map((c, idx) => (
+              <MiniCompanionCard key={c.id} companion={c} index={idx} onOpen={() => onOpenCard(c)} />
+            ))}
+          </div>
+        </section>
+
+        {/* Right column widgets */}
+        <div className="space-y-6">
+          <section className="rounded-2xl border border-border/80 bg-card/40 backdrop-blur-md p-5">
+            <h3 className="font-gothic text-lg flex items-center gap-2 text-primary mb-4" style={{ color: NEON_PINK }}>
+              <Heart className="h-5 w-5" />
+              Affection overview
+            </h3>
+            <div className="space-y-5">
+              {AFFECTION_ROWS.map((row) => (
+                <div key={row.name}>
+                  <div className="flex justify-between text-xs mb-1.5">
+                    <span className="text-foreground font-medium">{row.name}</span>
+                    <span className="text-muted-foreground">{row.tier}</span>
+                  </div>
+                  <Progress value={row.pct} className="h-2 bg-secondary/80 [&>div]:bg-gradient-to-r [&>div]:from-primary [&>div]:to-accent" />
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/5 to-transparent p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-gothic text-lg flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-accent" />
+                Hot right now
+              </h3>
+              <Flame className="h-4 w-4 text-primary opacity-80" style={{ color: NEON_PINK }} />
+            </div>
+            <div className="space-y-3">
+              {hotCompanions.slice(0, 4).map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => onOpenCard(c)}
+                  className="w-full flex items-center gap-3 rounded-xl border border-border/60 bg-black/30 p-2 text-left hover:border-primary/35 transition-colors group"
+                >
+                  <div
+                    className="h-12 w-10 rounded-lg shrink-0"
+                    style={{
+                      background: `linear-gradient(135deg, ${c.gradientFrom}, ${c.gradientTo})`,
+                    }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
+                      {c.name}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground truncate">{c.tagline}</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary shrink-0" />
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-border/80 bg-card/40 backdrop-blur-md p-5">
+            <h3 className="font-gothic text-lg flex items-center gap-2 mb-4">
+              <Activity className="h-5 w-5 text-velvet-purple" />
+              Recent activity
+            </h3>
+            <ul className="space-y-4">
+              {RECENT_ACTIVITY.map((item, i) => (
+                <li key={i} className="flex gap-3 text-sm">
+                  <span
+                    className={cn(
+                      "shrink-0 w-1 rounded-full self-stretch min-h-[2.5rem]",
+                      item.tone === "pink" && "bg-primary",
+                      item.tone === "teal" && "bg-accent",
+                      item.tone === "purple" && "bg-velvet-purple",
+                    )}
+                    style={item.tone === "pink" ? { backgroundColor: NEON_PINK } : undefined}
+                  />
+                  <div>
+                    <p className="text-muted-foreground leading-snug">{item.msg}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground/80 mt-1">{item.t}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.01 }}
+            onClick={quickImageGen}
+            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/40 py-4 text-sm font-semibold text-primary hover:bg-primary/10 transition-colors"
+            style={{ color: NEON_PINK }}
+          >
+            <ImagePlus className="h-5 w-5" />
+            Forge a new visual
+          </motion.button>
         </div>
       </div>
-    </motion.div>
+    </div>
+  );
+}
+
+function MiniCompanionCard({
+  companion: c,
+  index,
+  onOpen,
+}: {
+  companion: Companion;
+  index: number;
+  onOpen: () => void;
+}) {
+  return (
+    <motion.button
+      type="button"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.04 }}
+      whileHover={{ y: -4, scale: 1.02 }}
+      onClick={onOpen}
+      className="text-left rounded-2xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden group shadow-lg shadow-black/20 hover:border-primary/40 transition-colors ring-0 hover:ring-2 hover:ring-primary/20"
+    >
+      <div
+        className="aspect-[3/4] relative"
+        style={{ background: `linear-gradient(160deg, ${c.gradientFrom}, ${c.gradientTo})` }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
+        <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-black/50 border border-white/10 text-[9px] font-bold uppercase tracking-wider text-white/90">
+          {c.role}
+        </div>
+        <div className="absolute inset-x-0 bottom-0 p-3 space-y-0.5">
+          <p className="text-xs font-bold text-white truncate leading-tight">{c.name}</p>
+          <p className="text-[10px] text-white/70 truncate">{c.tagline}</p>
+        </div>
+        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none" />
+      </div>
+      <div className="px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/40">
+        <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Inspect</span>
+        <Sparkles className="h-3.5 w-3.5 text-accent" />
+      </div>
+    </motion.button>
+  );
+}
+
+function CollectionView({
+  companions: list,
+  onOpenCard,
+}: {
+  companions: Companion[];
+  onOpenCard: (c: Companion) => void;
+}) {
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div>
+        <h2 className="font-gothic text-3xl gradient-vice-text">My Collection</h2>
+        <p className="text-muted-foreground mt-2 text-sm max-w-xl">
+          Every companion you have unlocked lives here — rare frames, hybrid lineages, and legendary glows.
+        </p>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        {list.map((c, i) => (
+          <MiniCompanionCard key={c.id} companion={c} index={i} onOpen={() => onOpenCard(c)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BreedingView({ onStartChat }: { onStartChat: () => void }) {
+  return (
+    <div className="max-w-3xl mx-auto text-center py-8 px-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="rounded-[2rem] border border-primary/30 bg-card/50 backdrop-blur-xl p-10 sm:p-14 relative overflow-hidden"
+      >
+        <div
+          className="absolute inset-0 opacity-30 pointer-events-none"
+          style={{
+            background: `radial-gradient(circle at 50% 0%, ${NEON_PINK}55, transparent 55%), radial-gradient(circle at 80% 100%, hsl(170 100% 50% / 0.2), transparent 40%)`,
+          }}
+        />
+        <Dna className="h-14 w-14 mx-auto text-accent mb-6 relative" />
+        <h2 className="font-gothic text-3xl sm:text-4xl mb-4 relative">
+          <span className="gradient-vice-text">Breeding Chamber</span>
+        </h2>
+        <p className="text-muted-foreground text-sm sm:text-base max-w-lg mx-auto mb-8 relative leading-relaxed">
+          Merge personas, inherit kinks, and birth hybrids that remember your rhythm. The chamber opens into your
+          deepest threads — toys, voice, and tension in lockstep.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center relative">
+          <Link
+            to="/create-companion"
+            className="inline-flex items-center justify-center gap-2 rounded-xl px-8 py-3 font-bold text-primary-foreground glow-pink"
+            style={{ backgroundColor: NEON_PINK }}
+          >
+            <Sparkles className="h-5 w-5" />
+            Design lineage
+          </Link>
+          <button
+            type="button"
+            onClick={onStartChat}
+            className="inline-flex items-center justify-center gap-2 rounded-xl px-8 py-3 font-bold border border-accent text-accent hover:bg-accent/10 transition-colors"
+          >
+            <MessageSquare className="h-5 w-5" />
+            Continue in chat
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function ToyControlView({
+  connected,
+  label,
+  onRefresh,
+  onOpenChat,
+}: {
+  connected: boolean;
+  label: string | null;
+  onRefresh: () => void;
+  onOpenChat: () => void;
+}) {
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div>
+        <h2 className="font-gothic text-3xl flex items-center gap-3">
+          <Gamepad2 className="h-8 w-8 text-accent" />
+          Toy control
+        </h2>
+        <p className="text-muted-foreground mt-2 text-sm">
+          Haptics sync from the live forge session. Calibrate intensity and patterns where the fantasy actually
+          unfolds.
+        </p>
+      </div>
+      <div className="rounded-2xl border border-border/80 bg-card/50 backdrop-blur-md p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">Bridge status</span>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="text-xs uppercase tracking-widest text-accent hover:underline"
+          >
+            Refresh
+          </button>
+        </div>
+        <div
+          className={cn(
+            "rounded-xl border px-4 py-4 text-sm",
+            connected ? "border-accent/40 bg-accent/5 text-accent" : "border-border bg-black/30 text-muted-foreground",
+          )}
+        >
+          {connected
+            ? `Linked${label ? ` — ${label}` : ""}. Session commands will route in real time.`
+            : "No toy linked to your profile. Open a live session to pair via Lovense callback."}
+        </div>
+        <button
+          type="button"
+          onClick={onOpenChat}
+          className="w-full py-3 rounded-xl font-semibold text-primary-foreground glow-pink"
+          style={{ backgroundColor: NEON_PINK }}
+        >
+          Open live session
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ChatHistoryView({ onOpenChat }: { onOpenChat: () => void }) {
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <h2 className="font-gothic text-3xl flex items-center gap-3">
+          <MessageSquare className="h-8 w-8 text-primary" style={{ color: NEON_PINK }} />
+          Chat history
+        </h2>
+        <button
+          type="button"
+          onClick={onOpenChat}
+          className="text-sm font-semibold text-accent hover:underline"
+        >
+          New session →
+        </button>
+      </div>
+      <ul className="space-y-3">
+        {MOCK_THREADS.map((t) => (
+          <li key={t.title}>
+            <button
+              type="button"
+              onClick={onOpenChat}
+              className="w-full text-left rounded-2xl border border-border/80 bg-card/40 backdrop-blur-md p-4 hover:border-primary/30 transition-colors group"
+            >
+              <div className="flex justify-between items-start gap-2 mb-1">
+                <span className="font-semibold text-foreground group-hover:text-primary transition-colors">
+                  {t.title}
+                </span>
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">{t.at}</span>
+              </div>
+              <p className="text-sm text-muted-foreground line-clamp-2">{t.preview}</p>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="text-xs text-muted-foreground text-center italic">
+        Full transcripts stay private to your device whenever local-only mode is enabled in Settings.
+      </p>
+    </div>
   );
 }

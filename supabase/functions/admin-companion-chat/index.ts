@@ -3,7 +3,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const XAI_API_KEY = Deno.env.get("xai-PhEmyQn0YgbpzI3YHzs9yRHy7EmVCWFPv9ygxux3aJwLLClhpuQAQZwQQ0uNxApOW6HsnljO27SZQLY0");
+const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
