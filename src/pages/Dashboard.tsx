@@ -24,9 +24,9 @@ type CompanionCard = {
 };
 
 const rarityStyles: Record<Rarity, { border: string; glow: string; tag: string; tagBg: string }> = {
-  Legendary: { border: "border-yellow-400", glow: "shadow-[0_0_35px_hsl(45_100%_60%/0.5)]", tag: "text-yellow-300", tagBg: "bg-yellow-500/10 border-yellow-400" },
-  Epic: { border: "border-purple-400", glow: "shadow-[0_0_35px_hsl(270_100%_60%/0.5)]", tag: "text-purple-300", tagBg: "bg-purple-500/10 border-purple-400" },
-  Rare: { border: "border-cyan-400", glow: "shadow-[0_0_35px_hsl(180_100%_60%/0.5)]", tag: "text-cyan-300", tagBg: "bg-cyan-500/10 border-cyan-400" },
+  Legendary: { border: "border-yellow-400", glow: "shadow-[0_0_30px_hsl(45_100%_60%/0.5)]", tag: "text-yellow-300", tagBg: "bg-yellow-500/10 border-yellow-400" },
+  Epic: { border: "border-purple-400", glow: "shadow-[0_0_30px_hsl(270_100%_60%/0.5)]", tag: "text-purple-300", tagBg: "bg-purple-500/10 border-purple-400" },
+  Rare: { border: "border-cyan-400", glow: "shadow-[0_0_30px_hsl(180_100%_60%/0.5)]", tag: "text-cyan-300", tagBg: "bg-cyan-500/10 border-cyan-400" },
   Common: { border: "border-zinc-500", glow: "", tag: "text-zinc-400", tagBg: "bg-zinc-500/10 border-zinc-500" },
 };
 
@@ -71,12 +71,14 @@ export default function Dashboard() {
 
   const displayName = user?.user_metadata?.username || user?.email?.split("@")[0] || "Forgemaster";
 
-  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center text-white">Loading dashboard...</div>;
+  if (loading) {
+    return <div className="min-h-screen bg-background flex items-center justify-center text-white">Loading dashboard...</div>;
+  }
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
+    <div className="min-h-screen bg-black text-white">
       {/* Top Bar */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-black/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-black/90 backdrop-blur-xl">
         <div className="max-w-screen-2xl mx-auto px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h1 className="font-gothic text-3xl tracking-widest gradient-vice-text">
@@ -102,7 +104,7 @@ export default function Dashboard() {
               </button>
             )}
 
-            {/* Account */}
+            {/* Profile */}
             <button className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-pink-500/20 to-purple-500/20 flex items-center justify-center border border-white/10">
                 <User className="h-5 w-5 text-pink-400" />
@@ -113,8 +115,8 @@ export default function Dashboard() {
       </header>
 
       <div className="max-w-screen-2xl mx-auto px-8 py-10">
-        {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-6 mb-12">
+        {/* Stats Row - Compact */}
+        <div className="grid grid-cols-5 gap-4 mb-12">
           {[
             { icon: Users, label: "Companions", value: 12 },
             { icon: Heart, label: "Hybrids Bred", value: 3 },
@@ -123,43 +125,43 @@ export default function Dashboard() {
             { icon: Clock, label: "Hours Chatted", value: 89 },
           ].map((stat) => (
             <div key={stat.label} className="bg-zinc-900 border border-white/10 rounded-3xl p-6 text-center hover:border-pink-500/30 transition-all">
-              <stat.icon className="h-8 w-8 mx-auto mb-4 text-pink-400" />
-              <div className="text-4xl font-bold text-white mb-1">{stat.value}</div>
-              <div className="text-sm text-zinc-400">{stat.label}</div>
+              <stat.icon className="h-7 w-7 mx-auto mb-3 text-pink-400" />
+              <div className="text-3xl font-bold text-white mb-1">{stat.value}</div>
+              <div className="text-xs text-zinc-400">{stat.label}</div>
             </div>
           ))}
         </div>
 
         {/* Quick Actions */}
         <div className="flex gap-4 mb-12">
-          <button className="flex-1 md:flex-none px-10 py-6 rounded-3xl bg-pink-600 text-white font-medium flex items-center justify-center gap-4 hover:scale-105 transition-all text-lg">
+          <button className="flex-1 px-8 py-6 rounded-3xl bg-pink-600 text-white font-medium flex items-center justify-center gap-4 hover:scale-105 transition-all text-lg">
             <Sparkles className="h-6 w-6" />
             Create Companion
           </button>
-          <button className="flex-1 md:flex-none px-10 py-6 rounded-3xl bg-purple-600 text-white font-medium flex items-center justify-center gap-4 hover:scale-105 transition-all text-lg">
+          <button className="flex-1 px-8 py-6 rounded-3xl bg-purple-600 text-white font-medium flex items-center justify-center gap-4 hover:scale-105 transition-all text-lg">
             <Baby className="h-6 w-6" />
             Breed Hybrid
           </button>
         </div>
 
-        {/* Your Collection - Large Modern Cards */}
+        {/* Your Collection - Modern horizontal scroll */}
         <div>
-          <div className="flex justify-between items-baseline mb-8">
+          <div className="flex justify-between items-baseline mb-6">
             <h2 className="font-gothic text-4xl tracking-wider gradient-vice-text">Your Collection</h2>
-            <button className="text-pink-400 text-sm flex items-center gap-2 hover:text-pink-300">View All →</button>
+            <button className="text-pink-400 flex items-center gap-2 hover:text-pink-300">View All →</button>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="flex gap-6 overflow-x-auto pb-6 snap-x snap-mandatory scrollbar-hide">
             {placeholderCollection.map((card) => {
               const rs = rarityStyles[card.rarity];
               return (
                 <motion.div
                   key={card.id}
-                  whileHover={{ scale: 1.04 }}
-                  className={`bg-zinc-900 border-2 ${rs.border} rounded-3xl overflow-hidden cursor-pointer ${rs.glow}`}
+                  whileHover={{ scale: 1.05 }}
+                  className={`min-w-[280px] bg-zinc-900 border-2 ${rs.border} rounded-3xl overflow-hidden cursor-pointer ${rs.glow}`}
                 >
-                  <div className="h-64 bg-gradient-to-br from-zinc-800 to-black flex items-center justify-center p-8 relative">
-                    <div className="text-7xl opacity-20">🖼️</div>
+                  <div className="h-64 bg-gradient-to-br from-zinc-800 to-black flex items-center justify-center p-8">
+                    <div className="text-8xl opacity-10">🖼️</div>
                   </div>
                   <div className="p-6">
                     <div className="flex justify-between mb-3">
