@@ -57,14 +57,16 @@ const Admin = () => {
     if (status === 'loading') return;
 
     const isAdmin = session?.user?.email === ADMIN_EMAIL;
+    console.log('Session check:', { session: session?.user?.email, isAdmin }); // Debug log
+
     if (!session) {
       // Not logged in: redirect to landing page
-      router.push('/');
+      router.replace('/'); // Use replace to avoid history issues
       return;
     }
     if (!isAdmin) {
       // Logged in but not admin: redirect to dashboard
-      router.push('/dashboard');
+      router.replace('/dashboard');
       return;
     }
 
@@ -173,7 +175,7 @@ const Admin = () => {
 
   const isAdmin = session?.user?.email === ADMIN_EMAIL;
   if (!session || !isAdmin) {
-    return null; // Redirect handled in useEffect
+    return null; // Redirect handled in useEffect with replace to avoid loops
   }
 
   return (

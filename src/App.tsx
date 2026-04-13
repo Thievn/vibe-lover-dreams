@@ -1,5 +1,5 @@
 import { useState, useEffect, Component, ReactNode } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { Toaster } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import AgeGate from "./components/AgeGate";
@@ -24,16 +24,13 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
     super(props);
     this.state = { hasError: false };
   }
-
   static getDerivedStateFromError(error: Error): { hasError: boolean } {
     return { hasError: true };
   }
-
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("ErrorBoundary caught an error:", error, errorInfo);
     this.setState({ error: error.message });
   }
-
   render() {
     if (this.state.hasError) {
       return (
@@ -52,39 +49,61 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
         </div>
       );
     }
-
     return this.props.children;
   }
 }
 
+// Updated ProtectedRoute with admin check
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const navigate = useNavigate();  // Safe here (child of Router)
+  const [isAdmin, setIsAdmin] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const ADMIN_EMAIL = 'lustforgeapp@gmail.com';
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        setIsAuthenticated(!!session);
+        const authenticated = !!session;
+        const admin = authenticated && session?.user?.email === ADMIN_EMAIL;
+        setIsAuthenticated(authenticated);
+        setIsAdmin(admin);
         setLoading(false);
-        // No immediate navigate—let <Navigate> in Routes handle unauth
+
+        // For /admin path: Redirect non-admins to /dashboard
+        if (location.pathname === '/admin' && authenticated && !admin) {
+          navigate('/dashboard', { replace: true });
+          return;
+        }
       } catch (error) {
-        console.error("Auth check failed:", error);
+        console.error('Auth check failed:', error);
         setLoading(false);
       }
     };
+
     checkAuth();
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      setIsAuthenticated(!!session);
-      if (!session && event === "SIGNED_OUT") {
-        navigate("/auth", { replace: true });
+      const authenticated = !!session;
+      const admin = authenticated && session?.user?.email === ADMIN_EMAIL;
+      setIsAuthenticated(authenticated);
+      setIsAdmin(admin);
+
+      if (!session && event === 'SIGNED_OUT') {
+        navigate('/auth', { replace: true });
+        return;
+      }
+
+      // Handle /admin specifically on auth change
+      if (location.pathname === '/admin' && authenticated && !admin) {
+        navigate('/dashboard', { replace: true });
       }
     });
 
     return () => listener?.subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, location.pathname]);
 
   if (loading) {
     return (
@@ -92,6 +111,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
         <div className="text-foreground">Loading...</div>
       </div>
     );
+  }
+
+  // For /admin, only allow if isAdmin
+  if (location.pathname === '/admin' && !isAdmin) {
+    return null; // Redirect handled above
   }
 
   return isAuthenticated ? <>{children}</> : <Navigate to="/auth" replace />;
@@ -120,17 +144,14 @@ function App() {
       <ErrorBoundary>
         <div className="min-h-screen bg-background text-foreground font-sans relative">
           {!ageConfirmed && <AgeGate onConfirm={handleAgeConfirm} />}
-          
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/account" element={<Account />} />
-            
             <Route path="/terms-of-service" element={<TermsOfService />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/18-plus-disclaimer" element={<EighteenPlusDisclaimer />} />
-
             <Route 
               path="/dashboard" 
               element={
@@ -179,7 +200,6 @@ function App() {
                 </ProtectedRoute>
               } 
             />
-
             <Route path="*" element={<NotFound />} />
           </Routes>
           <Toaster position="top-right" richColors closeButton />
