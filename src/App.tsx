@@ -1,22 +1,31 @@
-import { useState, useEffect, Component, ReactNode } from "react";
+import { lazy, Suspense, useState, useEffect, Component, ReactNode } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { Toaster } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import AgeGate from "./components/AgeGate";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
-import Dashboard from "./pages/Dashboard";
-import Chat from "./pages/Chat";
-import CompanionProfile from "./pages/CompanionProfile";
-import CompanionCreator from "./pages/CompanionCreator";
-import Settings from "./pages/Settings";
-import Admin from "./pages/Admin";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import Account from "./pages/Account";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import EighteenPlusDisclaimer from "./pages/EighteenPlusDisclaimer";
+
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Chat = lazy(() => import("./pages/Chat"));
+const CompanionProfile = lazy(() => import("./pages/CompanionProfile"));
+const CompanionCreator = lazy(() => import("./pages/CompanionCreator"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Admin = lazy(() => import("./pages/Admin"));
+
+function RouteFallback() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-sm text-muted-foreground animate-pulse">Loading…</div>
+    </div>
+  );
+}
 
 // Simple Error Boundary to catch runtime errors and prevent black screen
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error?: string }> {
@@ -144,64 +153,66 @@ function App() {
       <ErrorBoundary>
         <div className="min-h-screen bg-background text-foreground font-sans relative">
           {!ageConfirmed && <AgeGate onConfirm={handleAgeConfirm} />}
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/account" element={<Account />} />
-            <Route path="/terms-of-service" element={<TermsOfService />} />
-            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-            <Route path="/18-plus-disclaimer" element={<EighteenPlusDisclaimer />} />
-            <Route 
-              path="/dashboard" 
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/chat" 
-              element={
-                <ProtectedRoute>
-                  <Chat />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/companions/:id" 
-              element={
-                <ProtectedRoute>
-                  <CompanionProfile />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/create-companion" 
-              element={
-                <ProtectedRoute>
-                  <CompanionCreator />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/settings" 
-              element={
-                <ProtectedRoute>
-                  <Settings />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/admin" 
-              element={
-                <ProtectedRoute>
-                  <Admin />
-                </ProtectedRoute>
-              } 
-            />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/account" element={<Account />} />
+              <Route path="/terms-of-service" element={<TermsOfService />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route path="/18-plus-disclaimer" element={<EighteenPlusDisclaimer />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/chat"
+                element={
+                  <ProtectedRoute>
+                    <Chat />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/companions/:id"
+                element={
+                  <ProtectedRoute>
+                    <CompanionProfile />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/create-companion"
+                element={
+                  <ProtectedRoute>
+                    <CompanionCreator />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <Settings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute>
+                    <Admin />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
           <Toaster position="top-right" richColors closeButton />
         </div>
       </ErrorBoundary>
