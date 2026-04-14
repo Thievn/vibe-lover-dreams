@@ -60,9 +60,14 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
     setShuffled(shufflePickSix(pool));
   }, [pool]);
 
+  const navTopPad =
+    "pt-[max(5.25rem,calc(3.25rem+env(safe-area-inset-top,0px)))] sm:pt-[max(5.5rem,calc(3.5rem+env(safe-area-inset-top,0px)))]";
+
   if (isLoading && (dbList === undefined || dbList.length === 0)) {
     return (
-      <section className="relative min-h-[70vh] sm:min-h-[80vh] flex items-center justify-center px-4 sm:px-6 overflow-x-hidden">
+      <section
+        className={`relative min-h-[70vh] sm:min-h-[80vh] flex items-center justify-center px-4 sm:px-6 overflow-x-hidden ${navTopPad}`}
+      >
         <div className="text-center text-muted-foreground text-sm animate-pulse">Syncing forge catalog…</div>
       </section>
     );
@@ -70,14 +75,16 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
 
   if (totalCompanions === 0) {
     return (
-      <section className="relative min-h-[70vh] flex items-center justify-center px-4">
+      <section className={`relative min-h-[70vh] flex items-center justify-center px-4 ${navTopPad}`}>
         <p className="text-muted-foreground text-sm text-center">No companions in the forge yet. Check back soon.</p>
       </section>
     );
   }
 
   return (
-    <section className="relative min-h-[70vh] sm:min-h-[80vh] flex items-center justify-center px-3 sm:px-6 overflow-x-hidden pb-8">
+    <section
+      className={`relative min-h-[70vh] sm:min-h-[80vh] flex items-center justify-center px-3 sm:px-6 overflow-x-hidden pb-8 ${navTopPad}`}
+    >
       <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-background pointer-events-none" />
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[min(100vw,600px)] h-[min(100vw,600px)] max-h-[70vh] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
 

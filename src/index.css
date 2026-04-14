@@ -5,6 +5,10 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scroll-padding-top: max(5rem, calc(3.5rem + env(safe-area-inset-top, 0px)));
+  }
+
   :root {
     --background: 240 20% 3.5%;
     --foreground: 0 0% 93%;

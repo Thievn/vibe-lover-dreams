@@ -3,8 +3,19 @@ import react from "@vitejs/plugin-react-swc";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 
+function ogSiteOrigin(): string {
+  const raw = process.env.VITE_SITE_ORIGIN || "https://lustforge.app";
+  return raw.replace(/\/$/, "");
+}
+
 export default defineConfig({
   plugins: [
+    {
+      name: "inject-og-site-origin",
+      transformIndexHtml(html) {
+        return html.replace(/__OG_SITE_ORIGIN__/g, ogSiteOrigin());
+      },
+    },
     react(),
     VitePWA({
       registerType: "autoUpdate",

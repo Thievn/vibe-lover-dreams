@@ -29,6 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getToys } from "@/lib/lovense";
 import { cn } from "@/lib/utils";
 import ParticleBackground from "@/components/ParticleBackground";
+import CompanionGallery from "@/components/CompanionGallery";
 import { Progress } from "@/components/ui/progress";
 import { companions, type Companion } from "@/data/companions";
 
@@ -315,7 +316,9 @@ export default function Dashboard() {
             <div>
               <h1 className="font-gothic text-2xl sm:text-3xl font-bold tracking-tight">
                 <span className="text-foreground">Welcome back, </span>
-                <span className="gradient-vice-text">{greetingName}</span>
+                <span className="gradient-vice-text font-sans font-semibold tracking-normal normal-case">
+                  {greetingName}
+                </span>
               </h1>
               <p className="text-sm text-muted-foreground mt-1 italic">
                 Your forge is live — every pulse, every whisper, yours to command.
@@ -459,9 +462,7 @@ export default function Dashboard() {
                 quickImageGen={quickImageGen}
               />
             )}
-            {activeNav === "collection" && (
-              <CollectionView companions={COLLECTION_PREVIEW} onOpenCard={setDetail} />
-            )}
+            {activeNav === "collection" && <CompanionGallery compact />}
             {activeNav === "breeding" && <BreedingView onStartChat={() => navigate("/chat")} />}
             {activeNav === "toy" && (
               <ToyControlView
@@ -511,7 +512,7 @@ export default function Dashboard() {
                       Identity
                     </h3>
                     <div className="rounded-2xl border border-border/80 bg-card/40 p-4 space-y-2">
-                      <p className="text-sm text-foreground">{greetingName}</p>
+                      <p className="text-sm text-foreground font-sans normal-case">{greetingName}</p>
                       <p className="text-xs text-muted-foreground break-all">{user?.email}</p>
                     </div>
                   </section>
@@ -932,30 +933,6 @@ function MiniCompanionCard({
         <Sparkles className="h-3.5 w-3.5 text-accent" />
       </div>
     </motion.button>
-  );
-}
-
-function CollectionView({
-  companions: list,
-  onOpenCard,
-}: {
-  companions: Companion[];
-  onOpenCard: (c: Companion) => void;
-}) {
-  return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div>
-        <h2 className="font-gothic text-3xl gradient-vice-text">My Collection</h2>
-        <p className="text-muted-foreground mt-2 text-sm max-w-xl">
-          Every companion you have unlocked lives here — rare frames, hybrid lineages, and legendary glows.
-        </p>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-        {list.map((c, i) => (
-          <MiniCompanionCard key={c.id} companion={c} index={i} onOpen={() => onOpenCard(c)} />
-        ))}
-      </div>
-    </div>
   );
 }
 

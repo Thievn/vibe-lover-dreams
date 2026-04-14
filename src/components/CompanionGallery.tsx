@@ -3,8 +3,19 @@ import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { companionImages } from "@/data/companionImages";
 import CompanionCard from "./CompanionCard";
 import { Search, Filter, X, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-const CompanionGallery = () => {
+type CompanionGalleryProps = {
+  /** Landing page: hide search/filters. Dashboard collection: show them. */
+  showSearchAndFilters?: boolean;
+  /** Tighter vertical rhythm when embedded (e.g. dashboard main scroll area). */
+  compact?: boolean;
+};
+
+const CompanionGallery = ({
+  showSearchAndFilters = true,
+  compact = false,
+}: CompanionGalleryProps) => {
   const { data: dbCompanions, isLoading } = useCompanions();
   const [search, setSearch] = useState("");
   const [selectedGender, setSelectedGender] = useState<string | null>(null);
@@ -56,9 +67,11 @@ const CompanionGallery = () => {
 
   const hasFilters = search || selectedGender || selectedRole;
 
+  const sectionPad = compact ? "py-6 sm:py-8" : "py-12 sm:py-16";
+
   if (isLoading) {
     return (
-      <section id="companions" className="py-12 sm:py-16 px-3 sm:px-4 overflow-x-hidden">
+      <section id="companions" className={cn(sectionPad, "px-3 sm:px-4 overflow-x-hidden")}>
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
@@ -67,7 +80,7 @@ const CompanionGallery = () => {
   }
 
   return (
-    <section id="companions" className="py-12 sm:py-16 px-3 sm:px-4 overflow-x-hidden">
+    <section id="companions" className={cn(sectionPad, "px-3 sm:px-4 overflow-x-hidden")}>
       <div className="max-w-7xl mx-auto">
         <h2 className="font-gothic text-3xl md:text-4xl font-bold text-center mb-2 gradient-vice-text">
           Choose Your Companion
@@ -76,6 +89,8 @@ const CompanionGallery = () => {
           {companions.length} unique AI companions — every gender, orientation, and fantasy. Zero judgment.
         </p>
 
+        {showSearchAndFilters && (
+        <>
         {/* Search & Filters */}
         <div className="flex flex-col sm:flex-row gap-3 mb-8 max-w-2xl mx-auto">
           <div className="relative flex-1">
@@ -141,6 +156,8 @@ const CompanionGallery = () => {
               ))}
             </div>
           </div>
+        )}
+        </>
         )}
 
         {/* Grid */}
