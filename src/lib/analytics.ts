@@ -6,14 +6,14 @@ declare global {
 }
 
 const GA_DEFAULT = "531474793";
-const GA_DISABLED_VALUES = new Set(["", "0", "false", "off", "disabled"]);
+const GA_DISABLED_VALUES = new Set(["0", "false", "off", "disabled"]);
 
 let initialized = false;
 
 function normalizeMeasurementId(input: string | undefined): string | null {
   const raw = (input ?? "").trim();
-  if (GA_DISABLED_VALUES.has(raw.toLowerCase())) return null;
   if (!raw) return `G-${GA_DEFAULT}`;
+  if (GA_DISABLED_VALUES.has(raw.toLowerCase())) return null;
   if (raw.startsWith("G-")) return raw;
   if (/^\d+$/.test(raw)) return `G-${raw}`;
   return raw;
