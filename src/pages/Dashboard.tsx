@@ -316,9 +316,7 @@ export default function Dashboard() {
             <div>
               <h1 className="font-gothic text-2xl sm:text-3xl font-bold tracking-tight">
                 <span className="text-foreground">Welcome back, </span>
-                <span className="gradient-vice-text font-sans font-semibold tracking-normal normal-case">
-                  {greetingName}
-                </span>
+                <span className="gradient-vice-text normal-case">{greetingName}</span>
               </h1>
               <p className="text-sm text-muted-foreground mt-1 italic">
                 Your forge is live — every pulse, every whisper, yours to command.
@@ -512,7 +510,7 @@ export default function Dashboard() {
                       Identity
                     </h3>
                     <div className="rounded-2xl border border-border/80 bg-card/40 p-4 space-y-2">
-                      <p className="text-sm text-foreground font-sans normal-case">{greetingName}</p>
+                      <p className="text-sm text-foreground font-gothic normal-case">{greetingName}</p>
                       <p className="text-xs text-muted-foreground break-all">{user?.email}</p>
                     </div>
                   </section>

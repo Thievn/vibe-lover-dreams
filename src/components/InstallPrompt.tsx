@@ -13,6 +13,15 @@ function isIos(): boolean {
   return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }
 
+/** PWA install UX only on phones/tablets — not desktop/laptop browsers. */
+function isMobileOrTablet(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  if (isIos()) return true;
+  if (/Android/i.test(ua)) return true;
+  return false;
+}
+
 export default function InstallPrompt() {
   const [open, setOpen] = useState(false);
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
@@ -23,6 +32,7 @@ export default function InstallPrompt() {
     if (isStandalone()) return;
 
     const onBip = (e: Event) => {
+      if (!isMobileOrTablet()) return;
       e.preventDefault();
       setDeferred(e as BeforeInstallPromptEvent);
       if (localStorage.getItem(DISMISS_KEY)) return;
@@ -34,6 +44,7 @@ export default function InstallPrompt() {
     const t = window.setTimeout(() => {
       if (localStorage.getItem(DISMISS_KEY)) return;
       if (sessionStorage.getItem(AUTO_SESSION_KEY)) return;
+      if (!isIos()) return;
       markAutoShown();
       setOpen(true);
     }, 5000);
