@@ -1,164 +1,200 @@
-import { useState } from "react";
-import { Sparkles, Dice6, Zap } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, Coins, Save, Sparkles, UserRound } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import ParticleBackground from "@/components/ParticleBackground";
+import { cn } from "@/lib/utils";
 
-export default function CompanionCreator() {
-  const [numCompanions, setNumCompanions] = useState(1);
+const NEON = "#FF2D7B";
+
+export default function Account() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [tokens, setTokens] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.user) {
+      navigate("/auth", { replace: true });
+      return;
+    }
+    setEmail(session.user.email ?? "");
+    const meta = session.user.user_metadata as Record<string, string | undefined> | undefined;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name, tokens_balance")
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+    const fromProfile = profile?.display_name?.trim();
+    setUsername(fromProfile || meta?.username?.trim() || meta?.full_name?.trim() || "");
+    setTokens(profile?.tokens_balance ?? null);
+    setLoading(false);
+  }, [navigate]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const saveUsername = async () => {
+    const trimmed = username.trim();
+    if (trimmed.length < 2) {
+      toast.error("Username must be at least 2 characters.");
+      return;
+    }
+    if (trimmed.length > 40) {
+      toast.error("Username must be 40 characters or fewer.");
+      return;
+    }
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.user) return;
+
+    setSaving(true);
+    try {
+      const { error: pErr } = await supabase
+        .from("profiles")
+        .update({ display_name: trimmed })
+        .eq("user_id", session.user.id);
+      if (pErr) throw pErr;
+
+      const { error: uErr } = await supabase.auth.updateUser({
+        data: { username: trimmed, full_name: trimmed },
+      });
+      if (uErr) console.warn(uErr);
+
+      setUsername(trimmed);
+      toast.success("Username saved.");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Could not save username.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#050508] flex items-center justify-center font-sans">
+        <p className="text-sm text-muted-foreground tracking-wide">Loading your vault…</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-background p-6 lg:p-10">
-      <div className="max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-2">
-          <Sparkles className="h-8 w-8 text-purple-400" />
-          <h1 className="font-gothic text-5xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-            COMPANION CREATOR
-          </h1>
-        </div>
-        <p className="text-muted-foreground text-lg mb-8">Design your own AI companion with limitless customization. Each companion costs 250 tokens.</p>
+    <div className="min-h-screen bg-[#050508] text-foreground font-sans relative overflow-hidden">
+      <ParticleBackground />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#FF2D7B]/[0.07] via-transparent to-[#0a1620]/80" />
+      <div
+        className="pointer-events-none absolute -top-32 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full opacity-40 blur-[120px]"
+        style={{ background: `radial-gradient(circle, ${NEON}55, transparent 70%)` }}
+      />
+      <div className="pointer-events-none absolute bottom-0 right-0 h-[320px] w-[320px] rounded-full bg-[hsl(170_80%_35%)]/15 blur-[100px]" />
 
-        {/* Token Balance */}
-        <div className="bg-gradient-to-r from-emerald-900/80 to-cyan-900/80 border border-emerald-400/30 rounded-3xl p-5 flex items-center gap-4 mb-8">
-          <div className="bg-emerald-400 text-black rounded-2xl p-3">
-            <Zap className="h-6 w-6" />
+      <div className="relative z-10 mx-auto max-w-lg px-4 py-10 md:py-14">
+        <Link
+          to="/dashboard"
+          className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-[#FF2D7B]"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to dashboard
+        </Link>
+
+        <div className="mb-8 flex items-center gap-3">
+          <div
+            className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 shadow-lg"
+            style={{
+              background: `linear-gradient(145deg, ${NEON}33, hsl(280 45% 22% / 0.5))`,
+              boxShadow: `0 0 32px ${NEON}22`,
+            }}
+          >
+            <Sparkles className="h-6 w-6 text-white" />
           </div>
           <div>
-            <p className="text-sm text-emerald-300">Balance</p>
-            <p className="text-3xl font-bold text-white">10,965 tokens</p>
-          </div>
-          <div className="ml-auto text-xs text-emerald-300 bg-black/50 px-4 py-2 rounded-2xl">
-            250 tokens per companion created
+            <h1 className="font-gothic text-2xl md:text-3xl tracking-wide text-white">Account</h1>
+            <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mt-1">Vault & identity</p>
           </div>
         </div>
 
-        {/* Randomize Button */}
-        <button className="w-full py-5 rounded-3xl bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 text-white font-bold text-xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-all mb-10 shadow-xl">
-          <Dice6 className="h-7 w-7" />
-          Randomize / Roulette
-        </button>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-          {/* Left Column */}
-          <div className="space-y-8">
-            <div>
-              <label className="text-sm text-muted-foreground block mb-3">Number of Companions</label>
-              <div className="flex gap-2 flex-wrap">
-                {[1, 3, 5, 10].map(n => (
-                  <button
-                    key={n}
-                    onClick={() => setNumCompanions(n)}
-                    className={`px-6 py-3 rounded-2xl font-medium transition-all ${numCompanions === n ? "bg-pink-500 text-white" : "bg-muted hover:bg-muted/80"}`}
-                  >
-                    {n}
-                  </button>
-                ))}
-                <button className="px-6 py-3 rounded-2xl font-medium bg-muted hover:bg-muted/80">Custom</button>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm text-muted-foreground block mb-3">Name Prefix (optional)</label>
-              <input type="text" placeholder='e.g. "Shadow" → Shadow Nova, Shadow Veil...' className="w-full px-5 py-4 rounded-2xl bg-muted border border-border text-sm focus:outline-none focus:border-primary" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-8">
-              <div>
-                <label className="text-sm text-muted-foreground block mb-3">Appearance Style</label>
-                <select className="w-full px-5 py-4 rounded-2xl bg-muted border border-border text-sm focus:outline-none focus:border-primary">
-                  <option>Realistic</option>
-                  <option>Anime</option>
-                  <option>Fantasy</option>
-                </select>
+        <div
+          className={cn(
+            "rounded-3xl border border-white/[0.08] bg-black/50 p-6 md:p-8 backdrop-blur-2xl shadow-2xl",
+            "shadow-[0_0_80px_rgba(255,45,123,0.06),inset_0_1px_0_rgba(255,255,255,0.06)]",
+          )}
+        >
+          <div className="mb-8 flex items-start justify-between gap-4 rounded-2xl border border-[#FF2D7B]/20 bg-gradient-to-r from-[#FF2D7B]/[0.08] to-[hsl(280_50%_30%)]/20 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FF2D7B]/20 text-[#FF2D7B]">
+                <Coins className="h-5 w-5" />
               </div>
               <div>
-                <label className="text-sm text-muted-foreground block mb-3">Body Type</label>
-                <select className="w-full px-5 py-4 rounded-2xl bg-muted border border-border text-sm focus:outline-none focus:border-primary">
-                  <option>Curvy</option>
-                  <option>Athletic</option>
-                  <option>Petite</option>
-                </select>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Token balance</p>
+                <p className="font-gothic text-2xl text-white tabular-nums">{tokens ?? "—"}</p>
               </div>
             </div>
           </div>
 
-          {/* Right Column */}
-          <div className="space-y-8">
+          <div className="space-y-6">
             <div>
-              <label className="text-sm text-muted-foreground block mb-3">Art Style Preference</label>
-              <select className="w-full px-5 py-4 rounded-2xl bg-muted border border-border text-sm focus:outline-none focus:border-primary">
-                <option>Realistic</option>
-                <option>Stylized</option>
-                <option>Hyper-Realistic</option>
-              </select>
+              <label className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                <UserRound className="h-3.5 w-3.5 text-[#FF2D7B]" />
+                Email
+              </label>
+              <div className="rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-muted-foreground">{email || "—"}</div>
+              <p className="mt-2 text-xs text-muted-foreground/80">Email is tied to your sign-in and cannot be changed here.</p>
             </div>
 
             <div>
-              <label className="text-sm text-muted-foreground block mb-3">Special Traits (comma-separated)</label>
-              <input type="text" placeholder="Tattoos, Horns, Glowing Eyes..." className="w-full px-5 py-4 rounded-2xl bg-muted border border-border text-sm focus:outline-none focus:border-primary" />
+              <label
+                htmlFor="account-username"
+                className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground"
+              >
+                <UserRound className="h-3.5 w-3.5 text-[hsl(170_100%_42%)]" />
+                Display username
+              </label>
+              <input
+                id="account-username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="How you appear in the forge"
+                className={cn(
+                  "w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3.5 text-sm text-foreground placeholder:text-muted-foreground/60",
+                  "focus:outline-none focus:border-[#FF2D7B]/50 focus:ring-2 focus:ring-[#FF2D7B]/20 transition-shadow",
+                )}
+                maxLength={40}
+                autoComplete="nickname"
+              />
+              <p className="mt-2 text-xs text-muted-foreground/80">
+                Capitalization is preserved. This name appears in your dashboard greeting.
+              </p>
             </div>
+
+            <button
+              type="button"
+              onClick={() => void saveUsername()}
+              disabled={saving}
+              className={cn(
+                "group relative w-full overflow-hidden rounded-2xl py-3.5 text-sm font-semibold text-white transition-transform",
+                "disabled:opacity-50 disabled:pointer-events-none",
+                "hover:scale-[1.01] active:scale-[0.99]",
+              )}
+              style={{
+                background: `linear-gradient(135deg, ${NEON}, hsl(280 45% 38%), hsl(170 70% 32%))`,
+                boxShadow: `0 0 40px ${NEON}33, inset 0 1px 0 rgba(255,255,255,0.15)`,
+              }}
+            >
+              <span className="relative z-10 flex items-center justify-center gap-2">
+                <Save className="h-4 w-4" />
+                {saving ? "Saving…" : "Save username"}
+              </span>
+            </button>
           </div>
         </div>
-
-        {/* Gender / Identity */}
-        <div className="mt-10">
-          <label className="text-sm text-muted-foreground block mb-3">Gender / Identity</label>
-          <div className="flex flex-wrap gap-2">
-            {["Female", "Male", "Trans Woman", "Trans Man", "Non-Binary", "Enby", "Furry"].map((g) => (
-              <button key={g} className="px-5 py-2.5 rounded-2xl bg-muted hover:bg-pink-500/20 hover:text-pink-400 transition-all">
-                {g}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Personality Archetype */}
-        <div className="mt-10">
-          <label className="text-sm text-muted-foreground block mb-3">Personality Archetype</label>
-          <div className="flex flex-wrap gap-2">
-            {["Dominant", "Submissive", "Switch", "Bratty", "Gentle", "Yandere", "Himbo", "Gremlin", "Sadistic", "Caring Mommy/Daddy", "Teasing", "Shy", "Chaotic", "Romantic", "Possessive", "Playful", "Dark", "Wholesome-to-Filthy", "Furry"].map((p) => (
-              <button key={p} className="px-5 py-2.5 rounded-2xl bg-muted hover:bg-purple-500/20 hover:text-purple-400 transition-all text-sm">
-                {p}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Vibe / Theme */}
-        <div className="mt-10">
-          <label className="text-sm text-muted-foreground block mb-3">Vibe / Theme</label>
-          <div className="flex flex-wrap gap-2">
-            {["Goth", "Cyberpunk", "Fantasy", "Sci-Fi", "Horror", "Medieval", "Modern", "Anime", "Monster", "Alien", "Pirate", "Vampire", "Witch", "Succubus/Incubus"].map((v) => (
-              <button key={v} className={`px-5 py-2.5 rounded-2xl transition-all text-sm ${v === "Cyberpunk" ? "bg-cyan-500 text-black" : "bg-muted hover:bg-cyan-500/20 hover:text-cyan-400"}`}>
-                {v}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Generation Preview */}
-        <div className="mt-12 bg-card border border-border rounded-3xl p-8">
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles className="h-5 w-5 text-purple-400" />
-            <span className="font-medium">GENERATION PREVIEW</span>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <div className="px-5 py-2 bg-muted rounded-2xl text-sm">1x companions</div>
-            <div className="px-5 py-2 bg-muted rounded-2xl text-sm">Realistic</div>
-            <div className="px-5 py-2 bg-muted rounded-2xl text-sm">Curvy</div>
-            <div className="px-5 py-2 bg-muted rounded-2xl text-sm">Realistic art</div>
-            <div className="px-5 py-2 bg-pink-500 text-white rounded-2xl text-sm">Female</div>
-            <div className="px-5 py-2 bg-purple-500 text-white rounded-2xl text-sm">Dominant</div>
-            <div className="px-5 py-2 bg-cyan-500 text-black rounded-2xl text-sm">Cyberpunk</div>
-          </div>
-        </div>
-
-        {/* Admin Note + Generate Button */}
-        <div className="mt-8 text-center text-sm text-muted-foreground">
-          Admin — Free (no token cost)
-        </div>
-
-        <button className="w-full mt-6 py-6 rounded-3xl bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-400 text-white font-bold text-2xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-all shadow-2xl">
-          ✨ Generate 1 Companion with Grok
-        </button>
       </div>
     </div>
   );

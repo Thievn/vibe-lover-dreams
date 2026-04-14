@@ -76,10 +76,12 @@ const AFFECTION_ROWS: { name: string; pct: number; tier: string }[] = [
   { name: "Kira Lux", pct: 61, tier: "Smitten" },
 ];
 
-function displayName(user: User | null): string {
+function resolveGreetingName(user: User | null, profileDisplayName: string | null): string {
   if (!user) return "Forgemaster";
+  const fromProfile = profileDisplayName?.trim();
+  if (fromProfile) return fromProfile;
   const meta = user.user_metadata as Record<string, string | undefined> | undefined;
-  return meta?.full_name || meta?.name || user.email?.split("@")[0] || "Forgemaster";
+  return meta?.full_name || meta?.name || meta?.username || user.email?.split("@")[0] || "Forgemaster";
 }
 
 function avatarUrl(user: User | null): string | undefined {
@@ -87,11 +89,11 @@ function avatarUrl(user: User | null): string | undefined {
   return meta?.avatar_url;
 }
 
-function initials(user: User | null): string {
-  const n = displayName(user);
-  const parts = n.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return n.slice(0, 2).toUpperCase();
+function initialsFromGreeting(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0]![0] + parts[1]![0]).toUpperCase();
+  const single = parts[0] || name;
+  return single.slice(0, 2).toUpperCase();
 }
 
 export default function Dashboard() {
@@ -107,8 +109,10 @@ export default function Dashboard() {
   const [notifySessions, setNotifySessions] = useState(true);
   const [notifyMarketing, setNotifyMarketing] = useState(false);
   const [privateMode, setPrivateMode] = useState(true);
+  const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
 
   const profileRef = useRef<HTMLDivElement>(null);
+  const greetingName = resolveGreetingName(user, profileDisplayName);
 
   const isAdmin = user?.email === ADMIN_EMAIL;
   const hotCompanions = companions.filter((c) => HOT_IDS.includes(c.id));
@@ -142,6 +146,12 @@ export default function Dashboard() {
       }
       if (!cancelled) {
         setUser(session.user);
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        if (!cancelled) setProfileDisplayName(prof?.display_name ?? null);
         await refreshToy(session.user.id);
       }
       if (!cancelled) setAuthLoading(false);
@@ -152,6 +162,14 @@ export default function Dashboard() {
         return;
       }
       setUser(session.user);
+      void (async () => {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        setProfileDisplayName(prof?.display_name ?? null);
+      })();
       void refreshToy(session.user.id);
     });
     return () => {
@@ -297,7 +315,7 @@ export default function Dashboard() {
             <div>
               <h1 className="font-gothic text-2xl sm:text-3xl font-bold tracking-tight">
                 <span className="text-foreground">Welcome back, </span>
-                <span className="gradient-vice-text">{displayName(user)}</span>
+                <span className="gradient-vice-text">{greetingName}</span>
               </h1>
               <p className="text-sm text-muted-foreground mt-1 italic">
                 Your forge is live — every pulse, every whisper, yours to command.
@@ -351,7 +369,7 @@ export default function Dashboard() {
                       className="h-11 w-11 rounded-full flex items-center justify-center text-sm font-bold text-primary-foreground font-sans"
                       style={{ background: `linear-gradient(135deg, ${NEON_PINK}, hsl(280 50% 35%))` }}
                     >
-                      {initials(user)}
+                      {initialsFromGreeting(greetingName)}
                     </div>
                   )}
                 </button>
@@ -493,7 +511,7 @@ export default function Dashboard() {
                       Identity
                     </h3>
                     <div className="rounded-2xl border border-border/80 bg-card/40 p-4 space-y-2">
-                      <p className="text-sm text-foreground">{displayName(user)}</p>
+                      <p className="text-sm text-foreground">{greetingName}</p>
                       <p className="text-xs text-muted-foreground break-all">{user?.email}</p>
                     </div>
                   </section>

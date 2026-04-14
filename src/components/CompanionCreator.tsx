@@ -27,9 +27,7 @@ const FINAL_COST_PER = 250;
 export type CompanionCreatorMode = "user" | "admin";
 
 export interface CompanionCreatorProps {
-  /** User flow deducts tokens; admin skips billing. */
   mode?: CompanionCreatorMode;
-  /** Hide back link + outer chrome when embedded in admin. */
   embedded?: boolean;
 }
 
@@ -208,7 +206,9 @@ export default function CompanionCreator({ mode = "user", embedded = false }: Co
   const finalTotalCost = FINAL_COST_PER * batchCount;
 
   const loadProfile = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     if (!session?.user) {
       navigate("/auth");
       return;
@@ -260,7 +260,9 @@ User flavor notes: ${extraNotes || "none"}`;
 
   const deductTokens = async (amount: number): Promise<boolean> => {
     if (isAdmin) return true;
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     if (!session?.user) return false;
     const { data: row, error: rErr } = await supabase
       .from("profiles")
@@ -280,7 +282,9 @@ User flavor notes: ${extraNotes || "none"}`;
 
   const addTokens = async (amount: number): Promise<void> => {
     if (isAdmin) return;
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     if (!session?.user) return;
     const { data: row } = await supabase
       .from("profiles")
@@ -297,7 +301,11 @@ User flavor notes: ${extraNotes || "none"}`;
     setGender(pick(GENDERS));
     setPersonality(pick(PERSONALITIES));
     setVibe(pick(VIBES));
-    setTheme(["neon cathedral", "acid rain alley", "obsidian ballroom", "orbital spa", "cursed library"][Math.floor(Math.random() * 5)]!);
+    setTheme(
+      ["neon cathedral", "acid rain alley", "obsidian ballroom", "orbital spa", "cursed library"][
+        Math.floor(Math.random() * 5)
+      ]!,
+    );
     setArtStyle(pick(ART_STYLES));
     setBodyType(pick(BODY_TYPES));
     const shuffled = [...TRAITS].sort(() => Math.random() - 0.5).slice(0, 3 + Math.floor(Math.random() * 4));
@@ -306,7 +314,9 @@ User flavor notes: ${extraNotes || "none"}`;
     const prefixes = ["Nyx", "Vex", "Rune", "Sable", "Zephyr", "Marrow", "Lux", "Hex"];
     setNamePrefix(pick(prefixes));
     setName(`${pick(prefixes)} ${pick(["Vale", "Noct", "Drift", "Quill", "Fable"])}`);
-    setTagline(pick(["Whispers behind velvet rope", "Your glitch in the matrix", "Built from desire & code", "Dangerously attentive"]));
+    setTagline(
+      pick(["Whispers behind velvet rope", "Your glitch in the matrix", "Built from desire & code", "Dangerously attentive"]),
+    );
     toast.success("Roulette — new DNA spun.");
   };
 
@@ -426,11 +436,7 @@ User flavor notes: ${extraNotes || "none"}`;
         if (!isAdmin) await addTokens(finalTotalCost);
         throw error;
       }
-      toast.success(
-        batchCount === 1
-          ? "Companion bound to your vault."
-          : `${batchCount} companions forged.`,
-      );
+      toast.success(batchCount === 1 ? "Companion bound to your vault." : `${batchCount} companions forged.`);
       if (!embedded && mode === "user") navigate("/dashboard");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Create failed";
@@ -439,6 +445,9 @@ User flavor notes: ${extraNotes || "none"}`;
       setFinalLoading(false);
     }
   };
+
+  const panelClass =
+    "rounded-2xl border border-white/[0.08] bg-black/45 backdrop-blur-2xl shadow-[0_0_60px_rgba(255,45,123,0.06),inset_0_1px_0_rgba(255,255,255,0.05)]";
 
   const PillGroup = ({
     label,
@@ -453,8 +462,8 @@ User flavor notes: ${extraNotes || "none"}`;
     onChange: (v: string) => void;
     cols?: string;
   }) => (
-    <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">{label}</p>
+    <div className="space-y-2.5">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">{label}</p>
       <div className={cn("grid gap-2", cols)}>
         {options.map((opt) => (
           <button
@@ -462,12 +471,16 @@ User flavor notes: ${extraNotes || "none"}`;
             type="button"
             onClick={() => onChange(opt)}
             className={cn(
-              "rounded-xl border px-2 py-2 text-left text-xs sm:text-sm transition-all",
+              "rounded-xl border px-2.5 py-2.5 text-left text-xs sm:text-sm transition-all duration-200",
               value === opt
-                ? "border-primary bg-primary/15 text-primary shadow-[0_0_20px_rgba(255,45,123,0.12)]"
-                : "border-border/80 bg-black/30 text-muted-foreground hover:border-border hover:text-foreground",
+                ? "text-white border-[#FF2D7B]/50 bg-[#FF2D7B]/[0.12]"
+                : "border-white/10 bg-black/35 text-muted-foreground hover:border-white/20 hover:text-foreground",
             )}
-            style={value === opt ? { borderColor: `${NEON}66` } : undefined}
+            style={
+              value === opt
+                ? { boxShadow: `0 0 24px ${NEON}22, inset 0 1px 0 rgba(255,255,255,0.06)` }
+                : undefined
+            }
           >
             {opt}
           </button>
@@ -479,115 +492,143 @@ User flavor notes: ${extraNotes || "none"}`;
   if (loadingProfile) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center font-sans">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" style={{ color: NEON }} />
+        <Loader2 className="h-10 w-10 animate-spin" style={{ color: NEON }} />
       </div>
     );
   }
 
   const shell = (
-    <div className={cn("relative font-sans", embedded ? "min-h-0" : "min-h-screen bg-background")}>
+    <div className={cn("relative font-sans text-foreground", embedded ? "min-h-0" : "min-h-screen bg-[#050508]")}>
       {!embedded && <ParticleBackground />}
       {!embedded && (
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.06] via-transparent to-background pointer-events-none" />
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background: `linear-gradient(180deg, ${NEON}0d 0%, transparent 35%, hsl(280 40% 8% / 0.4) 100%)`,
+          }}
+        />
       )}
 
-      <div className={cn("relative z-10", embedded ? "px-0 py-0" : "px-4 md:px-8 py-8")}>
+      <div className={cn("relative z-10", embedded ? "px-0 py-0" : "px-4 md:px-10 py-10")}>
         {!embedded && (
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-muted-foreground hover:text-primary text-sm mb-6 transition-colors"
+            className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-[#FF2D7B] transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
             Back
           </button>
         )}
 
-        <div className="flex flex-col lg:flex-row lg:items-start gap-8 max-w-[1600px] mx-auto">
-          {/* Left — controls */}
-          <div className="w-full lg:w-[min(520px,42%)] shrink-0 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col xl:flex-row xl:items-start gap-10 max-w-[1680px] mx-auto">
+          {/* Controls */}
+          <div className="w-full xl:w-[min(560px,44%)] shrink-0 space-y-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h1 className="font-gothic text-3xl md:text-4xl font-bold gradient-vice-text flex items-center gap-2">
-                  <Sparkles className="h-8 w-8 shrink-0" style={{ color: NEON }} />
-                  Companion Creator
+                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-[#FF2D7B]/90 mb-2">Forge Studio</p>
+                <h1 className="font-gothic text-3xl md:text-4xl text-white tracking-wide flex items-center gap-3">
+                  <Sparkles className="h-8 w-8 shrink-0" style={{ color: NEON, filter: `drop-shadow(0 0 12px ${NEON})` }} />
+                  Companion Forge
                 </h1>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {isAdmin ? "Admin forge — no token cost." : "Forge previews cheaply, commit when you are certain."}
+                <p className="text-sm text-muted-foreground mt-2 max-w-md leading-relaxed">
+                  {isAdmin
+                    ? "Admin forge — no token cost. Shape every variable, then commit."
+                    : "Cheap live previews to iterate. Final binding costs 250 tokens per companion."}
                 </p>
               </div>
               {!isAdmin && (
-                <div className="flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-2">
-                  <Coins className="h-4 w-4 text-primary" style={{ color: NEON }} />
-                  <span className="text-sm font-semibold tabular-nums">{tokens ?? "—"}</span>
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">tokens</span>
+                <div
+                  className="flex items-center gap-2.5 rounded-2xl border border-[#FF2D7B]/25 bg-black/50 px-5 py-3 backdrop-blur-md"
+                  style={{ boxShadow: `0 0 28px ${NEON}15` }}
+                >
+                  <Coins className="h-5 w-5" style={{ color: NEON }} />
+                  <span className="text-lg font-semibold tabular-nums text-white">{tokens ?? "—"}</span>
+                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground">tokens</span>
                 </div>
               )}
             </div>
 
             <motion.button
               type="button"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
               onClick={randomizeAll}
-              className="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 font-bold text-primary-foreground border border-white/10 shadow-lg"
+              className="w-full flex items-center justify-center gap-2.5 rounded-2xl py-4 font-semibold text-white border border-white/10"
               style={{
-                background: `linear-gradient(135deg, ${NEON}, hsl(280 50% 35%), hsl(170 100% 40%))`,
+                background: `linear-gradient(135deg, ${NEON}, hsl(280 48% 38%), hsl(170 55% 32%))`,
+                boxShadow: `0 0 40px ${NEON}35, inset 0 1px 0 rgba(255,255,255,0.15)`,
               }}
             >
               <Dices className="h-5 w-5" />
               Randomize / Roulette
             </motion.button>
 
-            <Accordion type="multiple" defaultValue={["identity", "personality", "world", "body", "output"]} className="rounded-2xl border border-border/80 bg-card/40 backdrop-blur-md px-4">
-              <AccordionItem value="identity" className="border-border/60">
-                <AccordionTrigger className="font-gothic text-lg hover:no-underline py-4">
+            <Accordion
+              type="multiple"
+              defaultValue={["identity", "personality", "world", "body", "output"]}
+              className={cn(panelClass, "px-1")}
+            >
+              <AccordionItem value="identity" className="border-white/10 px-4">
+                <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
                   Gender & identity
                 </AccordionTrigger>
-                <AccordionContent className="pb-4 space-y-4">
+                <AccordionContent className="pb-5 space-y-5">
                   <PillGroup label="Identity" options={GENDERS} value={gender} onChange={setGender} />
-                  <PillGroup label="Orientation" options={ORIENTATIONS} value={orientation} onChange={setOrientation} cols="grid-cols-2 sm:grid-cols-3" />
+                  <PillGroup
+                    label="Orientation"
+                    options={ORIENTATIONS}
+                    value={orientation}
+                    onChange={setOrientation}
+                    cols="grid-cols-2 sm:grid-cols-3"
+                  />
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="personality" className="border-border/60">
-                <AccordionTrigger className="font-gothic text-lg hover:no-underline py-4">
+              <AccordionItem value="personality" className="border-white/10 px-4">
+                <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
                   Personality archetype
                 </AccordionTrigger>
-                <AccordionContent className="pb-4">
-                  <PillGroup label="Archetype" options={PERSONALITIES} value={personality} onChange={setPersonality} cols="grid-cols-2 sm:grid-cols-2" />
+                <AccordionContent className="pb-5">
+                  <PillGroup
+                    label="Archetype"
+                    options={PERSONALITIES}
+                    value={personality}
+                    onChange={setPersonality}
+                    cols="grid-cols-2 sm:grid-cols-2"
+                  />
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="world" className="border-border/60">
-                <AccordionTrigger className="font-gothic text-lg hover:no-underline py-4">
+              <AccordionItem value="world" className="border-white/10 px-4">
+                <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
                   Vibe & theme
                 </AccordionTrigger>
-                <AccordionContent className="pb-4 space-y-4">
+                <AccordionContent className="pb-5 space-y-5">
                   <PillGroup label="Vibe" options={VIBES} value={vibe} onChange={setVibe} cols="grid-cols-2 sm:grid-cols-2" />
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
                       Theme / setting (optional)
                     </p>
                     <input
                       value={theme}
                       onChange={(e) => setTheme(e.target.value)}
                       placeholder="e.g. rain-slick rooftop, velvet VIP lounge…"
-                      className="w-full rounded-xl border border-border bg-black/40 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
                     />
                   </div>
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="body" className="border-border/60">
-                <AccordionTrigger className="font-gothic text-lg hover:no-underline py-4">
+              <AccordionItem value="body" className="border-white/10 px-4">
+                <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
                   Art style & body
                 </AccordionTrigger>
-                <AccordionContent className="pb-4 space-y-4">
+                <AccordionContent className="pb-5 space-y-5">
                   <PillGroup label="Art style" options={ART_STYLES} value={artStyle} onChange={setArtStyle} />
                   <PillGroup label="Body type" options={BODY_TYPES} value={bodyType} onChange={setBodyType} />
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
                       Special traits
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -597,10 +638,10 @@ User flavor notes: ${extraNotes || "none"}`;
                           type="button"
                           onClick={() => toggleTrait(t)}
                           className={cn(
-                            "rounded-full border px-3 py-1 text-xs transition-all",
+                            "rounded-full border px-3 py-1.5 text-xs transition-all",
                             traits.includes(t)
-                              ? "border-accent bg-accent/15 text-accent"
-                              : "border-border/70 bg-black/30 text-muted-foreground hover:border-border",
+                              ? "border-[hsl(170_100%_42%)]/50 bg-[hsl(170_100%_42%)]/10 text-[hsl(170_100%_75%)]"
+                              : "border-white/12 bg-black/40 text-muted-foreground hover:border-white/25",
                           )}
                         >
                           {traits.includes(t) && <Check className="inline h-3 w-3 mr-1 -mt-0.5" />}
@@ -612,37 +653,37 @@ User flavor notes: ${extraNotes || "none"}`;
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="output" className="border-border/60">
-                <AccordionTrigger className="font-gothic text-lg hover:no-underline py-4">
+              <AccordionItem value="output" className="border-white/10 px-4 border-b-0">
+                <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
                   Naming & batch
                 </AccordionTrigger>
-                <AccordionContent className="pb-4 space-y-4">
+                <AccordionContent className="pb-5 space-y-5">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-2">Name</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">Name</p>
                     <input
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Companion name"
-                      className="w-full rounded-xl border border-border bg-black/40 px-4 py-3 text-sm mb-2"
+                      className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm mb-2 focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
                     />
                     <input
                       value={namePrefix}
                       onChange={(e) => setNamePrefix(e.target.value)}
                       placeholder="Optional prefix (title / clan)"
-                      className="w-full rounded-xl border border-border bg-black/40 px-4 py-3 text-sm"
+                      className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
                     />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-2">Tagline</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">Tagline</p>
                     <input
                       value={tagline}
                       onChange={(e) => setTagline(e.target.value)}
                       placeholder="Short hook for cards"
-                      className="w-full rounded-xl border border-border bg-black/40 px-4 py-3 text-sm"
+                      className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
                     />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
                       Companions per forge
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -652,8 +693,10 @@ User flavor notes: ${extraNotes || "none"}`;
                           type="button"
                           onClick={() => setBatchPreset(n)}
                           className={cn(
-                            "rounded-xl border px-4 py-2 text-sm font-medium",
-                            batchPreset === n ? "border-primary bg-primary/15 text-primary" : "border-border bg-black/30",
+                            "rounded-xl border px-4 py-2.5 text-sm font-medium transition-all",
+                            batchPreset === n
+                              ? "border-[#FF2D7B]/50 bg-[#FF2D7B]/10 text-white"
+                              : "border-white/10 bg-black/40 text-muted-foreground hover:border-white/20",
                           )}
                         >
                           {n}
@@ -663,8 +706,10 @@ User flavor notes: ${extraNotes || "none"}`;
                         type="button"
                         onClick={() => setBatchPreset(-1)}
                         className={cn(
-                          "rounded-xl border px-4 py-2 text-sm font-medium",
-                          batchPreset === -1 ? "border-accent bg-accent/15 text-accent" : "border-border bg-black/30",
+                          "rounded-xl border px-4 py-2.5 text-sm font-medium transition-all",
+                          batchPreset === -1
+                            ? "border-[hsl(170_100%_42%/0.5)] text-[hsl(170_100%_75%)] bg-[hsl(170_100%_42%/0.1)]"
+                            : "border-white/10 bg-black/40 text-muted-foreground hover:border-white/20",
                         )}
                       >
                         Custom
@@ -678,71 +723,50 @@ User flavor notes: ${extraNotes || "none"}`;
                         value={batchCustom}
                         onChange={(e) => setBatchCustom(e.target.value)}
                         placeholder="1–25"
-                        className="mt-2 w-full rounded-xl border border-border bg-black/40 px-4 py-3 text-sm"
+                        className="mt-2 w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm focus:outline-none focus:border-[#FF2D7B]/40"
                       />
                     )}
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-2">
-                      Extra notes for Grok
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
+                      Extra notes for the model
                     </p>
                     <textarea
                       value={extraNotes}
                       onChange={(e) => setExtraNotes(e.target.value)}
                       rows={3}
                       placeholder="Voice tics, limits, favorite scenarios…"
-                      className="w-full rounded-xl border border-border bg-black/40 px-4 py-3 text-sm resize-none"
+                      className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm resize-none focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
                     />
                   </div>
-                  <label className="flex items-center justify-between rounded-xl border border-border/80 bg-black/30 px-4 py-3 cursor-pointer">
-                    <span className="flex items-center gap-2 text-sm">
-                      {isPublic ? <Globe className="h-4 w-4 text-accent" /> : <Lock className="h-4 w-4 text-muted-foreground" />}
+                  <label className="flex items-center justify-between rounded-xl border border-white/10 bg-black/40 px-4 py-3.5 cursor-pointer">
+                    <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                      {isPublic ? <Globe className="h-4 w-4 text-[hsl(170_100%_50%)]" /> : <Lock className="h-4 w-4" />}
                       Request public catalog (moderated)
                     </span>
-                    <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} className="accent-[#FF2D7B]" />
+                    <input
+                      type="checkbox"
+                      checked={isPublic}
+                      onChange={(e) => setIsPublic(e.target.checked)}
+                      className="accent-[#FF2D7B] h-4 w-4"
+                    />
                   </label>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
-
-            <div className="space-y-3 sticky bottom-4 lg:static">
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-                disabled={previewLoading}
-                onClick={() => void runPreview()}
-                className="w-full flex items-center justify-center gap-2 rounded-2xl py-4 font-bold text-primary-foreground glow-pink disabled:opacity-50"
-                style={{ backgroundColor: NEON }}
-              >
-                {previewLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Wand2 className="h-5 w-5" />}
-                Generate 1 preview with Grok · {isAdmin ? "Free" : `${PREVIEW_COST} tokens`}
-              </motion.button>
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-                disabled={finalLoading || !name.trim()}
-                onClick={() => void runFinalCreate()}
-                className="w-full flex items-center justify-center gap-2 rounded-2xl py-4 font-bold border-2 border-accent/50 bg-accent/10 text-accent hover:bg-accent/20 transition-colors disabled:opacity-50"
-              >
-                {finalLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Flame className="h-5 w-5" />}
-                Create {batchCount} companion{batchCount > 1 ? "s" : ""} · {isAdmin ? "Free" : `${finalTotalCost} tokens`}
-              </motion.button>
-            </div>
           </div>
 
-          {/* Right — live preview */}
-          <div className="flex-1 min-w-0 lg:sticky lg:top-8 space-y-4">
-            <div className="rounded-[1.75rem] border border-border/80 bg-black/50 backdrop-blur-xl overflow-hidden shadow-[0_0_60px_rgba(255,45,123,0.08)]">
-              <div className="flex items-center justify-between px-5 py-3 border-b border-border/60 bg-card/30">
-                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground">
-                  Live generation preview
+          {/* Preview + actions */}
+          <div className="flex-1 min-w-0 xl:sticky xl:top-8 space-y-5">
+            <div className={cn(panelClass, "overflow-hidden")}>
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-white/[0.03] backdrop-blur-md">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+                  Live preview
                 </span>
-                <span className="text-[10px] text-muted-foreground">Updates with your selections</span>
+                <span className="text-[10px] text-muted-foreground/80">Updates with your selections</span>
               </div>
-              <div className="p-4 sm:p-6">
-                <div className="relative aspect-[3/4] max-h-[min(78vh,820px)] mx-auto rounded-2xl overflow-hidden border border-primary/20">
+              <div className="p-5 sm:p-7">
+                <div className="relative aspect-[3/4] max-h-[min(78vh,840px)] mx-auto rounded-2xl overflow-hidden border border-[#FF2D7B]/20">
                   <AnimatePresence mode="wait">
                     {previewUrl ? (
                       <motion.img
@@ -761,12 +785,12 @@ User flavor notes: ${extraNotes || "none"}`;
                         animate={{ opacity: 1 }}
                         className="absolute inset-0 flex flex-col justify-end p-6 sm:p-8"
                         style={{
-                          background: `linear-gradient(160deg, #1a0a14, ${NEON}55, hsl(280 40% 25%), hsl(170 30% 20%))`,
+                          background: `linear-gradient(160deg, #0a0508, ${NEON}44, hsl(280 40% 18%), hsl(170 25% 12%))`,
                         }}
                       >
-                        <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_30%_20%,white,transparent_40%)]" />
-                        <p className="text-[10px] uppercase tracking-[0.35em] text-white/60 mb-2 relative">Spec sheet</p>
-                        <h2 className="font-gothic text-2xl sm:text-4xl text-white text-glow-pink relative leading-tight">
+                        <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_30%_20%,white,transparent_45%)]" />
+                        <p className="text-[10px] uppercase tracking-[0.35em] text-white/55 mb-2 relative">Spec sheet</p>
+                        <h2 className="font-gothic text-2xl sm:text-4xl text-white relative leading-tight drop-shadow-[0_0_24px_rgba(255,45,123,0.35)]">
                           {name || "Unnamed desire"}
                         </h2>
                         <p className="text-sm text-white/75 italic mt-2 relative line-clamp-2">{tagline || "Your fantasy, forged live."}</p>
@@ -774,7 +798,7 @@ User flavor notes: ${extraNotes || "none"}`;
                           {[gender, personality, vibe, artStyle, bodyType].map((x) => (
                             <span
                               key={x}
-                              className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-md bg-black/40 border border-white/10 text-white/90"
+                              className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md bg-black/50 border border-white/10 text-white/90"
                             >
                               {x}
                             </span>
@@ -784,25 +808,73 @@ User flavor notes: ${extraNotes || "none"}`;
                     )}
                   </AnimatePresence>
                   {previewLoading && (
-                    <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-3">
-                      <Loader2 className="h-10 w-10 animate-spin text-primary" style={{ color: NEON }} />
-                      <p className="text-sm text-white/90">Grok is painting your portrait…</p>
+                    <div className="absolute inset-0 bg-black/65 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+                      <Loader2 className="h-10 w-10 animate-spin" style={{ color: NEON }} />
+                      <p className="text-sm text-white/90">Forging your portrait…</p>
                     </div>
                   )}
                 </div>
-                <div className="mt-4 rounded-xl border border-border/60 bg-card/30 p-4">
-                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Prompt sent to Grok</p>
+
+                {/* Generate actions directly under preview */}
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    disabled={previewLoading}
+                    onClick={() => void runPreview()}
+                    className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-sm font-semibold text-white disabled:opacity-45 disabled:pointer-events-none border border-white/10"
+                    style={{
+                      background: `linear-gradient(135deg, ${NEON}, hsl(280 45% 42%))`,
+                      boxShadow: `0 0 36px ${NEON}30, inset 0 1px 0 rgba(255,255,255,0.12)`,
+                    }}
+                  >
+                    {previewLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Wand2 className="h-5 w-5" />}
+                    <span className="text-left leading-tight">
+                      Live preview
+                      <span className="block text-[10px] font-normal opacity-90">
+                        {isAdmin ? "Free" : `${PREVIEW_COST} tokens`}
+                      </span>
+                    </span>
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    disabled={finalLoading || !name.trim()}
+                    onClick={() => void runFinalCreate()}
+                    className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border px-4 py-3.5 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-black/40 text-[hsl(170_100%_78%)]"
+                    style={{
+                      borderColor: "hsl(170 100% 42% / 0.45)",
+                      boxShadow: `0 0 28px hsl(170 100% 42% / 0.12), inset 0 1px 0 rgba(255,255,255,0.06)`,
+                    }}
+                  >
+                    {finalLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Flame className="h-5 w-5 text-[hsl(170_100%_50%)]" />}
+                    <span className="text-left leading-tight">
+                      Create {batchCount} companion{batchCount > 1 ? "s" : ""}
+                      <span className="block text-[10px] font-normal text-muted-foreground">
+                        {isAdmin ? "Free" : `${FINAL_COST_PER} tokens each · ${finalTotalCost} total`}
+                      </span>
+                    </span>
+                  </motion.button>
+                </div>
+
+                <div className="mt-6 rounded-xl border border-white/10 bg-black/35 p-4 backdrop-blur-sm">
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Prompt snapshot</p>
                   <p className="text-xs text-muted-foreground leading-relaxed line-clamp-6 sm:line-clamp-none">{grokPrompt}</p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-accent/20 bg-accent/5 p-4 flex gap-3 items-start">
-              <ImageIcon className="h-5 w-5 text-accent shrink-0 mt-0.5" />
+            <div
+              className="rounded-2xl border border-[hsl(170_100%_42%)]/20 bg-[hsl(170_100%_42%)]/[0.06] p-4 flex gap-3 items-start backdrop-blur-md"
+              style={{ boxShadow: `0 0 40px hsl(170 100% 42% / 0.08)` }}
+            >
+              <ImageIcon className="h-5 w-5 shrink-0 mt-0.5 text-[hsl(170_100%_50%)]" />
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Previews bill <strong className="text-primary" style={{ color: NEON }}>{PREVIEW_COST} tokens</strong> each so you can iterate freely.
-                Final creation locks <strong className="text-accent">{FINAL_COST_PER} tokens</strong> per companion ({finalTotalCost} total for this batch).
-                All image gen stays SFW per forge policy.
+                Previews cost <strong style={{ color: NEON }}>{PREVIEW_COST} tokens</strong> so you can iterate cheaply. Final creation locks{" "}
+                <strong className="text-[hsl(170_100%_70%)]">{FINAL_COST_PER} tokens</strong> per companion ({finalTotalCost} for this batch). All
+                generations follow SFW forge policy.
               </p>
             </div>
           </div>
