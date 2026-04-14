@@ -118,9 +118,13 @@ Original user request: ${prompt}
       insertData.name = name || "Custom Companion"
       insertData.subtitle = subtitle || "Generated Portrait"
       insertData.is_public = true
+    } else {
+      // generated_images.companion_id was NOT NULL — use placeholder when no chat companion
+      insertData.companion_id = characterData.companionId || "forge-preview"
     }
 
-    await supabase.from(table).insert(insertData)
+    const { error: insertError } = await supabase.from(table).insert(insertData)
+    if (insertError) throw insertError
 
     return new Response(
       JSON.stringify({ success: true, imageUrl: publicUrl, bucket, isPortrait }),

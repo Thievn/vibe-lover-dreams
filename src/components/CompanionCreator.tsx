@@ -329,17 +329,12 @@ User flavor notes: ${extraNotes || "none"}`;
     }
     setPreviewLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-image`;
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke<{
+        success?: boolean;
+        imageUrl?: string;
+        error?: string;
+      }>("generate-image", {
+        body: {
           prompt: grokPrompt,
           userId,
           isPortrait: true,
@@ -359,10 +354,11 @@ User flavor notes: ${extraNotes || "none"}`;
             pose: "three-quarter portrait, alluring confident pose",
             baseDescription: `an original seductive character, ${gender}, ${bodyType}, ${traits.join(", ") || "clean aesthetic"}`,
           },
-        }),
+        },
       });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Generation failed");
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Generation failed");
+      if (!data.imageUrl) throw new Error("No image URL returned");
       setPreviewUrl(data.imageUrl);
       toast.success(isAdmin ? "Preview forged (admin)." : `Preview saved · −${PREVIEW_COST} tokens`);
     } catch (e: unknown) {

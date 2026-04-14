@@ -191,6 +191,147 @@ export type Database = {
         }
         Relationships: []
       }
+      companion_gifts: {
+        Row: {
+          companion_id: string
+          created_at: string
+          gift_data: Json
+          gift_type: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          companion_id: string
+          created_at?: string
+          gift_data: Json
+          gift_type: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          companion_id?: string
+          created_at?: string
+          gift_data?: Json
+          gift_type?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      companion_portraits: {
+        Row: {
+          created_at: string
+          id: string
+          image_url: string
+          is_public: boolean
+          name: string | null
+          prompt: string
+          style: string | null
+          subtitle: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_url: string
+          is_public?: boolean
+          name?: string | null
+          prompt: string
+          style?: string | null
+          subtitle?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_url?: string
+          is_public?: boolean
+          name?: string | null
+          prompt?: string
+          style?: string | null
+          subtitle?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      companion_relationships: {
+        Row: {
+          affection_level: number
+          breeding_progress: number
+          breeding_stage: number
+          companion_id: string
+          created_at: string
+          id: string
+          last_interaction: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          affection_level?: number
+          breeding_progress?: number
+          breeding_stage?: number
+          companion_id: string
+          created_at?: string
+          id?: string
+          last_interaction?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          affection_level?: number
+          breeding_progress?: number
+          breeding_stage?: number
+          companion_id?: string
+          created_at?: string
+          id?: string
+          last_interaction?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      generated_images: {
+        Row: {
+          companion_id: string | null
+          created_at: string
+          id: string
+          image_url: string
+          original_prompt: string | null
+          prompt: string
+          saved_to_companion_gallery: boolean | null
+          saved_to_personal_gallery: boolean | null
+          style: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          companion_id?: string | null
+          created_at?: string
+          id?: string
+          image_url: string
+          original_prompt?: string | null
+          prompt: string
+          saved_to_companion_gallery?: boolean | null
+          saved_to_personal_gallery?: boolean | null
+          style?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          companion_id?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string
+          original_prompt?: string | null
+          prompt?: string
+          saved_to_companion_gallery?: boolean | null
+          saved_to_personal_gallery?: boolean | null
+          style?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       lovense_pairings: {
         Row: {
           created_at: string
