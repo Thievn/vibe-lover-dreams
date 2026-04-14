@@ -3,7 +3,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
+function getXaiApiKey(): string | null {
+  return Deno.env.get("XAI_API_KEY")?.trim() || Deno.env.get("GROK_API_KEY")?.trim() || null;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -20,11 +22,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!XAI_API_KEY) {
-      return new Response(JSON.stringify({ error: "XAI API key not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const apiKey = getXaiApiKey();
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "xAI API key not configured. Set Edge Function secret XAI_API_KEY or GROK_API_KEY (https://console.x.ai/).",
+        }),
+        {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     // Build companion context summary
@@ -59,7 +68,7 @@ If the request is ambiguous or you need clarification, return a message via the 
     const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${XAI_API_KEY}`,
+        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({

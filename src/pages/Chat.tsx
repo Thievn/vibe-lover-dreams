@@ -163,33 +163,51 @@ const Chat = () => {
     if (!companion || !dbComp) return null;
 
     try {
-      const { data, error } = await supabase.functions.invoke("generate-grok-image", {
+      const prompt = `${userRequest}\n\n(Character: ${companion.name}, ${companion.gender}. ${companion.appearance})`.slice(
+        0,
+        8000,
+      );
+
+      const { data, error } = await supabase.functions.invoke<{
+        success?: boolean;
+        imageUrl?: string;
+        imageId?: string;
+        error?: string;
+      }>("generate-image", {
         body: {
-          companionId: companion.id,
-          userRequest,
-          companionData: {
-            name: companion.name,
-            appearance: companion.appearance,
-            gender: companion.gender,
+          prompt,
+          userId,
+          isPortrait: false,
+          characterData: {
+            companionId: companion.id,
+            style: "chat-session",
+            baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
           },
         },
       });
 
       if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Image generation failed");
 
-      const imageUrl = data?.imageUrl || data?.image_url;
-      const imageId = data?.imageId || data?.id;
+      const imageUrl = data.imageUrl;
+      const imageId = data.imageId;
 
       if (!imageUrl) throw new Error("No image generated");
 
       return {
         imageUrl,
         imageId,
-        timestamp: data?.timestamp,
+        timestamp: new Date().toISOString(),
       };
     } catch (err: any) {
       console.error("Image generation error:", err);
-      toast.error("Failed to generate image");
+      const msg =
+        err?.message ||
+        (typeof err === "object" && err !== null && "error" in err && typeof (err as any).error === "string"
+          ? (err as any).error
+          : null) ||
+        "Failed to generate image";
+      toast.error(msg);
       return null;
     }
   };

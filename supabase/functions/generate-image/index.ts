@@ -175,12 +175,21 @@ Original user request: ${prompt}
       insertData.companion_id = characterData.companionId || "forge-preview";
     }
 
-    const { error: insertError } = await supabase.from(table).insert(insertData);
+    const { data: inserted, error: insertError } = await supabase.from(table).insert(insertData).select("id").single();
     if (insertError) throw insertError;
 
-    return new Response(JSON.stringify({ success: true, imageUrl: publicUrl, bucket, isPortrait }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        imageUrl: publicUrl,
+        imageId: inserted?.id ?? null,
+        bucket,
+        isPortrait,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(message);
