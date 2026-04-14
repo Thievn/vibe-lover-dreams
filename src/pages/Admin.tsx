@@ -56,7 +56,7 @@ type AdminSection =
 
 const NAV: { id: AdminSection; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "creator", label: "Companion Creator", icon: Sparkles },
+  { id: "creator", label: "Companion Forge", icon: Sparkles },
   { id: "characters", label: "Character Management", icon: Palette },
   { id: "users", label: "User Management", icon: Users },
   { id: "waitlist", label: "Waitlist", icon: ScrollText },
@@ -402,7 +402,7 @@ function AdminShell() {
           {section === "creator" && (
             <div className="rounded-[1.75rem] border border-border/80 bg-card/30 backdrop-blur-md overflow-hidden">
               <div className="px-6 py-4 border-b border-border/60 flex items-center justify-between">
-                <h2 className="font-gothic text-2xl gradient-vice-text">Companion Creator</h2>
+                <h2 className="font-gothic text-2xl gradient-vice-text">Companion Forge</h2>
                 <span className="text-xs text-muted-foreground uppercase tracking-widest">Admin · no token cost</span>
               </div>
               <div className="p-4 md:p-6">

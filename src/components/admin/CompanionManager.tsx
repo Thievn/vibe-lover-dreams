@@ -35,7 +35,7 @@ const emptyCompanion: Omit<DbCompanion, "created_at" | "updated_at"> = {
   gradient_to: "#FF2D7B",
   image_url: null,
   image_prompt: null,
-  is_active: false,
+  is_active: true,
 };
 
 const CompanionManager = () => {

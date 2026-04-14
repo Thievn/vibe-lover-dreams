@@ -1,10 +1,60 @@
-import React from 'react';
+import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
+import { UserRound } from "lucide-react";
+import type { Companion } from "@/data/companions";
 
 interface CompanionCardProps {
-  name: string;
-  subtitle: string;
-  img: string;
-  onClick?: () => void;
+  companion: Companion;
+  index: number;
+  imageOverride?: string;
+  /** Shown on community-forged public cards when creator opted in */
+  galleryCredit?: string | null;
 }
 
-const CompanionCard: React.FC<CompanionCardProps>
+export default function CompanionCard({ companion, index, imageOverride, galleryCredit }: CompanionCardProps) {
+  const img = imageOverride;
+  const isCommunity = companion.id.startsWith("cc-");
+  const to = isCommunity ? "/auth" : `/companions/${companion.id}`;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ delay: Math.min(index * 0.04, 0.4) }}
+    >
+      <Link
+        to={to}
+        state={isCommunity ? { fromGallery: true } : undefined}
+        className="block rounded-2xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden hover:border-primary/50 transition-all hover:scale-[1.02] group h-full"
+      >
+        <div
+          className="w-full aspect-[3/4] relative"
+          style={{
+            background: img ? undefined : `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
+          }}
+        >
+          {img ? (
+            <img src={img} alt={companion.name} className="absolute inset-0 w-full h-full object-cover object-top" loading="lazy" />
+          ) : null}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent pointer-events-none" />
+          {isCommunity && (
+            <span className="absolute top-2 left-2 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md bg-black/60 border border-[#FF2D7B]/40 text-[#FF2D7B]">
+              Forged
+            </span>
+          )}
+          <div className="absolute bottom-0 left-0 right-0 p-3 text-left">
+            <h3 className="font-gothic text-sm font-bold text-white leading-tight line-clamp-2 drop-shadow-md">{companion.name}</h3>
+            <p className="text-[11px] text-white/80 line-clamp-2 mt-0.5">{companion.tagline}</p>
+            {galleryCredit ? (
+              <p className="text-[10px] text-[hsl(170_100%_65%)] mt-1.5 flex items-center gap-1">
+                <UserRound className="h-3 w-3 shrink-0" />
+                <span className="truncate">by {galleryCredit}</span>
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </Link>
+    </motion.div>
+  );
+}

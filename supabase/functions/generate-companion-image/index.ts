@@ -1,9 +1,20 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+/** Same secrets as generate-image — xAI Console API key */
+function getXaiApiKey(): string | null {
+  return (
+    Deno.env.get("XAI_API_KEY")?.trim() ||
+    Deno.env.get("GROK_API_KEY")?.trim() ||
+    null
+  );
+}
+
+const DEFAULT_IMAGE_MODEL = "grok-imagine-image";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -19,7 +30,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify admin role
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -35,7 +45,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check admin role using service role client
     const adminClient = createClient(supabaseUrl, serviceKey);
     const { data: roles } = await adminClient
       .from("user_roles")
@@ -59,69 +68,106 @@ Deno.serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ error: "AI API key not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const apiKey = getXaiApiKey();
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "Missing xAI API key. Set Edge Function secret GROK_API_KEY or XAI_API_KEY (same key you use for generate-image).",
+        }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
-    // Generate image using Lovable AI
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const model = Deno.env.get("GROK_IMAGE_MODEL")?.trim() || DEFAULT_IMAGE_MODEL;
+
+    const finalPrompt = `
+Create a highly detailed, cinematic, seductive SFW portrait for a romance / AI companion catalog card.
+Strictly SFW: no nudity, no visible genitals, no explicit sex acts. Artistic pin-up or cover quality.
+
+Character / scene request:
+${imagePrompt}
+    `.trim();
+
+    const aiResponse = await fetch("https://api.x.ai/v1/images/generations", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3.1-flash-image-preview",
-        messages: [
-          {
-            role: "user",
-            content: imagePrompt,
-          },
-        ],
-        modalities: ["image", "text"],
+        model,
+        prompt: finalPrompt,
+        n: 1,
+        aspect_ratio: "3:4",
       }),
     });
 
+    const rawText = await aiResponse.text();
+    let parsed: { data?: Array<{ url?: string; b64_json?: string }>; error?: { message?: string } } = {};
+    try {
+      parsed = JSON.parse(rawText) as typeof parsed;
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "xAI returned invalid JSON", details: rawText.slice(0, 400) }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     if (!aiResponse.ok) {
-      const errText = await aiResponse.text();
-      console.error("AI image generation error:", errText);
-      return new Response(JSON.stringify({ error: "Image generation failed", details: errText }), {
+      const msg = parsed.error?.message || rawText.slice(0, 500);
+      return new Response(JSON.stringify({ error: "xAI image generation failed", details: msg }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const aiData = await aiResponse.json();
-    const imageUrl = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    let remoteUrl = parsed.data?.[0]?.url;
+    const b64 = parsed.data?.[0]?.b64_json;
 
-    if (!imageUrl) {
-      return new Response(JSON.stringify({ error: "No image generated" }), {
+    let binaryData: Uint8Array;
+    let ext = "jpg";
+    let contentType = "image/jpeg";
+
+    if (remoteUrl) {
+      if (remoteUrl.startsWith("data:")) {
+        const m = remoteUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+        if (!m) {
+          return new Response(JSON.stringify({ error: "Invalid data URL from xAI" }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        ext = m[1] === "jpeg" ? "jpg" : m[1]!;
+        contentType = `image/${m[1] === "jpeg" ? "jpeg" : m[1]}`;
+        binaryData = Uint8Array.from(atob(m[2]!), (c) => c.charCodeAt(0));
+      } else {
+        const imgRes = await fetch(remoteUrl);
+        if (!imgRes.ok) {
+          return new Response(JSON.stringify({ error: "Failed to download image from xAI URL" }), {
+            status: 502,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const ct = imgRes.headers.get("content-type") || "";
+        if (ct.includes("png")) {
+          ext = "png";
+          contentType = "image/png";
+        }
+        const buf = await imgRes.arrayBuffer();
+        binaryData = new Uint8Array(buf);
+      }
+    } else if (b64) {
+      binaryData = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    } else {
+      return new Response(JSON.stringify({ error: "No image URL or base64 in xAI response" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Extract base64 data and upload to storage
-    const base64Match = imageUrl.match(/^data:image\/(\w+);base64,(.+)$/);
-    if (!base64Match) {
-      return new Response(JSON.stringify({ error: "Invalid image data format" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const fileName = `${companionId}.${ext}`;
 
-    const imageFormat = base64Match[1];
-    const base64Data = base64Match[2];
-    const binaryData = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-
-    const fileName = `${companionId}.${imageFormat}`;
-    const contentType = `image/${imageFormat}`;
-
-    // Upload to storage using service role
     const { error: uploadError } = await adminClient.storage
       .from("companion-portraits")
       .upload(fileName, binaryData, {
@@ -137,14 +183,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get public URL
-    const { data: publicUrlData } = adminClient.storage
-      .from("companion-portraits")
-      .getPublicUrl(fileName);
+    const { data: publicUrlData } = adminClient.storage.from("companion-portraits").getPublicUrl(fileName);
 
     const publicUrl = publicUrlData.publicUrl + "?t=" + Date.now();
 
-    // Update companion record with new image URL and prompt
     const { error: updateError } = await adminClient
       .from("companions")
       .update({
@@ -160,9 +202,10 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ imageUrl: publicUrl }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err) {
-    console.error("Edge function error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Edge function error:", message);
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

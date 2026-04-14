@@ -143,9 +143,18 @@ const CompanionGallery = () => {
 
         {/* Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {filtered.map((companion, i) => (
-            <CompanionCard key={companion.id} companion={companion} index={i} imageOverride={imageMap[companion.id]} />
-          ))}
+          {filtered.map((companion, i) => {
+            const raw = (dbCompanions || []).find((c) => c.id === companion.id);
+            return (
+              <CompanionCard
+                key={companion.id}
+                companion={companion}
+                index={i}
+                imageOverride={imageMap[companion.id]}
+                galleryCredit={raw?.gallery_credit_name ?? null}
+              />
+            );
+          })}
         </div>
 
         {filtered.length === 0 && (

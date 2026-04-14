@@ -652,7 +652,7 @@ const Chat = () => {
       {/* Header */}
       <div className="border-b border-border bg-card/80 backdrop-blur-xl px-4 py-3 flex items-center gap-3 shrink-0">
         <button
-          onClick={() => navigate(`/companion/${companion.id}`)}
+          onClick={() => navigate(`/companions/${companion.id}`)}
           className="text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="h-5 w-5" />

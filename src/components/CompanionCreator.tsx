@@ -189,7 +189,11 @@ export default function CompanionCreator({ mode = "user", embedded = false }: Co
   const [extraNotes, setExtraNotes] = useState("");
   const [batchPreset, setBatchPreset] = useState<number>(1);
   const [batchCustom, setBatchCustom] = useState("");
-  const [isPublic, setIsPublic] = useState(false);
+  /** Only your collection — not listed on the landing gallery */
+  const [saveVisibility, setSaveVisibility] = useState<"private" | "public">("private");
+  /** When public, optionally show Account display name on the gallery card */
+  const [creditUsername, setCreditUsername] = useState(false);
+  const [profileDisplayName, setProfileDisplayName] = useState("");
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -221,11 +225,12 @@ export default function CompanionCreator({ mode = "user", embedded = false }: Co
     }
     const { data, error } = await supabase
       .from("profiles")
-      .select("tokens_balance")
+      .select("tokens_balance, display_name")
       .eq("user_id", session.user.id)
       .maybeSingle();
     if (error) console.error(error);
     setTokens(data?.tokens_balance ?? 100);
+    setProfileDisplayName(data?.display_name?.trim() || "");
     setLoadingProfile(false);
   }, [navigate, isAdmin]);
 
@@ -386,6 +391,10 @@ User flavor notes: ${extraNotes || "none"}`;
       toast.error("Name your companion before forging.");
       return;
     }
+    if (!isAdmin && saveVisibility === "public" && creditUsername && !profileDisplayName.trim()) {
+      toast.error("Add a display username in Account settings to credit yourself on the public gallery.");
+      return;
+    }
     if (!isAdmin) {
       if (tokens !== null && tokens < finalTotalCost) {
         toast.error(`Need ${finalTotalCost} tokens for ${batchCount} companion(s).`);
@@ -407,6 +416,7 @@ User flavor notes: ${extraNotes || "none"}`;
         const suffix = batchCount > 1 ? ` ${i + 1}` : "";
         const displayName = namePrefix.trim() ? `${namePrefix.trim()} ${name.trim()}${suffix}`.trim() : `${name.trim()}${suffix}`;
         const basePrompt = systemPrompt.replaceAll(name.trim(), displayName);
+        const goPublic = saveVisibility === "public" && !isAdmin;
         rows.push({
           user_id: userId,
           name: displayName,
@@ -425,8 +435,9 @@ User flavor notes: ${extraNotes || "none"}`;
           gradient_to: NEON,
           image_url: previewUrl,
           image_prompt: grokPrompt,
-          is_public: isPublic,
-          approved: false,
+          is_public: goPublic,
+          approved: goPublic,
+          gallery_credit_name: goPublic && creditUsername ? profileDisplayName.trim() : null,
           avatar_url: previewUrl,
         });
       }
@@ -436,7 +447,13 @@ User flavor notes: ${extraNotes || "none"}`;
         if (!isAdmin) await addTokens(finalTotalCost);
         throw error;
       }
-      toast.success(batchCount === 1 ? "Companion bound to your vault." : `${batchCount} companions forged.`);
+      toast.success(
+        batchCount === 1
+          ? saveVisibility === "public" && !isAdmin
+            ? "Companion forged — live on the public gallery."
+            : "Companion bound to your vault."
+          : `${batchCount} companions forged.`,
+      );
       if (!embedded && mode === "user") navigate("/dashboard");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Create failed";
@@ -739,18 +756,64 @@ User flavor notes: ${extraNotes || "none"}`;
                       className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm resize-none focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
                     />
                   </div>
-                  <label className="flex items-center justify-between rounded-xl border border-white/10 bg-black/40 px-4 py-3.5 cursor-pointer">
-                    <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                      {isPublic ? <Globe className="h-4 w-4 text-[hsl(170_100%_50%)]" /> : <Lock className="h-4 w-4" />}
-                      Request public catalog (moderated)
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={isPublic}
-                      onChange={(e) => setIsPublic(e.target.checked)}
-                      className="accent-[#FF2D7B] h-4 w-4"
-                    />
-                  </label>
+                  <div className="rounded-xl border border-white/10 bg-black/40 p-4 space-y-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Gallery visibility</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSaveVisibility("private");
+                          setCreditUsername(false);
+                        }}
+                        className={cn(
+                          "rounded-xl border px-3 py-3 text-left text-xs transition-all flex items-start gap-2",
+                          saveVisibility === "private"
+                            ? "border-[#FF2D7B]/50 bg-[#FF2D7B]/10 text-white"
+                            : "border-white/10 bg-black/30 text-muted-foreground hover:border-white/20",
+                        )}
+                      >
+                        <Lock className="h-4 w-4 shrink-0 mt-0.5" />
+                        <span>
+                          <span className="font-semibold block">Private</span>
+                          <span className="text-[10px] opacity-80">Only you — not on the landing gallery</span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSaveVisibility("public")}
+                        className={cn(
+                          "rounded-xl border px-3 py-3 text-left text-xs transition-all flex items-start gap-2",
+                          saveVisibility === "public"
+                            ? "border-[hsl(170_100%_42%)]/50 bg-[hsl(170_100%_42%)]/10 text-white"
+                            : "border-white/10 bg-black/30 text-muted-foreground hover:border-white/20",
+                        )}
+                      >
+                        <Globe className="h-4 w-4 shrink-0 mt-0.5 text-[hsl(170_100%_50%)]" />
+                        <span>
+                          <span className="font-semibold block">Public gallery</span>
+                          <span className="text-[10px] opacity-80">Listed for all visitors on the site</span>
+                        </span>
+                      </button>
+                    </div>
+                    {saveVisibility === "public" && !isAdmin && (
+                      <label className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 cursor-pointer">
+                        <span className="text-xs text-muted-foreground">
+                          Credit my username on the card
+                          {profileDisplayName ? (
+                            <span className="block text-[10px] text-[hsl(170_100%_55%)] mt-0.5">Uses: {profileDisplayName}</span>
+                          ) : (
+                            <span className="block text-[10px] text-amber-500/90 mt-0.5">Set a username under Account first</span>
+                          )}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={creditUsername}
+                          onChange={(e) => setCreditUsername(e.target.checked)}
+                          className="accent-[#FF2D7B] h-4 w-4 shrink-0"
+                        />
+                      </label>
+                    )}
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>

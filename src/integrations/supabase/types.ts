@@ -121,6 +121,7 @@ export type Database = {
           bio: string
           created_at: string
           fantasy_starters: Json
+          gallery_credit_name: string | null
           gender: string
           gradient_from: string
           gradient_to: string
@@ -146,6 +147,7 @@ export type Database = {
           bio?: string
           created_at?: string
           fantasy_starters?: Json
+          gallery_credit_name?: string | null
           gender?: string
           gradient_from?: string
           gradient_to?: string
@@ -171,6 +173,7 @@ export type Database = {
           bio?: string
           created_at?: string
           fantasy_starters?: Json
+          gallery_credit_name?: string | null
           gender?: string
           gradient_from?: string
           gradient_to?: string

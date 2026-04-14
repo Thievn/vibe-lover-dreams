@@ -23,6 +23,82 @@ export interface DbCompanion {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  /** Community forge cards only — creator display name when they opted in */
+  gallery_credit_name?: string | null;
+}
+
+function customRowToDbCompanion(row: Record<string, unknown>): DbCompanion {
+  const startersRaw = row.fantasy_starters;
+  const starters = Array.isArray(startersRaw)
+    ? (startersRaw as { title?: string; description?: string }[])
+        .filter((s) => s && typeof s.title === "string")
+        .map((s) => ({ title: s.title!, description: typeof s.description === "string" ? s.description : "" }))
+    : [];
+
+  return {
+    id: `cc-${row.id as string}`,
+    name: row.name as string,
+    tagline: (row.tagline as string) || "",
+    gender: (row.gender as string) || "—",
+    orientation: (row.orientation as string) || "",
+    role: (row.role as string) || "",
+    tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
+    kinks: Array.isArray(row.kinks) ? (row.kinks as string[]) : [],
+    appearance: (row.appearance as string) || "",
+    personality: (row.personality as string) || "",
+    bio: (row.bio as string) || "",
+    system_prompt: (row.system_prompt as string) || "",
+    fantasy_starters: starters,
+    gradient_from: (row.gradient_from as string) || "#7B2D8E",
+    gradient_to: (row.gradient_to as string) || "#FF2D7B",
+    image_url: (row.image_url as string | null) ?? (row.avatar_url as string | null) ?? null,
+    image_prompt: (row.image_prompt as string | null) ?? null,
+    is_active: true,
+    created_at: (row.created_at as string) || new Date().toISOString(),
+    updated_at: (row.updated_at as string) || new Date().toISOString(),
+    gallery_credit_name: (row.gallery_credit_name as string | null) ?? null,
+  };
+}
+
+async function fetchPublicCustomCharacters(): Promise<DbCompanion[]> {
+  const { data, error } = await supabase
+    .from("custom_characters")
+    .select("*")
+    .eq("is_public", true)
+    .eq("approved", true)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error("Error fetching public custom characters:", error);
+    return [];
+  }
+  return (data || []).map((row) => customRowToDbCompanion(row as Record<string, unknown>));
+}
+
+function staticListToDb(): DbCompanion[] {
+  return staticCompanions.map((c) => ({
+    id: c.id,
+    name: c.name,
+    tagline: c.tagline,
+    gender: c.gender,
+    orientation: c.orientation,
+    role: c.role,
+    tags: c.tags,
+    kinks: c.kinks,
+    appearance: c.appearance,
+    personality: c.personality,
+    bio: c.bio,
+    system_prompt: c.systemPrompt,
+    fantasy_starters: c.fantasyStarters,
+    gradient_from: c.gradientFrom,
+    gradient_to: c.gradientTo,
+    image_url: null,
+    image_prompt: null,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }));
 }
 
 // Convert DB companion to the app's Companion interface
@@ -48,42 +124,21 @@ export const useCompanions = () => {
   return useQuery({
     queryKey: ["companions"],
     queryFn: async (): Promise<DbCompanion[]> => {
-      const { data, error } = await supabase
-        .from("companions")
-        .select("*")
-        .eq("is_active", true)
-        .order("name");
+      const [companionsRes, customs] = await Promise.all([
+        supabase.from("companions").select("*").eq("is_active", true).order("name"),
+        fetchPublicCustomCharacters(),
+      ]);
 
-      if (error) {
-        console.error("Error fetching companions:", error);
-        // Fallback to static data
-        return staticCompanions.map(c => ({
-          id: c.id,
-          name: c.name,
-          tagline: c.tagline,
-          gender: c.gender,
-          orientation: c.orientation,
-          role: c.role,
-          tags: c.tags,
-          kinks: c.kinks,
-          appearance: c.appearance,
-          personality: c.personality,
-          bio: c.bio,
-          system_prompt: c.systemPrompt,
-          fantasy_starters: c.fantasyStarters,
-          gradient_from: c.gradientFrom,
-          gradient_to: c.gradientTo,
-          image_url: null,
-          image_prompt: null,
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }));
+      if (companionsRes.error) {
+        console.error("Error fetching companions:", companionsRes.error);
+        const staticDb = staticListToDb();
+        return [...staticDb, ...customs];
       }
 
-      return (data || []) as unknown as DbCompanion[];
+      const stock = (companionsRes.data || []) as unknown as DbCompanion[];
+      return [...stock, ...customs];
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 };
 
@@ -92,10 +147,7 @@ export const useAdminCompanions = () => {
   return useQuery({
     queryKey: ["admin-companions"],
     queryFn: async (): Promise<DbCompanion[]> => {
-      const { data, error } = await supabase
-        .from("companions")
-        .select("*")
-        .order("name");
+      const { data, error } = await supabase.from("companions").select("*").order("name");
 
       if (error) throw error;
       return (data || []) as unknown as DbCompanion[];
