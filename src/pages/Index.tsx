@@ -8,7 +8,6 @@ import CreationSystem from "@/components/CreationSystem";
 import FeaturesGrid from "@/components/FeaturesGrid";
 import Testimonials from "@/components/Testimonials";
 import WaitlistSection from "@/components/WaitlistSection";
-import CompanionGallery from "@/components/CompanionGallery";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -56,7 +55,6 @@ const Index = () => {
       <Navbar />
       <HeroSection onGetStarted={handleGetStarted} />
       <CreationSystem />
-      <CompanionGallery showSearchAndFilters={false} />
       <FeaturesGrid />
       <Testimonials />
       <WaitlistSection />

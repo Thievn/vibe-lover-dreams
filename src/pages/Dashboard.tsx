@@ -19,6 +19,7 @@ import {
   Settings,
   Shield,
   Sparkles,
+  Telescope,
   TrendingUp,
   UserRound,
   Wand2,
@@ -29,18 +30,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { getToys } from "@/lib/lovense";
 import { cn } from "@/lib/utils";
 import ParticleBackground from "@/components/ParticleBackground";
-import CompanionGallery from "@/components/CompanionGallery";
+import DiscoverCompanionsGallery from "@/components/DiscoverCompanionsGallery";
 import { Progress } from "@/components/ui/progress";
 import { companions, type Companion } from "@/data/companions";
 
 const ADMIN_EMAIL = "lustforgeapp@gmail.com";
 const NEON_PINK = "#FF2D7B";
 
-type NavId = "dashboard" | "collection" | "breeding" | "toy" | "history";
+type NavId = "dashboard" | "collection" | "discover" | "breeding" | "toy" | "history";
 
 const NAV_ITEMS: { id: NavId; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "collection", label: "My Collection", icon: Layers },
+  { id: "discover", label: "Discover", icon: Telescope },
   { id: "breeding", label: "Breeding Chamber", icon: Dna },
   { id: "toy", label: "Toy Control", icon: Gamepad2 },
   { id: "history", label: "Chat History", icon: MessageSquare },
@@ -460,7 +462,10 @@ export default function Dashboard() {
                 quickImageGen={quickImageGen}
               />
             )}
-            {activeNav === "collection" && <CompanionGallery compact />}
+            {activeNav === "collection" && (
+              <CollectionView companions={COLLECTION_PREVIEW} onOpenCard={setDetail} />
+            )}
+            {activeNav === "discover" && <DiscoverCompanionsGallery onOpenCard={setDetail} />}
             {activeNav === "breeding" && <BreedingView onStartChat={() => navigate("/chat")} />}
             {activeNav === "toy" && (
               <ToyControlView
@@ -931,6 +936,30 @@ function MiniCompanionCard({
         <Sparkles className="h-3.5 w-3.5 text-accent" />
       </div>
     </motion.button>
+  );
+}
+
+function CollectionView({
+  companions: list,
+  onOpenCard,
+}: {
+  companions: Companion[];
+  onOpenCard: (c: Companion) => void;
+}) {
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div>
+        <h2 className="font-gothic text-3xl gradient-vice-text">My Collection</h2>
+        <p className="text-muted-foreground mt-2 text-sm max-w-xl">
+          Every companion you have unlocked lives here — rare frames, hybrid lineages, and legendary glows.
+        </p>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        {list.map((c, i) => (
+          <MiniCompanionCard key={c.id} companion={c} index={i} onOpen={() => onOpenCard(c)} />
+        ))}
+      </div>
+    </div>
   );
 }
 
