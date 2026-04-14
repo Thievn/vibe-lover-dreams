@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useAdminCompanions, type DbCompanion } from "@/hooks/useCompanions";
+import { COMPANION_RARITIES } from "@/lib/companionRarity";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -36,6 +37,11 @@ const emptyCompanion: Omit<DbCompanion, "created_at" | "updated_at"> = {
   image_url: null,
   image_prompt: null,
   is_active: true,
+  rarity: "common",
+  backstory: "",
+  static_image_url: null,
+  animated_image_url: null,
+  rarity_border_overlay_url: null,
 };
 
 const CompanionManager = () => {
@@ -209,6 +215,12 @@ const CompanionManager = () => {
         gradient_to: createData.gradient_to,
         image_prompt: createData.image_prompt,
         is_active: createData.is_active,
+        rarity: createData.rarity,
+        backstory: createData.backstory,
+        static_image_url: createData.static_image_url,
+        animated_image_url: createData.animated_image_url,
+        rarity_border_overlay_url: createData.rarity_border_overlay_url,
+        image_url: createData.image_url,
       } as any);
       if (error) throw error;
       toast.success("Companion created!");
@@ -424,6 +436,25 @@ const CompanionManager = () => {
             <Field label="Tags (comma-separated)" value={createData.tags.join(", ")} onChange={(v) => setCreateData(p => ({ ...p, tags: v.split(",").map(s => s.trim()).filter(Boolean) }))} />
             <Field label="Kinks (comma-separated)" value={createData.kinks.join(", ")} onChange={(v) => setCreateData(p => ({ ...p, kinks: v.split(",").map(s => s.trim()).filter(Boolean) }))} />
             <TextArea label="Bio" value={createData.bio} onChange={(v) => setCreateData(p => ({ ...p, bio: v }))} rows={3} />
+            <TextArea label="Backstory (2–4 paragraphs, blank line between)" value={createData.backstory} onChange={(v) => setCreateData(p => ({ ...p, backstory: v }))} rows={6} />
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Rarity</label>
+              <select
+                value={createData.rarity}
+                onChange={(e) => setCreateData((p) => ({ ...p, rarity: e.target.value }))}
+                className="w-full rounded-lg bg-muted border border-border px-3 py-2 text-sm text-foreground"
+              >
+                {COMPANION_RARITIES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Field label="Static portrait URL" value={createData.static_image_url || ""} onChange={(v) => setCreateData(p => ({ ...p, static_image_url: v || null }))} />
+            <Field label="Animated portrait URL (gif/webp/mp4)" value={createData.animated_image_url || ""} onChange={(v) => setCreateData(p => ({ ...p, animated_image_url: v || null }))} />
+            <Field label="Custom border overlay URL (optional PNG/SVG)" value={createData.rarity_border_overlay_url || ""} onChange={(v) => setCreateData(p => ({ ...p, rarity_border_overlay_url: v || null }))} />
+            <Field label="Legacy image_url (optional)" value={createData.image_url || ""} onChange={(v) => setCreateData(p => ({ ...p, image_url: v || null }))} />
             <TextArea label="Personality" value={createData.personality} onChange={(v) => setCreateData(p => ({ ...p, personality: v }))} rows={3} />
             <TextArea label="Companion Prompt" value={createData.system_prompt} onChange={(v) => setCreateData(p => ({ ...p, system_prompt: v }))} rows={6} placeholder="Paste the full companion prompt here..." />
           </div>
@@ -476,8 +507,8 @@ const CompanionManager = () => {
               {/* Portrait Preview */}
               <div className="flex items-start gap-4">
                 <div className="w-32 h-32 rounded-lg overflow-hidden shrink-0" style={{ background: `linear-gradient(135deg, ${val("gradient_from")}, ${val("gradient_to")})` }}>
-                  {companion.image_url ? (
-                    <img src={companion.image_url} alt={companion.name} className="w-full h-full object-cover" />
+                  {(companion.static_image_url || companion.image_url) ? (
+                    <img src={(companion.static_image_url || companion.image_url)!} alt={companion.name} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <span className="text-3xl font-bold text-white/80">{companion.name.charAt(0)}</span>
@@ -534,6 +565,25 @@ const CompanionManager = () => {
             <Field label="Tags (comma-separated)" value={(val("tags") as string[]).join(", ")} onChange={(v) => setField(companion.id, "tags", v.split(",").map(s => s.trim()).filter(Boolean))} />
             <Field label="Kinks (comma-separated)" value={(val("kinks") as string[]).join(", ")} onChange={(v) => setField(companion.id, "kinks", v.split(",").map(s => s.trim()).filter(Boolean))} />
             <TextArea label="Bio" value={val("bio") as string} onChange={(v) => setField(companion.id, "bio", v)} rows={3} />
+            <TextArea label="Backstory (2–4 paragraphs)" value={val("backstory") as string} onChange={(v) => setField(companion.id, "backstory", v)} rows={6} />
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Rarity</label>
+              <select
+                value={(val("rarity") as string) || "common"}
+                onChange={(e) => setField(companion.id, "rarity", e.target.value)}
+                className="w-full rounded-lg bg-muted border border-border px-3 py-2 text-sm text-foreground"
+              >
+                {COMPANION_RARITIES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Field label="Static portrait URL" value={(val("static_image_url") as string) || ""} onChange={(v) => setField(companion.id, "static_image_url", v || null)} />
+            <Field label="Animated portrait URL" value={(val("animated_image_url") as string) || ""} onChange={(v) => setField(companion.id, "animated_image_url", v || null)} />
+            <Field label="Border overlay URL (optional)" value={(val("rarity_border_overlay_url") as string) || ""} onChange={(v) => setField(companion.id, "rarity_border_overlay_url", v || null)} />
+            <Field label="image_url (legacy)" value={(val("image_url") as string) || ""} onChange={(v) => setField(companion.id, "image_url", v || null)} />
             <TextArea label="Personality" value={val("personality") as string} onChange={(v) => setField(companion.id, "personality", v)} rows={3} />
             <TextArea label="Companion Prompt" value={val("system_prompt") as string} onChange={(v) => setField(companion.id, "system_prompt", v)} rows={6} />
           </div>
@@ -587,8 +637,8 @@ const CompanionManager = () => {
         >
           <div className="flex items-center gap-3 p-4">
             <div className="w-12 h-12 rounded-lg flex items-center justify-center shrink-0 overflow-hidden" style={{ background: `linear-gradient(135deg, ${companion.gradient_from}, ${companion.gradient_to})` }}>
-              {companion.image_url ? (
-                <img src={companion.image_url} alt={companion.name} className="w-full h-full object-cover" />
+              {(companion.static_image_url || companion.image_url) ? (
+                <img src={(companion.static_image_url || companion.image_url)!} alt={companion.name} className="w-full h-full object-cover" />
               ) : (
                 <span className="text-lg font-bold text-white/80">{companion.name.charAt(0)}</span>
               )}

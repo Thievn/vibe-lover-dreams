@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { companions as staticCompanions, type Companion } from "@/data/companions";
+import { getStaticRarityForCatalog, normalizeCompanionRarity } from "@/lib/companionRarity";
 
 export interface DbCompanion {
   id: string;
@@ -23,8 +24,25 @@ export interface DbCompanion {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  rarity: string;
+  backstory: string;
+  static_image_url: string | null;
+  animated_image_url: string | null;
+  rarity_border_overlay_url: string | null;
   /** Community forge cards only — creator display name when they opted in */
   gallery_credit_name?: string | null;
+}
+
+function coerceStockRow(row: Record<string, unknown>): DbCompanion {
+  const r = row as unknown as DbCompanion;
+  return {
+    ...r,
+    rarity: normalizeCompanionRarity((row.rarity as string | undefined) ?? undefined),
+    backstory: (row.backstory as string | undefined) ?? "",
+    static_image_url: (row.static_image_url as string | null | undefined) ?? null,
+    animated_image_url: (row.animated_image_url as string | null | undefined) ?? null,
+    rarity_border_overlay_url: (row.rarity_border_overlay_url as string | null | undefined) ?? null,
+  };
 }
 
 function customRowToDbCompanion(row: Record<string, unknown>): DbCompanion {
@@ -57,6 +75,11 @@ function customRowToDbCompanion(row: Record<string, unknown>): DbCompanion {
     created_at: (row.created_at as string) || new Date().toISOString(),
     updated_at: (row.updated_at as string) || new Date().toISOString(),
     gallery_credit_name: (row.gallery_credit_name as string | null) ?? null,
+    rarity: normalizeCompanionRarity((row.rarity as string | undefined) ?? undefined),
+    backstory: (row.backstory as string | undefined) ?? "",
+    static_image_url: (row.static_image_url as string | null | undefined) ?? null,
+    animated_image_url: (row.animated_image_url as string | null | undefined) ?? null,
+    rarity_border_overlay_url: (row.rarity_border_overlay_url as string | null | undefined) ?? null,
   };
 }
 
@@ -98,6 +121,11 @@ function staticListToDb(): DbCompanion[] {
     is_active: true,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    rarity: getStaticRarityForCatalog(c.id),
+    backstory: c.backstory ?? "",
+    static_image_url: null,
+    animated_image_url: null,
+    rarity_border_overlay_url: null,
   }));
 }
 
@@ -118,6 +146,8 @@ export const dbToCompanion = (db: DbCompanion): Companion => ({
   fantasyStarters: db.fantasy_starters,
   gradientFrom: db.gradient_from,
   gradientTo: db.gradient_to,
+  rarity: normalizeCompanionRarity(db.rarity),
+  backstory: db.backstory?.trim() ? db.backstory : undefined,
 });
 
 export const useCompanions = () => {
@@ -135,7 +165,7 @@ export const useCompanions = () => {
         return [...staticDb, ...customs];
       }
 
-      const stock = (companionsRes.data || []) as unknown as DbCompanion[];
+      const stock = ((companionsRes.data || []) as Record<string, unknown>[]).map(coerceStockRow);
       return [...stock, ...customs];
     },
     staleTime: 60 * 1000,
@@ -151,7 +181,7 @@ export const useAdminCompanions = () => {
       const { data, error } = await supabase.from("companions").select("*").order("name");
 
       if (error) throw error;
-      return (data || []) as unknown as DbCompanion[];
+      return ((data || []) as Record<string, unknown>[]).map(coerceStockRow);
     },
   });
 };

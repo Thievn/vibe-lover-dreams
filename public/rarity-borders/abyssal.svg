@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 427" fill="none" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="a1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff2d7b"/>
+      <stop offset="35%" stop-color="#d946ef"/>
+      <stop offset="70%" stop-color="#00ffd4"/>
+      <stop offset="100%" stop-color="#ff2d7b"/>
+    </linearGradient>
+    <linearGradient id="a2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#ff2d7b"/>
+    </linearGradient>
+    <filter id="ag" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1.2 0" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect x="5" y="5" width="310" height="417" rx="22" stroke="url(#a2)" stroke-width="1.5" opacity="0.85"/>
+  <rect x="2" y="2" width="316" height="423" rx="24" stroke="url(#a1)" stroke-width="3.2" filter="url(#ag)"/>
+</svg>

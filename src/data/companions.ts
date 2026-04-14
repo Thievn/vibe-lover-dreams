@@ -1,3 +1,5 @@
+import type { CompanionRarity } from "@/lib/companionRarity";
+
 export interface Companion {
   id: string;
   name: string;
@@ -14,6 +16,10 @@ export interface Companion {
   gradientFrom: string;
   gradientTo: string;
   systemPrompt: string;
+  /** Present when merged from DB or static catalog mapping. */
+  rarity?: CompanionRarity;
+  /** Long-form profile copy when set in DB. */
+  backstory?: string;
 }
 
 export const companions: Companion[] = [

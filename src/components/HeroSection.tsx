@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useCompanions } from "@/hooks/useCompanions";
 import { companionImages } from "@/data/companionImages";
+import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 
 interface HeroSectionProps {
   onGetStarted: () => void;
@@ -45,7 +46,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
       id: db.id,
       name: db.name,
       subtitle: db.tagline || "AI companion",
-      img: db.image_url || companionImages[db.id],
+      img: galleryStaticPortraitUrl(db, db.id),
     }));
   }, [dbList]);
 

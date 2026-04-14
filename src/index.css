@@ -101,6 +101,16 @@
   }
 }
 
+@keyframes abyssal-pulse {
+  0%,
+  100% {
+    filter: brightness(1) drop-shadow(0 0 10px rgba(255, 45, 123, 0.45)) drop-shadow(0 0 28px rgba(168, 85, 247, 0.3));
+  }
+  50% {
+    filter: brightness(1.1) drop-shadow(0 0 18px rgba(255, 45, 123, 0.85)) drop-shadow(0 0 42px rgba(0, 255, 212, 0.22));
+  }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;

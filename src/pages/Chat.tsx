@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
-import { companionImages } from "@/data/companionImages";
+import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import { ArrowLeft, Send, Loader2, Zap, AlertOctagon, Flame, Image as ImageIcon, Heart, Sparkles, Pause, Play } from "lucide-react";
@@ -40,7 +40,7 @@ const Chat = () => {
     [dbCompanions, id]
   );
   const companion = dbComp ? dbToCompanion(dbComp) : null;
-  const imageUrl = dbComp?.image_url || (id ? companionImages[id] : undefined);
+  const imageUrl = galleryStaticPortraitUrl(dbComp, id);
 
     const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -71,6 +71,10 @@ const Chat = () => {
   } = useCompanionRelationship(companion?.id || "");
 
   const hasDevice = connectedToys.length > 0;
+
+  useEffect(() => {
+    starterSentRef.current = false;
+  }, [id]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {

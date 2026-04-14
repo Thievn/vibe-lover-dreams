@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
-import { companionImages } from "@/data/companionImages";
+import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import CompanionCard from "./CompanionCard";
 import { Search, Filter, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -40,7 +40,7 @@ const CompanionGallery = ({
   const imageMap = useMemo(() => {
     const map: Record<string, string> = {};
     (dbCompanions || []).forEach((c) => {
-      const url = c.image_url || companionImages[c.id];
+      const url = galleryStaticPortraitUrl(c, c.id);
       if (url) map[c.id] = url;
     });
     return map;

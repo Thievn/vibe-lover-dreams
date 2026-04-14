@@ -6,7 +6,6 @@ import {
   Activity,
   Bell,
   ChevronRight,
-  Crown,
   Dna,
   Flame,
   Gamepad2,
@@ -106,7 +105,6 @@ export default function Dashboard() {
   const [activeNav, setActiveNav] = useState<NavId>("dashboard");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [detail, setDetail] = useState<Companion | null>(null);
   const [toyConnected, setToyConnected] = useState(false);
   const [toyLabel, setToyLabel] = useState<string | null>(null);
   const [notifySessions, setNotifySessions] = useState(true);
@@ -453,7 +451,6 @@ export default function Dashboard() {
           <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 pb-24">
             {activeNav === "dashboard" && (
               <DashboardHome
-                onOpenCard={setDetail}
                 onCreate={() => navigate("/create-companion")}
                 onBreed={() => {
                   setActiveNav("breeding");
@@ -463,9 +460,9 @@ export default function Dashboard() {
               />
             )}
             {activeNav === "collection" && (
-              <CollectionView companions={COLLECTION_PREVIEW} onOpenCard={setDetail} />
+              <CollectionView companions={COLLECTION_PREVIEW} />
             )}
-            {activeNav === "discover" && <DiscoverCompanionsGallery onOpenCard={setDetail} />}
+            {activeNav === "discover" && <DiscoverCompanionsGallery />}
             {activeNav === "breeding" && <BreedingView onStartChat={() => navigate("/chat")} />}
             {activeNav === "toy" && (
               <ToyControlView
@@ -590,85 +587,6 @@ export default function Dashboard() {
           )}
         </AnimatePresence>
 
-        {/* Card detail modal */}
-        <AnimatePresence>
-          {detail && (
-            <>
-              <motion.button
-                type="button"
-                className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-md"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setDetail(null)}
-                aria-label="Close"
-              />
-              <motion.div
-                role="dialog"
-                aria-modal="true"
-                initial={{ opacity: 0, scale: 0.94, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.94, y: 20 }}
-                transition={{ type: "spring", stiffness: 280, damping: 26 }}
-                className="fixed left-1/2 top-1/2 z-[90] w-[min(92vw,480px)] -translate-x-1/2 -translate-y-1/2 rounded-[1.75rem] border-2 border-primary/30 bg-card/95 backdrop-blur-2xl overflow-hidden shadow-[0_0_60px_rgba(255,45,123,0.15)]"
-              >
-                <div
-                  className="aspect-[4/5] relative"
-                  style={{
-                    background: `linear-gradient(160deg, ${detail.gradientFrom}, ${detail.gradientTo})`,
-                  }}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
-                  <div className="absolute bottom-0 left-0 right-0 p-6 space-y-2">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/40 px-2 py-0.5 text-[10px] uppercase tracking-widest text-white/90">
-                      <Crown className="h-3 w-3 text-primary" style={{ color: NEON_PINK }} />
-                      Premium card
-                    </span>
-                    <h3 className="font-gothic text-3xl text-white text-glow-pink">{detail.name}</h3>
-                    <p className="text-sm text-white/80 italic">{detail.tagline}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setDetail(null)}
-                    className="absolute top-4 right-4 p-2 rounded-full bg-black/50 text-white hover:bg-black/70"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-                <div className="p-6 space-y-4 border-t border-border/60">
-                  <p className="text-sm text-muted-foreground line-clamp-4">{detail.bio}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {detail.tags.slice(0, 5).map((tag) => (
-                      <span
-                        key={tag}
-                        className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-md bg-velvet-purple/20 text-velvet-purple border border-velvet-purple/30"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex gap-3">
-                    <Link
-                      to={`/companions/${detail.id}`}
-                      onClick={() => setDetail(null)}
-                      className="flex-1 text-center py-3 rounded-xl border border-border hover:border-primary/50 hover:text-primary transition-colors text-sm font-semibold"
-                    >
-                      Full profile
-                    </Link>
-                    <Link
-                      to="/chat"
-                      onClick={() => setDetail(null)}
-                      className="flex-1 text-center py-3 rounded-xl text-sm font-semibold text-primary-foreground glow-pink"
-                      style={{ backgroundColor: NEON_PINK }}
-                    >
-                      Enter chat
-                    </Link>
-                  </div>
-                </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
       </div>
     </div>
   );
@@ -702,12 +620,10 @@ function ToggleRow({
 }
 
 function DashboardHome({
-  onOpenCard,
   onCreate,
   onBreed,
   quickImageGen,
 }: {
-  onOpenCard: (c: Companion) => void;
   onCreate: () => void;
   onBreed: () => void;
   quickImageGen: () => void;
@@ -789,7 +705,7 @@ function DashboardHome({
                 <Layers className="h-7 w-7 text-primary shrink-0" style={{ color: NEON_PINK }} />
                 Your Collection
               </h2>
-              <p className="text-sm text-muted-foreground mt-1">Tap a card to reveal the full fantasy sheet.</p>
+              <p className="text-sm text-muted-foreground mt-1">Tap a card to open the full companion profile.</p>
             </div>
             <span className="text-xs text-muted-foreground uppercase tracking-widest hidden sm:block">
               TCG preview
@@ -797,7 +713,7 @@ function DashboardHome({
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
             {COLLECTION_PREVIEW.map((c, idx) => (
-              <MiniCompanionCard key={c.id} companion={c} index={idx} onOpen={() => onOpenCard(c)} />
+              <MiniCompanionCard key={c.id} companion={c} index={idx} />
             ))}
           </div>
         </section>
@@ -832,10 +748,9 @@ function DashboardHome({
             </div>
             <div className="space-y-3">
               {hotCompanions.slice(0, 4).map((c) => (
-                <button
+                <Link
                   key={c.id}
-                  type="button"
-                  onClick={() => onOpenCard(c)}
+                  to={`/companions/${c.id}`}
                   className="w-full flex items-center gap-3 rounded-xl border border-border/60 bg-black/30 p-2 text-left hover:border-primary/35 transition-colors group"
                 >
                   <div
@@ -851,7 +766,7 @@ function DashboardHome({
                     <p className="text-[11px] text-muted-foreground truncate">{c.tagline}</p>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary shrink-0" />
-                </button>
+                </Link>
               ))}
             </div>
           </section>
@@ -898,65 +813,52 @@ function DashboardHome({
   );
 }
 
-function MiniCompanionCard({
-  companion: c,
-  index,
-  onOpen,
-}: {
-  companion: Companion;
-  index: number;
-  onOpen: () => void;
-}) {
+function MiniCompanionCard({ companion: c, index }: { companion: Companion; index: number }) {
   return (
-    <motion.button
-      type="button"
+    <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04 }}
       whileHover={{ y: -4, scale: 1.02 }}
-      onClick={onOpen}
       className="text-left rounded-2xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden group shadow-lg shadow-black/20 hover:border-primary/40 transition-colors ring-0 hover:ring-2 hover:ring-primary/20"
     >
-      <div
-        className="aspect-[3/4] relative"
-        style={{ background: `linear-gradient(160deg, ${c.gradientFrom}, ${c.gradientTo})` }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
-        <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-black/50 border border-white/10 text-[9px] font-bold uppercase tracking-wider text-white/90">
-          {c.role}
+      <Link to={`/companions/${c.id}`} className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded-2xl">
+        <div
+          className="aspect-[3/4] relative"
+          style={{ background: `linear-gradient(160deg, ${c.gradientFrom}, ${c.gradientTo})` }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
+          <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-black/50 border border-white/10 text-[9px] font-bold uppercase tracking-wider text-white/90">
+            {c.role}
+          </div>
+          <div className="absolute inset-x-0 bottom-0 p-3 space-y-0.5">
+            <p className="text-xs font-bold text-white truncate leading-tight">{c.name}</p>
+            <p className="text-[10px] text-white/70 truncate">{c.tagline}</p>
+          </div>
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none" />
         </div>
-        <div className="absolute inset-x-0 bottom-0 p-3 space-y-0.5">
-          <p className="text-xs font-bold text-white truncate leading-tight">{c.name}</p>
-          <p className="text-[10px] text-white/70 truncate">{c.tagline}</p>
+        <div className="px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/40">
+          <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Profile</span>
+          <Sparkles className="h-3.5 w-3.5 text-accent" />
         </div>
-        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none" />
-      </div>
-      <div className="px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/40">
-        <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Inspect</span>
-        <Sparkles className="h-3.5 w-3.5 text-accent" />
-      </div>
-    </motion.button>
+      </Link>
+    </motion.div>
   );
 }
 
-function CollectionView({
-  companions: list,
-  onOpenCard,
-}: {
-  companions: Companion[];
-  onOpenCard: (c: Companion) => void;
-}) {
+function CollectionView({ companions: list }: { companions: Companion[] }) {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
         <h2 className="font-gothic text-3xl gradient-vice-text">My Collection</h2>
         <p className="text-muted-foreground mt-2 text-sm max-w-xl">
-          Every companion you have unlocked lives here — rare frames, hybrid lineages, and legendary glows.
+          Every companion you have unlocked lives here — tap through to the full profile, rarity frame, and fantasy
+          starters.
         </p>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         {list.map((c, i) => (
-          <MiniCompanionCard key={c.id} companion={c} index={i} onOpen={() => onOpenCard(c)} />
+          <MiniCompanionCard key={c.id} companion={c} index={i} />
         ))}
       </div>
     </div>

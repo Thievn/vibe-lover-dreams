@@ -3,17 +3,16 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Filter, Loader2, Search, Sparkles, UserRound, Wand2, X } from "lucide-react";
 import type { Companion } from "@/data/companions";
-import { companionImages } from "@/data/companionImages";
 import { useCompanions, dbToCompanion, type DbCompanion } from "@/hooks/useCompanions";
 import { cn } from "@/lib/utils";
+import type { CompanionRarity } from "@/lib/companionRarity";
+import { COMPANION_RARITIES, normalizeCompanionRarity } from "@/lib/companionRarity";
+import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 
 const NEON_PINK = "#FF2D7B";
 
-const RARITIES = ["Mythic", "Legendary", "Epic", "Rare"] as const;
-type Rarity = (typeof RARITIES)[number];
-
 export type CommunityGalleryRow = Companion & {
-  rarity: Rarity;
+  rarity: CompanionRarity;
   vibe: string;
   imageUrl: string | null;
   galleryCredit: string | null;
@@ -21,14 +20,13 @@ export type CommunityGalleryRow = Companion & {
 };
 
 function rowsFromDb(dbList: DbCompanion[]): CommunityGalleryRow[] {
-  return dbList.map((db, i) => {
+  return dbList.map((db) => {
     const c = dbToCompanion(db);
     const isForged = c.id.startsWith("cc-");
-    const fromMap = companionImages[c.id];
-    const imageUrl = db.image_url || fromMap || null;
+    const imageUrl = galleryStaticPortraitUrl(db, db.id) ?? null;
     return {
       ...c,
-      rarity: RARITIES[i % RARITIES.length]!,
+      rarity: normalizeCompanionRarity(db.rarity),
       vibe: c.tags[0] ?? c.role,
       imageUrl,
       galleryCredit: db.gallery_credit_name ?? null,
@@ -37,24 +35,23 @@ function rowsFromDb(dbList: DbCompanion[]): CommunityGalleryRow[] {
   });
 }
 
-const rarityStyle: Record<Rarity, string> = {
-  Mythic: "border-[#FF2D7B]/60 bg-[#FF2D7B]/25 text-[#ffb8d9] shadow-[0_0_12px_rgba(255,45,123,0.35)]",
-  Legendary: "border-amber-400/50 bg-amber-500/20 text-amber-100 shadow-[0_0_12px_rgba(251,191,36,0.2)]",
-  Epic: "border-accent/50 bg-accent/15 text-accent shadow-[0_0_12px_hsl(170_100%_50%/0.25)]",
-  Rare: "border-white/20 bg-white/10 text-white/90",
+const rarityStyle: Record<CompanionRarity, string> = {
+  common: "border-white/25 bg-white/10 text-white/90 shadow-[0_0_10px_rgba(255,255,255,0.08)]",
+  rare: "border-sky-400/45 bg-sky-500/15 text-sky-100 shadow-[0_0_14px_rgba(56,189,248,0.25)]",
+  epic: "border-accent/50 bg-accent/15 text-accent shadow-[0_0_14px_hsl(170_100%_50%/0.22)]",
+  legendary: "border-amber-400/50 bg-amber-500/20 text-amber-100 shadow-[0_0_14px_rgba(251,191,36,0.2)]",
+  mythic: "border-[#FF2D7B]/55 bg-[#FF2D7B]/22 text-[#ffb8d9] shadow-[0_0_16px_rgba(255,45,123,0.32)]",
+  abyssal:
+    "border-fuchsia-400/60 bg-gradient-to-r from-[#ff2d7b]/25 to-fuchsia-600/25 text-white shadow-[0_0_22px_rgba(255,45,123,0.45)]",
 };
 
-type Props = {
-  onOpenCard: (c: Companion) => void;
-};
-
-export default function DiscoverCompanionsGallery({ onOpenCard }: Props) {
+export default function DiscoverCompanionsGallery() {
   const { data: dbRows, isLoading } = useCompanions();
   const pool = useMemo(() => (dbRows?.length ? rowsFromDb(dbRows) : []), [dbRows]);
 
   const [search, setSearch] = useState("");
   const [gender, setGender] = useState<string | null>(null);
-  const [rarity, setRarity] = useState<Rarity | null>(null);
+  const [rarity, setRarity] = useState<CompanionRarity | null>(null);
   const [vibe, setVibe] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -193,13 +190,13 @@ export default function DiscoverCompanionsGallery({ onOpenCard }: Props) {
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Rarity</p>
                   <div className="flex flex-wrap gap-2">
-                    {RARITIES.map((r) => (
+                    {COMPANION_RARITIES.map((r) => (
                       <button
                         key={r}
                         type="button"
                         onClick={() => setRarity(rarity === r ? null : r)}
                         className={cn(
-                          "px-3 py-1.5 rounded-full text-xs border transition-colors",
+                          "px-3 py-1.5 rounded-full text-xs border transition-colors capitalize",
                           rarity === r
                             ? "bg-velvet-purple/30 border-accent text-accent"
                             : "bg-muted/40 border-border text-muted-foreground hover:border-accent/40",
@@ -324,17 +321,16 @@ export default function DiscoverCompanionsGallery({ onOpenCard }: Props) {
               {filtered.map((c, i) => {
                 const img = c.imageUrl;
                 return (
-                  <motion.button
+                  <motion.div
                     key={c.id}
-                    type="button"
                     layout
                     initial={{ opacity: 0, y: 14 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: Math.min(i * 0.03, 0.35), type: "spring", stiffness: 380, damping: 28 }}
                     whileHover={{ y: -4, scale: 1.02 }}
-                    onClick={() => onOpenCard(c)}
                     className="text-left rounded-2xl border border-border/80 bg-card/50 backdrop-blur-md overflow-hidden group shadow-lg shadow-black/30 hover:border-primary/45 transition-all hover:shadow-[0_0_28px_rgba(255,45,123,0.15)] ring-0 hover:ring-2 hover:ring-primary/15"
                   >
+                    <Link to={`/companions/${c.id}`} className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl">
                     <div
                       className="aspect-[3/4] relative"
                       style={{
@@ -352,7 +348,7 @@ export default function DiscoverCompanionsGallery({ onOpenCard }: Props) {
                       <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/25 to-transparent pointer-events-none" />
                       <div
                         className={cn(
-                          "absolute top-2 left-2 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider border backdrop-blur-md",
+                          "absolute top-2 left-2 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider border backdrop-blur-md capitalize",
                           rarityStyle[c.rarity],
                         )}
                       >
@@ -382,10 +378,11 @@ export default function DiscoverCompanionsGallery({ onOpenCard }: Props) {
                       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/[0.07] to-primary/10 pointer-events-none" />
                     </div>
                     <div className="px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/50">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Preview</span>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Open profile</span>
                       <Sparkles className="h-3.5 w-3.5 text-accent" />
                     </div>
-                  </motion.button>
+                    </Link>
+                  </motion.div>
                 );
               })}
             </motion.div>

@@ -46,7 +46,9 @@ export type Database = {
       }
       companions: {
         Row: {
+          animated_image_url: string | null
           appearance: string
+          backstory: string
           bio: string
           created_at: string
           fantasy_starters: Json
@@ -61,14 +63,19 @@ export type Database = {
           name: string
           orientation: string
           personality: string
+          rarity: string
+          rarity_border_overlay_url: string | null
           role: string
+          static_image_url: string | null
           system_prompt: string
           tagline: string
           tags: string[]
           updated_at: string
         }
         Insert: {
+          animated_image_url?: string | null
           appearance?: string
+          backstory?: string
           bio?: string
           created_at?: string
           fantasy_starters?: Json
@@ -83,14 +90,19 @@ export type Database = {
           name: string
           orientation?: string
           personality?: string
+          rarity?: string
+          rarity_border_overlay_url?: string | null
           role?: string
+          static_image_url?: string | null
           system_prompt?: string
           tagline?: string
           tags?: string[]
           updated_at?: string
         }
         Update: {
+          animated_image_url?: string | null
           appearance?: string
+          backstory?: string
           bio?: string
           created_at?: string
           fantasy_starters?: Json
@@ -105,7 +117,10 @@ export type Database = {
           name?: string
           orientation?: string
           personality?: string
+          rarity?: string
+          rarity_border_overlay_url?: string | null
           role?: string
+          static_image_url?: string | null
           system_prompt?: string
           tagline?: string
           tags?: string[]
@@ -115,9 +130,11 @@ export type Database = {
       }
       custom_characters: {
         Row: {
+          animated_image_url: string | null
           appearance: string
           approved: boolean
           avatar_url: string | null
+          backstory: string
           bio: string
           created_at: string
           fantasy_starters: Json
@@ -133,7 +150,10 @@ export type Database = {
           name: string
           orientation: string
           personality: string
+          rarity: string
+          rarity_border_overlay_url: string | null
           role: string
+          static_image_url: string | null
           system_prompt: string
           tagline: string
           tags: string[]
@@ -141,9 +161,11 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          animated_image_url?: string | null
           appearance?: string
           approved?: boolean
           avatar_url?: string | null
+          backstory?: string
           bio?: string
           created_at?: string
           fantasy_starters?: Json
@@ -159,7 +181,10 @@ export type Database = {
           name: string
           orientation?: string
           personality?: string
+          rarity?: string
+          rarity_border_overlay_url?: string | null
           role?: string
+          static_image_url?: string | null
           system_prompt?: string
           tagline?: string
           tags?: string[]
@@ -167,9 +192,11 @@ export type Database = {
           user_id: string
         }
         Update: {
+          animated_image_url?: string | null
           appearance?: string
           approved?: boolean
           avatar_url?: string | null
+          backstory?: string
           bio?: string
           created_at?: string
           fantasy_starters?: Json
@@ -185,7 +212,10 @@ export type Database = {
           name?: string
           orientation?: string
           personality?: string
+          rarity?: string
+          rarity_border_overlay_url?: string | null
           role?: string
+          static_image_url?: string | null
           system_prompt?: string
           tagline?: string
           tags?: string[]
