@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
+import { companionImages } from "@/data/companionImages";
 import CompanionCard from "./CompanionCard";
 import { Search, Filter, X, Loader2 } from "lucide-react";
 
@@ -28,7 +29,8 @@ const CompanionGallery = () => {
   const imageMap = useMemo(() => {
     const map: Record<string, string> = {};
     (dbCompanions || []).forEach((c) => {
-      if (c.image_url) map[c.id] = c.image_url;
+      const url = c.image_url || companionImages[c.id];
+      if (url) map[c.id] = url;
     });
     return map;
   }, [dbCompanions]);
@@ -56,7 +58,7 @@ const CompanionGallery = () => {
 
   if (isLoading) {
     return (
-      <section id="companions" className="py-16 px-4">
+      <section id="companions" className="py-12 sm:py-16 px-3 sm:px-4 overflow-x-hidden">
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
@@ -65,7 +67,7 @@ const CompanionGallery = () => {
   }
 
   return (
-    <section id="companions" className="py-16 px-4">
+    <section id="companions" className="py-12 sm:py-16 px-3 sm:px-4 overflow-x-hidden">
       <div className="max-w-7xl mx-auto">
         <h2 className="font-gothic text-3xl md:text-4xl font-bold text-center mb-2 gradient-vice-text">
           Choose Your Companion

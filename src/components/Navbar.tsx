@@ -34,8 +34,11 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-[#050508]/92 backdrop-blur-xl border-b border-white/[0.08] shadow-[0_0_40px_rgba(255,45,123,0.06)]">
-      <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+    <nav
+      className="fixed top-0 left-0 right-0 z-50 bg-[#050508]/92 backdrop-blur-xl border-b border-white/[0.08] shadow-[0_0_40px_rgba(255,45,123,0.06)]"
+      style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+    >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-3 group">
           <Flame className="h-8 w-8 text-[#FF2D7B] drop-shadow-[0_0_12px_rgba(255,45,123,0.5)]" />
           <span className="font-gothic text-2xl tracking-widest gradient-vice-text">LUSTFORGE</span>

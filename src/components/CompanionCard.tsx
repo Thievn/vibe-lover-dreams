@@ -14,20 +14,21 @@ interface CompanionCardProps {
 export default function CompanionCard({ companion, index, imageOverride, galleryCredit }: CompanionCardProps) {
   const img = imageOverride;
   const isCommunity = companion.id.startsWith("cc-");
-  const to = isCommunity ? "/auth" : `/companions/${companion.id}`;
+  const to = `/companions/${companion.id}`;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ delay: Math.min(index * 0.04, 0.4) }}
+      transition={{ delay: Math.min(index * 0.04, 0.4), type: "spring", stiffness: 380, damping: 26 }}
     >
       <Link
         to={to}
         state={isCommunity ? { fromGallery: true } : undefined}
-        className="block rounded-2xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden hover:border-primary/50 transition-all hover:scale-[1.02] group h-full"
+        className="block rounded-2xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden hover:border-primary/50 transition-colors group h-full touch-manipulation"
       >
+        <motion.div whileHover={{ y: -3, transition: { type: "spring", stiffness: 400, damping: 18 } }} whileTap={{ scale: 0.98 }} className="h-full">
         <div
           className="w-full aspect-[3/4] relative"
           style={{
@@ -54,6 +55,7 @@ export default function CompanionCard({ companion, index, imageOverride, gallery
             ) : null}
           </div>
         </div>
+        </motion.div>
       </Link>
     </motion.div>
   );

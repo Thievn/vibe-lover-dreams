@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocat
 import { Toaster } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import AgeGate from "./components/AgeGate";
+import InstallPrompt from "./components/InstallPrompt";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
@@ -193,14 +194,7 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="/companions/:id"
-                element={
-                  <ProtectedRoute>
-                    <CompanionProfile />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="/companions/:id" element={<CompanionProfile />} />
               <Route
                 path="/create-companion"
                 element={
@@ -229,6 +223,7 @@ function App() {
             </Routes>
           </Suspense>
           <Toaster position="top-right" richColors closeButton />
+          {ageConfirmed ? <InstallPrompt /> : null}
         </div>
       </ErrorBoundary>
     </Router>

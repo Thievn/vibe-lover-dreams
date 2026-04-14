@@ -138,7 +138,8 @@ export const useCompanions = () => {
       const stock = (companionsRes.data || []) as unknown as DbCompanion[];
       return [...stock, ...customs];
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: true,
   });
 };
 

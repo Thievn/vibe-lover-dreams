@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -169,6 +170,7 @@ function pick<T>(arr: readonly T[]): T {
 
 export default function CompanionCreator({ mode = "user", embedded = false }: CompanionCreatorProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const isAdmin = mode === "admin";
 
   const [userId, setUserId] = useState<string | null>(null);
@@ -454,6 +456,7 @@ User flavor notes: ${extraNotes || "none"}`;
             : "Companion bound to your vault."
           : `${batchCount} companions forged.`,
       );
+      void queryClient.invalidateQueries({ queryKey: ["companions"] });
       if (!embedded && mode === "user") navigate("/dashboard");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Create failed";
