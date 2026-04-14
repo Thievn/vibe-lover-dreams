@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, useEffect, Component, ReactNode } from "react
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { Toaster } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { initAnalytics, trackPageView } from "@/lib/analytics";
 import AgeGate from "./components/AgeGate";
 import InstallPrompt from "./components/InstallPrompt";
 import Index from "./pages/Index";
@@ -19,6 +20,21 @@ const CompanionProfile = lazy(() => import("./pages/CompanionProfile"));
 const CompanionCreator = lazy(() => import("./pages/CompanionCreator"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Admin = lazy(() => import("./pages/Admin"));
+
+function AnalyticsTracker() {
+  const location = useLocation();
+
+  useEffect(() => {
+    initAnalytics();
+  }, []);
+
+  useEffect(() => {
+    const path = `${location.pathname}${location.search}${location.hash}`;
+    trackPageView(path);
+  }, [location.pathname, location.search, location.hash]);
+
+  return null;
+}
 
 function RouteFallback() {
   return (
@@ -153,6 +169,7 @@ function App() {
     <Router>
       <ErrorBoundary>
         <div className="min-h-screen bg-background text-foreground font-sans relative">
+          <AnalyticsTracker />
           {!ageConfirmed && <AgeGate onConfirm={handleAgeConfirm} />}
           <Suspense fallback={<RouteFallback />}>
             <Routes>

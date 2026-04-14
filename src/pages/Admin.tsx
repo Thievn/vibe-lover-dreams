@@ -8,6 +8,8 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -36,6 +38,7 @@ import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
 import CompanionCreator from "@/components/CompanionCreator";
 import CompanionManager from "@/components/admin/CompanionManager";
+import { getGaMeasurementId } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
 const ADMIN_EMAIL = "lustforgeapp@gmail.com";
@@ -91,12 +94,30 @@ interface StatsShape {
   toysLinked: number;
 }
 
+type TrendPoint = {
+  dateKey: string;
+  name: string;
+  sessions: number;
+  signups: number;
+  images: number;
+  forged: number;
+};
+
 const chartTooltipStyle = {
   backgroundColor: "hsl(240 15% 8%)",
   border: "1px solid hsl(280 30% 25%)",
   borderRadius: "12px",
   fontSize: "12px",
 };
+
+function dayKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function labelFromDayKey(k: string): string {
+  const d = new Date(`${k}T00:00:00Z`);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
 function AdminShell() {
   const navigate = useNavigate();
@@ -121,29 +142,11 @@ function AdminShell() {
   const [grantLoading, setGrantLoading] = useState(false);
   const [userChars, setUserChars] = useState<{ id: string; name: string }[]>([]);
   const [charsLoading, setCharsLoading] = useState(false);
+  const [trendData, setTrendData] = useState<TrendPoint[]>([]);
+  const [barData, setBarData] = useState<{ name: string; value: number }[]>([]);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
 
-  const trendData = useMemo(
-    () => [
-      { name: "Mon", sessions: 42, signups: 12, images: 28 },
-      { name: "Tue", sessions: 58, signups: 18, images: 35 },
-      { name: "Wed", sessions: 49, signups: 9, images: 31 },
-      { name: "Thu", sessions: 71, signups: 22, images: 44 },
-      { name: "Fri", sessions: 88, signups: 31, images: 52 },
-      { name: "Sat", sessions: 102, signups: 28, images: 61 },
-      { name: "Sun", sessions: 94, signups: 24, images: 55 },
-    ],
-    [],
-  );
-
-  const barData = useMemo(
-    () => [
-      { name: "Chat", value: stats.totalUsers ? Math.round(stats.totalUsers * 3.2) : 120 },
-      { name: "Forge", value: stats.imagesGenerated || 48 },
-      { name: "Toy", value: stats.toysLinked * 14 || 22 },
-      { name: "Hybrid", value: Math.max(8, Math.round((stats.companionsCreatedCustom || 12) * 1.5)) },
-    ],
-    [stats],
-  );
+  const gaMeasurementId = getGaMeasurementId();
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
@@ -180,6 +183,74 @@ function AdminShell() {
       toast.error("Some metrics failed to load (check RLS / tables).");
     } finally {
       setStatsLoading(false);
+    }
+  }, []);
+
+  const loadAnalytics = useCallback(async () => {
+    setAnalyticsLoading(true);
+    try {
+      const days = 14;
+      const start = new Date();
+      start.setUTCHours(0, 0, 0, 0);
+      start.setUTCDate(start.getUTCDate() - (days - 1));
+      const fromIso = start.toISOString();
+
+      const [profilesRes, waitlistRes, imagesRes, customRes, chatsRes] = await Promise.all([
+        supabase.from("profiles").select("created_at").gte("created_at", fromIso),
+        supabase.from("waitlist").select("created_at").gte("created_at", fromIso),
+        supabase.from("generated_images").select("created_at").gte("created_at", fromIso),
+        supabase.from("custom_characters").select("created_at").gte("created_at", fromIso),
+        supabase.from("chat_messages").select("created_at").gte("created_at", fromIso),
+      ]);
+
+      const timeline: TrendPoint[] = Array.from({ length: days }, (_, i) => {
+        const d = new Date(start);
+        d.setUTCDate(start.getUTCDate() + i);
+        const key = dayKey(d);
+        return {
+          dateKey: key,
+          name: labelFromDayKey(key),
+          sessions: 0,
+          signups: 0,
+          images: 0,
+          forged: 0,
+        };
+      });
+
+      const indexByKey = new Map(timeline.map((p, i) => [p.dateKey, i]));
+
+      const addCount = (rows: { created_at: string }[] | null, target: keyof TrendPoint) => {
+        (rows || []).forEach((r) => {
+          const key = (r.created_at || "").slice(0, 10);
+          const idx = indexByKey.get(key);
+          if (idx == null) return;
+          const prev = timeline[idx]!;
+          timeline[idx] = { ...prev, [target]: Number(prev[target]) + 1 } as TrendPoint;
+        });
+      };
+
+      addCount(profilesRes.data as { created_at: string }[] | null, "signups");
+      addCount(waitlistRes.data as { created_at: string }[] | null, "signups");
+      addCount(imagesRes.data as { created_at: string }[] | null, "images");
+      addCount(customRes.data as { created_at: string }[] | null, "forged");
+      addCount(chatsRes.data as { created_at: string }[] | null, "sessions");
+
+      const sum = (k: keyof TrendPoint) => timeline.reduce((acc, row) => acc + Number(row[k]), 0);
+
+      setTrendData(timeline);
+      setBarData([
+        { name: "Chats", value: Math.max(0, sum("sessions")) },
+        { name: "Signups", value: Math.max(0, sum("signups")) },
+        { name: "Images", value: Math.max(0, sum("images")) },
+        { name: "Forged", value: Math.max(0, sum("forged")) },
+      ]);
+    } catch (e) {
+      console.error(e);
+      toast.error("Analytics charts failed to load from telemetry tables.");
+      setTrendData([]);
+      setBarData([]);
+    } finally {
+      setAnalyticsLoading(false);
     }
   }, []);
 
@@ -232,7 +303,8 @@ function AdminShell() {
   useEffect(() => {
     if (authLoading) return;
     void loadStats();
-  }, [authLoading, loadStats]);
+    void loadAnalytics();
+  }, [authLoading, loadStats, loadAnalytics]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -394,7 +466,11 @@ function AdminShell() {
             <OverviewSection
               stats={stats}
               statsLoading={statsLoading}
-              onRefresh={() => void loadStats()}
+              analyticsLoading={analyticsLoading}
+              onRefresh={() => {
+                void loadStats();
+                void loadAnalytics();
+              }}
               trendData={trendData}
               barData={barData}
             />
@@ -449,7 +525,14 @@ function AdminShell() {
               }
             />
           )}
-          {section === "analytics" && <AnalyticsSection trendData={trendData} stats={stats} />}
+          {section === "analytics" && (
+            <AnalyticsSection
+              trendData={trendData}
+              stats={stats}
+              loading={analyticsLoading}
+              gaMeasurementId={gaMeasurementId}
+            />
+          )}
           {section === "settings" && <AdminSettingsSection onExportUsers={() => exportCsv(
             profiles.map((p) => ({
               user_id: p.user_id,
@@ -557,14 +640,16 @@ function AdminShell() {
 function OverviewSection({
   stats,
   statsLoading,
+  analyticsLoading,
   onRefresh,
   trendData,
   barData,
 }: {
   stats: StatsShape;
   statsLoading: boolean;
+  analyticsLoading: boolean;
   onRefresh: () => void;
-  trendData: { name: string; sessions: number; signups: number; images: number }[];
+  trendData: TrendPoint[];
   barData: { name: string; value: number }[];
 }) {
   const s = stats;
@@ -587,10 +672,10 @@ function OverviewSection({
         <button
           type="button"
           onClick={onRefresh}
-          disabled={statsLoading}
+          disabled={statsLoading || analyticsLoading}
           className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm hover:border-primary/40 transition-colors disabled:opacity-50"
         >
-          <RefreshCw className={cn("h-4 w-4", statsLoading && "animate-spin")} />
+          <RefreshCw className={cn("h-4 w-4", (statsLoading || analyticsLoading) && "animate-spin")} />
           Refresh metrics
         </button>
       </div>
@@ -624,7 +709,7 @@ function OverviewSection({
           </h3>
           <div className="h-[280px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData}>
+              <AreaChart data={trendData.length ? trendData : [{ name: "—", sessions: 0, images: 0 }]}>
                 <defs>
                   <linearGradient id="lfPink" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={NEON} stopOpacity={0.35} />
@@ -644,15 +729,13 @@ function OverviewSection({
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <p className="text-[10px] text-muted-foreground mt-2 italic">
-            Trend series are illustrative until telemetry is wired; counts above are live from the database where RLS allows.
-          </p>
+          <p className="text-[10px] text-muted-foreground mt-2 italic">Rolling 14-day live telemetry from app tables.</p>
         </div>
         <div className="lg:col-span-2 rounded-2xl border border-border/80 bg-card/40 backdrop-blur-md p-5">
           <h3 className="font-gothic text-lg mb-4">Feature mix</h3>
           <div className="h-[280px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData}>
+              <BarChart data={barData.length ? barData : [{ name: "None", value: 0 }]}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(280 20% 18%)" />
                 <XAxis dataKey="name" stroke="hsl(240 5% 45%)" tick={{ fontSize: 11 }} />
                 <YAxis stroke="hsl(240 5% 45%)" tick={{ fontSize: 11 }} />
@@ -815,23 +898,64 @@ function WaitlistSection({
 function AnalyticsSection({
   trendData,
   stats,
+  loading,
+  gaMeasurementId,
 }: {
-  trendData: { name: string; sessions: number; signups: number; images: number }[];
+  trendData: TrendPoint[];
   stats: {
     totalUsers: number;
     toysLinked: number;
     companionsCreatedCustom: number;
     imagesGenerated: number;
   };
+  loading: boolean;
+  gaMeasurementId: string | null;
 }) {
+  const totals = useMemo(
+    () =>
+      trendData.reduce(
+        (acc, row) => {
+          acc.sessions += row.sessions;
+          acc.signups += row.signups;
+          acc.images += row.images;
+          acc.forged += row.forged;
+          return acc;
+        },
+        { sessions: 0, signups: 0, images: 0, forged: 0 },
+      ),
+    [trendData],
+  );
+
+  const efficiencyData = useMemo(
+    () => [
+      {
+        name: "Forge output",
+        value: totals.images > 0 ? Number((totals.forged / totals.images).toFixed(2)) : 0,
+      },
+      {
+        name: "Chat depth",
+        value: totals.signups > 0 ? Number((totals.sessions / totals.signups).toFixed(2)) : 0,
+      },
+      {
+        name: "Image / user",
+        value: stats.totalUsers > 0 ? Number((stats.imagesGenerated / stats.totalUsers).toFixed(2)) : 0,
+      },
+    ],
+    [totals, stats.totalUsers, stats.imagesGenerated],
+  );
+
   return (
     <div className="space-y-8">
       <h2 className="font-gothic text-3xl gradient-vice-text">Analytics</h2>
       <div className="grid md:grid-cols-3 gap-4">
         {[
-          { k: "Avg. sessions / user (est.)", v: stats.totalUsers ? (trendData.reduce((a, d) => a + d.sessions, 0) / 7 / stats.totalUsers).toFixed(2) : "—" },
+          { k: "GA Measurement", v: gaMeasurementId ?? "Disabled" },
+          { k: "14d Sessions / user", v: stats.totalUsers ? (totals.sessions / Math.max(stats.totalUsers, 1)).toFixed(2) : "—" },
           { k: "Toy adoption", v: `${stats.toysLinked} linked devices` },
-          { k: "Custom / image ratio", v: stats.imagesGenerated ? (stats.companionsCreatedCustom / stats.imagesGenerated).toFixed(2) : "—" },
+          {
+            k: "Custom / image ratio",
+            v: stats.imagesGenerated ? (stats.companionsCreatedCustom / stats.imagesGenerated).toFixed(2) : "—",
+          },
         ].map((x) => (
           <div key={x.k} className="rounded-2xl border border-border/80 bg-card/40 p-5 backdrop-blur-md">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">{x.k}</p>
@@ -839,19 +963,40 @@ function AnalyticsSection({
           </div>
         ))}
       </div>
-      <div className="rounded-2xl border border-border/80 bg-card/40 p-5 h-[320px]">
-        <h3 className="font-gothic text-lg mb-4">Signups vs images (illustrative)</h3>
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={trendData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(280 20% 18%)" />
-            <XAxis dataKey="name" stroke="hsl(240 5% 45%)" tick={{ fontSize: 11 }} />
-            <YAxis stroke="hsl(240 5% 45%)" tick={{ fontSize: 11 }} />
-            <Tooltip contentStyle={chartTooltipStyle} />
-            <Area type="step" dataKey="signups" stroke="hsl(280 60% 55%)" fill="hsl(280 50% 35% / 0.2)" strokeWidth={2} />
-            <Area type="step" dataKey="images" stroke="hsl(170 100% 45%)" fill="hsl(170 100% 50% / 0.15)" strokeWidth={2} />
-          </AreaChart>
-        </ResponsiveContainer>
+      <div className="grid lg:grid-cols-5 gap-6">
+        <div className="lg:col-span-3 rounded-2xl border border-border/80 bg-card/40 p-5 h-[340px]">
+          <h3 className="font-gothic text-lg mb-4">14-day activity pulse</h3>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={trendData.length ? trendData : [{ name: "—", sessions: 0, signups: 0, images: 0, forged: 0 }]}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(280 20% 18%)" />
+              <XAxis dataKey="name" stroke="hsl(240 5% 45%)" tick={{ fontSize: 11 }} />
+              <YAxis stroke="hsl(240 5% 45%)" tick={{ fontSize: 11 }} />
+              <Tooltip contentStyle={chartTooltipStyle} />
+              <Line type="monotone" dataKey="sessions" stroke={NEON} strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey="signups" stroke="hsl(280 60% 55%)" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="images" stroke="hsl(170 100% 45%)" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="forged" stroke="hsl(35 95% 55%)" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="lg:col-span-2 rounded-2xl border border-border/80 bg-card/40 p-5 h-[340px]">
+          <h3 className="font-gothic text-lg mb-4">Conversion efficiency</h3>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={efficiencyData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(280 20% 18%)" />
+              <XAxis dataKey="name" stroke="hsl(240 5% 45%)" tick={{ fontSize: 11 }} />
+              <YAxis stroke="hsl(240 5% 45%)" tick={{ fontSize: 11 }} />
+              <Tooltip contentStyle={chartTooltipStyle} />
+              <Bar dataKey="value" fill="hsl(170 100% 45%)" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
+      <p className="text-xs text-muted-foreground italic">
+        {loading
+          ? "Refreshing analytics…"
+          : "Telemetry is live from profiles, waitlist, generated_images, custom_characters, and chat_messages."}
+      </p>
     </div>
   );
 }
