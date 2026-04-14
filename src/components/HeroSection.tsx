@@ -85,12 +85,13 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
     <section
       className={`relative min-h-[70vh] sm:min-h-[80vh] flex items-center justify-center px-3 sm:px-6 overflow-x-hidden pb-8 ${navTopPad}`}
     >
-      <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-background pointer-events-none" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[min(100vw,600px)] h-[min(100vw,600px)] max-h-[70vh] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.09] via-transparent to-background pointer-events-none" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[min(100vw,640px)] h-[min(100vw,640px)] max-h-[72vh] rounded-full bg-primary/[0.08] blur-[130px] pointer-events-none" />
+      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[min(90vw,480px)] h-40 rounded-full bg-accent/[0.06] blur-[90px] pointer-events-none" />
 
       <div className="relative z-10 text-center max-w-3xl mx-auto w-full">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-3 sm:mb-4">
-          <span className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full border border-primary/30 bg-primary/10 text-primary text-[11px] sm:text-xs font-medium">
+          <span className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full border border-primary/35 bg-primary/[0.14] backdrop-blur-md text-primary text-[11px] sm:text-xs font-medium shadow-[0_0_24px_rgba(255,45,123,0.12)]">
             <Flame className="h-3 w-3 shrink-0" /> Strictly 18+ · AI-Powered Companions
           </span>
         </motion.div>
@@ -107,7 +108,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="text-base sm:text-lg md:text-xl text-muted-foreground mb-2 italic px-2"
+          className="text-base sm:text-lg md:text-xl text-muted-foreground/90 mb-2 italic px-2"
         >
           Forge Your Fantasies
         </motion.p>
@@ -115,7 +116,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="text-xs sm:text-sm text-muted-foreground mb-6 sm:mb-8 max-w-xl mx-auto px-2 leading-relaxed"
+          className="text-xs sm:text-sm text-muted-foreground/88 mb-6 sm:mb-8 max-w-xl mx-auto px-2 leading-relaxed"
         >
           AI companions that talk, tease, and connect to your smart toys. Immersive roleplay with real-time device integration — every persona, every scenario, zero judgment.
         </motion.p>
@@ -131,13 +132,13 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
           <button
             type="button"
             onClick={onGetStarted}
-            className="px-6 sm:px-8 py-3 rounded-xl bg-primary text-primary-foreground font-bold text-base sm:text-lg glow-pink inline-flex items-center gap-2 touch-manipulation"
+            className="px-6 sm:px-8 py-3 rounded-xl bg-primary text-primary-foreground font-bold text-base sm:text-lg glow-pink inline-flex items-center gap-2 touch-manipulation shadow-lg shadow-primary/25 border border-white/10"
           >
             <Flame className="h-5 w-5 shrink-0" /> Join the Waitlist
           </button>
         </motion.div>
 
-        <div className="mt-10 sm:mt-12 flex flex-wrap justify-center items-end gap-6 sm:gap-10 text-muted-foreground text-[11px] sm:text-xs px-2">
+        <div className="mt-10 sm:mt-12 flex flex-wrap justify-center items-end gap-6 sm:gap-10 text-muted-foreground/85 text-[11px] sm:text-xs px-2">
           <div className="text-center min-w-[5rem]">
             <motion.div
               key={totalCompanions}
@@ -165,7 +166,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
             onClick={reshuffle}
             whileTap={{ rotate: 180 }}
             transition={{ type: "spring", stiffness: 400, damping: 15 }}
-            className="absolute -top-1 sm:-top-5 right-0 sm:right-1 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-primary/25 bg-black/40 text-primary hover:bg-primary/15 hover:border-primary/50 transition-colors touch-manipulation"
+            className="absolute -top-1 sm:-top-5 right-0 sm:right-1 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-primary/35 bg-black/50 backdrop-blur-md text-primary hover:bg-primary/18 hover:border-primary/55 transition-colors touch-manipulation shadow-[0_0_20px_rgba(255,45,123,0.15)]"
             aria-label="Shuffle companions"
           >
             <RefreshCw className="h-4 w-4" />
@@ -183,7 +184,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
               >
                 <Link
                   to={`/companions/${comp.id}`}
-                  className="block h-full rounded-2xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden hover:border-primary/50 transition-colors shadow-lg shadow-black/20 group touch-manipulation"
+                  className="block h-full rounded-2xl border border-white/[0.08] bg-card/75 backdrop-blur-md overflow-hidden hover:border-primary/45 transition-all duration-300 shadow-lg shadow-black/25 hover:shadow-[0_12px_40px_rgba(255,45,123,0.12)] ring-1 ring-white/[0.04] group touch-manipulation"
                 >
                   <div
                     className="w-full aspect-[3/4] relative overflow-hidden"

@@ -2,26 +2,26 @@ import { WandSparkles, Heart, Trophy, Flame } from "lucide-react";
 
 export default function CreationSystem() {
   return (
-    <section className="py-12 px-4 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/5 to-transparent pointer-events-none" />
+    <section className="py-14 sm:py-16 px-4 relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/[0.07] to-transparent pointer-events-none" />
 
       <div className="max-w-6xl mx-auto relative z-10">
         <div className="text-center mb-10">
-          <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-secondary/30 bg-secondary/10 text-secondary text-xs font-medium mb-4">
+          <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-secondary/35 bg-secondary/[0.14] backdrop-blur-md text-secondary text-xs font-medium mb-4 shadow-[0_0_22px_hsl(280_50%_35%/0.15)]">
             <WandSparkles className="h-3 w-3" /> Creation System
           </span>
           <h2 className="font-gothic text-3xl md:text-4xl font-bold gradient-vice-text mb-3">
             The Creation & Customization System
           </h2>
-          <p className="text-muted-foreground text-sm max-w-2xl mx-auto">
+          <p className="text-muted-foreground/90 text-sm max-w-2xl mx-auto leading-relaxed">
             Build companions from scratch with limitless customization — or breed two together to create entirely new AI personalities. 
             Collect rare hybrids, design unique characters, and unlock exclusive toy patterns no one else has.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
           {/* Card 1 */}
-          <div className="rounded-2xl border border-border bg-card p-6 hover:border-primary/40 transition-all duration-300 hover:glow-pink">
+          <div className="rounded-2xl border border-white/[0.07] bg-card/80 backdrop-blur-md p-6 shadow-lg shadow-black/20 hover:border-primary/40 transition-all duration-300 hover:glow-pink hover:shadow-[0_12px_40px_rgba(255,45,123,0.08)] ring-1 ring-white/[0.03]">
             <div className="text-primary mb-4">
               <WandSparkles className="h-6 w-6" />
             </div>
@@ -33,7 +33,7 @@ export default function CreationSystem() {
           </div>
 
           {/* Card 2 */}
-          <div className="rounded-2xl border border-border bg-card p-6 hover:border-primary/40 transition-all duration-300 hover:glow-pink">
+          <div className="rounded-2xl border border-white/[0.07] bg-card/80 backdrop-blur-md p-6 shadow-lg shadow-black/20 hover:border-primary/40 transition-all duration-300 hover:glow-pink hover:shadow-[0_12px_40px_rgba(255,45,123,0.08)] ring-1 ring-white/[0.03]">
             <div className="text-primary mb-4">
               <Heart className="h-6 w-6" />
             </div>
@@ -44,7 +44,7 @@ export default function CreationSystem() {
           </div>
 
           {/* Card 3 */}
-          <div className="rounded-2xl border border-border bg-card p-6 hover:border-primary/40 transition-all duration-300 hover:glow-pink">
+          <div className="rounded-2xl border border-white/[0.07] bg-card/80 backdrop-blur-md p-6 shadow-lg shadow-black/20 hover:border-primary/40 transition-all duration-300 hover:glow-pink hover:shadow-[0_12px_40px_rgba(255,45,123,0.08)] ring-1 ring-white/[0.03]">
             <div className="text-primary mb-4">
               <Trophy className="h-6 w-6" />
             </div>
@@ -55,7 +55,7 @@ export default function CreationSystem() {
           </div>
 
           {/* Card 4 */}
-          <div className="rounded-2xl border border-border bg-card p-6 hover:border-primary/40 transition-all duration-300 hover:glow-pink">
+          <div className="rounded-2xl border border-white/[0.07] bg-card/80 backdrop-blur-md p-6 shadow-lg shadow-black/20 hover:border-primary/40 transition-all duration-300 hover:glow-pink hover:shadow-[0_12px_40px_rgba(255,45,123,0.08)] ring-1 ring-white/[0.03]">
             <div className="text-primary mb-4">
               <Flame className="h-6 w-6" />
             </div>
@@ -67,7 +67,7 @@ export default function CreationSystem() {
         </div>
 
         <div className="mt-8 text-center">
-          <p className="text-xs text-muted-foreground italic">
+          <p className="text-xs text-muted-foreground/85 italic">
             Join the waitlist to be among the first creators when the Creation Chamber opens.
           </p>
         </div>

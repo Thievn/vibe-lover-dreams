@@ -13,9 +13,9 @@ const ParticleBackground = () => {
     const particles: { x: number; y: number; vx: number; vy: number; size: number; alpha: number; color: string }[] = [];
 
     const colors = [
-      "hsl(330, 100%, 58%)",
-      "hsl(280, 60%, 50%)",
-      "hsl(170, 100%, 50%)",
+      "hsl(330, 100%, 62%)",
+      "hsl(280, 55%, 58%)",
+      "hsl(170, 100%, 55%)",
     ];
 
     const resize = () => {
@@ -30,7 +30,7 @@ const ParticleBackground = () => {
         vx: (Math.random() - 0.5) * 0.3,
         vy: (Math.random() - 0.5) * 0.3,
         size: Math.random() * 2 + 0.5,
-        alpha: Math.random() * 0.5 + 0.1,
+        alpha: Math.random() * 0.45 + 0.18,
         color: colors[Math.floor(Math.random() * colors.length)],
       };
     };
@@ -68,7 +68,7 @@ const ParticleBackground = () => {
     <canvas
       ref={canvasRef}
       className="fixed inset-0 pointer-events-none z-0"
-      style={{ opacity: 0.6 }}
+      style={{ opacity: 0.72 }}
     />
   );
 };

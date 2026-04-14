@@ -27,21 +27,30 @@ export default function FeaturesGrid() {
   ];
 
   return (
-    <section className="py-20 px-4">
-      <div className="max-w-7xl mx-auto">
+    <section className="py-20 sm:py-24 px-4 relative overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-accent/[0.04] to-transparent" />
+      <div className="max-w-7xl mx-auto relative z-10">
         <div className="text-center mb-12">
           <h2 className="font-gothic text-3xl md:text-4xl font-bold gradient-vice-text mb-3">Built for Pleasure</h2>
-          <p className="text-muted-foreground text-sm max-w-lg mx-auto">Features designed for the most immersive AI companion experience. MVP features are live — more launching soon.</p>
+          <p className="text-muted-foreground/90 text-sm max-w-lg mx-auto leading-relaxed">
+            Features designed for the most immersive AI companion experience. MVP features are live — more launching soon.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
           {features.map((feature, index) => (
             <div 
               key={index} 
-              className={`relative rounded-xl border p-5 transition-all duration-300 hover:border-primary/40 bg-card ${feature.comingSoon ? 'border-border/50 bg-card/50' : 'border-border hover:glow-pink'}`}
+              className={`relative rounded-xl border p-5 transition-all duration-300 backdrop-blur-md shadow-md shadow-black/15 ${
+                feature.comingSoon
+                  ? "border-white/[0.06] bg-card/55 hover:border-white/10"
+                  : "border-white/[0.08] bg-card/80 hover:border-primary/40 hover:glow-pink hover:shadow-[0_10px_36px_rgba(255,45,123,0.08)] ring-1 ring-white/[0.03]"
+              }`}
             >
               {feature.comingSoon && (
-                <span className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-secondary/20 text-secondary text-[10px] font-medium">Coming Soon</span>
+                <span className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-secondary/25 text-secondary text-[10px] font-medium border border-secondary/20">
+                  Coming Soon
+                </span>
               )}
               
               <div className={`mb-3 ${feature.comingSoon ? 'text-muted-foreground' : 'text-primary'}`}>
@@ -49,7 +58,7 @@ export default function FeaturesGrid() {
               </div>
               
               <h3 className="font-semibold text-sm text-foreground mb-1">{feature.title}</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">{feature.desc}</p>
+              <p className="text-xs text-muted-foreground/88 leading-relaxed">{feature.desc}</p>
             </div>
           ))}
         </div>

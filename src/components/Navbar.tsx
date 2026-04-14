@@ -41,8 +41,9 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-2 flex items-center justify-between gap-2 min-h-[2.75rem]">
         <Link to="/" className="flex items-center gap-2 sm:gap-2.5 group shrink-0 min-w-0">
           <Flame className="h-6 w-6 sm:h-7 sm:w-7 text-[#FF2D7B] shrink-0 drop-shadow-[0_0_10px_rgba(255,45,123,0.45)]" />
-          <span className="font-gothic text-lg sm:text-xl tracking-[0.18em] gradient-vice-text truncate">
-            LUSTFORGE
+          <span className="font-gothic text-xl sm:text-2xl font-bold leading-none tracking-tight flex items-baseline gap-1 sm:gap-1.5 truncate">
+            <span className="gradient-vice-text">LustForge</span>
+            <span className="text-foreground/90 text-lg sm:text-xl font-bold">AI</span>
           </span>
         </Link>
 
