@@ -47,9 +47,10 @@ GRANT EXECUTE ON FUNCTION public.resolve_login_email(text) TO authenticated;
 COMMENT ON FUNCTION public.resolve_login_email(text) IS
   'Maps profiles.display_name to a single auth.users email for sign-in, or passes through a valid email string.';
 
--- Founder display name for username-based login (safe if already set).
+-- Optional: set founder display_name after you create the auth user (same email as VITE_ADMIN_EMAIL / default).
+-- Casing preserved for username sign-in display; adjust email in your fork if needed.
 UPDATE public.profiles p
-SET display_name = 'Lustforge'
+SET display_name = 'LustForge'
 FROM auth.users u
 WHERE p.user_id = u.id
   AND lower(u.email) = lower('lustforgeapp@gmail.com');

@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { User, Lock, Mail, Eye, EyeOff, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isPublicSignUpEnabled } from "@/config/auth";
 
 const NEON = "#FF2D7B";
 
@@ -35,6 +36,7 @@ type SignInFormData = z.infer<typeof signInSchema>;
 
 export default function Auth() {
   const navigate = useNavigate();
+  const publicSignup = isPublicSignUpEnabled();
   const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -83,7 +85,15 @@ export default function Auth() {
     }
   }, [rememberMe, signInForm]);
 
+  useEffect(() => {
+    if (!publicSignup && mode === "signUp") setMode("signIn");
+  }, [publicSignup, mode]);
+
   const onSubmitSignUp = async (data: SignUpFormData) => {
+    if (!publicSignup) {
+      toast.error("New registrations are not open.");
+      return;
+    }
     setLoading(true);
     try {
       const { data: signUpData, error: authError } = await supabase.auth.signUp({
@@ -200,54 +210,61 @@ export default function Auth() {
           <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Access your empire</p>
         </div>
 
-        <div className="flex mb-6 p-1 rounded-2xl bg-black/40 border border-white/10">
-          <button
-            type="button"
-            onClick={() => setMode("signIn")}
-            className={cn(
-              "flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all",
-              mode === "signIn"
-                ? "text-white shadow-lg"
-                : "text-muted-foreground hover:text-foreground/80",
-            )}
-            style={
-              mode === "signIn"
-                ? {
-                    background: `linear-gradient(135deg, ${NEON}, hsl(280 45% 38%))`,
-                    boxShadow: `0 0 24px ${NEON}35`,
-                  }
-                : undefined
-            }
-          >
-            Sign in
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("signUp")}
-            className={cn(
-              "flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all",
-              mode === "signUp"
-                ? "text-white shadow-lg"
-                : "text-muted-foreground hover:text-foreground/80",
-            )}
-            style={
-              mode === "signUp"
-                ? {
-                    background: `linear-gradient(135deg, ${NEON}, hsl(280 45% 38%))`,
-                    boxShadow: `0 0 24px ${NEON}35`,
-                  }
-                : undefined
-            }
-          >
-            Sign up
-          </button>
-        </div>
+        {publicSignup ? (
+          <div className="flex mb-6 p-1 rounded-2xl bg-black/40 border border-white/10">
+            <button
+              type="button"
+              onClick={() => setMode("signIn")}
+              className={cn(
+                "flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all",
+                mode === "signIn"
+                  ? "text-white shadow-lg"
+                  : "text-muted-foreground hover:text-foreground/80",
+              )}
+              style={
+                mode === "signIn"
+                  ? {
+                      background: `linear-gradient(135deg, ${NEON}, hsl(280 45% 38%))`,
+                      boxShadow: `0 0 24px ${NEON}35`,
+                    }
+                  : undefined
+              }
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("signUp")}
+              className={cn(
+                "flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all",
+                mode === "signUp"
+                  ? "text-white shadow-lg"
+                  : "text-muted-foreground hover:text-foreground/80",
+              )}
+              style={
+                mode === "signUp"
+                  ? {
+                      background: `linear-gradient(135deg, ${NEON}, hsl(280 45% 38%))`,
+                      boxShadow: `0 0 24px ${NEON}35`,
+                    }
+                  : undefined
+              }
+            >
+              Sign up
+            </button>
+          </div>
+        ) : (
+          <p className="mb-6 text-center text-[11px] text-muted-foreground leading-relaxed px-1">
+            Sign-in only. New account registration is turned off in the app. You can also disable public signups in
+            Supabase → Authentication → Providers.
+          </p>
+        )}
 
         {mode === "signIn" ? (
           <form onSubmit={signInForm.handleSubmit(onSubmitSignIn)} className="space-y-4">
             <div>
               <label htmlFor="auth-signin-identifier" className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Email or username
+                Your E-Mail/Username
               </label>
               <div className="relative">
                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -257,7 +274,7 @@ export default function Auth() {
                   type="text"
                   autoComplete="username"
                   className={inputClass}
-                  placeholder="you@email.com or Lustforge"
+                  placeholder="your.email@example.com or your username"
                 />
               </div>
               {signInForm.formState.errors.identifier && (
@@ -324,7 +341,7 @@ export default function Auth() {
           <form onSubmit={signUpForm.handleSubmit(onSubmitSignUp)} className="space-y-4">
             <div>
               <label htmlFor="auth-signup-username" className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Username
+                Your username
               </label>
               <p className="text-[10px] text-muted-foreground/90 mb-1.5 leading-snug">
                 Shown in the app and used to sign in instead of email, if unique.

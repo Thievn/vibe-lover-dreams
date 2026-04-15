@@ -17,6 +17,12 @@ export function isPlatformAdmin(user: { email?: string | null } | null | undefin
   return Boolean(e && e === PLATFORM_ADMIN_EMAIL);
 }
 
+/** When false (env `VITE_PUBLIC_SIGNUP` = false / 0 / off), the auth page hides Sign up. Also turn off signups in Supabase Dashboard → Authentication. */
+export function isPublicSignUpEnabled(): boolean {
+  const raw = (import.meta.env.VITE_PUBLIC_SIGNUP as string | undefined)?.trim().toLowerCase();
+  return raw !== "false" && raw !== "0" && raw !== "off";
+}
+
 export const EMAIL_ADDRESSES = {
   auth: import.meta.env.VITE_AUTH_EMAIL_FROM ?? "donotreply@lustforge.app",
   welcome: import.meta.env.VITE_WELCOME_EMAIL ?? "hello@lustforge.app",
