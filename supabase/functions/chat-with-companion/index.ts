@@ -1,10 +1,8 @@
+import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-function getXaiApiKey(): string | null {
-  return Deno.env.get("XAI_API_KEY")?.trim() || Deno.env.get("GROK_API_KEY")?.trim() || null;
 }
 
 Deno.serve(async (req) => {
@@ -15,7 +13,7 @@ Deno.serve(async (req) => {
   try {
     const { companionId, messages, systemPrompt, companionName } = await req.json();
 
-    const apiKey = getXaiApiKey();
+    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
     if (!apiKey) {
       return new Response(
         JSON.stringify({

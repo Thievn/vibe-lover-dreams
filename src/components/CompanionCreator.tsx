@@ -19,6 +19,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
+import { formatSupabaseError } from "@/lib/supabaseError";
 import { cn } from "@/lib/utils";
 
 const NEON = "#FF2D7B";
@@ -346,34 +348,58 @@ User flavor notes: ${extraNotes || "none"}`;
     }
     setPreviewLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke<{
-        success?: boolean;
-        imageUrl?: string;
-        error?: string;
-      }>("generate-image", {
-        body: {
-          prompt: grokPrompt,
-          userId,
-          isPortrait: true,
-          name: name || "Custom Companion",
-          subtitle: tagline || "LustForge forged",
-          characterData: {
-            style: artStyle.toLowerCase().replace(/\s+/g, "-"),
-            randomize: false,
-            bodyType,
-            vibe: `${vibe}. ${theme}`.trim(),
-            hair: `styled to match ${vibe} and ${artStyle}`,
-            eyes: traits.includes("Glowing eyes") ? "striking glowing eyes" : "expressive, magnetic eyes",
-            clothing: `${vibe} fashion, luxurious textures, ${artStyle} presentation`,
-            expression: `${personality} energy`,
-            ethnicity: "any",
-            ageRange: "young adult",
-            pose: "three-quarter portrait, alluring confident pose",
-            baseDescription: `an original seductive character, ${gender}, ${bodyType}, ${traits.join(", ") || "clean aesthetic"}`,
-          },
+      const previewBody = {
+        prompt: grokPrompt,
+        userId,
+        isPortrait: true,
+        name: name || "Custom Companion",
+        subtitle: tagline || "LustForge forged",
+        characterData: {
+          style: artStyle.toLowerCase().replace(/\s+/g, "-"),
+          randomize: false,
+          bodyType,
+          vibe: `${vibe}. ${theme}`.trim(),
+          hair: `styled to match ${vibe} and ${artStyle}`,
+          eyes: traits.includes("Glowing eyes") ? "striking glowing eyes" : "expressive, magnetic eyes",
+          clothing: `${vibe} fashion, luxurious textures, ${artStyle} presentation`,
+          expression: `${personality} energy`,
+          ethnicity: "any",
+          ageRange: "young adult",
+          pose: "three-quarter portrait, alluring confident pose",
+          baseDescription: `an original seductive character, ${gender}, ${bodyType}, ${traits.join(", ") || "clean aesthetic"}`,
         },
-      });
-      if (error) throw error;
+      };
+
+      const invokePreview = (accessToken: string) =>
+        supabase.functions.invoke<{
+          success?: boolean;
+          imageUrl?: string;
+          error?: string;
+        }>("generate-image", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          body: previewBody,
+        });
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      let accessToken = session?.access_token;
+      if (!accessToken) {
+        throw new Error("Sign in again to run live preview.");
+      }
+
+      let { data, error } = await invokePreview(accessToken);
+      if (error) {
+        const firstMsg = await getEdgeFunctionInvokeMessage(error, data);
+        if (/invalid\s+jwt/i.test(firstMsg)) {
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          accessToken = refreshed.session?.access_token ?? "";
+          if (accessToken) {
+            ({ data, error } = await invokePreview(accessToken));
+          }
+        }
+      }
+      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
       if (!data?.success) throw new Error(data?.error || "Generation failed");
       if (!data.imageUrl) throw new Error("No image URL returned");
       setPreviewUrl(data.imageUrl);
@@ -439,15 +465,36 @@ User flavor notes: ${extraNotes || "none"}`;
           image_prompt: grokPrompt,
           is_public: goPublic,
           approved: goPublic,
-          gallery_credit_name: goPublic && creditUsername ? profileDisplayName.trim() : null,
           avatar_url: previewUrl,
         });
       }
 
-      const { error } = await supabase.from("custom_characters").insert(rows);
+      // Omit gallery_credit_name on insert: older DBs without that column (PGRST204) still work.
+      const { data: insertedRows, error } = await supabase.from("custom_characters").insert(rows).select("id");
       if (error) {
         if (!isAdmin) await addTokens(finalTotalCost);
         throw error;
+      }
+
+      const wantsGalleryCredit =
+        !isAdmin &&
+        saveVisibility === "public" &&
+        creditUsername &&
+        profileDisplayName.trim().length > 0 &&
+        (insertedRows?.length ?? 0) > 0;
+      if (wantsGalleryCredit && insertedRows?.length) {
+        const credit = profileDisplayName.trim();
+        const ids = insertedRows.map((r) => r.id).filter(Boolean);
+        const { error: creditErr } = await supabase
+          .from("custom_characters")
+          .update({ gallery_credit_name: credit })
+          .in("id", ids);
+        if (creditErr) {
+          const creditMsg = formatSupabaseError(creditErr);
+          if (!/gallery_credit_name|PGRST204/i.test(creditMsg)) {
+            toast.error(`Saved companion, but gallery credit failed: ${creditMsg}`);
+          }
+        }
       }
       toast.success(
         batchCount === 1
@@ -459,8 +506,7 @@ User flavor notes: ${extraNotes || "none"}`;
       void queryClient.invalidateQueries({ queryKey: ["companions"] });
       if (!embedded && mode === "user") navigate("/dashboard");
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Create failed";
-      toast.error(msg);
+      toast.error(formatSupabaseError(e));
     } finally {
       setFinalLoading(false);
     }

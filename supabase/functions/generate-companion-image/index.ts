@@ -1,18 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-/** Same secrets as generate-image — xAI Console API key */
-function getXaiApiKey(): string | null {
-  return (
-    Deno.env.get("XAI_API_KEY")?.trim() ||
-    Deno.env.get("GROK_API_KEY")?.trim() ||
-    null
-  );
-}
 
 const DEFAULT_IMAGE_MODEL = "grok-imagine-image";
 
@@ -68,7 +60,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const apiKey = getXaiApiKey();
+    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
     if (!apiKey) {
       return new Response(
         JSON.stringify({

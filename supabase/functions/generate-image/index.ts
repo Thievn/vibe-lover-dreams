@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,15 +10,6 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-/** xAI / Grok: use same key as console.x.ai — set in Supabase Dashboard → Edge Functions → Secrets */
-function getXaiApiKey(): string | null {
-  return (
-    Deno.env.get("XAI_API_KEY")?.trim() ||
-    Deno.env.get("GROK_API_KEY")?.trim() ||
-    null
-  );
-}
-
 const DEFAULT_IMAGE_MODEL = "grok-imagine-image";
 
 serve(async (req) => {
@@ -26,7 +18,7 @@ serve(async (req) => {
   }
 
   try {
-    const apiKey = getXaiApiKey();
+    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
     if (!apiKey) {
       return new Response(
         JSON.stringify({

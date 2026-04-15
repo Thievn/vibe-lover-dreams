@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useAdminCompanions, type DbCompanion } from "@/hooks/useCompanions";
 import { COMPANION_RARITIES } from "@/lib/companionRarity";
 import { supabase } from "@/integrations/supabase/client";
+import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -148,7 +149,7 @@ const CompanionManager = () => {
         "generate-companion-image",
         { body: { companionId: companion.id, imagePrompt } }
       );
-      if (error) throw error;
+      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
       if (data?.error) throw new Error(data.error);
       toast.success("Portrait generated!");
       queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
@@ -244,7 +245,7 @@ const CompanionManager = () => {
       const { data, error } = await supabase.functions.invoke("parse-companion-prompt", {
         body: { prompt: autoFillPrompt },
       });
-      if (error) throw error;
+      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
       if (data?.error) throw new Error(data.error);
 
       const fields = data.fields;
@@ -302,7 +303,7 @@ const CompanionManager = () => {
           chatHistory: chatMessages.map((m) => ({ role: m.role, content: m.content })),
         },
       });
-      if (error) throw error;
+      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
       if (data?.error) throw new Error(data.error);
 
       if (data.type === "updates") {

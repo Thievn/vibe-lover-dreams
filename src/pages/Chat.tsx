@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { supabase } from "@/integrations/supabase/client";
+import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
 import { motion } from "framer-motion";
 import { ArrowLeft, Send, Loader2, Zap, AlertOctagon, Flame, Image as ImageIcon, Heart, Sparkles, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
@@ -186,7 +187,7 @@ const Chat = () => {
         },
       });
 
-      if (error) throw error;
+      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
       if (!data?.success) throw new Error(data?.error || "Image generation failed");
 
       const imageUrl = data.imageUrl;
