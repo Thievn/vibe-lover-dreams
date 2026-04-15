@@ -1,4 +1,5 @@
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { requireSessionUser } from "../_shared/requireSessionUser.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,6 +10,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  const sessionGate = await requireSessionUser(req);
+  if ("response" in sessionGate) return sessionGate.response;
 
   try {
     const { prompt, mode } = await req.json() as { prompt?: string; mode?: string };

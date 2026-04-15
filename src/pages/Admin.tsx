@@ -41,8 +41,7 @@ import CompanionManager from "@/components/admin/CompanionManager";
 import AdminForgeAssistant from "@/components/admin/AdminForgeAssistant";
 import { getGaMeasurementId } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
-
-const ADMIN_EMAIL = "lustforgeapp@gmail.com";
+import { isPlatformAdmin, platformAdminEmailDisplay } from "@/config/auth";
 const NEON = "#FF2D7B";
 
 const adminQueryClient = new QueryClient({
@@ -289,7 +288,7 @@ function AdminShell() {
         navigate("/auth", { replace: true });
         return;
       }
-      if (session.user.email !== ADMIN_EMAIL) {
+      if (!isPlatformAdmin(session.user)) {
         toast.error("Access denied. Admin only.");
         navigate("/dashboard", { replace: true });
         return;
@@ -440,7 +439,7 @@ function AdminShell() {
           ))}
         </nav>
         <div className="p-4 border-t border-border/60 text-[10px] text-muted-foreground uppercase tracking-widest">
-          LustForge AI · {ADMIN_EMAIL}
+          LustForge AI · {platformAdminEmailDisplay()}
         </div>
       </aside>
 

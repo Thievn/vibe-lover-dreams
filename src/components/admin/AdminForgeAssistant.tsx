@@ -173,7 +173,13 @@ export default function AdminForgeAssistant() {
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-[85] flex flex-col items-end gap-3 pointer-events-none">
+    <div
+      className="fixed z-[85] flex flex-col items-end gap-3 pointer-events-none"
+      style={{
+        bottom: "max(1.25rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))",
+        right: "max(1.25rem, calc(env(safe-area-inset-right, 0px) + 0.5rem))",
+      }}
+    >
       <AnimatePresence>
         {panelOpen && (
           <motion.div
@@ -182,7 +188,7 @@ export default function AdminForgeAssistant() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.96 }}
             transition={{ type: "spring", stiffness: 380, damping: 28 }}
-            className="pointer-events-auto w-[min(100vw-1.5rem,420px)] h-[min(72dvh,560px)] rounded-2xl border border-[#FF2D7B]/35 bg-[hsl(240_14%_6%)]/95 backdrop-blur-2xl shadow-[0_0_60px_rgba(255,45,123,0.18),0_24px_80px_rgba(0,0,0,0.55)] flex flex-col overflow-hidden ring-1 ring-white/[0.06]"
+            className="pointer-events-auto w-[min(100vw-1.25rem-env(safe-area-inset-left)-env(safe-area-inset-right),420px)] max-w-[calc(100vw-1rem-env(safe-area-inset-left)-env(safe-area-inset-right))] h-[min(72dvh,560px)] rounded-2xl border border-[#FF2D7B]/35 bg-[hsl(240_14%_6%)]/95 backdrop-blur-2xl shadow-[0_0_60px_rgba(255,45,123,0.18),0_24px_80px_rgba(0,0,0,0.55)] flex flex-col overflow-hidden ring-1 ring-white/[0.06]"
           >
             <div
               className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0"
@@ -351,15 +357,15 @@ export default function AdminForgeAssistant() {
           panelOpen
             ? { scale: [1, 1.04, 1], boxShadow: [`0 0 28px ${NEON}44`, `0 0 40px ${NEON}66`, `0 0 28px ${NEON}44`] }
             : {
-                y: [0, -9, 0, -5, 0],
-                rotate: [0, -4, 0, 3, 0],
-                scale: [1, 1.02, 1, 1.01, 1],
+                y: [0, -11, 0, -6, 0, -3, 0],
+                rotate: [0, -5, 0, 4, 0, -2, 0],
+                scale: [1, 1.04, 1, 1.02, 1, 1.01, 1],
               }
         }
         transition={
           panelOpen
             ? { duration: 1.8, repeat: Infinity, ease: "easeInOut" }
-            : { duration: 3.2, repeat: Infinity, ease: "easeInOut" }
+            : { duration: 2.8, repeat: Infinity, ease: "easeInOut" }
         }
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.94 }}

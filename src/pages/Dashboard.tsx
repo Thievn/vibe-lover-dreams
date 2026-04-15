@@ -33,8 +33,8 @@ import DiscoverCompanionsGallery from "@/components/DiscoverCompanionsGallery";
 import { Progress } from "@/components/ui/progress";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { companions, type Companion } from "@/data/companions";
+import { isPlatformAdmin } from "@/config/auth";
 
-const ADMIN_EMAIL = "lustforgeapp@gmail.com";
 const NEON_PINK = "#FF2D7B";
 
 type NavId = "dashboard" | "collection" | "discover" | "breeding" | "toy" | "history";
@@ -124,7 +124,7 @@ export default function Dashboard() {
   const profileRef = useRef<HTMLDivElement>(null);
   const greetingName = resolveGreetingName(user, profileDisplayName);
 
-  const isAdmin = user?.email === ADMIN_EMAIL;
+  const isAdmin = isPlatformAdmin(user);
 
   const refreshToy = useCallback(async (uid: string) => {
     try {

@@ -23,7 +23,10 @@ const signUpSchema = z
   });
 
 const signInSchema = z.object({
-  email: z.string().email("Enter a valid email address"),
+  identifier: z
+    .string()
+    .min(3, "Enter your email or username (at least 3 characters)")
+    .max(254, "Too long"),
   password: z.string().min(1, "Password required"),
 });
 
@@ -68,7 +71,7 @@ export default function Auth() {
   const signInForm = useForm<SignInFormData>({
     resolver: zodResolver(signInSchema),
     defaultValues: {
-      email: "",
+      identifier: "",
       password: "",
     },
   });
@@ -76,7 +79,7 @@ export default function Auth() {
   useEffect(() => {
     const saved = localStorage.getItem("identifier");
     if (saved && rememberMe) {
-      signInForm.setValue("email", saved);
+      signInForm.setValue("identifier", saved);
     }
   }, [rememberMe, signInForm]);
 
@@ -127,11 +130,21 @@ export default function Auth() {
     setLoading(true);
     try {
       if (rememberMe) {
-        localStorage.setItem("identifier", data.email);
+        localStorage.setItem("identifier", data.identifier.trim());
+      }
+
+      const raw = data.identifier.trim();
+      const { data: resolvedEmail, error: resolveErr } = await supabase.rpc("resolve_login_email", {
+        p_login: raw,
+      });
+      if (resolveErr) throw resolveErr;
+      const email = (resolvedEmail ?? "").trim().toLowerCase();
+      if (!email) {
+        throw new Error("Unknown email or username. Check spelling or use the email you signed up with.");
       }
 
       const { error } = await supabase.auth.signInWithPassword({
-        email: data.email,
+        email,
         password: data.password,
         options: {
           emailRedirectTo: `${window.location.origin}/dashboard`,
@@ -233,23 +246,38 @@ export default function Auth() {
         {mode === "signIn" ? (
           <form onSubmit={signInForm.handleSubmit(onSubmitSignIn)} className="space-y-4">
             <div>
+              <label htmlFor="auth-signin-identifier" className="block text-xs font-medium text-muted-foreground mb-1.5">
+                Email or username
+              </label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <input {...signInForm.register("email")} type="email" className={inputClass} placeholder="Email address" />
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <input
+                  id="auth-signin-identifier"
+                  {...signInForm.register("identifier")}
+                  type="text"
+                  autoComplete="username"
+                  className={inputClass}
+                  placeholder="you@email.com or Lustforge"
+                />
               </div>
-              {signInForm.formState.errors.email && (
-                <p className="text-xs text-destructive mt-1.5">{signInForm.formState.errors.email.message}</p>
+              {signInForm.formState.errors.identifier && (
+                <p className="text-xs text-destructive mt-1.5">{signInForm.formState.errors.identifier.message}</p>
               )}
             </div>
 
             <div>
+              <label htmlFor="auth-signin-password" className="block text-xs font-medium text-muted-foreground mb-1.5">
+                Password
+              </label>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <input
+                  id="auth-signin-password"
                   {...signInForm.register("password")}
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   className={`${inputClass} pr-11`}
-                  placeholder="Password"
+                  placeholder="Your password"
                 />
                 <button
                   type="button"
@@ -295,9 +323,22 @@ export default function Auth() {
         ) : (
           <form onSubmit={signUpForm.handleSubmit(onSubmitSignUp)} className="space-y-4">
             <div>
+              <label htmlFor="auth-signup-username" className="block text-xs font-medium text-muted-foreground mb-1.5">
+                Username
+              </label>
+              <p className="text-[10px] text-muted-foreground/90 mb-1.5 leading-snug">
+                Shown in the app and used to sign in instead of email, if unique.
+              </p>
               <div className="relative">
-                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <input {...signUpForm.register("username")} type="text" className={inputClass} placeholder="Username" />
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <input
+                  id="auth-signup-username"
+                  {...signUpForm.register("username")}
+                  type="text"
+                  autoComplete="username"
+                  className={inputClass}
+                  placeholder="Pick a display name"
+                />
               </div>
               {signUpForm.formState.errors.username && (
                 <p className="text-xs text-destructive mt-1.5">{signUpForm.formState.errors.username.message}</p>
@@ -305,9 +346,19 @@ export default function Auth() {
             </div>
 
             <div>
+              <label htmlFor="auth-signup-email" className="block text-xs font-medium text-muted-foreground mb-1.5">
+                Email
+              </label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <input {...signUpForm.register("email")} type="email" className={inputClass} placeholder="Email" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <input
+                  id="auth-signup-email"
+                  {...signUpForm.register("email")}
+                  type="email"
+                  autoComplete="email"
+                  className={inputClass}
+                  placeholder="you@example.com"
+                />
               </div>
               {signUpForm.formState.errors.email && (
                 <p className="text-xs text-destructive mt-1.5">{signUpForm.formState.errors.email.message}</p>
@@ -315,13 +366,18 @@ export default function Auth() {
             </div>
 
             <div>
+              <label htmlFor="auth-signup-password" className="block text-xs font-medium text-muted-foreground mb-1.5">
+                Password
+              </label>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <input
+                  id="auth-signup-password"
                   {...signUpForm.register("password")}
                   type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
                   className={`${inputClass} pr-11`}
-                  placeholder="Password"
+                  placeholder="At least 8 characters"
                 />
                 <button
                   type="button"
@@ -338,13 +394,18 @@ export default function Auth() {
             </div>
 
             <div>
+              <label htmlFor="auth-signup-confirm" className="block text-xs font-medium text-muted-foreground mb-1.5">
+                Confirm password
+              </label>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <input
+                  id="auth-signup-confirm"
                   {...signUpForm.register("confirmPassword")}
                   type={showConfirmPassword ? "text" : "password"}
+                  autoComplete="new-password"
                   className={`${inputClass} pr-11`}
-                  placeholder="Confirm password"
+                  placeholder="Re-enter password"
                 />
                 <button
                   type="button"

@@ -476,6 +476,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      resolve_login_email: {
+        Args: {
+          p_login: string
+        }
+        Returns: string | null
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

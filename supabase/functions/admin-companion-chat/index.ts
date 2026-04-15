@@ -1,5 +1,6 @@
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { buildForgeAssistantSystemPrompt } from "../_shared/forgeAssistantSystemPrompt.ts";
+import { requireAdminUser } from "../_shared/requireSessionUser.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,6 +11,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  const adminGate = await requireAdminUser(req);
+  if ("response" in adminGate) return adminGate.response;
 
   try {
     const { message, companions, chatHistory } = await req.json();

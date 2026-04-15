@@ -13,6 +13,7 @@ import Account from "./pages/Account";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import EighteenPlusDisclaimer from "./pages/EighteenPlusDisclaimer";
+import { isPlatformAdmin } from "@/config/auth";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Chat = lazy(() => import("./pages/Chat"));
@@ -86,14 +87,13 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const ADMIN_EMAIL = 'lustforgeapp@gmail.com';
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const authenticated = !!session;
-        const admin = authenticated && session?.user?.email === ADMIN_EMAIL;
+        const admin = authenticated && isPlatformAdmin(session?.user);
         setIsAuthenticated(authenticated);
         setIsAdmin(admin);
         setLoading(false);
@@ -113,7 +113,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       const authenticated = !!session;
-      const admin = authenticated && session?.user?.email === ADMIN_EMAIL;
+      const admin = authenticated && isPlatformAdmin(session?.user);
       setIsAuthenticated(authenticated);
       setIsAdmin(admin);
 

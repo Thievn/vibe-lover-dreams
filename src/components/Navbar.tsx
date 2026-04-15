@@ -2,6 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Flame, Shield, LogOut, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
+import { isPlatformAdmin } from "@/config/auth";
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -12,17 +13,14 @@ const Navbar = () => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
-
-      if (session?.user?.email === "lustforgeapp@gmail.com") {
-        setIsAdmin(true);
-      }
+      setIsAdmin(isPlatformAdmin(session?.user));
     };
 
     checkUser();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      setIsAdmin(session?.user?.email === "lustforgeapp@gmail.com");
+      setIsAdmin(isPlatformAdmin(session?.user));
     });
 
     return () => listener.subscription.unsubscribe();
