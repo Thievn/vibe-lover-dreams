@@ -110,6 +110,21 @@ const VIBES = [
   "Angelic",
 ] as const;
 
+/** Setting / atmosphere presets — combine with VIBES for up to 3 total vibe+theme picks */
+const THEME_PRESETS = [
+  "Neon cathedral",
+  "Acid rain alley",
+  "Obsidian ballroom",
+  "Orbital spa",
+  "Cursed library",
+  "Glass desert dawn",
+  "Submerged jazz bar",
+  "Velvet VIP lounge",
+  "Rain-slick rooftop",
+] as const;
+
+const VIBE_THEME_POOL: readonly string[] = [...VIBES, ...THEME_PRESETS];
+
 const ART_STYLES = [
   "Photorealistic",
   "Anime",
@@ -217,6 +232,26 @@ function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;
 }
 
+function toggleLimited(
+  prev: string[],
+  opt: string,
+  opts: { min: number; max: number; noun: string },
+): string[] {
+  if (prev.includes(opt)) {
+    const next = prev.filter((x) => x !== opt);
+    if (next.length < opts.min) {
+      toast.message(`Keep at least ${opts.min} ${opts.noun}.`);
+      return prev;
+    }
+    return next;
+  }
+  if (prev.length >= opts.max) {
+    toast.message(`You can pick up to ${opts.max} ${opts.noun}.`);
+    return prev;
+  }
+  return [...prev, opt];
+}
+
 function normalizeFantasyStartersFromFields(raw: unknown): { title: string; description: string }[] {
   if (!Array.isArray(raw)) return [];
   return (raw as Record<string, unknown>[])
@@ -277,9 +312,8 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
   const [namePrefix, setNamePrefix] = useState("");
   const [tagline, setTagline] = useState("");
   const [gender, setGender] = useState<string>(GENDERS[0]!);
-  const [personality, setPersonality] = useState<string>(PERSONALITIES[0]!);
-  const [vibe, setVibe] = useState<string>(VIBES[0]!);
-  const [theme, setTheme] = useState("");
+  const [personalitySelections, setPersonalitySelections] = useState<string[]>(() => [PERSONALITIES[0]!]);
+  const [vibeThemeSelections, setVibeThemeSelections] = useState<string[]>(() => [VIBES[0]!]);
   const [artStyle, setArtStyle] = useState<string>(ART_STYLES[0]!);
   const [bodyType, setBodyType] = useState<string>(BODY_TYPES[2]!);
   const [traits, setTraits] = useState<string[]>(["Tattoos", "Piercings"]);
@@ -327,6 +361,9 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
   }, [batchPreset, batchCustom]);
 
   const finalTotalCost = FINAL_COST_PER * batchCount;
+
+  const personalityLabel = useMemo(() => personalitySelections.join(" · "), [personalitySelections]);
+  const vibeThemeLabel = useMemo(() => vibeThemeSelections.join(" · "), [vibeThemeSelections]);
 
   const loadProfile = useCallback(async () => {
     const {
@@ -422,8 +459,8 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
 
   const appearanceBlurb = useMemo(() => {
     const t = traits.length ? traits.join(", ") : "no listed special traits";
-    return `${bodyType} build; ${gender}; ${artStyle} look; ${t}. Overall ${vibe} mood${theme ? ` — ${theme}` : ""}. ${extraNotes}`.trim();
-  }, [traits, bodyType, gender, artStyle, vibe, theme, extraNotes]);
+    return `${bodyType} build; ${gender}; ${artStyle} look; ${t}. Archetypes: ${personalityLabel}. Mood & world: ${vibeThemeLabel}. ${extraNotes}`.trim();
+  }, [traits, bodyType, gender, artStyle, personalityLabel, vibeThemeLabel, extraNotes]);
 
   const portraitAppearanceText = useMemo(
     () => narrativeAppearance.trim() || appearanceBlurb,
@@ -433,26 +470,26 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
   const grokPrompt = useMemo(() => {
     return [
       `Portrait of ${name || "an original companion"}: ${portraitAppearanceText}.`,
-      `Personality energy: ${personality}.`,
-      `Setting / aesthetic: ${vibe}${theme ? `, ${theme}` : ""}.`,
+      `Personality blend (weave all): ${personalityLabel}.`,
+      `Setting / aesthetic fusion: ${vibeThemeLabel}.`,
       `Render in ${artStyle} style, premium seductive SFW pin-up / romance cover quality.`,
       extraNotes ? `Notes: ${extraNotes}` : "",
       referenceNotes.trim() ? `Reference direction: ${referenceNotes.trim()}` : "",
     ]
       .filter(Boolean)
       .join(" ");
-  }, [name, portraitAppearanceText, personality, vibe, theme, artStyle, extraNotes, referenceNotes]);
+  }, [name, portraitAppearanceText, personalityLabel, vibeThemeLabel, artStyle, extraNotes, referenceNotes]);
 
   const buildSystemPromptFor = useCallback(
     (who: string) => {
       const n = who.trim() || "a custom AI companion";
-      return `You are ${n}, ${gender.toLowerCase()}, ${orientation}. Archetype: ${personality}. Visual & vibe: ${vibe}${theme ? ` (${theme})` : ""}, ${artStyle} aesthetic, ${bodyType} body, notable traits: ${traits.join(", ") || "none specified"}.
+      return `You are ${n}, ${gender.toLowerCase()}, ${orientation}. Archetype blend: ${personalityLabel}. Visual & world: ${vibeThemeLabel}, ${artStyle} aesthetic, ${bodyType} body, notable traits: ${traits.join(", ") || "none specified"}.
 
-Speak and act consistently with this persona. Stay immersive; respect safe words immediately. When toy control fits the scene and the user consents, you may end messages with: {"lovense_command":{"command":"vibrate","intensity":0-20,"duration":5000}}.
+Speak and act consistently with this persona — let every archetype thread show up in voice and behavior, not as a list. Stay immersive; respect safe words immediately. When toy control fits the scene and the user consents, you may end messages with: {"lovense_command":{"command":"vibrate","intensity":0-20,"duration":5000}}.
 
 User flavor notes: ${extraNotes || "none"}`;
     },
-    [gender, orientation, personality, vibe, theme, artStyle, bodyType, traits, extraNotes],
+    [gender, orientation, personalityLabel, vibeThemeLabel, artStyle, bodyType, traits, extraNotes],
   );
 
   const systemPrompt = useMemo(() => buildSystemPromptFor(name), [name, buildSystemPromptFor]);
@@ -539,12 +576,22 @@ User flavor notes: ${extraNotes || "none"}`;
     if (oHit) setOrientation(oHit);
 
     const pBlob = `${fields.personality || ""} ${fields.role || ""}`;
-    const pHit = PERSONALITIES.find((x) => pBlob.toLowerCase().includes(x.toLowerCase()));
-    if (pHit) setPersonality(pHit);
+    const pHits = PERSONALITIES.filter((x) => pBlob.toLowerCase().includes(x.toLowerCase())).slice(0, 3);
+    if (pHits.length) setPersonalitySelections(pHits);
+    else {
+      const one = PERSONALITIES.find((x) => pBlob.toLowerCase().includes(x.toLowerCase()));
+      if (one) setPersonalitySelections([one]);
+    }
 
     const tagArr = Array.isArray(fields.tags) ? fields.tags.map(String) : [];
-    const vHit = VIBES.find((v) => tagArr.some((t) => t.toLowerCase().includes(v.toLowerCase())));
-    if (vHit) setVibe(vHit);
+    const vtHits = VIBE_THEME_POOL.filter((v) =>
+      tagArr.some((t) => t.toLowerCase().includes(v.toLowerCase())),
+    ).slice(0, 3);
+    if (vtHits.length) setVibeThemeSelections(vtHits);
+    else {
+      const vOne = VIBES.find((v) => tagArr.some((t) => t.toLowerCase().includes(v.toLowerCase())));
+      if (vOne) setVibeThemeSelections([vOne]);
+    }
 
     const bHit = BODY_TYPES.find((b) => tagArr.some((t) => t.toLowerCase().includes(b.toLowerCase())));
     if (bHit) setBodyType(bHit);
@@ -559,26 +606,18 @@ User flavor notes: ${extraNotes || "none"}`;
   const randomizeForgeCharacter = async () => {
     setRouletteLoading(true);
     const g = pick(GENDERS);
-    const p = pick(PERSONALITIES);
-    const v = pick(VIBES);
-    const th = pick([
-      "neon cathedral",
-      "acid rain alley",
-      "obsidian ballroom",
-      "orbital spa",
-      "cursed library",
-      "glass desert dawn",
-      "submerged jazz bar",
-    ]);
+    const persCount = 1 + Math.floor(Math.random() * 3);
+    const pers = [...PERSONALITIES].sort(() => Math.random() - 0.5).slice(0, persCount);
+    const vibeCount = 1 + Math.floor(Math.random() * 3);
+    const vibesPicked = [...VIBE_THEME_POOL].sort(() => Math.random() - 0.5).slice(0, vibeCount);
     const ar = pick(ART_STYLES);
     const bt = pick(BODY_TYPES);
     const ori = pick(ORIENTATIONS);
     const shuffled = [...TRAITS].sort(() => Math.random() - 0.5).slice(0, 3 + Math.floor(Math.random() * 4));
 
     setGender(g);
-    setPersonality(p);
-    setVibe(v);
-    setTheme(th);
+    setPersonalitySelections(pers);
+    setVibeThemeSelections(vibesPicked);
     setArtStyle(ar);
     setBodyType(bt);
     setTraits(shuffled);
@@ -589,9 +628,8 @@ User flavor notes: ${extraNotes || "none"}`;
 
 Seeds:
 - gender leaning: ${g}
-- personality archetype: ${p}
-- vibe: ${v}
-- theme / setting hint: ${th}
+- personality archetypes (fuse ALL into one voice): ${pers.join(" · ")}
+- vibe / theme fusion: ${vibesPicked.join(" · ")}
 - art style: ${ar}
 - body type: ${bt}
 - orientation: ${ori}
@@ -600,7 +638,7 @@ Seeds:
 Hard requirements:
 1) name: evocative themed name (titles, epithets, surnames welcome). NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs.
 2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps.
-3) backstory: 3–4 paragraphs of premium dark-romance storytelling; do not restate tags as a recap.
+3) backstory: 3–4 paragraphs of premium dark-romance storytelling that weaves every archetype and vibe/theme into one coherent history — not a bullet recap of tags.
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
 5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences).
 6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
@@ -656,11 +694,11 @@ Hard requirements:
         style: artStyle.toLowerCase().replace(/\s+/g, "-"),
         randomize: false,
         bodyType,
-        vibe: `${vibe}. ${theme}`.trim(),
-        hair: `styled to match ${vibe} and ${artStyle}`,
+        vibe: vibeThemeLabel,
+        hair: `styled to match ${vibeThemeLabel} and ${artStyle}`,
         eyes: traits.includes("Glowing eyes") ? "striking glowing eyes" : "expressive, magnetic eyes",
-        clothing: `${vibe} fashion, luxurious textures, ${artStyle} presentation`,
-        expression: `${personality} energy`,
+        clothing: `fashion and textures echoing ${vibeThemeLabel}, ${artStyle} presentation`,
+        expression: `${personalityLabel} energy`,
         ethnicity: "any",
         ageRange: "young adult",
         pose: "three-quarter portrait, alluring confident pose",
@@ -678,11 +716,10 @@ Hard requirements:
     tagline,
     artStyle,
     bodyType,
-    vibe,
-    theme,
+    vibeThemeLabel,
     traits,
     gender,
-    personality,
+    personalityLabel,
     referencePalette,
     referenceNotes,
   ]);
@@ -831,13 +868,13 @@ Hard requirements:
       }
 
       const rowImagePrompt = name.trim() ? grokPrompt : grokPrompt.replace("an original companion", forgeName);
-      const defaultBio = `${forgeName} is a ${personality.toLowerCase()} ${gender.toLowerCase()} presence wrapped in ${vibe.toLowerCase()} aesthetics. ${tagline ? tagline + "." : ""} They move through the world with ${orientation.toLowerCase()} magnetism.`;
+      const defaultBio = `${forgeName} is a ${gender.toLowerCase()} presence blending ${personalityLabel.toLowerCase()} energy with ${vibeThemeLabel.toLowerCase()} aesthetics. ${tagline ? tagline + "." : ""} They move through the world with ${orientation.toLowerCase()} magnetism.`;
       const bioOut = hookBio.trim() || defaultBio;
       const backstoryOut = chronicleBackstory.trim() || hookBio.trim() || bioOut;
       const appearanceOut = portraitAppearanceText;
       const tagsOut = rosterTags.length
         ? rosterTags.slice(0, 12)
-        : [vibe, artStyle, bodyType, ...traits].filter(Boolean).slice(0, 12);
+        : [...personalitySelections, ...vibeThemeSelections, artStyle, bodyType, ...traits].filter(Boolean).slice(0, 12);
       const kinksOut = rosterKinks.length ? rosterKinks.slice(0, 16) : [];
       const imagePromptOut = packshotPrompt.trim() || rowImagePrompt;
 
@@ -852,11 +889,13 @@ Hard requirements:
         rows.push({
           user_id: userId,
           name: displayName,
-          personality: `${personality}. ${extraNotes}`.trim(),
-          tagline: tagline || `${vibe} · ${personality}`,
+          personality: `${personalityLabel}${extraNotes ? `. ${extraNotes}` : ""}`.trim(),
+          personality_archetypes: personalitySelections,
+          vibe_theme_selections: vibeThemeSelections,
+          tagline: tagline || `${vibeThemeLabel} · ${personalityLabel}`,
           gender,
           orientation,
-          role: personality,
+          role: personalitySelections[0] ?? "Switch",
           tags: tagsOut,
           kinks: kinksOut,
           appearance: appearanceOut,
@@ -875,7 +914,18 @@ Hard requirements:
       }
 
       // Omit gallery_credit_name on insert: older DBs without that column (PGRST204) still work.
-      const { data: insertedRows, error } = await supabase.from("custom_characters").insert(rows).select("id");
+      let insertRes = await supabase.from("custom_characters").insert(rows).select("id");
+      if (insertRes.error) {
+        const msg = formatSupabaseError(insertRes.error);
+        if (/personality_archetypes|vibe_theme_selections|PGRST204/i.test(msg)) {
+          const slimRows = rows.map((r) => {
+            const { personality_archetypes: _a, vibe_theme_selections: _v, ...rest } = r;
+            return rest;
+          });
+          insertRes = await supabase.from("custom_characters").insert(slimRows).select("id");
+        }
+      }
+      const { data: insertedRows, error } = insertRes;
       if (error) {
         if (!isAdmin) await addTokens(finalTotalCost);
         throw error;
@@ -1064,35 +1114,110 @@ Hard requirements:
 
               <AccordionItem value="personality" className="border-white/10 px-4">
                 <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
-                  Personality archetype
+                  Personality archetypes
                 </AccordionTrigger>
-                <AccordionContent className="pb-5">
-                  <PillGroup
-                    label="Archetype"
-                    options={PERSONALITIES}
-                    value={personality}
-                    onChange={setPersonality}
-                    cols="grid-cols-2 sm:grid-cols-2"
-                  />
+                <AccordionContent className="pb-5 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                      Pick 1–3 · woven into lore &amp; portrait
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const n = 1 + Math.floor(Math.random() * 3);
+                        setPersonalitySelections([...PERSONALITIES].sort(() => Math.random() - 0.5).slice(0, n));
+                      }}
+                      className="text-[10px] font-semibold uppercase tracking-wider px-3 py-1.5 rounded-lg border border-white/15 bg-black/40 text-[hsl(170_100%_70%)] hover:border-[hsl(170_100%_42%)]/50 transition-colors"
+                    >
+                      Randomize
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[280px] overflow-y-auto pr-1">
+                    {PERSONALITIES.map((opt) => {
+                      const on = personalitySelections.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() =>
+                            setPersonalitySelections((prev) =>
+                              toggleLimited(prev, opt, { min: 1, max: 3, noun: "archetypes" }),
+                            )
+                          }
+                          className={cn(
+                            "flex items-start gap-2 rounded-xl border px-2.5 py-2 text-left text-xs transition-all",
+                            on
+                              ? "text-white border-[#FF2D7B]/50 bg-[#FF2D7B]/[0.12]"
+                              : "border-white/10 bg-black/35 text-muted-foreground hover:border-white/20",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "mt-0.5 shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center",
+                              on ? "border-[#FF2D7B] bg-[#FF2D7B]/20" : "border-white/25",
+                            )}
+                          >
+                            {on ? <Check className="h-2.5 w-2.5" /> : null}
+                          </span>
+                          <span className="leading-snug">{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </AccordionContent>
               </AccordionItem>
 
               <AccordionItem value="world" className="border-white/10 px-4">
                 <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
-                  Vibe & theme
+                  Vibe &amp; theme
                 </AccordionTrigger>
-                <AccordionContent className="pb-5 space-y-5">
-                  <PillGroup label="Vibe" options={VIBES} value={vibe} onChange={setVibe} cols="grid-cols-2 sm:grid-cols-2" />
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
-                      Theme / setting (optional)
+                <AccordionContent className="pb-5 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                      Pick 1–3 · genre vibes + setting presets
                     </p>
-                    <input
-                      value={theme}
-                      onChange={(e) => setTheme(e.target.value)}
-                      placeholder="e.g. rain-slick rooftop, velvet VIP lounge…"
-                      className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const n = 1 + Math.floor(Math.random() * 3);
+                        setVibeThemeSelections([...VIBE_THEME_POOL].sort(() => Math.random() - 0.5).slice(0, n));
+                      }}
+                      className="text-[10px] font-semibold uppercase tracking-wider px-3 py-1.5 rounded-lg border border-white/15 bg-black/40 text-[hsl(170_100%_70%)] hover:border-[hsl(170_100%_42%)]/50 transition-colors"
+                    >
+                      Randomize
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1">
+                    {VIBE_THEME_POOL.map((opt) => {
+                      const on = vibeThemeSelections.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() =>
+                            setVibeThemeSelections((prev) =>
+                              toggleLimited(prev, opt, { min: 1, max: 3, noun: "vibe / theme picks" }),
+                            )
+                          }
+                          className={cn(
+                            "flex items-start gap-2 rounded-xl border px-2.5 py-2 text-left text-xs transition-all",
+                            on
+                              ? "text-white border-[hsl(170_100%_42%)]/50 bg-[hsl(170_100%_42%)]/10"
+                              : "border-white/10 bg-black/35 text-muted-foreground hover:border-white/20",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "mt-0.5 shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center",
+                              on ? "border-[hsl(170_100%_42%)] bg-[hsl(170_100%_42%)]/15" : "border-white/25",
+                            )}
+                          >
+                            {on ? <Check className="h-2.5 w-2.5" /> : null}
+                          </span>
+                          <span className="leading-snug">{opt}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </AccordionContent>
               </AccordionItem>
@@ -1527,14 +1652,16 @@ Hard requirements:
                         </h2>
                         <p className="text-[11px] text-white/75 italic mt-1 relative line-clamp-2">{tagline || "Your fantasy, forged live."}</p>
                         <div className="mt-2 flex flex-wrap gap-1 relative">
-                          {[gender, personality, vibe, artStyle, bodyType].map((x) => (
-                            <span
-                              key={x}
-                              className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/50 border border-white/10 text-white/90 max-w-[9rem] truncate"
-                            >
-                              {x}
-                            </span>
-                          ))}
+                          {[gender, artStyle, bodyType, ...personalitySelections.slice(0, 3), ...vibeThemeSelections.slice(0, 3)].map(
+                            (x, i) => (
+                              <span
+                                key={`${x}-${i}`}
+                                className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/50 border border-white/10 text-white/90 max-w-[9rem] truncate"
+                              >
+                                {x}
+                              </span>
+                            ),
+                          )}
                         </div>
                       </motion.div>
                     )}
@@ -1617,9 +1744,8 @@ Hard requirements:
                             systemPrompt,
                             gender,
                             orientation,
-                            personality,
-                            vibe,
-                            theme,
+                            personalitySelections,
+                            vibeThemeSelections,
                             artStyle,
                             bodyType,
                             traits,

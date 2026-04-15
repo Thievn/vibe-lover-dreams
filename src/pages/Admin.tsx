@@ -137,6 +137,7 @@ function AdminShell() {
   const [profilesLoading, setProfilesLoading] = useState(false);
   const [waitlist, setWaitlist] = useState<WaitlistRow[]>([]);
   const [waitlistError, setWaitlistError] = useState<string | null>(null);
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
   const [selectedUser, setSelectedUser] = useState<ProfileRow | null>(null);
   const [grantAmount, setGrantAmount] = useState("500");
   const [grantLoading, setGrantLoading] = useState(false);
@@ -151,17 +152,17 @@ function AdminShell() {
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
     try {
-      const { count: totalUsers } = await supabase.from("profiles").select("id", { count: "exact", head: true });
-      const { count: totalCompanions } = await supabase.from("companions").select("id", { count: "exact", head: true });
-      const { count: customCount } = await supabase.from("custom_characters").select("id", { count: "exact", head: true });
-
-      let imagesGenerated = 0;
+      const profilesCountRes = await supabase.from("profiles").select("id", { count: "exact", head: true });
+      const stockRes = await supabase.from("companions").select("id", { count: "exact", head: true });
+      const customRes = await supabase.from("custom_characters").select("id", { count: "exact", head: true });
       const imgRes = await supabase.from("generated_images").select("id", { count: "exact", head: true });
-      if (!imgRes.error && imgRes.count != null) imagesGenerated = imgRes.count;
-
-      let waitlistSignups = 0;
       const wlRes = await supabase.from("waitlist").select("id", { count: "exact", head: true });
-      if (!wlRes.error && wlRes.count != null) waitlistSignups = wlRes.count;
+
+      const totalUsers = profilesCountRes.error ? 0 : (profilesCountRes.count ?? 0);
+      const totalCompanions = stockRes.error ? 0 : (stockRes.count ?? 0);
+      const customCount = customRes.error ? 0 : (customRes.count ?? 0);
+      const imagesGenerated = imgRes.error ? 0 : (imgRes.count ?? 0);
+      const waitlistSignups = wlRes.error ? 0 : (wlRes.count ?? 0);
 
       const { data: paying } = await supabase
         .from("profiles")
@@ -170,11 +171,11 @@ function AdminShell() {
       const { data: toys } = await supabase.from("profiles").select("id").not("device_uid", "is", null);
 
       setStats({
-        totalUsers: totalUsers ?? 0,
+        totalUsers,
         waitlistSignups,
-        totalCompanions: totalCompanions ?? 0,
+        totalCompanions,
         imagesGenerated,
-        companionsCreatedCustom: customCount ?? 0,
+        companionsCreatedCustom: customCount,
         revenueMrr: (paying?.length ?? 0) * 19.99,
         toysLinked: toys?.length ?? 0,
       });
@@ -270,14 +271,19 @@ function AdminShell() {
   }, []);
 
   const loadWaitlist = useCallback(async () => {
+    setWaitlistLoading(true);
     setWaitlistError(null);
-    const { data, error } = await supabase.from("waitlist").select("*").order("created_at", { ascending: false });
-    if (error) {
-      setWaitlistError(error.message);
+    try {
+      const { data, error } = await supabase.from("waitlist").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      setWaitlist((data || []) as WaitlistRow[]);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to load waitlist";
+      setWaitlistError(msg);
       setWaitlist([]);
-      return;
+    } finally {
+      setWaitlistLoading(false);
     }
-    setWaitlist((data || []) as WaitlistRow[]);
   }, []);
 
   useEffect(() => {
@@ -309,7 +315,8 @@ function AdminShell() {
     if (authLoading) return;
     void loadStats();
     void loadAnalytics();
-  }, [authLoading, loadStats, loadAnalytics]);
+    void loadWaitlist();
+  }, [authLoading, loadStats, loadAnalytics, loadWaitlist]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -475,9 +482,14 @@ function AdminShell() {
               onRefresh={() => {
                 void loadStats();
                 void loadAnalytics();
+                void loadWaitlist();
               }}
               trendData={trendData}
               barData={barData}
+              waitlistPreview={waitlist}
+              waitlistLoading={waitlistLoading}
+              waitlistError={waitlistError}
+              onOpenWaitlist={() => setSection("waitlist")}
             />
           )}
           {section === "creator" && (
@@ -668,6 +680,10 @@ function OverviewSection({
   onRefresh,
   trendData,
   barData,
+  waitlistPreview,
+  waitlistLoading,
+  waitlistError,
+  onOpenWaitlist,
 }: {
   stats: StatsShape;
   statsLoading: boolean;
@@ -675,15 +691,18 @@ function OverviewSection({
   onRefresh: () => void;
   trendData: TrendPoint[];
   barData: { name: string; value: number }[];
+  waitlistPreview: WaitlistRow[];
+  waitlistLoading: boolean;
+  waitlistError: string | null;
+  onOpenWaitlist: () => void;
 }) {
   const s = stats;
   const cards = [
-    { label: "Total users", value: s.totalUsers, sub: "profiles", color: "text-primary", glow: true },
-    { label: "Waitlist", value: s.waitlistSignups, sub: "signups", color: "text-velvet-purple" },
-    { label: "Images generated", value: s.imagesGenerated, sub: "tracked rows", color: "text-accent" },
-    { label: "Stock companions", value: s.totalCompanions, sub: "catalog", color: "text-primary/80" },
-    { label: "Custom forged", value: s.companionsCreatedCustom, sub: "user creations", color: "text-accent/90" },
-    { label: "Est. MRR", value: `$${s.revenueMrr.toFixed(2)}`, sub: "stripe-linked × tier", color: "text-emerald-400" },
+    { label: "Total registered users", value: s.totalUsers, sub: "profiles", color: "text-primary", glow: true },
+    { label: "Waitlist signups", value: s.waitlistSignups, sub: "waitlist table", color: "text-velvet-purple" },
+    { label: "Images generated", value: s.imagesGenerated, sub: "generated_images", color: "text-accent" },
+    { label: "Stock companions", value: s.totalCompanions, sub: "catalog (companions)", color: "text-primary/80" },
+    { label: "Custom forges", value: s.companionsCreatedCustom, sub: "custom_characters", color: "text-accent/90" },
   ];
 
   return (
@@ -704,7 +723,7 @@ function OverviewSection({
         </button>
       </div>
 
-      <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {cards.map((c, i) => (
           <motion.div
             key={c.label}
@@ -723,6 +742,54 @@ function OverviewSection({
             <p className="text-[11px] text-muted-foreground mt-1">{c.sub}</p>
           </motion.div>
         ))}
+      </div>
+
+      <div className="rounded-2xl border border-border/80 bg-card/40 backdrop-blur-md overflow-hidden">
+        <div className="px-5 py-4 border-b border-border/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h3 className="font-gothic text-lg text-foreground">Waitlist (live)</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Latest entries from the waitlist table</p>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenWaitlist}
+            className="text-xs font-semibold uppercase tracking-wider px-4 py-2 rounded-xl border border-primary/40 text-primary hover:bg-primary/10 transition-colors shrink-0"
+            style={{ color: NEON }}
+          >
+            Full waitlist
+          </button>
+        </div>
+        {waitlistError ? (
+          <p className="p-5 text-sm text-destructive">{waitlistError}</p>
+        ) : waitlistLoading ? (
+          <div className="flex items-center justify-center gap-2 py-14 text-muted-foreground text-sm">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Loading entries…
+          </div>
+        ) : waitlistPreview.length === 0 ? (
+          <p className="p-5 text-sm text-muted-foreground">No waitlist rows yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/60 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <th className="p-4">Email</th>
+                  <th className="p-4 w-44">Signed up</th>
+                </tr>
+              </thead>
+              <tbody>
+                {waitlistPreview.slice(0, 12).map((w) => (
+                  <tr key={w.id} className="border-b border-border/40 hover:bg-white/[0.03]">
+                    <td className="p-4 font-mono text-xs">{w.email}</td>
+                    <td className="p-4 text-muted-foreground text-xs">
+                      {new Date(w.created_at).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-5 gap-6">

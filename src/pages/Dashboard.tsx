@@ -809,11 +809,17 @@ function DashboardHome({
                   className="w-full flex items-center gap-3 rounded-xl border border-border/60 bg-black/30 p-2 text-left hover:border-primary/35 transition-colors group"
                 >
                   <div
-                    className="h-12 w-10 rounded-lg shrink-0"
+                    className="h-12 w-10 rounded-lg shrink-0 overflow-hidden border border-white/10"
                     style={{
-                      background: `linear-gradient(135deg, ${c.gradientFrom}, ${c.gradientTo})`,
+                      background: c.portraitUrl
+                        ? undefined
+                        : `linear-gradient(135deg, ${c.gradientFrom}, ${c.gradientTo})`,
                     }}
-                  />
+                  >
+                    {c.portraitUrl ? (
+                      <img src={c.portraitUrl} alt="" className="w-full h-full object-cover object-top" />
+                    ) : null}
+                  </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
                       {c.name}
@@ -880,8 +886,21 @@ function MiniCompanionCard({ companion: c, index }: { companion: Companion; inde
       <Link to={`/companions/${c.id}`} className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded-2xl">
         <div
           className="aspect-[3/4] relative"
-          style={{ background: `linear-gradient(160deg, ${c.gradientFrom}, ${c.gradientTo})` }}
+          style={{
+            background: c.portraitUrl
+              ? undefined
+              : `linear-gradient(160deg, ${c.gradientFrom}, ${c.gradientTo})`,
+          }}
         >
+          {c.portraitUrl ? (
+            <img
+              src={c.portraitUrl}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover object-top"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
+          ) : null}
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
           <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-black/50 border border-white/10 text-[9px] font-bold uppercase tracking-wider text-white/90">
             {c.role}

@@ -47,7 +47,7 @@ const CompanionManager = () => {
     queryFn: async () => {
       const { data, error: qErr } = await supabase
         .from("custom_characters")
-        .select("id,name,user_id,is_public,approved,created_at,image_url,tagline")
+        .select("id,name,user_id,is_public,approved,created_at,image_url,avatar_url,tagline")
         .order("created_at", { ascending: false })
         .limit(80);
       if (qErr) throw qErr;
@@ -753,8 +753,13 @@ const CompanionManager = () => {
                 className="flex items-stretch gap-3 text-xs border border-border/60 rounded-xl p-3 bg-gradient-to-br from-black/40 to-muted/20"
               >
                 <div className="w-14 h-20 rounded-lg overflow-hidden shrink-0 border border-white/10 bg-muted">
-                  {row.image_url ? (
-                    <img src={row.image_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  {row.image_url || row.avatar_url ? (
+                    <img
+                      src={(row.image_url || row.avatar_url)!}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-lg font-bold text-white/50">
                       {(row.name || "?").charAt(0)}

@@ -150,6 +150,7 @@ export type Database = {
           name: string
           orientation: string
           personality: string
+          personality_archetypes: string[] | null
           rarity: string
           rarity_border_overlay_url: string | null
           role: string
@@ -159,6 +160,7 @@ export type Database = {
           tags: string[]
           updated_at: string
           user_id: string
+          vibe_theme_selections: string[] | null
         }
         Insert: {
           animated_image_url?: string | null
@@ -181,6 +183,7 @@ export type Database = {
           name: string
           orientation?: string
           personality?: string
+          personality_archetypes?: string[] | null
           rarity?: string
           rarity_border_overlay_url?: string | null
           role?: string
@@ -190,6 +193,7 @@ export type Database = {
           tags?: string[]
           updated_at?: string
           user_id: string
+          vibe_theme_selections?: string[] | null
         }
         Update: {
           animated_image_url?: string | null
@@ -212,6 +216,7 @@ export type Database = {
           name?: string
           orientation?: string
           personality?: string
+          personality_archetypes?: string[] | null
           rarity?: string
           rarity_border_overlay_url?: string | null
           role?: string
@@ -221,6 +226,7 @@ export type Database = {
           tags?: string[]
           updated_at?: string
           user_id?: string
+          vibe_theme_selections?: string[] | null
         }
         Relationships: []
       }

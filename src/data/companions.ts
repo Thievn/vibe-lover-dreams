@@ -20,6 +20,8 @@ export interface Companion {
   rarity?: CompanionRarity;
   /** Long-form profile copy when set in DB. */
   backstory?: string;
+  /** Resolved still portrait (DB URL, static asset, or enriched from generated_images). */
+  portraitUrl?: string | null;
 }
 
 export const companions: Companion[] = [

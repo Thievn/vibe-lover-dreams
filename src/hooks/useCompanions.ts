@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { companions as staticCompanions, type Companion } from "@/data/companions";
 import { getStaticRarityForCatalog, normalizeCompanionRarity } from "@/lib/companionRarity";
+import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 
 export interface DbCompanion {
   id: string;
@@ -31,6 +32,8 @@ export interface DbCompanion {
   rarity_border_overlay_url: string | null;
   /** Community forge cards only — creator display name when they opted in */
   gallery_credit_name?: string | null;
+  personality_archetypes?: string[] | null;
+  vibe_theme_selections?: string[] | null;
 }
 
 function coerceStockRow(row: Record<string, unknown>): DbCompanion {
@@ -93,7 +96,69 @@ function customRowToDbCompanion(row: Record<string, unknown>): DbCompanion {
     static_image_url: (row.static_image_url as string | null | undefined) ?? null,
     animated_image_url: (row.animated_image_url as string | null | undefined) ?? null,
     rarity_border_overlay_url: (row.rarity_border_overlay_url as string | null | undefined) ?? null,
+    personality_archetypes: Array.isArray(row.personality_archetypes)
+      ? (row.personality_archetypes as string[])
+      : null,
+    vibe_theme_selections: Array.isArray(row.vibe_theme_selections)
+      ? (row.vibe_theme_selections as string[])
+      : null,
   };
+}
+
+/** If forge row has no portrait URL, reuse the latest generated_images row for this companion. */
+async function attachLatestGeneratedPortraits(
+  rawRows: Record<string, unknown>[],
+  userId: string,
+): Promise<void> {
+  const need = rawRows.filter((r) => !r.image_url && !r.static_image_url && r.id);
+  if (!need.length) return;
+  const keys = need.map((r) => `cc-${String(r.id)}`);
+  const { data, error } = await supabase
+    .from("generated_images")
+    .select("companion_id, image_url, created_at")
+    .eq("user_id", userId)
+    .in("companion_id", keys)
+    .order("created_at", { ascending: false });
+  if (error || !data?.length) return;
+  const best = new Map<string, string>();
+  for (const g of data) {
+    const cid = g.companion_id;
+    if (!cid || best.has(cid)) continue;
+    if (g.image_url) best.set(cid, g.image_url);
+  }
+  for (const r of need) {
+    const k = `cc-${String(r.id)}`;
+    const url = best.get(k);
+    if (url) r.image_url = url;
+  }
+}
+
+/** Match forge preview rows in companion_portraits by user_id + normalized name (latest name match wins). */
+async function attachCompanionPortraitByName(
+  rawRows: Record<string, unknown>[],
+  userId: string,
+): Promise<void> {
+  const need = rawRows.filter((r) => !r.image_url && !r.static_image_url && r.name);
+  if (!need.length) return;
+  const { data: portraits, error } = await supabase
+    .from("companion_portraits")
+    .select("image_url, name, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(300);
+  if (error || !portraits?.length) return;
+  const norm = (s: string) => s.toLowerCase().trim().replace(/\s+/g, " ");
+  const bestByName = new Map<string, string>();
+  for (const p of portraits) {
+    const key = norm(String(p.name ?? ""));
+    if (!key || bestByName.has(key)) continue;
+    if (p.image_url) bestByName.set(key, p.image_url);
+  }
+  for (const r of need) {
+    const key = norm(String(r.name ?? ""));
+    const url = bestByName.get(key);
+    if (url) r.image_url = url;
+  }
 }
 
 async function fetchPublicCustomCharacters(): Promise<DbCompanion[]> {
@@ -124,7 +189,10 @@ async function fetchMyCustomCharacters(userId: string): Promise<DbCompanion[]> {
     console.error("Error fetching my custom characters:", error);
     return [];
   }
-  return (data || []).map((row) => customRowToDbCompanion(row as Record<string, unknown>));
+  const raw = (data || []) as Record<string, unknown>[];
+  await attachLatestGeneratedPortraits(raw, userId);
+  await attachCompanionPortraitByName(raw, userId);
+  return raw.map((row) => customRowToDbCompanion(row));
 }
 
 function staticListToDb(): DbCompanion[] {
@@ -176,6 +244,7 @@ export const dbToCompanion = (db: DbCompanion): Companion => ({
   gradientTo: db.gradient_to,
   rarity: normalizeCompanionRarity(db.rarity),
   backstory: db.backstory?.trim() ? db.backstory : undefined,
+  portraitUrl: galleryStaticPortraitUrl(db, db.id) ?? null,
 });
 
 export const useCompanions = () => {
