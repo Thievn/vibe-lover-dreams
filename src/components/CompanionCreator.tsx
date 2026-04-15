@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
+import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { formatSupabaseError } from "@/lib/supabaseError";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +32,8 @@ export type CompanionCreatorMode = "user" | "admin";
 export interface CompanionCreatorProps {
   mode?: CompanionCreatorMode;
   embedded?: boolean;
+  /** Admin: called after a successful forge so parent can switch tabs (e.g. Character management). */
+  onForged?: () => void;
 }
 
 const GENDERS = [
@@ -170,7 +172,7 @@ function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;
 }
 
-export default function CompanionCreator({ mode = "user", embedded = false }: CompanionCreatorProps) {
+export default function CompanionCreator({ mode = "user", embedded = false, onForged }: CompanionCreatorProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isAdmin = mode === "admin";
@@ -370,33 +372,8 @@ User flavor notes: ${extraNotes || "none"}`;
         },
       };
 
-      // Refresh first so the next request picks up a valid access token. Do not pass a manual
-      // `Authorization` header here: supabase-js fetchWithAuth skips injecting a fresh JWT if
-      // Authorization is already set, which can leave a stale token and cause "Invalid JWT".
-      await supabase.auth.refreshSession();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error("Sign in again to run live preview.");
-      }
-
-      const invokePreview = () =>
-        supabase.functions.invoke<{
-          success?: boolean;
-          imageUrl?: string;
-          error?: string;
-        }>("generate-image", { body: previewBody });
-
-      let { data, error } = await invokePreview();
-      if (error) {
-        const firstMsg = await getEdgeFunctionInvokeMessage(error, data);
-        if (/invalid\s+jwt/i.test(firstMsg)) {
-          await supabase.auth.refreshSession();
-          ({ data, error } = await invokePreview());
-        }
-      }
-      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
+      const { data, error } = await invokeGenerateImage(previewBody);
+      if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Generation failed");
       if (!data.imageUrl) throw new Error("No image URL returned");
       setPreviewUrl(data.imageUrl);
@@ -497,11 +474,15 @@ User flavor notes: ${extraNotes || "none"}`;
         batchCount === 1
           ? saveVisibility === "public" && !isAdmin
             ? "Companion forged — live on the public gallery."
-            : "Companion bound to your vault."
+            : isAdmin
+              ? "Companion saved — see Community forge below."
+              : "Companion bound to your vault."
           : `${batchCount} companions forged.`,
       );
       void queryClient.invalidateQueries({ queryKey: ["companions"] });
-      if (!embedded && mode === "user") navigate("/dashboard");
+      void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
+      if (isAdmin && onForged) onForged();
+      else if (!embedded && mode === "user") navigate("/dashboard", { state: { activeNav: "collection" } });
     } catch (e: unknown) {
       toast.error(formatSupabaseError(e));
     } finally {
@@ -584,9 +565,9 @@ User flavor notes: ${extraNotes || "none"}`;
           </button>
         )}
 
-        <div className="flex flex-col xl:flex-row xl:items-start gap-10 max-w-[1680px] mx-auto">
-          {/* Controls */}
-          <div className="w-full xl:w-[min(560px,44%)] shrink-0 space-y-5">
+        <div className="flex flex-col lg:flex-row lg:items-start gap-6 lg:gap-8 max-w-[1700px] mx-auto">
+          {/* Controls — scrolls independently on desktop while preview stays pinned */}
+          <div className="order-2 lg:order-1 w-full lg:flex-1 lg:min-w-0 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-2 lg:pb-4 overscroll-contain space-y-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-[#FF2D7B]/90 mb-2">Forge Studio</p>
@@ -865,17 +846,17 @@ User flavor notes: ${extraNotes || "none"}`;
             </Accordion>
           </div>
 
-          {/* Preview + actions */}
-          <div className="flex-1 min-w-0 xl:sticky xl:top-8 space-y-5">
+          {/* Preview — TCG-sized (~63×88mm), sticky right on desktop; on mobile shown above options */}
+          <div className="order-1 lg:order-2 w-full lg:w-[276px] xl:w-[288px] shrink-0 lg:sticky lg:top-20 lg:self-start space-y-4">
             <div className={cn(panelClass, "overflow-hidden")}>
-              <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-white/[0.03] backdrop-blur-md">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 bg-white/[0.03] backdrop-blur-md">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
                   Live preview
                 </span>
-                <span className="text-[10px] text-muted-foreground/80">Updates with your selections</span>
+                <span className="text-[9px] text-muted-foreground/80 hidden sm:inline">TCG · pins while you scroll</span>
               </div>
-              <div className="p-5 sm:p-7">
-                <div className="relative aspect-[3/4] max-h-[min(78vh,840px)] mx-auto rounded-2xl overflow-hidden border border-[#FF2D7B]/20">
+              <div className="p-4 sm:p-5">
+                <div className="relative aspect-[63/88] w-full max-w-[252px] mx-auto lg:mx-0 rounded-xl overflow-hidden border border-[#FF2D7B]/25 shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
                   <AnimatePresence mode="wait">
                     {previewUrl ? (
                       <motion.img
@@ -892,22 +873,22 @@ User flavor notes: ${extraNotes || "none"}`;
                         key="grad"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className="absolute inset-0 flex flex-col justify-end p-6 sm:p-8"
+                        className="absolute inset-0 flex flex-col justify-end p-3 sm:p-4"
                         style={{
                           background: `linear-gradient(160deg, #0a0508, ${NEON}44, hsl(280 40% 18%), hsl(170 25% 12%))`,
                         }}
                       >
                         <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_30%_20%,white,transparent_45%)]" />
-                        <p className="text-[10px] uppercase tracking-[0.35em] text-white/55 mb-2 relative">Spec sheet</p>
-                        <h2 className="font-gothic text-2xl sm:text-4xl text-white relative leading-tight drop-shadow-[0_0_24px_rgba(255,45,123,0.35)]">
+                        <p className="text-[8px] uppercase tracking-[0.28em] text-white/55 mb-1 relative">Spec sheet</p>
+                        <h2 className="font-gothic text-lg sm:text-xl text-white relative leading-tight drop-shadow-[0_0_16px_rgba(255,45,123,0.35)] line-clamp-2">
                           {name || "Unnamed desire"}
                         </h2>
-                        <p className="text-sm text-white/75 italic mt-2 relative line-clamp-2">{tagline || "Your fantasy, forged live."}</p>
-                        <div className="mt-4 flex flex-wrap gap-2 relative">
+                        <p className="text-[11px] text-white/75 italic mt-1 relative line-clamp-2">{tagline || "Your fantasy, forged live."}</p>
+                        <div className="mt-2 flex flex-wrap gap-1 relative">
                           {[gender, personality, vibe, artStyle, bodyType].map((x) => (
                             <span
                               key={x}
-                              className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md bg-black/50 border border-white/10 text-white/90"
+                              className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/50 border border-white/10 text-white/90 max-w-[9rem] truncate"
                             >
                               {x}
                             </span>
@@ -925,7 +906,7 @@ User flavor notes: ${extraNotes || "none"}`;
                 </div>
 
                 {/* Generate actions directly under preview */}
-                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <div className="mt-4 grid gap-2.5 grid-cols-1">
                   <motion.button
                     type="button"
                     whileHover={{ scale: 1.01 }}

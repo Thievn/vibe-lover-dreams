@@ -477,18 +477,36 @@ function AdminShell() {
           )}
           {section === "creator" && (
             <div className="rounded-[1.75rem] border border-border/80 bg-card/30 backdrop-blur-md overflow-hidden">
-              <div className="px-6 py-4 border-b border-border/60 flex items-center justify-between">
+              <div className="px-6 py-4 border-b border-border/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <h2 className="font-gothic text-2xl gradient-vice-text">Companion Forge</h2>
-                <span className="text-xs text-muted-foreground uppercase tracking-widest">Admin · no token cost</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSection("characters")}
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg border border-border/80 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+                  >
+                    Character management
+                  </button>
+                  <span className="text-xs text-muted-foreground uppercase tracking-widest">Admin · no token cost</span>
+                </div>
               </div>
-              <div className="p-4 md:p-6">
-                <CompanionCreator mode="admin" embedded />
+              <div className="p-4 md:p-6 min-h-0 max-h-[min(92dvh,1100px)] overflow-y-auto">
+                <CompanionCreator mode="admin" embedded onForged={() => setSection("characters")} />
               </div>
             </div>
           )}
           {section === "characters" && (
             <div className="rounded-[1.75rem] border border-border/80 bg-card/40 backdrop-blur-md p-4 md:p-6">
-              <h2 className="font-gothic text-2xl gradient-vice-text mb-6">Character management</h2>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                <h2 className="font-gothic text-2xl gradient-vice-text">Character management</h2>
+                <button
+                  type="button"
+                  onClick={() => setSection("creator")}
+                  className="shrink-0 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold border border-primary/40 text-primary hover:bg-primary/10 transition-colors"
+                >
+                  Open Companion Forge
+                </button>
+              </div>
               <CompanionManager />
             </div>
           )}

@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useAdminCompanions, type DbCompanion } from "@/hooks/useCompanions";
 import { COMPANION_RARITIES } from "@/lib/companionRarity";
 import { supabase } from "@/integrations/supabase/client";
@@ -47,6 +49,18 @@ const emptyCompanion: Omit<DbCompanion, "created_at" | "updated_at"> = {
 
 const CompanionManager = () => {
   const { data: companions, isLoading, error } = useAdminCompanions();
+  const { data: forgedRows = [], isLoading: forgedLoading } = useQuery({
+    queryKey: ["admin-custom-characters"],
+    queryFn: async () => {
+      const { data, error: qErr } = await supabase
+        .from("custom_characters")
+        .select("id,name,user_id,is_public,approved,created_at")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (qErr) throw qErr;
+      return data ?? [];
+    },
+  });
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -612,6 +626,50 @@ const CompanionManager = () => {
   // LIST VIEW
   return (
     <div className="space-y-4">
+      <div className="rounded-xl border border-accent/25 bg-accent/5 p-4 space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h3 className="text-sm font-semibold text-foreground">Community forge saves</h3>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">custom_characters</span>
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Entries created from <strong className="text-foreground/90">Companion Forge → Create</strong>. Catalog rows
+          are listed below under stock companions.
+        </p>
+        {forgedLoading ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+            <Loader2 className="h-4 w-4 animate-spin shrink-0" /> Loading forged rows…
+          </div>
+        ) : forgedRows.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-1">No community forge rows yet.</p>
+        ) : (
+          <ul className="space-y-2 max-h-52 overflow-y-auto pr-1">
+            {forgedRows.map((row) => (
+              <li
+                key={row.id}
+                className="flex items-center justify-between gap-2 text-xs border border-border/60 rounded-lg px-3 py-2 bg-black/30"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-foreground truncate">{row.name}</p>
+                  <p className="text-[10px] text-muted-foreground font-mono truncate">{row.user_id}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <span className="text-[10px] text-muted-foreground">
+                    {row.is_public ? "Public" : "Private"}
+                    {row.approved ? " · approved" : ""}
+                  </span>
+                  <Link
+                    to={`/companions/cc-${row.id}`}
+                    className="text-primary hover:underline text-[10px] font-medium"
+                  >
+                    Open profile
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

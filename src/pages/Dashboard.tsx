@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import type { User } from "@supabase/supabase-js";
 import {
@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import ParticleBackground from "@/components/ParticleBackground";
 import DiscoverCompanionsGallery from "@/components/DiscoverCompanionsGallery";
 import { Progress } from "@/components/ui/progress";
+import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { companions, type Companion } from "@/data/companions";
 
 const ADMIN_EMAIL = "lustforgeapp@gmail.com";
@@ -56,7 +57,6 @@ const DASHBOARD_STATS = [
 ] as const;
 
 const HOT_IDS = ["lilith-vesper", "jax-harlan", "kira-lux", "elara-moon", "zara-eclipse"];
-const COLLECTION_PREVIEW = companions.slice(0, 8);
 
 const RECENT_ACTIVITY = [
   { t: "2m ago", msg: "Lilith Vesper sent a pulse pattern to your toy.", tone: "pink" as const },
@@ -100,6 +100,15 @@ function initialsFromGreeting(name: string): string {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { data: dbCompanions = [], isLoading: companionsLoading } = useCompanions();
+  const allCompanions = useMemo(() => dbCompanions.map(dbToCompanion), [dbCompanions]);
+  const collectionPreview = useMemo(() => allCompanions.slice(0, 12), [allCompanions]);
+  const hotPicks = useMemo(() => {
+    const hot = allCompanions.filter((c) => HOT_IDS.includes(c.id));
+    return hot.length > 0 ? hot : allCompanions.slice(0, 4);
+  }, [allCompanions]);
+
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [activeNav, setActiveNav] = useState<NavId>("dashboard");
@@ -116,7 +125,6 @@ export default function Dashboard() {
   const greetingName = resolveGreetingName(user, profileDisplayName);
 
   const isAdmin = user?.email === ADMIN_EMAIL;
-  const hotCompanions = companions.filter((c) => HOT_IDS.includes(c.id));
 
   const refreshToy = useCallback(async (uid: string) => {
     try {
@@ -178,6 +186,14 @@ export default function Dashboard() {
       sub.subscription.unsubscribe();
     };
   }, [navigate, refreshToy]);
+
+  useEffect(() => {
+    const st = location.state as { activeNav?: NavId } | null | undefined;
+    if (st?.activeNav) {
+      setActiveNav(st.activeNav);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, location.pathname, navigate]);
 
   useEffect(() => {
     if (!profileOpen) return;
@@ -457,10 +473,18 @@ export default function Dashboard() {
                   toast.message("Breeding Chamber", { description: "Prepare your lineages." });
                 }}
                 quickImageGen={quickImageGen}
+                collectionCards={collectionPreview}
+                hotPicks={hotPicks}
+                companionCount={dbCompanions.length}
+                companionsLoading={companionsLoading}
               />
             )}
             {activeNav === "collection" && (
-              <CollectionView companions={COLLECTION_PREVIEW} />
+              <CollectionView
+                companions={allCompanions}
+                loading={companionsLoading}
+                onForge={() => navigate("/create-companion")}
+              />
             )}
             {activeNav === "discover" && <DiscoverCompanionsGallery />}
             {activeNav === "breeding" && <BreedingView onStartChat={() => navigate("/chat")} />}
@@ -574,12 +598,14 @@ export default function Dashboard() {
                   <button
                     type="button"
                     onClick={() => {
-                      toast.success("Preferences saved");
                       setSettingsOpen(false);
+                      toast.message("Panel closed", {
+                        description: "Notification toggles are UI-only for now; account changes live under Account.",
+                      });
                     }}
                     className="w-full py-3 rounded-xl border border-accent/40 text-accent font-semibold hover:bg-accent/10 transition-colors"
                   >
-                    Save changes
+                    Done
                   </button>
                 </div>
               </motion.aside>
@@ -623,13 +649,19 @@ function DashboardHome({
   onCreate,
   onBreed,
   quickImageGen,
+  collectionCards,
+  hotPicks,
+  companionCount,
+  companionsLoading,
 }: {
   onCreate: () => void;
   onBreed: () => void;
   quickImageGen: () => void;
+  collectionCards: Companion[];
+  hotPicks: Companion[];
+  companionCount: number;
+  companionsLoading: boolean;
 }) {
-  const hotCompanions = companions.filter((c) => HOT_IDS.includes(c.id));
-
   return (
     <div className="space-y-10 max-w-6xl mx-auto">
       <div className="md:hidden rounded-2xl border border-primary/25 bg-card/60 backdrop-blur-md px-4 py-3 flex items-center justify-between gap-3">
@@ -656,7 +688,9 @@ function DashboardHome({
             <p className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-muted-foreground font-semibold">
               {s.label}
             </p>
-            <p className={cn("font-gothic text-2xl sm:text-3xl mt-2", s.accent)}>{s.value}</p>
+            <p className={cn("font-gothic text-2xl sm:text-3xl mt-2", s.accent)}>
+              {s.key === "companions" ? companionCount : s.value}
+            </p>
           </motion.div>
         ))}
       </div>
@@ -712,9 +746,31 @@ function DashboardHome({
             </span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-            {COLLECTION_PREVIEW.map((c, idx) => (
-              <MiniCompanionCard key={c.id} companion={c} index={idx} />
-            ))}
+            {companionsLoading ? (
+              Array.from({ length: 8 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="rounded-2xl border border-border/60 bg-card/40 aspect-[3/4] animate-pulse"
+                />
+              ))
+            ) : collectionCards.length === 0 ? (
+              <div className="col-span-full rounded-2xl border border-dashed border-border/80 bg-card/30 p-8 text-center text-sm text-muted-foreground">
+                No companions in your roster yet. Forge one in Studio or browse Discover.
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={onCreate}
+                    className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+                    style={{ backgroundColor: NEON_PINK }}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Open Companion Forge
+                  </button>
+                </div>
+              </div>
+            ) : (
+              collectionCards.map((c, idx) => <MiniCompanionCard key={c.id} companion={c} index={idx} />)
+            )}
           </div>
         </section>
 
@@ -747,7 +803,7 @@ function DashboardHome({
               <Flame className="h-4 w-4 text-primary opacity-80" style={{ color: NEON_PINK }} />
             </div>
             <div className="space-y-3">
-              {hotCompanions.slice(0, 4).map((c) => (
+              {hotPicks.slice(0, 4).map((c) => (
                 <Link
                   key={c.id}
                   to={`/companions/${c.id}`}
@@ -846,21 +902,51 @@ function MiniCompanionCard({ companion: c, index }: { companion: Companion; inde
   );
 }
 
-function CollectionView({ companions: list }: { companions: Companion[] }) {
+function CollectionView({
+  companions: list,
+  loading,
+  onForge,
+}: {
+  companions: Companion[];
+  loading: boolean;
+  onForge: () => void;
+}) {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
         <h2 className="font-gothic text-3xl gradient-vice-text">My Collection</h2>
         <p className="text-muted-foreground mt-2 text-sm max-w-xl">
-          Every companion you have unlocked lives here — tap through to the full profile, rarity frame, and fantasy
-          starters.
+          Catalog companions plus anything you forged in Companion Forge. Tap a card for the full profile and chat.
         </p>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-        {list.map((c, i) => (
-          <MiniCompanionCard key={c.id} companion={c} index={i} />
-        ))}
-      </div>
+      {loading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border border-border/60 bg-card/40 aspect-[3/4] animate-pulse" />
+          ))}
+        </div>
+      ) : list.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-primary/30 bg-card/40 p-10 text-center space-y-4">
+          <p className="text-muted-foreground text-sm max-w-md mx-auto">
+            Nothing here yet. Use Companion Forge to create a custom card — it will show up in this grid and in chat.
+          </p>
+          <button
+            type="button"
+            onClick={onForge}
+            className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-primary-foreground"
+            style={{ backgroundColor: NEON_PINK }}
+          >
+            <Sparkles className="h-4 w-4" />
+            Companion Forge
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          {list.map((c, i) => (
+            <MiniCompanionCard key={c.id} companion={c} index={i} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

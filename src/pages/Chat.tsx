@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { supabase } from "@/integrations/supabase/client";
-import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
+import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { motion } from "framer-motion";
 import { ArrowLeft, Send, Loader2, Zap, AlertOctagon, Flame, Image as ImageIcon, Heart, Sparkles, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
@@ -169,25 +169,18 @@ const Chat = () => {
         8000,
       );
 
-      const { data, error } = await supabase.functions.invoke<{
-        success?: boolean;
-        imageUrl?: string;
-        imageId?: string;
-        error?: string;
-      }>("generate-image", {
-        body: {
-          prompt,
-          userId,
-          isPortrait: false,
-          characterData: {
-            companionId: companion.id,
-            style: "chat-session",
-            baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
-          },
+      const { data, error } = await invokeGenerateImage({
+        prompt,
+        userId,
+        isPortrait: false,
+        characterData: {
+          companionId: companion.id,
+          style: "chat-session",
+          baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
         },
       });
 
-      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
+      if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Image generation failed");
 
       const imageUrl = data.imageUrl;
