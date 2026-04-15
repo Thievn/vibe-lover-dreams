@@ -99,6 +99,21 @@ async function fetchPublicCustomCharacters(): Promise<DbCompanion[]> {
   return (data || []).map((row) => customRowToDbCompanion(row as Record<string, unknown>));
 }
 
+/** Current user's forged companions (private vault + drafts), not only public gallery rows */
+async function fetchMyCustomCharacters(userId: string): Promise<DbCompanion[]> {
+  const { data, error } = await supabase
+    .from("custom_characters")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching my custom characters:", error);
+    return [];
+  }
+  return (data || []).map((row) => customRowToDbCompanion(row as Record<string, unknown>));
+}
+
 function staticListToDb(): DbCompanion[] {
   return staticCompanions.map((c) => ({
     id: c.id,
@@ -154,19 +169,28 @@ export const useCompanions = () => {
   return useQuery({
     queryKey: ["companions"],
     queryFn: async (): Promise<DbCompanion[]> => {
-      const [companionsRes, customs] = await Promise.all([
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const uid = session?.user?.id ?? null;
+
+      const [companionsRes, publicCustoms, mineRes] = await Promise.all([
         supabase.from("companions").select("*").eq("is_active", true).order("name"),
         fetchPublicCustomCharacters(),
+        uid ? fetchMyCustomCharacters(uid) : Promise.resolve([] as DbCompanion[]),
       ]);
+
+      const mineIds = new Set(mineRes.map((c) => c.id));
+      const publicOthers = publicCustoms.filter((c) => !mineIds.has(c.id));
 
       if (companionsRes.error) {
         console.error("Error fetching companions:", companionsRes.error);
         const staticDb = staticListToDb();
-        return [...staticDb, ...customs];
+        return [...staticDb, ...mineRes, ...publicOthers];
       }
 
       const stock = ((companionsRes.data || []) as Record<string, unknown>[]).map(coerceStockRow);
-      return [...stock, ...customs];
+      return [...stock, ...mineRes, ...publicOthers];
     },
     staleTime: 60 * 1000,
     refetchOnWindowFocus: true,

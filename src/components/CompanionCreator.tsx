@@ -370,33 +370,30 @@ User flavor notes: ${extraNotes || "none"}`;
         },
       };
 
-      const invokePreview = (accessToken: string) =>
+      // Refresh first so the next request picks up a valid access token. Do not pass a manual
+      // `Authorization` header here: supabase-js fetchWithAuth skips injecting a fresh JWT if
+      // Authorization is already set, which can leave a stale token and cause "Invalid JWT".
+      await supabase.auth.refreshSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error("Sign in again to run live preview.");
+      }
+
+      const invokePreview = () =>
         supabase.functions.invoke<{
           success?: boolean;
           imageUrl?: string;
           error?: string;
-        }>("generate-image", {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          body: previewBody,
-        });
+        }>("generate-image", { body: previewBody });
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      let accessToken = session?.access_token;
-      if (!accessToken) {
-        throw new Error("Sign in again to run live preview.");
-      }
-
-      let { data, error } = await invokePreview(accessToken);
+      let { data, error } = await invokePreview();
       if (error) {
         const firstMsg = await getEdgeFunctionInvokeMessage(error, data);
         if (/invalid\s+jwt/i.test(firstMsg)) {
-          const { data: refreshed } = await supabase.auth.refreshSession();
-          accessToken = refreshed.session?.access_token ?? "";
-          if (accessToken) {
-            ({ data, error } = await invokePreview(accessToken));
-          }
+          await supabase.auth.refreshSession();
+          ({ data, error } = await invokePreview());
         }
       }
       if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
