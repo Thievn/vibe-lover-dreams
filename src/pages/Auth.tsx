@@ -150,7 +150,9 @@ export default function Auth() {
       if (resolveErr) throw resolveErr;
       const email = (resolvedEmail ?? "").trim().toLowerCase();
       if (!email) {
-        throw new Error("Unknown email or username. Check spelling or use the email you signed up with.");
+        throw new Error(
+          "No account matched that E-Mail/Username — try your full email, or apply the latest resolve_login_email migration and align your Account username.",
+        );
       }
 
       const { error } = await supabase.auth.signInWithPassword({

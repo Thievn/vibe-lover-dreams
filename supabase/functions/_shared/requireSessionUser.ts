@@ -61,8 +61,15 @@ export async function requireAdminUser(req: Request): Promise<
   const session = await requireSessionUser(req);
   if ("response" in session) return session;
 
-  const adminEmail = (Deno.env.get("ADMIN_EMAIL") ?? "lustforgeapp@gmail.com").toLowerCase();
-  if (session.user.email && session.user.email.toLowerCase() === adminEmail) {
+  const adminRaw = (Deno.env.get("ADMIN_EMAIL") ?? "lustforgeapp@gmail.com").trim().toLowerCase();
+  const adminEmails = new Set(
+    adminRaw
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const em = session.user.email?.trim().toLowerCase();
+  if (em && adminEmails.has(em)) {
     return { user: session.user };
   }
 
