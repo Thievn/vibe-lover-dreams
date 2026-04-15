@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { prompt } = await req.json();
+    const { prompt, mode } = await req.json() as { prompt?: string; mode?: string };
 
     if (!prompt || typeof prompt !== "string") {
       return new Response(JSON.stringify({ error: "prompt is required" }), {
@@ -19,6 +19,9 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const parodyLab = mode === "parody_lab";
+    const companionDesignLab = mode === "companion_design_lab";
 
     const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
     if (!apiKey) {
@@ -34,6 +37,52 @@ Deno.serve(async (req) => {
       );
     }
 
+    const systemDefault =
+      `You are a companion profile parser for an AI companion platform. Extract structured fields from the user's pasted profile text. If a field isn't explicitly mentioned, infer it from context. Always return data via the extract_companion_fields tool call.
+
+For fantasy_starters: each item must have "title" (short card label) and "description" (the EXACT first USER chat line the UI will send when the card is tapped — write it as the human's in-world opener, second person or first-person user POV, not assistant narration). Optional "emoji" for decoration only.`;
+
+    const systemParody =
+      `You are an admin-only "parody lab" generator for a fictional companion platform.
+Rules (non-negotiable):
+- NEVER output real celebrity names, stage names, trademarks, or identifiable likeness descriptions.
+- Invent a silly satirical name that vaguely rhymes with or puns on a vibe (e.g. "Blornda Snores" style) — not a real person.
+- The character is a "garbage pale" parody: washed-out skin, tired eyes, harsh flash, bargain-bin glamour, uncanny paparazzi energy — still SFW, no nudity.
+- Personality should echo a broad fictional archetype (e.g. "diva pop chaos", "gritty spy lead") only as caricature, not as impersonation of any real individual.
+- Fill every tool field richly: tagline, bio, system_prompt, image_prompt, fantasy_starters, gradients, tags, kinks as appropriate for the parody.
+Always return data via the extract_companion_fields tool call.`;
+
+    const systemCompanionDesignLab =
+      `You are a master character designer for LustForge — a premium catalog of AI companions for adults seeking romance, fantasy, and emotional chemistry (the product is intimate; you still avoid illegal or exploitative themes).
+
+Per request, invent exactly ONE wholly original roster character. They may be male, female, non-binary, or any fantasy species or fusion you can justify — humans, elves, vampires, angels, demons, werewolves, aliens, androids, merfolk, dragons, anthro-inspired creatures, cosmic horrors, saints-gone-rogue, mech aces, wasteland poets, etc. Push novelty: combinations of aesthetics, eras, subcultures, and hobbies should never feel "samey".
+
+Naming: flavorful, species- and personality-appropriate; never generic filler (no "Alex Smith" energy).
+
+Bio vs backstory:
+- bio: punchy hook, 1-2 short paragraphs users skim first.
+- backstory: 3-4 richer paragraphs — deep, memorable, addictive lore (wound, want, secret, sensory texture). May imply mature chemistry without pornographic blow-by-blow.
+
+Fantasy starters: exactly 4 items. Each needs title (card label) + description (the verbatim first USER chat line when they tap the card — in-world, may be seductive / playful / dominant / teasing per persona; not assistant narration).
+
+Tags: 8-14 strings — mix species/archetype, visual aesthetic, era, location vibe, and hobbies or obsessions (music, dueling, botany, street racing, relic hunting, tea ceremony, orbital sports, antiquarian books, DJ culture, courtroom drama, forge-craft…).
+
+Kinks / interests bucket: 4-10 optional strings for dynamics & story kinks the character gravitates toward (aftercare, praise, rivalry-to-trust, voyeuristic tension, service top, found family, cosmic loneliness, discipline contracts, etc.) — think "what they're into" broadly, not only anatomy lists.
+
+image_prompt: one dense cinematic paragraph optimized for a vertical SFW portrait generator — species cues, silhouette, wardrobe, props echoing hobbies, lighting, lens mood, atmosphere, pose, micro-expression — strictly SFW for imagery (no nudity / no visible genitals / no explicit sex acts in the visual brief).
+
+system_prompt: full chat charter — voice, attitude, how they flirt, hard limits, safeword behavior, optional Lovense JSON convention when toys exist.
+
+Gradients: hex pair matching palette.
+
+Return everything ONLY via the extract_companion_fields tool call (that is your structured JSON channel).`;
+
+    const userContent = parodyLab
+      ? `Parody lab request (broad archetypes / genres only — no real people named):\n\n${prompt}\n\nGenerate ONE original parody companion profile via the tool.`
+      : companionDesignLab
+      ? `Invent ONE premium catalog companion for LustForge.\n\nOperator hints (optional — if blank, maximize surprise and variety):\n${prompt.trim() || "(none — go wild within policy)"}\n\nPopulate all tool fields.`
+      : `Parse this companion profile and extract all fields:\n\n${prompt}`;
+
     const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -45,12 +94,16 @@ Deno.serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a companion profile parser for an AI companion platform. Extract structured fields from the user's pasted profile text. If a field isn't explicitly mentioned, infer it from context. Always return data via the extract_companion_fields tool call.`
+            content: parodyLab
+              ? systemParody
+              : companionDesignLab
+              ? systemCompanionDesignLab
+              : systemDefault,
           },
           {
             role: "user",
-            content: `Parse this companion profile and extract all fields:\n\n${prompt}`
-          }
+            content: userContent,
+          },
         ],
         tools: [
           {
@@ -66,28 +119,53 @@ Deno.serve(async (req) => {
                   gender: { type: "string", description: "Gender identity" },
                   orientation: { type: "string", description: "Sexual orientation" },
                   role: { type: "string", description: "Dom/Sub/Switch role" },
-                  tags: { type: "array", items: { type: "string" }, description: "Category tags" },
-                  kinks: { type: "array", items: { type: "string" }, description: "Kink/fetish tags" },
-                  appearance: { type: "string", description: "Physical appearance description" },
-                  personality: { type: "string", description: "Personality traits and style" },
-                  bio: { type: "string", description: "Character biography/backstory" },
-                  system_prompt: { type: "string", description: "The full roleplay system prompt for this companion" },
+                  tags: {
+                    type: "array",
+                    items: { type: "string" },
+                    description:
+                      "8-14 tags when inventing: species/archetype, aesthetic, era, hobbies, mood — avoid generic filler",
+                  },
+                  kinks: {
+                    type: "array",
+                    items: { type: "string" },
+                    description:
+                      "4-10 dynamics, romantic hooks, scene appetites (aftercare, praise, rivalry, etc.) — not only physical",
+                  },
+                  appearance: { type: "string", description: "Physical appearance for profile + chat consistency" },
+                  personality: { type: "string", description: "Personality traits, voice, social stance" },
+                  bio: { type: "string", description: "Short hook bio (1-2 tight paragraphs when inventing full profiles)" },
+                  backstory: {
+                    type: "string",
+                    description: "Longer chronicle (3-4 paragraphs) for profile page — may echo bio with more depth",
+                  },
+                  system_prompt: { type: "string", description: "Full roleplay system prompt for chat (voice, limits, toys)" },
                   fantasy_starters: {
                     type: "array",
                     items: {
                       type: "object",
                       properties: {
-                        emoji: { type: "string" },
-                        label: { type: "string" },
-                        message: { type: "string" }
+                        title: { type: "string", description: "Short UI card title" },
+                        description: {
+                          type: "string",
+                          description:
+                            "Verbatim opening USER message for chat when this starter is tapped (in-world, not meta)",
+                        },
+                        emoji: { type: "string", description: "Optional decorative emoji" },
+                        label: { type: "string", description: "Deprecated — use title" },
+                        message: { type: "string", description: "Deprecated — use description" },
                       },
-                      required: ["emoji", "label", "message"]
+                      required: ["title", "description"],
                     },
-                    description: "3-5 fantasy scenario starters"
+                    description:
+                      "3-5 starters when parsing text; exactly 4 when inventing a full catalog character (companion_design_lab)",
                   },
                   gradient_from: { type: "string", description: "Hex color for gradient start" },
                   gradient_to: { type: "string", description: "Hex color for gradient end" },
-                  image_prompt: { type: "string", description: "Image generation prompt for the character portrait" }
+                  image_prompt: {
+                    type: "string",
+                    description:
+                      "Single cinematic SFW portrait brief: species, wardrobe, props, lighting, lens mood, pose, expression",
+                  },
                 },
                 required: ["name"]
               }
@@ -95,7 +173,7 @@ Deno.serve(async (req) => {
           }
         ],
         tool_choice: { type: "function", function: { name: "extract_companion_fields" } },
-        temperature: 0.7,
+        temperature: companionDesignLab ? 0.88 : 0.7,
       }),
     });
 
@@ -125,7 +203,8 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("Edge function error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
+    const msg = err instanceof Error ? err.message : String(err);
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

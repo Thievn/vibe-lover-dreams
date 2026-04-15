@@ -1,9 +1,6 @@
 /**
- * Browser-exposed Supabase configuration (Vite: only `VITE_*` vars are available).
- *
- * Supported keys (in order):
- * - URL: `VITE_SUPABASE_URL`
- * - Anon key: `VITE_SUPABASE_ANON_KEY` (common) or `VITE_SUPABASE_PUBLISHABLE_KEY` (dashboard “publishable” naming)
+ * Browser-exposed Supabase configuration
+ * VITE_* variables only (never commit real keys)
  */
 
 export function getSupabaseUrl(): string {
@@ -11,14 +8,11 @@ export function getSupabaseUrl(): string {
   return typeof url === "string" ? url.trim() : "";
 }
 
-/** Public anon / publishable key for the browser client and Edge Function `apikey` header when needed. */
 export function getSupabaseAnonKey(): string {
   const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
   const publishable = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  const a = typeof anon === "string" ? anon.trim() : "";
-  if (a) return a;
-  const p = typeof publishable === "string" ? publishable.trim() : "";
-  return p;
+  return (typeof anon === "string" ? anon.trim() : "") ||
+         (typeof publishable === "string" ? publishable.trim() : "");
 }
 
 export function isSupabaseConfigured(): boolean {
@@ -26,14 +20,21 @@ export function isSupabaseConfigured(): boolean {
 }
 
 export function assertSupabaseEnv(): void {
-  if (import.meta.env.PROD && !isSupabaseConfigured()) {
-    console.error(
-      "[LustForge] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY (or VITE_SUPABASE_PUBLISHABLE_KEY).",
-    );
+  if (!isSupabaseConfigured()) {
+    const message = import.meta.env.PROD
+      ? "[LustForge] Missing Supabase URL or Anon key"
+      : "[LustForge] Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file";
+    console.warn(message);
+    return;
   }
-  if (import.meta.env.DEV && !isSupabaseConfigured()) {
-    console.warn(
-      "[LustForge] Supabase env not set. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env",
-    );
+  if (import.meta.env.DEV) {
+    const raw = import.meta.env as Record<string, string | undefined>;
+    const hasUnprefixed =
+      (raw.SUPABASE_URL && !raw.VITE_SUPABASE_URL) || (raw.SUPABASE_ANON_KEY && !raw.VITE_SUPABASE_ANON_KEY);
+    if (hasUnprefixed) {
+      console.warn(
+        "[LustForge] Vite only exposes VITE_* variables. Rename SUPABASE_URL / SUPABASE_ANON_KEY in .env to VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY or the browser build will not see them.",
+      );
+    }
   }
 }

@@ -1,1 +1,7 @@
 project_id = "awqmiqiyugllpcdqrdjj"
+
+# Let the browser call `generate-image` without Kong rejecting some user JWTs.
+# Auth is enforced inside the function (session user must match body.userId).
+# For hosted projects: also disable JWT verification for this function in Dashboard → Edge Functions → generate-image.
+[functions.generate-image]
+verify_jwt = false

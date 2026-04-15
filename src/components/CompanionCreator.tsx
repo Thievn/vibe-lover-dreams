@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -6,19 +6,23 @@ import {
   ArrowLeft,
   Coins,
   Dices,
-  Flame,
+  Gem,
   Loader2,
+  ScanEye,
   Sparkles,
   Wand2,
   ImageIcon,
   Check,
   Globe,
   Lock,
+  Trash2,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { formatSupabaseError } from "@/lib/supabaseError";
 import { cn } from "@/lib/utils";
@@ -168,6 +172,46 @@ const ORIENTATIONS = [
 
 const BATCH_PRESETS = [1, 3, 5, 10] as const;
 
+const PREVIEW_STORAGE_PREFIX = "lustforge_forge_preview_v1";
+
+function previewStorageKey(userId: string, forgeMode: CompanionCreatorMode) {
+  return `${PREVIEW_STORAGE_PREFIX}_${forgeMode}_${userId}`;
+}
+
+/** Samples a small bitmap for coarse dominant colors — steers generation without sending raw image bytes. */
+async function extractPaletteMoodFromImageFile(file: File): Promise<string> {
+  const bmp = await createImageBitmap(file);
+  const w = 48;
+  const h = 48;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    bmp.close();
+    throw new Error("No canvas context");
+  }
+  ctx.drawImage(bmp, 0, 0, w, h);
+  bmp.close();
+  const { data } = ctx.getImageData(0, 0, w, h);
+  const bins = new Map<string, number>();
+  for (let i = 0; i < data.length; i += 16) {
+    const r = data[i]!;
+    const g = data[i + 1]!;
+    const b = data[i + 2]!;
+    const key = `${Math.floor(r / 40) * 40},${Math.floor(g / 40) * 40},${Math.floor(b / 40) * 40}`;
+    bins.set(key, (bins.get(key) ?? 0) + 1);
+  }
+  const top = [...bins.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([k]) => {
+      const [r, g, b] = k.split(",").map(Number);
+      return `rgb(${r},${g},${b})`;
+    });
+  return `Abstract palette from reference thumbnail: ${top.join(", ")}. Echo lighting warmth and color relationships only; invent a wholly original fictional face and body.`;
+}
+
 function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;
 }
@@ -204,6 +248,14 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [finalLoading, setFinalLoading] = useState(false);
+
+  const [referenceNotes, setReferenceNotes] = useState("");
+  const [referencePalette, setReferencePalette] = useState<string | null>(null);
+  const [referencePreviewUrl, setReferencePreviewUrl] = useState<string | null>(null);
+  const referenceFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [parodyArchetype, setParodyArchetype] = useState("");
+  const [parodyLoading, setParodyLoading] = useState(false);
 
   const batchCount = useMemo(() => {
     if (batchPreset === -1) {
@@ -244,6 +296,56 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
     void loadProfile();
   }, [loadProfile]);
 
+  /** Restore paid preview URL if the user leaves the forge mid-flow (user forge only). */
+  useEffect(() => {
+    if (!userId || isAdmin) return;
+    try {
+      const raw = localStorage.getItem(previewStorageKey(userId, "user"));
+      if (!raw) return;
+      const j = JSON.parse(raw) as { previewUrl?: string };
+      if (j?.previewUrl && typeof j.previewUrl === "string") setPreviewUrl(j.previewUrl);
+    } catch {
+      /* ignore corrupt storage */
+    }
+  }, [userId, isAdmin]);
+
+  useEffect(() => {
+    if (!userId || isAdmin) return;
+    if (!previewUrl) {
+      try {
+        localStorage.removeItem(previewStorageKey(userId, "user"));
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    try {
+      localStorage.setItem(previewStorageKey(userId, "user"), JSON.stringify({ previewUrl, savedAt: Date.now() }));
+    } catch {
+      /* quota / private mode */
+    }
+  }, [previewUrl, userId, isAdmin]);
+
+  const clearForgePreview = useCallback(
+    (opts?: { silent?: boolean }) => {
+      setPreviewUrl(null);
+      if (userId && !isAdmin) {
+        try {
+          localStorage.removeItem(previewStorageKey(userId, "user"));
+        } catch {
+          /* ignore */
+        }
+      }
+      if (!opts?.silent) toast.message("Preview cleared — generate a new one when you're ready.");
+    },
+    [userId, isAdmin],
+  );
+
+  const accordionDefaultOpen = useMemo((): string[] => {
+    const base = ["identity", "personality", "world", "body", "reference", "output"];
+    return isAdmin ? [...base, "parody"] : base;
+  }, [isAdmin]);
+
   const appearanceBlurb = useMemo(() => {
     const t = traits.length ? traits.join(", ") : "no listed special traits";
     return `${bodyType} build; ${gender}; ${artStyle} look; ${t}. Overall ${vibe} mood${theme ? ` — ${theme}` : ""}. ${extraNotes}`.trim();
@@ -256,18 +358,25 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
       `Setting / aesthetic: ${vibe}${theme ? `, ${theme}` : ""}.`,
       `Render in ${artStyle} style, premium seductive SFW pin-up / romance cover quality.`,
       extraNotes ? `Notes: ${extraNotes}` : "",
+      referenceNotes.trim() ? `Reference direction: ${referenceNotes.trim()}` : "",
     ]
       .filter(Boolean)
       .join(" ");
-  }, [name, appearanceBlurb, personality, vibe, theme, artStyle, extraNotes]);
+  }, [name, appearanceBlurb, personality, vibe, theme, artStyle, extraNotes, referenceNotes]);
 
-  const systemPrompt = useMemo(() => {
-    return `You are ${name || "a custom AI companion"}, ${gender.toLowerCase()}, ${orientation}. Archetype: ${personality}. Visual & vibe: ${vibe}${theme ? ` (${theme})` : ""}, ${artStyle} aesthetic, ${bodyType} body, notable traits: ${traits.join(", ") || "none specified"}.
+  const buildSystemPromptFor = useCallback(
+    (who: string) => {
+      const n = who.trim() || "a custom AI companion";
+      return `You are ${n}, ${gender.toLowerCase()}, ${orientation}. Archetype: ${personality}. Visual & vibe: ${vibe}${theme ? ` (${theme})` : ""}, ${artStyle} aesthetic, ${bodyType} body, notable traits: ${traits.join(", ") || "none specified"}.
 
 Speak and act consistently with this persona. Stay immersive; respect safe words immediately. When toy control fits the scene and the user consents, you may end messages with: {"lovense_command":{"command":"vibrate","intensity":0-20,"duration":5000}}.
 
 User flavor notes: ${extraNotes || "none"}`;
-  }, [name, gender, orientation, personality, vibe, theme, artStyle, bodyType, traits, extraNotes]);
+    },
+    [gender, orientation, personality, vibe, theme, artStyle, bodyType, traits, extraNotes],
+  );
+
+  const systemPrompt = useMemo(() => buildSystemPromptFor(name), [name, buildSystemPromptFor]);
 
   const deductTokens = async (amount: number): Promise<boolean> => {
     if (isAdmin) return true;
@@ -308,6 +417,37 @@ User flavor notes: ${extraNotes || "none"}`;
     setTokens(next);
   };
 
+  const onReferenceFileChosen = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const mood = await extractPaletteMoodFromImageFile(file);
+      setReferencePalette(mood);
+      setReferencePreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(file);
+      });
+      toast.success("Reference linked — palette steers previews (no raw upload to the model).");
+    } catch {
+      toast.error("Could not read that image.");
+    }
+  };
+
+  const clearReferenceMaterial = () => {
+    setReferencePalette(null);
+    setReferenceNotes("");
+    setReferencePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    if (referenceFileInputRef.current) referenceFileInputRef.current.value = "";
+  };
+
+  useEffect(() => {
+    return () => {
+      if (referencePreviewUrl) URL.revokeObjectURL(referencePreviewUrl);
+    };
+  }, [referencePreviewUrl]);
+
   const randomizeAll = () => {
     setGender(pick(GENDERS));
     setPersonality(pick(PERSONALITIES));
@@ -335,6 +475,47 @@ User flavor notes: ${extraNotes || "none"}`;
     setTraits((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
   };
 
+  const buildPortraitGeneratePayload = useCallback((): Record<string, unknown> | null => {
+    if (!userId) return null;
+    return {
+      prompt: grokPrompt,
+      userId,
+      isPortrait: true,
+      name: name || "Custom Companion",
+      subtitle: tagline || "LustForge forged",
+      characterData: {
+        style: artStyle.toLowerCase().replace(/\s+/g, "-"),
+        randomize: false,
+        bodyType,
+        vibe: `${vibe}. ${theme}`.trim(),
+        hair: `styled to match ${vibe} and ${artStyle}`,
+        eyes: traits.includes("Glowing eyes") ? "striking glowing eyes" : "expressive, magnetic eyes",
+        clothing: `${vibe} fashion, luxurious textures, ${artStyle} presentation`,
+        expression: `${personality} energy`,
+        ethnicity: "any",
+        ageRange: "young adult",
+        pose: "three-quarter portrait, alluring confident pose",
+        baseDescription: `an original seductive character, ${gender}, ${bodyType}, ${traits.join(", ") || "clean aesthetic"}`,
+        ...(referencePalette ? { referencePalette } : {}),
+        ...(referenceNotes.trim() ? { referenceNotes: referenceNotes.trim() } : {}),
+      },
+    };
+  }, [
+    userId,
+    grokPrompt,
+    name,
+    tagline,
+    artStyle,
+    bodyType,
+    vibe,
+    theme,
+    traits,
+    gender,
+    personality,
+    referencePalette,
+    referenceNotes,
+  ]);
+
   const runPreview = async () => {
     if (!userId) return;
     if (!isAdmin) {
@@ -350,27 +531,8 @@ User flavor notes: ${extraNotes || "none"}`;
     }
     setPreviewLoading(true);
     try {
-      const previewBody = {
-        prompt: grokPrompt,
-        userId,
-        isPortrait: true,
-        name: name || "Custom Companion",
-        subtitle: tagline || "LustForge forged",
-        characterData: {
-          style: artStyle.toLowerCase().replace(/\s+/g, "-"),
-          randomize: false,
-          bodyType,
-          vibe: `${vibe}. ${theme}`.trim(),
-          hair: `styled to match ${vibe} and ${artStyle}`,
-          eyes: traits.includes("Glowing eyes") ? "striking glowing eyes" : "expressive, magnetic eyes",
-          clothing: `${vibe} fashion, luxurious textures, ${artStyle} presentation`,
-          expression: `${personality} energy`,
-          ethnicity: "any",
-          ageRange: "young adult",
-          pose: "three-quarter portrait, alluring confident pose",
-          baseDescription: `an original seductive character, ${gender}, ${bodyType}, ${traits.join(", ") || "clean aesthetic"}`,
-        },
-      };
+      const previewBody = buildPortraitGeneratePayload();
+      if (!previewBody) throw new Error("Not signed in.");
 
       const { data, error } = await invokeGenerateImage(previewBody);
       if (error) throw error;
@@ -387,9 +549,66 @@ User flavor notes: ${extraNotes || "none"}`;
     }
   };
 
+  const runParodyLab = async () => {
+    if (!isAdmin) return;
+    if (!parodyArchetype.trim()) {
+      toast.error("Describe a broad archetype or genre parody (do not name real celebrities).");
+      return;
+    }
+    setParodyLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("parse-companion-prompt", {
+        body: {
+          mode: "parody_lab",
+          prompt: `Archetype / media vibe to caricature (fictional genres only): ${parodyArchetype.trim()}`,
+        },
+      });
+      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
+      if (data?.error) throw new Error(String(data.error));
+      const fields = data?.fields as Record<string, unknown> | undefined;
+      if (!fields || typeof fields.name !== "string") throw new Error("No profile returned");
+
+      setName(String(fields.name).slice(0, 120));
+      if (typeof fields.tagline === "string" && fields.tagline) setTagline(fields.tagline.slice(0, 200));
+
+      const gRaw = String(fields.gender || "");
+      const gHit = GENDERS.find((x) => gRaw.toLowerCase().includes(x.toLowerCase()) || x.toLowerCase().includes(gRaw.slice(0, 6).toLowerCase()));
+      if (gHit) setGender(gHit);
+
+      const oRaw = String(fields.orientation || "");
+      const oHit = ORIENTATIONS.find((x) => oRaw.toLowerCase().includes(x.toLowerCase()));
+      if (oHit) setOrientation(oHit);
+
+      const pBlob = `${fields.personality || ""} ${fields.role || ""}`;
+      const pHit = PERSONALITIES.find((x) => pBlob.toLowerCase().includes(x.toLowerCase()));
+      if (pHit) setPersonality(pHit);
+
+      const tagArr = Array.isArray(fields.tags) ? fields.tags.map(String) : [];
+      const vHit = VIBES.find((v) => tagArr.some((t) => t.toLowerCase().includes(v.toLowerCase())));
+      if (vHit) setVibe(vHit);
+
+      if (typeof fields.appearance === "string" && fields.appearance.trim()) {
+        setTheme((t) => (t.trim() ? t : fields.appearance!.slice(0, 160)));
+      }
+      if (typeof fields.image_prompt === "string" && fields.image_prompt.trim()) {
+        setArtStyle((prev) => {
+          const ip = fields.image_prompt!.toLowerCase();
+          const match = ART_STYLES.find((s) => ip.includes(s.toLowerCase()));
+          return match ?? prev;
+        });
+      }
+      toast.success("Parody profile loaded — tweak, preview, then forge.");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Parody lab failed");
+    } finally {
+      setParodyLoading(false);
+    }
+  };
+
   const runFinalCreate = async () => {
     if (!userId) return;
-    if (!name.trim()) {
+    const forgeName = name.trim() || (isAdmin ? `Forge-${Date.now().toString(36)}` : "");
+    if (!forgeName) {
       toast.error("Name your companion before forging.");
       return;
     }
@@ -412,12 +631,27 @@ User flavor notes: ${extraNotes || "none"}`;
         return;
       }
 
-      const bio = `${name} is a ${personality.toLowerCase()} ${gender.toLowerCase()} presence wrapped in ${vibe.toLowerCase()} aesthetics. ${tagline ? tagline + "." : ""} They move through the world with ${orientation.toLowerCase()} magnetism.`;
+      let portraitUrl: string | null = previewUrl;
+      if (!portraitUrl) {
+        const payload = buildPortraitGeneratePayload();
+        if (payload) {
+          const { data: genData, error: genErr } = await invokeGenerateImage(payload);
+          if (genErr) {
+            toast.error(`Portrait: ${genErr.message}`);
+          } else if (genData?.success && genData.imageUrl) {
+            portraitUrl = genData.imageUrl;
+            setPreviewUrl(genData.imageUrl);
+          }
+        }
+      }
+
+      const rowImagePrompt = name.trim() ? grokPrompt : grokPrompt.replace("an original companion", forgeName);
+      const bio = `${forgeName} is a ${personality.toLowerCase()} ${gender.toLowerCase()} presence wrapped in ${vibe.toLowerCase()} aesthetics. ${tagline ? tagline + "." : ""} They move through the world with ${orientation.toLowerCase()} magnetism.`;
       const rows = [];
       for (let i = 0; i < batchCount; i++) {
         const suffix = batchCount > 1 ? ` ${i + 1}` : "";
-        const displayName = namePrefix.trim() ? `${namePrefix.trim()} ${name.trim()}${suffix}`.trim() : `${name.trim()}${suffix}`;
-        const basePrompt = systemPrompt.replaceAll(name.trim(), displayName);
+        const displayName = namePrefix.trim() ? `${namePrefix.trim()} ${forgeName}${suffix}`.trim() : `${forgeName}${suffix}`;
+        const basePrompt = buildSystemPromptFor(displayName);
         const goPublic = saveVisibility === "public" && !isAdmin;
         rows.push({
           user_id: userId,
@@ -435,11 +669,11 @@ User flavor notes: ${extraNotes || "none"}`;
           fantasy_starters: [],
           gradient_from: "#7B2D8E",
           gradient_to: NEON,
-          image_url: previewUrl,
-          image_prompt: grokPrompt,
+          image_url: portraitUrl,
+          image_prompt: rowImagePrompt,
           is_public: goPublic,
           approved: goPublic,
-          avatar_url: previewUrl,
+          avatar_url: portraitUrl,
         });
       }
 
@@ -481,6 +715,7 @@ User flavor notes: ${extraNotes || "none"}`;
       );
       void queryClient.invalidateQueries({ queryKey: ["companions"] });
       void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
+      if (!isAdmin) clearForgePreview({ silent: true });
       if (isAdmin && onForged) onForged();
       else if (!embedded && mode === "user") navigate("/dashboard", { state: { activeNav: "collection" } });
     } catch (e: unknown) {
@@ -608,11 +843,7 @@ User flavor notes: ${extraNotes || "none"}`;
               Randomize / Roulette
             </motion.button>
 
-            <Accordion
-              type="multiple"
-              defaultValue={["identity", "personality", "world", "body", "output"]}
-              className={cn(panelClass, "px-1")}
-            >
+            <Accordion type="multiple" defaultValue={accordionDefaultOpen} className={cn(panelClass, "px-1")}>
               <AccordionItem value="identity" className="border-white/10 px-4">
                 <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
                   Gender & identity
@@ -697,7 +928,67 @@ User flavor notes: ${extraNotes || "none"}`;
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="output" className="border-white/10 px-4 border-b-0">
+              <AccordionItem value="reference" className="border-white/10 px-4">
+                <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
+                  Reference look (optional)
+                </AccordionTrigger>
+                <AccordionContent className="pb-5 space-y-4">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Upload a mood image — we sample its palette so previews echo its colors and energy. Faces stay invented; this is not a
+                    likeness pass.
+                  </p>
+                  <input
+                    ref={referenceFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      void onReferenceFileChosen(f);
+                      e.target.value = "";
+                    }}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => referenceFileInputRef.current?.click()}
+                      className="inline-flex items-center gap-2 rounded-xl border border-[hsl(170_100%_42%)]/40 bg-[hsl(170_100%_42%)]/10 px-4 py-2.5 text-sm font-medium text-[hsl(170_100%_78%)] hover:bg-[hsl(170_100%_42%)]/15 transition-colors"
+                    >
+                      <Upload className="h-4 w-4" />
+                      Upload image
+                    </button>
+                    {(referencePreviewUrl || referencePalette) && (
+                      <button
+                        type="button"
+                        onClick={clearReferenceMaterial}
+                        className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-black/40 px-4 py-2.5 text-sm text-muted-foreground hover:text-white transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  {referencePreviewUrl && (
+                    <div className="rounded-lg border border-white/10 overflow-hidden w-28 h-28 bg-black/50">
+                      <img src={referencePreviewUrl} alt="Reference" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
+                      Extra reference notes
+                    </p>
+                    <textarea
+                      value={referenceNotes}
+                      onChange={(e) => setReferenceNotes(e.target.value)}
+                      rows={2}
+                      placeholder="e.g. same rim light as ref, colder shadows, more latex sheen…"
+                      className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm resize-none focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
+                    />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="output" className={cn("border-white/10 px-4", !isAdmin && "border-b-0")}>
                 <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
                   Naming & batch
                 </AccordionTrigger>
@@ -707,9 +998,14 @@ User flavor notes: ${extraNotes || "none"}`;
                     <input
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="Companion name"
+                      placeholder={isAdmin ? "Companion name (optional — auto if empty)" : "Companion name"}
                       className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm mb-2 focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
                     />
+                    {isAdmin && (
+                      <p className="text-[10px] text-muted-foreground mb-2 leading-relaxed">
+                        Admin forge: create stays enabled without a name — we assign a disposable forge label so rows always save.
+                      </p>
+                    )}
                     <input
                       value={namePrefix}
                       onChange={(e) => setNamePrefix(e.target.value)}
@@ -843,17 +1139,71 @@ User flavor notes: ${extraNotes || "none"}`;
                   </div>
                 </AccordionContent>
               </AccordionItem>
+
+              {isAdmin && (
+                <AccordionItem value="parody" className="border-white/10 px-4 border-b-0">
+                  <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
+                    Parody lab (admin only)
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-5 space-y-4">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Spin a <strong className="text-white/90">wholly fictional</strong> “garbage pale” satire profile from a broad archetype
+                      (glam pop chaos, noir spy, etc.). Never name real celebrities — the model invents punny originals.
+                    </p>
+                    <textarea
+                      value={parodyArchetype}
+                      onChange={(e) => setParodyArchetype(e.target.value)}
+                      rows={3}
+                      placeholder="e.g. exhausted reality-show diva energy, or gritty 90s action hero but make it absurd…"
+                      className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm resize-none focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
+                    />
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                      disabled={parodyLoading}
+                      onClick={() => void runParodyLab()}
+                      className="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 font-semibold text-white border border-white/10 disabled:opacity-45"
+                      style={{
+                        background: `linear-gradient(135deg, hsl(280 48% 38%), ${NEON})`,
+                        boxShadow: `0 0 28px ${NEON}25`,
+                      }}
+                    >
+                      {parodyLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+                      Generate parody profile
+                    </motion.button>
+                  </AccordionContent>
+                </AccordionItem>
+              )}
             </Accordion>
           </div>
 
           {/* Preview — TCG-sized (~63×88mm), sticky right on desktop; on mobile shown above options */}
           <div className="order-1 lg:order-2 w-full lg:w-[276px] xl:w-[288px] shrink-0 lg:sticky lg:top-20 lg:self-start space-y-4">
             <div className={cn(panelClass, "overflow-hidden")}>
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 bg-white/[0.03] backdrop-blur-md">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
-                  Live preview
+              <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-white/10 bg-white/[0.03] backdrop-blur-md">
+                <span className="flex items-center gap-2 min-w-0">
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#FF2D7B]/35 bg-gradient-to-br from-[#FF2D7B]/25 to-purple-900/40"
+                    style={{ boxShadow: `0 0 20px ${NEON}22` }}
+                  >
+                    <ScanEye className="h-4 w-4 text-white" aria-hidden />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">Live preview</span>
+                    <span className="text-[9px] text-muted-foreground/80 hidden sm:block">TCG · pins while you scroll</span>
+                  </span>
                 </span>
-                <span className="text-[9px] text-muted-foreground/80 hidden sm:inline">TCG · pins while you scroll</span>
+                {previewUrl && (
+                  <button
+                    type="button"
+                    onClick={() => clearForgePreview()}
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-black/50 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-white hover:border-white/25 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Reset
+                  </button>
+                )}
               </div>
               <div className="p-4 sm:p-5">
                 <div className="relative aspect-[63/88] w-full max-w-[252px] mx-auto lg:mx-0 rounded-xl overflow-hidden border border-[#FF2D7B]/25 shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
@@ -913,17 +1263,23 @@ User flavor notes: ${extraNotes || "none"}`;
                     whileTap={{ scale: 0.99 }}
                     disabled={previewLoading}
                     onClick={() => void runPreview()}
-                    className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-sm font-semibold text-white disabled:opacity-45 disabled:pointer-events-none border border-white/10"
+                    className="group flex min-h-[52px] items-center justify-start gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold text-white disabled:opacity-45 disabled:pointer-events-none border border-white/10"
                     style={{
                       background: `linear-gradient(135deg, ${NEON}, hsl(280 45% 42%))`,
                       boxShadow: `0 0 36px ${NEON}30, inset 0 1px 0 rgba(255,255,255,0.12)`,
                     }}
                   >
-                    {previewLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Wand2 className="h-5 w-5" />}
-                    <span className="text-left leading-tight">
-                      Live preview
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black/25 border border-white/15 group-hover:border-white/25 transition-colors">
+                      {previewLoading ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <Wand2 className="h-5 w-5 drop-shadow-[0_0_8px_rgba(255,255,255,0.35)]" />
+                      )}
+                    </span>
+                    <span className="text-left leading-tight min-w-0">
+                      <span className="block">Live preview</span>
                       <span className="block text-[10px] font-normal opacity-90">
-                        {isAdmin ? "Free" : `${PREVIEW_COST} tokens`}
+                        {isAdmin ? "No token spend" : `${PREVIEW_COST} tokens`}
                       </span>
                     </span>
                   </motion.button>
@@ -931,26 +1287,62 @@ User flavor notes: ${extraNotes || "none"}`;
                     type="button"
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
-                    disabled={finalLoading || !name.trim()}
+                    disabled={finalLoading || (!isAdmin && !name.trim())}
                     onClick={() => void runFinalCreate()}
-                    className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border px-4 py-3.5 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-black/40 text-[hsl(170_100%_78%)]"
+                    className="group flex min-h-[52px] items-center justify-start gap-3 rounded-2xl border px-4 py-3.5 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-black/40 text-[hsl(170_100%_78%)]"
                     style={{
                       borderColor: "hsl(170 100% 42% / 0.45)",
                       boxShadow: `0 0 28px hsl(170 100% 42% / 0.12), inset 0 1px 0 rgba(255,255,255,0.06)`,
                     }}
                   >
-                    {finalLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Flame className="h-5 w-5 text-[hsl(170_100%_50%)]" />}
-                    <span className="text-left leading-tight">
-                      Create {batchCount} companion{batchCount > 1 ? "s" : ""}
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[hsl(170_100%_42%)]/15 border border-[hsl(170_100%_42%)]/35 group-hover:bg-[hsl(170_100%_42%)]/25 transition-colors">
+                      {finalLoading ? (
+                        <Loader2 className="h-5 w-5 animate-spin text-[hsl(170_100%_70%)]" />
+                      ) : (
+                        <Gem className="h-5 w-5 text-[hsl(170_100%_65%)] drop-shadow-[0_0_10px_hsl(170_100%_50%/0.45)]" />
+                      )}
+                    </span>
+                    <span className="text-left leading-tight min-w-0">
+                      <span className="block">
+                        Create {batchCount} companion{batchCount > 1 ? "s" : ""}
+                      </span>
                       <span className="block text-[10px] font-normal text-muted-foreground">
-                        {isAdmin ? "Free" : `${FINAL_COST_PER} tokens each · ${finalTotalCost} total`}
+                        {isAdmin ? "No token spend · auto-name if empty" : `${FINAL_COST_PER} tokens each · ${finalTotalCost} total`}
                       </span>
                     </span>
                   </motion.button>
                 </div>
 
                 <div className="mt-6 rounded-xl border border-white/10 bg-black/35 p-4 backdrop-blur-sm">
-                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Prompt snapshot</p>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Prompt snapshot</p>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const bundle = {
+                            grokPrompt,
+                            systemPrompt,
+                            gender,
+                            orientation,
+                            personality,
+                            vibe,
+                            theme,
+                            artStyle,
+                            bodyType,
+                            traits,
+                            referencePalette,
+                            referenceNotes: referenceNotes.trim() || undefined,
+                          };
+                          void navigator.clipboard.writeText(JSON.stringify(bundle, null, 2));
+                          toast.success("Forge JSON copied");
+                        }}
+                        className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(170_100%_55%)] hover:text-[hsl(170_100%_75%)]"
+                      >
+                        Copy JSON
+                      </button>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground leading-relaxed line-clamp-6 sm:line-clamp-none">{grokPrompt}</p>
                 </div>
               </div>
@@ -962,9 +1354,19 @@ User flavor notes: ${extraNotes || "none"}`;
             >
               <ImageIcon className="h-5 w-5 shrink-0 mt-0.5 text-[hsl(170_100%_50%)]" />
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Previews cost <strong style={{ color: NEON }}>{PREVIEW_COST} tokens</strong> so you can iterate cheaply. Final creation locks{" "}
-                <strong className="text-[hsl(170_100%_70%)]">{FINAL_COST_PER} tokens</strong> per companion ({finalTotalCost} for this batch). All
-                generations follow SFW forge policy.
+                {isAdmin ? (
+                  <>
+                    <strong className="text-white/90">Admin forge</strong> does not debit profiles. Use Parody lab + Copy JSON to stress-test
+                    prompts before shipping anything to players. Previews still hit xAI — keep batches reasonable.
+                  </>
+                ) : (
+                  <>
+                    Previews cost <strong style={{ color: NEON }}>{PREVIEW_COST} tokens</strong> so you can iterate cheaply. Your last preview
+                    image is remembered on this device until you forge or tap Reset. Final creation locks{" "}
+                    <strong className="text-[hsl(170_100%_70%)]">{FINAL_COST_PER} tokens</strong> per companion ({finalTotalCost} for this batch).
+                    All generations follow SFW forge policy.
+                  </>
+                )}
               </p>
             </div>
           </div>

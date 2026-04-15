@@ -74,6 +74,7 @@ const CompanionManager = () => {
   // Auto-fill state
   const [autoFillPrompt, setAutoFillPrompt] = useState("");
   const [autoFilling, setAutoFilling] = useState(false);
+  const [designLabHints, setDesignLabHints] = useState("");
 
   // Admin chat state
   const [chatOpen, setChatOpen] = useState(false);
@@ -248,6 +249,81 @@ const CompanionManager = () => {
     }
   };
 
+  const normalizeFantasyStartersFromFields = (raw: unknown): { title: string; description: string }[] => {
+    if (!Array.isArray(raw)) return [];
+    return (raw as Record<string, unknown>[])
+      .map((s) => {
+        if (!s || typeof s !== "object") return null;
+        const description = String(s.description ?? s.message ?? "").trim();
+        const title =
+          String(s.title ?? s.label ?? "").trim() ||
+          (description ? `${description.slice(0, 44)}${description.length > 44 ? "…" : ""}` : "");
+        if (!title) return null;
+        return { title, description };
+      })
+      .filter((x): x is { title: string; description: string } => x !== null);
+  };
+
+  /** Full-catalog roll — replaces the create form with a fresh Grok-designed companion (admin library builder). */
+  const rollPremiumCatalogCompanion = async () => {
+    setAutoFilling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("parse-companion-prompt", {
+        body: {
+          mode: "companion_design_lab",
+          prompt:
+            designLabHints.trim() ||
+            "Surprise me with one completely original companion — maximize species, era, subculture, and hobby diversity.",
+        },
+      });
+      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
+      if (data?.error) throw new Error(String(data.error));
+      const fields = data?.fields as Record<string, unknown> | undefined;
+      if (!fields || typeof fields.name !== "string") throw new Error("No profile returned");
+
+      const slug =
+        String(fields.name)
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "") || "companion";
+      const fantasy_starters = normalizeFantasyStartersFromFields(fields.fantasy_starters);
+
+      setCreateData({
+        ...emptyCompanion,
+        id: `${slug}-${Date.now().toString(36)}`,
+        name: String(fields.name || "").slice(0, 120),
+        tagline: String(fields.tagline || "").slice(0, 240),
+        gender: String(fields.gender || "Female").slice(0, 80),
+        orientation: String(fields.orientation || "Bisexual").slice(0, 80),
+        role: String(fields.role || "Switch").slice(0, 80),
+        tags: Array.isArray(fields.tags) ? (fields.tags as string[]).map(String).slice(0, 24) : [],
+        kinks: Array.isArray(fields.kinks) ? (fields.kinks as string[]).map(String).slice(0, 24) : [],
+        appearance: String(fields.appearance || "").slice(0, 8000),
+        personality: String(fields.personality || "").slice(0, 8000),
+        bio: String(fields.bio || "").slice(0, 8000),
+        backstory: String(fields.backstory || fields.bio || "").slice(0, 16000),
+        system_prompt: String(fields.system_prompt || "").slice(0, 32000),
+        fantasy_starters,
+        gradient_from:
+          typeof fields.gradient_from === "string" && fields.gradient_from ? fields.gradient_from : "#7B2D8E",
+        gradient_to: typeof fields.gradient_to === "string" && fields.gradient_to ? fields.gradient_to : "#FF2D7B",
+        image_prompt: fields.image_prompt != null ? String(fields.image_prompt).slice(0, 8000) : null,
+        image_url: null,
+        is_active: true,
+        rarity: "common",
+        static_image_url: null,
+        animated_image_url: null,
+        rarity_border_overlay_url: null,
+      });
+
+      toast.success("Rolled a new catalog companion — review, tweak rarity/portrait, then create.");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Design roll failed");
+    } finally {
+      setAutoFilling(false);
+    }
+  };
+
   // Auto-fill from prompt using Grok
   const autoFillFromPrompt = async () => {
     if (!autoFillPrompt.trim()) {
@@ -278,8 +354,11 @@ const CompanionManager = () => {
         if (fields.appearance && !prev.appearance) updated.appearance = fields.appearance;
         if (fields.personality && !prev.personality) updated.personality = fields.personality;
         if (fields.bio && !prev.bio) updated.bio = fields.bio;
+        if (fields.backstory && !prev.backstory) updated.backstory = fields.backstory;
         if (fields.system_prompt && !prev.system_prompt) updated.system_prompt = fields.system_prompt;
-        if (fields.fantasy_starters?.length && (prev.fantasy_starters as any[]).length === 0) updated.fantasy_starters = fields.fantasy_starters;
+        if (fields.fantasy_starters?.length && (prev.fantasy_starters as any[]).length === 0) {
+          updated.fantasy_starters = normalizeFantasyStartersFromFields(fields.fantasy_starters);
+        }
         if (fields.gradient_from && prev.gradient_from === "#7B2D8E") updated.gradient_from = fields.gradient_from;
         if (fields.gradient_to && prev.gradient_to === "#FF2D7B") updated.gradient_to = fields.gradient_to;
         if (fields.image_prompt && !prev.image_prompt) updated.image_prompt = fields.image_prompt;
@@ -406,6 +485,42 @@ const CompanionManager = () => {
               <><Loader2 className="h-4 w-4 animate-spin" /> Parsing with Grok...</>
             ) : (
               <><Sparkles className="h-4 w-4" /> Auto-Fill Fields</>
+            )}
+          </button>
+        </div>
+
+        <div className="rounded-lg border border-violet-500/25 bg-violet-500/5 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-violet-400" />
+            <h4 className="text-sm font-bold text-foreground">Catalog design lab</h4>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Grok invents a full premium companion (name, deep backstory, 4 fantasy starters, cinematic{" "}
+            <strong className="text-foreground">image_prompt</strong>, rich tags &amp; interests). This{" "}
+            <strong className="text-foreground">replaces</strong> the draft below — use it to build a big roster. Portrait
+            generation still uses the shared LustForge image brief (SFW art).
+          </p>
+          <textarea
+            value={designLabHints}
+            onChange={(e) => setDesignLabHints(e.target.value)}
+            rows={3}
+            placeholder="Optional: e.g. &quot;nocturnal merfolk DJ, bioluminescent club, melancholic flirt&quot; — or leave empty for a wild card."
+            className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm focus:outline-none focus:border-violet-500/50 transition-colors resize-y"
+          />
+          <button
+            type="button"
+            onClick={() => void rollPremiumCatalogCompanion()}
+            disabled={autoFilling}
+            className="px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {autoFilling ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Grok is designing…
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" /> Roll new catalog companion
+              </>
             )}
           </button>
         </div>

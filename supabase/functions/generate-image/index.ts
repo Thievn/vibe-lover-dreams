@@ -1,14 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { PORTRAIT_IMAGE_DESIGN_BRIEF } from "../_shared/portraitImageDesignBrief.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const DEFAULT_IMAGE_MODEL = "grok-imagine-image";
 
@@ -18,23 +20,9 @@ serve(async (req) => {
   }
 
   try {
-    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error:
-            "Missing API key. Set Edge Function secret XAI_API_KEY (or legacy GROK_API_KEY) to your xAI API key from https://console.x.ai/",
-        }),
-        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Supabase service configuration missing");
-    }
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const authHeader = req.headers.get("Authorization") || "";
+    const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const anonTrim = SUPABASE_ANON_KEY?.trim() ?? "";
 
     const {
       prompt,
@@ -49,6 +37,59 @@ serve(async (req) => {
       throw new Error("Missing prompt or userId");
     }
 
+    // With verify_jwt off at the gateway, validate the caller here (blocks anon-only abuse).
+    if (!bearer || (anonTrim && bearer === anonTrim)) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error:
+            "Sign in required. Refresh the app and try again — the request must include your user session token (not the anon key alone).",
+        }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: `Bearer ${bearer}` } },
+    });
+    const {
+      data: { user },
+      error: authErr,
+    } = await userClient.auth.getUser();
+    if (authErr || !user) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: authErr?.message || "Invalid or expired session. Sign out and sign in again.",
+        }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    if (user.id !== userId) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Session does not match userId in request." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error:
+            "Missing API key. Set Edge Function secret XAI_API_KEY (or legacy GROK_API_KEY) to your xAI API key from https://console.x.ai/",
+        }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Supabase service configuration missing (URL, anon, or service role)");
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
     let baseDescription = characterData.baseDescription || "a highly attractive character";
 
     if (characterData.randomize === true) {
@@ -57,6 +98,8 @@ serve(async (req) => {
     }
 
     const finalPrompt = `
+${PORTRAIT_IMAGE_DESIGN_BRIEF}
+
 Create a highly seductive, provocative, and artistic portrait of ${baseDescription}.
 
 Character Details:
@@ -75,6 +118,8 @@ Key Rules:
 - Extremely sexy and provocative but tasteful and artistic
 - Perfect anatomy is NOT required — body can be realistic, curvy, thick, skinny, muscular, soft, etc.
 - Highly detailed, cinematic lighting, premium quality, vertical portrait composition suitable for TCG-style card
+${characterData.referencePalette ? `- Loosely echo this abstract color mood from a user-supplied reference thumbnail (palette only; do not copy any real person's face): ${characterData.referencePalette}` : ""}
+${characterData.referenceNotes ? `- User style notes (interpret as generic art direction, not likeness): ${characterData.referenceNotes}` : ""}
 
 Original user request: ${prompt}
     `.trim();

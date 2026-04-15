@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { PORTRAIT_IMAGE_DESIGN_BRIEF } from "../_shared/portraitImageDesignBrief.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,6 +75,8 @@ Deno.serve(async (req) => {
     const model = Deno.env.get("GROK_IMAGE_MODEL")?.trim() || DEFAULT_IMAGE_MODEL;
 
     const finalPrompt = `
+${PORTRAIT_IMAGE_DESIGN_BRIEF}
+
 Create a highly detailed, cinematic, seductive SFW portrait for a romance / AI companion catalog card.
 Strictly SFW: no nudity, no visible genitals, no explicit sex acts. Artistic pin-up or cover quality.
 

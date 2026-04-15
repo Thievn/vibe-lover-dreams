@@ -12,7 +12,7 @@ import { ImageMessage } from "@/components/ImageMessage";
 import { BreedingRitual } from "@/components/BreedingRitual";
 import { useCompanionRelationship } from "@/hooks/useCompanionRelationship";
 import { getToys, sendCommand, testToy, generatePairingQR, disconnectToy, LovenseToy, LovenseCommand } from "@/lib/lovense";
-import createCompanionSystemPrompt from '@/lib/companionSystemPrompts';
+import { buildChatSystemPrompt } from "@/lib/companionSystemPrompts";
 
 const TOKEN_COST = 15;
 const IMAGE_TOKEN_COST = 75;
@@ -61,6 +61,7 @@ const Chat = () => {
   const [intensity, setIntensity] = useState<number>(() => parseInt(localStorage.getItem("lustforge-intensity") || "50"));
   const [isPatternPersistent, setIsPatternPersistent] = useState<boolean>(false);
   const starterSentRef = useRef(false);
+  const openingFantasyStarterTitleRef = useRef<string | null>(null);
   const location = useLocation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -75,6 +76,7 @@ const Chat = () => {
 
   useEffect(() => {
     starterSentRef.current = false;
+    openingFantasyStarterTitleRef.current = null;
   }, [id]);
 
   useEffect(() => {
@@ -98,6 +100,10 @@ const Chat = () => {
       setStarterTitle(state.starterTitle || null);
     }
   }, [location.state]);
+
+  useEffect(() => {
+    if (starterTitle) openingFantasyStarterTitleRef.current = starterTitle;
+  }, [starterTitle]);
 
   useEffect(() => {
     if (!user || !starterPrompt || starterSentRef.current || loading) return;
@@ -296,6 +302,22 @@ const Chat = () => {
       "bianca-rose": "*appears in a puff of sparkly smoke, trips over own tail* I AM BIANCA, DEVOURER OF— ow. Hold on. *fixes horn* Okay. Take two. Hey cutie 😅",
     };
     return greetings[companion.id] || `*${companion.name} appears before you* Hey there... I've been waiting for someone like you. Ready to begin?`;
+  };
+
+  const composeGrokSystemPrompt = () => {
+    if (!companion) return "";
+    const toys = connectedToys.length > 0 ? connectedToys.map((t) => t.name).join(", ") : "No toys connected";
+    const pct = parseInt(localStorage.getItem("lustforge-intensity") || "50", 10);
+    return buildChatSystemPrompt(companion, {
+      safeWord,
+      connectedToysSummary: toys,
+      openingFantasyStarterTitle: openingFantasyStarterTitleRef.current,
+      userToyIntensityPercent: Number.isFinite(pct) ? pct : 50,
+    });
+  };
+
+  const clearOpeningStarterContext = () => {
+    openingFantasyStarterTitleRef.current = null;
   };
 
   const parseLovenseCommand = (text: string): { cleanText: string; command: any | null } => {
@@ -549,6 +571,7 @@ const Chat = () => {
           toast.success(`✨ Image generated! (${IMAGE_TOKEN_COST} tokens deducted)`, {
             duration: 3000,
           });
+          clearOpeningStarterContext();
         } else {
           // If image generation fails, provide a chat response instead
           const contextMessages = messages.slice(-20).map((m) => ({
@@ -560,7 +583,7 @@ const Chat = () => {
             body: {
               companionId: companion.id,
               messages: [...contextMessages, { role: "user", content: userMsg.content }],
-              systemPrompt: createCompanionSystemPrompt(companion.name, {}, connectedToys.length > 0 ? connectedToys.map(toy => toy.name).join(', ') : "No toys connected"),
+              systemPrompt: composeGrokSystemPrompt(),
               companionName: companion.name,
             },
           });
@@ -592,6 +615,7 @@ const Chat = () => {
           }
 
           await deductTokens(user.id);
+          clearOpeningStarterContext();
         }
       } else {
         // Regular chat message
@@ -604,7 +628,7 @@ const Chat = () => {
           body: {
             companionId: companion.id,
             messages: [...contextMessages, { role: "user", content: userMsg.content }],
-            systemPrompt: createCompanionSystemPrompt(companion.name, {}, connectedToys.length > 0 ? connectedToys.map(toy => toy.name).join(', ') : "No toys connected"),
+            systemPrompt: composeGrokSystemPrompt(),
             companionName: companion.name,
             connectedToys: connectedToys,
           },
@@ -638,6 +662,7 @@ const Chat = () => {
         }
 
         await deductTokens(user.id);
+        clearOpeningStarterContext();
       }
     } catch (err: any) {
       console.error("Chat error:", err);

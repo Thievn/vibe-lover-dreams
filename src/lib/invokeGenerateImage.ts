@@ -46,7 +46,11 @@ export async function invokeGenerateImage(
 
   await supabase.auth.refreshSession();
   const session = (await supabase.auth.getSession()).data.session;
-  let bearer = session?.access_token ?? anon;
+  const bearer = session?.access_token;
+  // generate-image rejects Bearer=anon (must be a user JWT that matches body.userId).
+  if (!bearer) {
+    return { data: null, error: new Error("Sign in again — image generation needs an active session.") };
+  }
 
   let res = await post(bearer);
   if (!res.ok) {

@@ -48,9 +48,22 @@ function coerceStockRow(row: Record<string, unknown>): DbCompanion {
 function customRowToDbCompanion(row: Record<string, unknown>): DbCompanion {
   const startersRaw = row.fantasy_starters;
   const starters = Array.isArray(startersRaw)
-    ? (startersRaw as { title?: string; description?: string }[])
-        .filter((s) => s && typeof s.title === "string")
-        .map((s) => ({ title: s.title!, description: typeof s.description === "string" ? s.description : "" }))
+    ? (startersRaw as Record<string, unknown>[])
+        .map((s) => {
+          if (!s || typeof s !== "object") return null;
+          const description =
+            (typeof s.description === "string" && s.description) ||
+            (typeof s.message === "string" && s.message) ||
+            "";
+          const title =
+            (typeof s.title === "string" && s.title.trim()) ||
+            (typeof s.label === "string" && s.label.trim()) ||
+            (typeof s.emoji === "string" && typeof s.label === "string" && `${s.emoji} ${s.label}`.trim()) ||
+            (description ? description.trim().slice(0, 48) + (description.length > 48 ? "…" : "") : "");
+          if (!title.trim()) return null;
+          return { title: title.trim(), description: description.trim() };
+        })
+        .filter((x): x is { title: string; description: string } => x !== null)
     : [];
 
   return {
