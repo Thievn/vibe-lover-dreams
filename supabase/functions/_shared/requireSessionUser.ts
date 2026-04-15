@@ -11,13 +11,17 @@ function normalizeAuthEmailForCompare(email: string | null | undefined): string 
   const e = email.trim().toLowerCase();
   const at = e.lastIndexOf("@");
   if (at <= 0) return e;
-  const local = e.slice(0, at);
+  let local = e.slice(0, at);
   const domain = e.slice(at + 1);
   if (domain === "gmail.com" || domain === "googlemail.com") {
+    const plus = local.indexOf("+");
+    if (plus >= 0) local = local.slice(0, plus);
     return `${local.replace(/\./g, "")}@${domain}`;
   }
   return e;
 }
+
+const DEFAULT_ADMIN_EMAIL_NORM = normalizeAuthEmailForCompare("lustforgeapp@gmail.com");
 
 /**
  * With `verify_jwt = false` on the function, Kong skips JWT algorithm checks (e.g. ES256).
@@ -77,10 +81,13 @@ export async function requireAdminUser(req: Request): Promise<
 
   const adminRaw = (Deno.env.get("ADMIN_EMAIL") ?? "lustforgeapp@gmail.com").trim();
   const adminEmails = new Set(
-    adminRaw
-      .split(",")
-      .map((s) => normalizeAuthEmailForCompare(s.trim()))
-      .filter(Boolean),
+    [
+      DEFAULT_ADMIN_EMAIL_NORM,
+      ...adminRaw
+        .split(",")
+        .map((s) => normalizeAuthEmailForCompare(s.trim()))
+        .filter(Boolean),
+    ],
   );
   const em = normalizeAuthEmailForCompare(session.user.email);
   if (em && adminEmails.has(em)) {

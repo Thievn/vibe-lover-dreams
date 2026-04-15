@@ -10,13 +10,18 @@ export function normalizeAuthEmailForCompare(email: string | null | undefined): 
   const e = email.trim().toLowerCase();
   const at = e.lastIndexOf("@");
   if (at <= 0) return e;
-  const local = e.slice(0, at);
+  let local = e.slice(0, at);
   const domain = e.slice(at + 1);
   if (domain === "gmail.com" || domain === "googlemail.com") {
+    const plus = local.indexOf("+");
+    if (plus >= 0) local = local.slice(0, plus);
     return `${local.replace(/\./g, "")}@${domain}`;
   }
   return e;
 }
+
+/** Founder mailbox — always merged into `VITE_ADMIN_EMAIL` so a single extra env address cannot lock the Gmail operator out. */
+const DEFAULT_PLATFORM_ADMIN_EMAIL = normalizeAuthEmailForCompare("lustforgeapp@gmail.com");
 
 /** Strip leading @ and lowercase — for display handle / admin handle checks. */
 export function normalizeForgeDisplayHandle(raw: string | null | undefined): string {
@@ -42,19 +47,20 @@ export function platformAdminHandleSet(): Set<string> {
   return new Set(parts);
 }
 
-/** All admin emails (normalized for Gmail dot rules). Comma-separated in `VITE_ADMIN_EMAIL`. */
+/** All admin emails (normalized for Gmail dot/+ rules). Comma-separated in `VITE_ADMIN_EMAIL`, plus founder Gmail always. */
 export function platformAdminEmailList(): string[] {
   const raw = (import.meta.env.VITE_ADMIN_EMAIL as string | undefined)?.trim();
-  if (!raw) return [normalizeAuthEmailForCompare("lustforgeapp@gmail.com")];
-  return raw
-    .split(",")
-    .map((s) => normalizeAuthEmailForCompare(s.trim()))
-    .filter(Boolean);
+  const fromEnv = raw
+    ? raw
+        .split(",")
+        .map((s) => normalizeAuthEmailForCompare(s.trim()))
+        .filter(Boolean)
+    : [];
+  return Array.from(new Set([...fromEnv, DEFAULT_PLATFORM_ADMIN_EMAIL]));
 }
 
-/** Primary admin email (first entry, normalized) — for display or legacy reads. */
-export const PLATFORM_ADMIN_EMAIL =
-  platformAdminEmailList()[0] ?? normalizeAuthEmailForCompare("lustforgeapp@gmail.com");
+/** Primary admin email (first env entry if any, else founder) — for display or legacy reads. */
+export const PLATFORM_ADMIN_EMAIL = platformAdminEmailList()[0] ?? DEFAULT_PLATFORM_ADMIN_EMAIL;
 
 const PLATFORM_ADMIN_EMAIL_SET = new Set(platformAdminEmailList());
 
