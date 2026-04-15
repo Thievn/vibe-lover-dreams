@@ -261,16 +261,25 @@ export default function Dashboard() {
       <div className="relative z-10 flex min-h-screen">
         {/* Sidebar */}
         <aside className="hidden md:flex w-[260px] shrink-0 flex-col border-r border-border/80 bg-black/50 backdrop-blur-xl py-8 px-5">
-          <div className="mb-10 px-1">
-            <Link to="/" className="flex items-center gap-2 group">
-              <Flame className="h-7 w-7 shrink-0" style={{ color: NEON_PINK }} />
-              <span className="font-gothic text-xl tracking-[0.2em] gradient-vice-text leading-tight">
-                LUSTFORGE
-              </span>
-            </Link>
-            <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground mt-2 pl-1">
-              Command Deck
-            </p>
+          <div className="mb-10 w-full flex justify-center">
+            <div className="flex flex-col items-center gap-2.5 text-center">
+              <Link
+                to="/"
+                className="flex items-center gap-2 sm:gap-2.5 group shrink-0 min-w-0"
+              >
+                <Flame
+                  className="h-6 w-6 sm:h-7 sm:w-7 shrink-0 drop-shadow-[0_0_10px_rgba(255,45,123,0.45)]"
+                  style={{ color: NEON_PINK }}
+                />
+                <span className="font-gothic text-xl font-bold leading-none tracking-tight flex items-baseline gap-1 sm:gap-1.5">
+                  <span className="gradient-vice-text">LustForge</span>
+                  <span className="text-foreground/90 text-lg sm:text-xl font-bold">AI</span>
+                </span>
+              </Link>
+              <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground max-w-[14rem] leading-relaxed">
+                Command Deck
+              </p>
+            </div>
           </div>
 
           <nav className="flex flex-col gap-1.5 flex-1">
