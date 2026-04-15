@@ -6,12 +6,25 @@ export type GenerateImageResponse = {
   imageUrl?: string;
   imageId?: string | null;
   error?: string;
+  code?: string;
+  tokensRefunded?: boolean;
+  tokensDeducted?: number;
+  newTokensBalance?: number;
 };
 
 function parseErrorMessage(status: number, text: string): string {
   try {
-    const j = JSON.parse(text) as { error?: string; message?: string; msg?: string };
-    return (j.error || j.message || j.msg || text).trim() || `HTTP ${status}`;
+    const j = JSON.parse(text) as {
+      error?: string;
+      message?: string;
+      msg?: string;
+      tokensRefunded?: boolean;
+    };
+    const base = (j.error || j.message || j.msg || text).trim() || `HTTP ${status}`;
+    if (j.tokensRefunded) {
+      return `${base} (forge credits were refunded.)`;
+    }
+    return base;
   } catch {
     return text.trim() || `HTTP ${status}`;
   }
@@ -21,6 +34,8 @@ function parseErrorMessage(status: number, text: string): string {
  * Calls `generate-image` with plain fetch so Authorization is exactly one Bearer token.
  * The shared Supabase fetch wrapper skips injecting a fresh JWT if `Authorization` is already
  * set (e.g. from a stale `invoke` header); this path avoids that class of "Invalid JWT" bugs.
+ *
+ * Optional `tokenCost` in the body: server deducts that many forge credits up front and refunds on failure.
  */
 export async function invokeGenerateImage(
   body: Record<string, unknown>,
@@ -47,7 +62,6 @@ export async function invokeGenerateImage(
   await supabase.auth.refreshSession();
   const session = (await supabase.auth.getSession()).data.session;
   const bearer = session?.access_token;
-  // generate-image rejects Bearer=anon (must be a user JWT that matches body.userId).
   if (!bearer) {
     return { data: null, error: new Error("Sign in again — image generation needs an active session.") };
   }

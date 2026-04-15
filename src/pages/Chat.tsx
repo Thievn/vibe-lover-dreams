@@ -144,15 +144,6 @@ const Chat = () => {
     setTokensBalance(newBalance);
   };
 
-  const deductImageTokens = async (userId: string) => {
-    const newBalance = Math.max(0, tokensBalance - IMAGE_TOKEN_COST);
-    await supabase
-      .from("profiles")
-      .update({ tokens_balance: newBalance })
-      .eq("user_id", userId);
-    setTokensBalance(newBalance);
-  };
-
   const isImageRequest = (text: string): boolean => {
     const imageKeywords = [
       'image', 'picture', 'photo', 'pic', 'send pic', 'send a picture',
@@ -179,6 +170,7 @@ const Chat = () => {
         prompt,
         userId,
         isPortrait: false,
+        tokenCost: IMAGE_TOKEN_COST,
         characterData: {
           companionId: companion.id,
           style: "chat-session",
@@ -193,6 +185,12 @@ const Chat = () => {
       const imageId = data.imageId;
 
       if (!imageUrl) throw new Error("No image generated");
+
+      if (typeof data.newTokensBalance === "number") {
+        setTokensBalance(data.newTokensBalance);
+      } else {
+        await fetchTokens(userId);
+      }
 
       return {
         imageUrl,
@@ -565,10 +563,7 @@ const Chat = () => {
 
           setMessages((prev) => [...prev, imageMsg]);
 
-          // Deduct image tokens
-          await deductImageTokens(user.id);
-          
-          toast.success(`✨ Image generated! (${IMAGE_TOKEN_COST} tokens deducted)`, {
+          toast.success(`✨ Image generated! (${IMAGE_TOKEN_COST} forge credits)`, {
             duration: 3000,
           });
           clearOpeningStarterContext();

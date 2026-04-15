@@ -678,25 +678,34 @@ Hard requirements:
         toast.error(`Need ${PREVIEW_COST} tokens for preview.`);
         return;
       }
-      const reserved = await deductTokens(PREVIEW_COST);
-      if (!reserved) {
-        toast.error("Could not reserve preview tokens.");
-        return;
-      }
     }
     setPreviewLoading(true);
     try {
-      const previewBody = buildPortraitGeneratePayload();
-      if (!previewBody) throw new Error("Not signed in.");
+      const base = buildPortraitGeneratePayload();
+      if (!base) throw new Error("Not signed in.");
+      const previewBody = isAdmin ? base : { ...base, tokenCost: PREVIEW_COST };
 
       const { data, error } = await invokeGenerateImage(previewBody);
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Generation failed");
       if (!data.imageUrl) throw new Error("No image URL returned");
       setPreviewUrl(data.imageUrl);
+      if (typeof data.newTokensBalance === "number") setTokens(data.newTokensBalance);
+      else if (!isAdmin) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data: row } = await supabase
+            .from("profiles")
+            .select("tokens_balance")
+            .eq("user_id", session.user.id)
+            .single();
+          if (row) setTokens(row.tokens_balance);
+        }
+      }
       toast.success(isAdmin ? "Preview forged (admin)." : `Preview saved · −${PREVIEW_COST} tokens`);
     } catch (e: unknown) {
-      if (!isAdmin) await addTokens(PREVIEW_COST);
       const msg = e instanceof Error ? e.message : "Preview failed";
       toast.error(msg);
     } finally {

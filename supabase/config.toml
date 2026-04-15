@@ -16,3 +16,7 @@ verify_jwt = false
 
 [functions.generate-companion-image]
 verify_jwt = false
+
+# Validates session inside Deno (same pattern as generate-image).
+[functions.safe-image-prompt]
+verify_jwt = false

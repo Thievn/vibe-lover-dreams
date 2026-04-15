@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { PORTRAIT_IMAGE_DESIGN_BRIEF } from "../_shared/portraitImageDesignBrief.ts";
+import { rewritePromptForImagine } from "../_shared/safeImagePromptRewriter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,16 +15,36 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "
 
 const DEFAULT_IMAGE_MODEL = "grok-imagine-image";
 
+async function refundTokens(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  amount: number,
+): Promise<void> {
+  if (amount <= 0) return;
+  try {
+    const { data: row } = await supabase.from("profiles").select("tokens_balance").eq("user_id", userId).maybeSingle();
+    const bal = row?.tokens_balance ?? 0;
+    await supabase.from("profiles").update({ tokens_balance: bal + amount }).eq("user_id", userId);
+  } catch (e) {
+    console.error("refundTokens failed", e);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  let tokensCharged = false;
+  let tokenCost = 0;
+  let chargedUserId = "";
 
   try {
     const authHeader = req.headers.get("Authorization") || "";
     const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
     const anonTrim = SUPABASE_ANON_KEY?.trim() ?? "";
 
+    const body = await req.json();
     const {
       prompt,
       characterData = {},
@@ -31,13 +52,27 @@ serve(async (req) => {
       isPortrait = false,
       name = "",
       subtitle = "",
-    } = await req.json();
+      tokenCost: rawTokenCost,
+    } = body as {
+      prompt?: string;
+      characterData?: Record<string, unknown>;
+      userId?: string;
+      isPortrait?: boolean;
+      name?: string;
+      subtitle?: string;
+      tokenCost?: number;
+    };
 
     if (!prompt || !userId) {
       throw new Error("Missing prompt or userId");
     }
 
-    // With verify_jwt off at the gateway, validate the caller here (blocks anon-only abuse).
+    tokenCost =
+      typeof rawTokenCost === "number" && Number.isFinite(rawTokenCost) && rawTokenCost > 0
+        ? Math.floor(rawTokenCost)
+        : 0;
+    chargedUserId = userId;
+
     if (!bearer || (anonTrim && bearer === anonTrim)) {
       return new Response(
         JSON.stringify({
@@ -90,11 +125,68 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    let baseDescription = characterData.baseDescription || "a highly attractive character";
+    if (tokenCost > 0) {
+      const { data: prof, error: profErr } = await supabase
+        .from("profiles")
+        .select("tokens_balance")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (profErr || prof == null) {
+        throw new Error("Could not read forge credits balance.");
+      }
+      if (prof.tokens_balance < tokenCost) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Not enough forge credits (${tokenCost} required for this image).`,
+            code: "INSUFFICIENT_TOKENS",
+          }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const { error: deductErr } = await supabase
+        .from("profiles")
+        .update({ tokens_balance: prof.tokens_balance - tokenCost })
+        .eq("user_id", userId);
+      if (deductErr) throw new Error(deductErr.message || "Could not reserve forge credits.");
+      tokensCharged = true;
+    }
+
+    let baseDescription = (characterData.baseDescription as string) || "a highly attractive character";
 
     if (characterData.randomize === true) {
       baseDescription =
         "a completely unique and original character with random appearance, body type, and style";
+    }
+
+    const rewriterContext = JSON.stringify({
+      isPortrait,
+      name,
+      subtitle,
+      characterData,
+    }).slice(0, 6000);
+
+    let safeRewritten: string;
+    try {
+      safeRewritten = await rewritePromptForImagine({
+        raw: String(prompt),
+        context: rewriterContext,
+        apiKey,
+      });
+    } catch (rewriteErr) {
+      if (tokensCharged) {
+        await refundTokens(supabase, userId, tokenCost);
+        tokensCharged = false;
+      }
+      const msg = rewriteErr instanceof Error ? rewriteErr.message : String(rewriteErr);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Prompt preparation failed: ${msg}`,
+          tokensRefunded: tokenCost > 0,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const finalPrompt = `
@@ -121,48 +213,69 @@ Key Rules:
 ${characterData.referencePalette ? `- Loosely echo this abstract color mood from a user-supplied reference thumbnail (palette only; do not copy any real person's face): ${characterData.referencePalette}` : ""}
 ${characterData.referenceNotes ? `- User style notes (interpret as generic art direction, not likeness): ${characterData.referenceNotes}` : ""}
 
-Original user request: ${prompt}
+PRIMARY SCENE DIRECTION (follow this closely — premium, cinematic, maximum sensual tension through pose, gaze, fabric, and light; do not depict anything that violates SFW rules):
+${safeRewritten}
     `.trim();
 
     const model = Deno.env.get("GROK_IMAGE_MODEL")?.trim() || DEFAULT_IMAGE_MODEL;
 
-    const response = await fetch("https://api.x.ai/v1/images/generations", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        prompt: finalPrompt,
-        n: 1,
-        aspect_ratio: "3:4",
-      }),
-    });
-
-    const rawText = await response.text();
-    let data: { data?: Array<{ url?: string; b64_json?: string }>; error?: { message?: string } } = {};
+    let imageUrl: string | undefined;
     try {
-      data = JSON.parse(rawText) as typeof data;
-    } catch {
-      throw new Error(`xAI returned non-JSON (${response.status}): ${rawText.slice(0, 500)}`);
-    }
+      const response = await fetch("https://api.x.ai/v1/images/generations", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          prompt: finalPrompt,
+          n: 1,
+          aspect_ratio: "3:4",
+        }),
+      });
 
-    if (!response.ok) {
-      const msg = data.error?.message || rawText.slice(0, 500) || `HTTP ${response.status}`;
-      throw new Error(`xAI image API error: ${msg}`);
-    }
+      const rawText = await response.text();
+      let data: { data?: Array<{ url?: string; b64_json?: string }>; error?: { message?: string } } = {};
+      try {
+        data = JSON.parse(rawText) as typeof data;
+      } catch {
+        throw new Error(`xAI returned non-JSON (${response.status}): ${rawText.slice(0, 500)}`);
+      }
 
-    let imageUrl = data.data?.[0]?.url;
-    const b64 = data.data?.[0]?.b64_json;
+      if (!response.ok) {
+        const msg = data.error?.message || rawText.slice(0, 500) || `HTTP ${response.status}`;
+        throw new Error(`xAI image API error: ${msg}`);
+      }
 
-    if (!imageUrl && b64) {
-      imageUrl = `data:image/jpeg;base64,${b64}`;
-    }
+      imageUrl = data.data?.[0]?.url;
+      const b64 = data.data?.[0]?.b64_json;
 
-    if (!imageUrl) {
-      console.error("xAI response:", rawText.slice(0, 2000));
-      throw new Error("Failed to generate image from xAI (no url or b64 in response)");
+      if (!imageUrl && b64) {
+        imageUrl = `data:image/jpeg;base64,${b64}`;
+      }
+
+      if (!imageUrl) {
+        console.error("xAI response:", rawText.slice(0, 2000));
+        throw new Error("Failed to generate image from xAI (no url or b64 in response)");
+      }
+    } catch (imgErr) {
+      if (tokensCharged) {
+        await refundTokens(supabase, userId, tokenCost);
+        tokensCharged = false;
+      }
+      const msg = imgErr instanceof Error ? imgErr.message : String(imgErr);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error:
+            /xai|content policy|moderation|blocked|safety/i.test(msg)
+              ? msg
+              : `Image generation failed: ${msg}. Your forge credits were refunded if this run charged you.`,
+          tokensRefunded: tokenCost > 0,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const bucket = isPortrait ? "companion-portraits" : "companion-images";
@@ -171,68 +284,128 @@ Original user request: ${prompt}
       : `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
 
     let imageBuffer: ArrayBuffer;
-    if (imageUrl.startsWith("data:")) {
-      const parts = imageUrl.split(",");
-      if (parts.length < 2) throw new Error("Invalid base64 image data");
-      const binary = atob(parts[1]!);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      imageBuffer = bytes.buffer;
-    } else {
-      const imageResponse = await fetch(imageUrl);
-      if (!imageResponse.ok) {
-        throw new Error(`Failed to download generated image: ${imageResponse.status}`);
+    try {
+      if (imageUrl!.startsWith("data:")) {
+        const parts = imageUrl!.split(",");
+        if (parts.length < 2) throw new Error("Invalid base64 image data");
+        const binary = atob(parts[1]!);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        imageBuffer = bytes.buffer;
+      } else {
+        const imageResponse = await fetch(imageUrl!);
+        if (!imageResponse.ok) {
+          throw new Error(`Failed to download generated image: ${imageResponse.status}`);
+        }
+        imageBuffer = await imageResponse.arrayBuffer();
       }
-      imageBuffer = await imageResponse.arrayBuffer();
+    } catch (dlErr) {
+      if (tokensCharged) {
+        await refundTokens(supabase, userId, tokenCost);
+        tokensCharged = false;
+      }
+      const msg = dlErr instanceof Error ? dlErr.message : String(dlErr);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Could not retrieve generated image: ${msg}. Forge credits were refunded if charged.`,
+          tokensRefunded: tokenCost > 0,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
-    const { error: uploadError } = await supabase.storage
-      .from(bucket)
-      .upload(fileName, imageBuffer, { contentType: "image/jpeg", upsert: true });
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(fileName, imageBuffer, { contentType: "image/jpeg", upsert: true });
 
-    if (uploadError) throw uploadError;
+      if (uploadError) throw uploadError;
 
-    const publicUrl = supabase.storage.from(bucket).getPublicUrl(fileName).data.publicUrl;
+      const publicUrl = supabase.storage.from(bucket).getPublicUrl(fileName).data.publicUrl;
 
-    const table = isPortrait ? "companion_portraits" : "generated_images";
+      const table = isPortrait ? "companion_portraits" : "generated_images";
 
-    const insertData: Record<string, unknown> = {
-      user_id: userId,
-      image_url: publicUrl,
-      prompt: prompt,
-      style: characterData.style || "custom",
-      created_at: new Date().toISOString(),
-    };
+      const insertData: Record<string, unknown> = {
+        user_id: userId,
+        image_url: publicUrl,
+        prompt: isPortrait ? `${safeRewritten}\n—\nSource brief: ${String(prompt).slice(0, 400)}` : safeRewritten,
+        style: characterData.style || "custom",
+        created_at: new Date().toISOString(),
+      };
 
-    if (isPortrait) {
-      insertData.name = name || "Custom Companion";
-      insertData.subtitle = subtitle || "Generated Portrait";
-      insertData.is_public = true;
-    } else {
-      insertData.companion_id = characterData.companionId || "forge-preview";
+      if (!isPortrait) {
+        insertData.original_prompt = String(prompt);
+        insertData.companion_id = characterData.companionId || "forge-preview";
+      }
+
+      if (isPortrait) {
+        insertData.name = name || "Custom Companion";
+        insertData.subtitle = subtitle || "Generated Portrait";
+        insertData.is_public = true;
+      }
+
+      const { data: inserted, error: insertError } = await supabase.from(table).insert(insertData).select("id").single();
+      if (insertError) throw insertError;
+
+      let newTokensBalance: number | undefined;
+      if (tokenCost > 0) {
+        const { data: balRow } = await supabase.from("profiles").select("tokens_balance").eq("user_id", userId).maybeSingle();
+        newTokensBalance = balRow?.tokens_balance;
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          imageUrl: publicUrl,
+          imageId: inserted?.id ?? null,
+          bucket,
+          isPortrait,
+          tokensDeducted: tokenCost > 0 ? tokenCost : undefined,
+          newTokensBalance,
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    } catch (lateErr) {
+      if (tokensCharged) {
+        await refundTokens(supabase, userId, tokenCost);
+        tokensCharged = false;
+      }
+      const message = lateErr instanceof Error ? lateErr.message : String(lateErr);
+      console.error(message);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Save failed after generation: ${message}. Forge credits were refunded if charged.`,
+          tokensRefunded: tokenCost > 0,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
-
-    const { data: inserted, error: insertError } = await supabase.from(table).insert(insertData).select("id").single();
-    if (insertError) throw insertError;
-
+  } catch (error: unknown) {
+    if (tokensCharged && tokenCost > 0 && chargedUserId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        await refundTokens(sb, chargedUserId, tokenCost);
+      } catch (re) {
+        console.error("Emergency token refund failed:", re);
+      }
+      tokensCharged = false;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(message);
     return new Response(
       JSON.stringify({
-        success: true,
-        imageUrl: publicUrl,
-        imageId: inserted?.id ?? null,
-        bucket,
-        isPortrait,
+        success: false,
+        error: message,
+        tokensRefunded: tokenCost > 0,
       }),
       {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(message);
-    return new Response(JSON.stringify({ success: false, error: message }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
   }
 });
