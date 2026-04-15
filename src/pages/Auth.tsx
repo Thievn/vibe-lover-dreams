@@ -264,7 +264,7 @@ export default function Auth() {
           <form onSubmit={signInForm.handleSubmit(onSubmitSignIn)} className="space-y-4">
             <div>
               <label htmlFor="auth-signin-identifier" className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Your E-Mail/Username
+                E-Mail/Username
               </label>
               <div className="relative">
                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -274,7 +274,7 @@ export default function Auth() {
                   type="text"
                   autoComplete="username"
                   className={inputClass}
-                  placeholder="your.email@example.com or your username"
+                  placeholder="Your E-Mail/Username"
                 />
               </div>
               {signInForm.formState.errors.identifier && (
