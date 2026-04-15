@@ -25,6 +25,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { formatSupabaseError } from "@/lib/supabaseError";
+import { suggestedForgeDisplayName } from "@/lib/forgeRandomName";
 import { cn } from "@/lib/utils";
 
 const NEON = "#FF2D7B";
@@ -293,6 +294,8 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
   const [profileDisplayName, setProfileDisplayName] = useState("");
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  /** Stable public storage URL for forging / DB (signed preview URLs expire). */
+  const [previewCanonicalUrl, setPreviewCanonicalUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [finalLoading, setFinalLoading] = useState(false);
 
@@ -360,8 +363,13 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
     try {
       const raw = localStorage.getItem(previewStorageKey(userId, "user"));
       if (!raw) return;
-      const j = JSON.parse(raw) as { previewUrl?: string };
+      const j = JSON.parse(raw) as { previewUrl?: string; previewCanonicalUrl?: string };
       if (j?.previewUrl && typeof j.previewUrl === "string") setPreviewUrl(j.previewUrl);
+      if (j?.previewCanonicalUrl && typeof j.previewCanonicalUrl === "string") {
+        setPreviewCanonicalUrl(j.previewCanonicalUrl);
+      } else if (j?.previewUrl && typeof j.previewUrl === "string") {
+        setPreviewCanonicalUrl(j.previewUrl);
+      }
     } catch {
       /* ignore corrupt storage */
     }
@@ -378,15 +386,23 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
       return;
     }
     try {
-      localStorage.setItem(previewStorageKey(userId, "user"), JSON.stringify({ previewUrl, savedAt: Date.now() }));
+      localStorage.setItem(
+        previewStorageKey(userId, "user"),
+        JSON.stringify({
+          previewUrl,
+          previewCanonicalUrl: previewCanonicalUrl ?? previewUrl,
+          savedAt: Date.now(),
+        }),
+      );
     } catch {
       /* quota / private mode */
     }
-  }, [previewUrl, userId, isAdmin]);
+  }, [previewUrl, previewCanonicalUrl, userId, isAdmin]);
 
   const clearForgePreview = useCallback(
     (opts?: { silent?: boolean }) => {
       setPreviewUrl(null);
+      setPreviewCanonicalUrl(null);
       if (userId && !isAdmin) {
         try {
           localStorage.removeItem(previewStorageKey(userId, "user"));
@@ -690,6 +706,7 @@ Hard requirements:
       if (!data?.success) throw new Error(data?.error || "Generation failed");
       if (!data.imageUrl) throw new Error("No image URL returned");
       setPreviewUrl(data.imageUrl);
+      setPreviewCanonicalUrl(data.publicImageUrl ?? data.imageUrl);
       if (typeof data.newTokensBalance === "number") setTokens(data.newTokensBalance);
       else if (!isAdmin) {
         const {
@@ -769,7 +786,12 @@ Hard requirements:
 
   const runFinalCreate = async () => {
     if (!userId) return;
-    const forgeName = name.trim() || (isAdmin ? `Forge-${Date.now().toString(36)}` : "");
+    let forgeName = name.trim();
+    if (!forgeName && isAdmin) {
+      const picked = suggestedForgeDisplayName();
+      forgeName = picked;
+      setName(picked);
+    }
     if (!forgeName) {
       toast.error("Name your companion before forging.");
       return;
@@ -793,7 +815,7 @@ Hard requirements:
         return;
       }
 
-      let portraitUrl: string | null = previewUrl;
+      let portraitUrl: string | null = previewCanonicalUrl || previewUrl;
       if (!portraitUrl) {
         const payload = buildPortraitGeneratePayload();
         if (payload) {
@@ -801,8 +823,9 @@ Hard requirements:
           if (genErr) {
             toast.error(`Portrait: ${genErr.message}`);
           } else if (genData?.success && genData.imageUrl) {
-            portraitUrl = genData.imageUrl;
+            portraitUrl = genData.publicImageUrl ?? genData.imageUrl;
             setPreviewUrl(genData.imageUrl);
+            setPreviewCanonicalUrl(genData.publicImageUrl ?? genData.imageUrl);
           }
         }
       }
@@ -1268,7 +1291,7 @@ Hard requirements:
                     />
                     {isAdmin && (
                       <p className="text-[10px] text-muted-foreground mb-2 leading-relaxed">
-                        Admin forge: create stays enabled without a name — we assign a disposable forge label so rows always save.
+                        Admin forge: leave name blank and we pick a random evocative catalog name (never Forge-*) when you create.
                       </p>
                     )}
                     <input
@@ -1475,13 +1498,17 @@ Hard requirements:
                   <AnimatePresence mode="wait">
                     {previewUrl ? (
                       <motion.img
-                        key="img"
+                        key={previewUrl}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         src={previewUrl}
                         alt="Preview"
+                        referrerPolicy="no-referrer"
                         className="absolute inset-0 w-full h-full object-cover"
+                        onError={() => {
+                          toast.error("Preview image failed to load — check Storage bucket is public, then try Live preview again.");
+                        }}
                       />
                     ) : (
                       <motion.div

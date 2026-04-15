@@ -3,7 +3,10 @@ import { getSupabaseAnonKey, getSupabaseUrl } from "@/integrations/supabase/env"
 
 export type GenerateImageResponse = {
   success?: boolean;
+  /** Signed or best URL for immediate image display (may expire). */
   imageUrl?: string;
+  /** Canonical storage public URL — persist this in DB / forge rows. */
+  publicImageUrl?: string;
   imageId?: string | null;
   error?: string;
   code?: string;

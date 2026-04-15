@@ -47,9 +47,9 @@ const CompanionManager = () => {
     queryFn: async () => {
       const { data, error: qErr } = await supabase
         .from("custom_characters")
-        .select("id,name,user_id,is_public,approved,created_at")
+        .select("id,name,user_id,is_public,approved,created_at,image_url,tagline")
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(80);
       if (qErr) throw qErr;
       return data ?? [];
     },
@@ -63,6 +63,8 @@ const CompanionManager = () => {
   const [generating, setGenerating] = useState<Record<string, boolean>>({});
   const [createData, setCreateData] = useState({ ...emptyCompanion, id: `custom-${Date.now()}` });
   const [creatingLoading, setCreatingLoading] = useState(false);
+  const [forgeBusyId, setForgeBusyId] = useState<string | null>(null);
+  const [loreBusyId, setLoreBusyId] = useState<string | null>(null);
 
   // Auto-fill state
   const [autoFillPrompt, setAutoFillPrompt] = useState("");
@@ -130,6 +132,70 @@ const CompanionManager = () => {
       toast.error("Save failed: " + err.message);
     } finally {
       setSaving((prev) => ({ ...prev, [companion.id]: false }));
+    }
+  };
+
+  const updateForgeRow = async (
+    id: string,
+    patch: { approved?: boolean; is_public?: boolean },
+  ) => {
+    setForgeBusyId(id);
+    try {
+      const { error } = await supabase.from("custom_characters").update(patch).eq("id", id);
+      if (error) throw error;
+      toast.success("Community forge row updated.");
+      void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
+      void queryClient.invalidateQueries({ queryKey: ["companions"] });
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Update failed");
+    } finally {
+      setForgeBusyId(null);
+    }
+  };
+
+  const refreshLoreWithGrok = async (companion: DbCompanion) => {
+    setLoreBusyId(companion.id);
+    try {
+      const hints = [
+        `Keep or gently refine this roster name: ${companion.name}`,
+        `Tagline: ${companion.tagline}`,
+        `Gender: ${companion.gender}; orientation: ${companion.orientation}; role: ${companion.role}`,
+        `Personality: ${companion.personality}`,
+        `Current bio (expand, do not shorten into bullet tags): ${companion.bio}`,
+        `Current backstory (replace with deeper lore if thin): ${companion.backstory || "(empty)"}`,
+        `Appearance (rewrite as 3+ flowing sentences, not keyword spam): ${companion.appearance}`,
+        "Return a FULL premium profile via tool: bio = 2 vivid paragraphs; backstory = 4 paragraphs with wound/want/secret/sensory scenes; system_prompt = complete chat charter; fantasy_starters = exactly 4; image_prompt = one dense SFW portrait paragraph.",
+      ].join("\n\n");
+      const { data, error } = await supabase.functions.invoke("parse-companion-prompt", {
+        body: { mode: "companion_design_lab", prompt: hints },
+      });
+      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
+      if (data?.error) throw new Error(String(data.error));
+      const fields = data?.fields as Record<string, unknown> | undefined;
+      if (!fields) throw new Error("No fields returned");
+
+      const fantasy_starters = normalizeFantasyStartersFromFields(fields.fantasy_starters);
+      setEditData((prev) => ({
+        ...prev,
+        [companion.id]: {
+          ...prev[companion.id],
+          ...(typeof fields.name === "string" ? { name: String(fields.name).slice(0, 120) } : {}),
+          ...(typeof fields.tagline === "string" ? { tagline: String(fields.tagline).slice(0, 240) } : {}),
+          ...(typeof fields.bio === "string" ? { bio: String(fields.bio).slice(0, 12000) } : {}),
+          ...(typeof fields.backstory === "string" ? { backstory: String(fields.backstory).slice(0, 24000) } : {}),
+          ...(typeof fields.appearance === "string" ? { appearance: String(fields.appearance).slice(0, 12000) } : {}),
+          ...(typeof fields.system_prompt === "string" ? { system_prompt: String(fields.system_prompt).slice(0, 32000) } : {}),
+          ...(fantasy_starters.length ? { fantasy_starters } : {}),
+          ...(typeof fields.image_prompt === "string" ? { image_prompt: String(fields.image_prompt).slice(0, 8000) } : {}),
+          ...(Array.isArray(fields.tags) ? { tags: (fields.tags as string[]).map(String).slice(0, 24) } : {}),
+          ...(Array.isArray(fields.kinks) ? { kinks: (fields.kinks as string[]).map(String).slice(0, 16) } : {}),
+        },
+      }));
+      toast.success("Grok drafted richer lore — review fields, then Save.");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Lore refresh failed");
+    } finally {
+      setLoreBusyId(null);
     }
   };
 
@@ -627,7 +693,23 @@ const CompanionManager = () => {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-3 pt-4 border-t border-border">
+        <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-border">
+          <button
+            type="button"
+            onClick={() => void refreshLoreWithGrok(companion)}
+            disabled={loreBusyId === companion.id}
+            className="px-4 py-2 rounded-lg bg-violet-600/90 text-white text-sm font-medium flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 border border-violet-400/30"
+          >
+            {loreBusyId === companion.id ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Grok expanding lore…
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" /> Refresh lore with Grok
+              </>
+            )}
+          </button>
           <button onClick={() => saveCompanion(companion)} disabled={saving[companion.id] || !hasChanges(companion.id)} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50">
             {saving[companion.id] ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Save Changes
@@ -664,27 +746,70 @@ const CompanionManager = () => {
         ) : forgedRows.length === 0 ? (
           <p className="text-xs text-muted-foreground py-1">No community forge rows yet.</p>
         ) : (
-          <ul className="space-y-2 max-h-52 overflow-y-auto pr-1">
+          <ul className="space-y-3 max-h-[28rem] overflow-y-auto pr-1">
             {forgedRows.map((row) => (
               <li
                 key={row.id}
-                className="flex items-center justify-between gap-2 text-xs border border-border/60 rounded-lg px-3 py-2 bg-black/30"
+                className="flex items-stretch gap-3 text-xs border border-border/60 rounded-xl p-3 bg-gradient-to-br from-black/40 to-muted/20"
               >
-                <div className="min-w-0">
-                  <p className="font-medium text-foreground truncate">{row.name}</p>
-                  <p className="text-[10px] text-muted-foreground font-mono truncate">{row.user_id}</p>
+                <div className="w-14 h-20 rounded-lg overflow-hidden shrink-0 border border-white/10 bg-muted">
+                  {row.image_url ? (
+                    <img src={row.image_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-lg font-bold text-white/50">
+                      {(row.name || "?").charAt(0)}
+                    </div>
+                  )}
                 </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  <span className="text-[10px] text-muted-foreground">
-                    {row.is_public ? "Public" : "Private"}
-                    {row.approved ? " · approved" : ""}
-                  </span>
-                  <Link
-                    to={`/companions/cc-${row.id}`}
-                    className="text-primary hover:underline text-[10px] font-medium"
-                  >
-                    Open profile
-                  </Link>
+                <div className="min-w-0 flex-1 flex flex-col gap-2">
+                  <div>
+                    <p className="font-semibold text-foreground truncate">{row.name}</p>
+                    <p className="text-[10px] text-muted-foreground line-clamp-2">{row.tagline || "—"}</p>
+                    <p className="text-[10px] text-muted-foreground font-mono truncate mt-0.5">{row.user_id}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 items-center">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/40 text-muted-foreground border border-white/10">
+                      {row.is_public ? "Public intent" : "Private"} · {row.approved ? "live on carousel" : "pending approval"}
+                    </span>
+                    <Link
+                      to={`/companions/cc-${row.id}`}
+                      className="text-primary hover:underline text-[10px] font-medium"
+                    >
+                      Open profile
+                    </Link>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-auto">
+                    {!row.approved && (
+                      <button
+                        type="button"
+                        disabled={forgeBusyId === row.id}
+                        onClick={() => void updateForgeRow(row.id, { approved: true, is_public: true })}
+                        className="px-2.5 py-1 rounded-lg bg-primary/90 text-primary-foreground text-[10px] font-semibold hover:opacity-90 disabled:opacity-50"
+                      >
+                        Approve for gallery + carousel
+                      </button>
+                    )}
+                    {row.approved && row.is_public && (
+                      <button
+                        type="button"
+                        disabled={forgeBusyId === row.id}
+                        onClick={() => void updateForgeRow(row.id, { approved: false, is_public: false })}
+                        className="px-2.5 py-1 rounded-lg bg-muted border border-border text-[10px] font-medium hover:bg-muted/80 disabled:opacity-50"
+                      >
+                        Hide from public rotation
+                      </button>
+                    )}
+                    {row.approved && !row.is_public && (
+                      <button
+                        type="button"
+                        disabled={forgeBusyId === row.id}
+                        onClick={() => void updateForgeRow(row.id, { is_public: true })}
+                        className="px-2.5 py-1 rounded-lg bg-accent/20 text-accent text-[10px] font-medium border border-accent/30 disabled:opacity-50"
+                      >
+                        Mark public again
+                      </button>
+                    )}
+                  </div>
                 </div>
               </li>
             ))}

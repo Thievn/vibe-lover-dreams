@@ -205,8 +205,9 @@ export const useCompanions = () => {
       const stock = ((companionsRes.data || []) as Record<string, unknown>[]).map(coerceStockRow);
       return [...stock, ...mineRes, ...publicOthers];
     },
-    staleTime: 60 * 1000,
+    staleTime: 15 * 1000,
     refetchOnWindowFocus: true,
+    refetchOnMount: "always",
   });
 };
 

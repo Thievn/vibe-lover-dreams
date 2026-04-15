@@ -178,9 +178,14 @@ ${imagePrompt}
       });
     }
 
-    const { data: publicUrlData } = adminClient.storage.from("companion-portraits").getPublicUrl(fileName);
-
-    const publicUrl = publicUrlData.publicUrl + "?t=" + Date.now();
+    const publicUrl = adminClient.storage.from("companion-portraits").getPublicUrl(fileName).data.publicUrl;
+    let displayUrl = `${publicUrl}?t=${Date.now()}`;
+    const { data: signedData, error: signErr } = await adminClient.storage
+      .from("companion-portraits")
+      .createSignedUrl(fileName, 60 * 60 * 24 * 365);
+    if (!signErr && signedData?.signedUrl) {
+      displayUrl = signedData.signedUrl;
+    }
 
     const { error: updateError } = await adminClient
       .from("companions")
@@ -194,7 +199,7 @@ ${imagePrompt}
       console.error("DB update error:", updateError);
     }
 
-    return new Response(JSON.stringify({ imageUrl: publicUrl }), {
+    return new Response(JSON.stringify({ imageUrl: displayUrl, publicImageUrl: publicUrl }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: unknown) {

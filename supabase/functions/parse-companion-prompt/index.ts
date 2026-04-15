@@ -65,9 +65,9 @@ Per request, invent exactly ONE wholly original roster character. They may be ma
 Naming: flavorful, species- and personality-appropriate; never generic filler (no "Alex Smith" energy).
 FORBIDDEN name patterns: anything starting with Forge-, Temp-, CC-, placeholders with random alphanumeric tails, UUIDs, or developer-style slugs. Names must read like a real epithet, sobriquet, or given + family / poetic construction.
 
-Bio vs backstory:
-- bio: punchy hook, 1-2 short paragraphs users skim first.
-- backstory: 3-4 richer paragraphs — deep, memorable, addictive lore (wound, want, secret, sensory texture). May imply mature chemistry without pornographic blow-by-blow.
+Bio vs backstory (minimum depth — never thin keyword dumps):
+- bio: at least ~80 words across 2 vivid paragraphs users skim first; voice-forward, seductive or tender per persona.
+- backstory: at least ~220 words across 4 paragraphs — deep, memorable, addictive lore (wound, want, secret, sensory texture, one cinematic scene). May imply mature chemistry without pornographic blow-by-blow.
 
 Fantasy starters: exactly 4 items (mandatory in this mode). Each needs title (card label) + description (the verbatim first USER chat line when they tap the card — in-world, may be seductive / playful / dominant / teasing per persona; not assistant narration). Each description should be 1–4 natural sentences the human would plausibly type.
 

@@ -323,6 +323,13 @@ ${safeRewritten}
       if (uploadError) throw uploadError;
 
       const publicUrl = supabase.storage.from(bucket).getPublicUrl(fileName).data.publicUrl;
+      let displayUrl = publicUrl;
+      const { data: signedData, error: signErr } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(fileName, 60 * 60 * 24 * 365);
+      if (!signErr && signedData?.signedUrl) {
+        displayUrl = signedData.signedUrl;
+      }
 
       const table = isPortrait ? "companion_portraits" : "generated_images";
 
@@ -357,7 +364,8 @@ ${safeRewritten}
       return new Response(
         JSON.stringify({
           success: true,
-          imageUrl: publicUrl,
+          imageUrl: displayUrl,
+          publicImageUrl: publicUrl,
           imageId: inserted?.id ?? null,
           bucket,
           isPortrait,
