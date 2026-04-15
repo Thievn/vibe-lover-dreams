@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { User, Lock, Mail, Eye, EyeOff, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { isPublicSignUpEnabled } from "@/config/auth";
+import { isPublicSignUpEnabled, stripLeadingAtForLoginIdentifier } from "@/config/auth";
 
 const NEON = "#FF2D7B";
 
@@ -96,6 +96,16 @@ export default function Auth() {
     }
     setLoading(true);
     try {
+      const trimmedName = data.username.trim();
+      const { data: nameOk, error: nameCheckErr } = await supabase.rpc("is_display_name_available", {
+        p_name: trimmedName,
+        p_exclude_user_id: null,
+      });
+      if (nameCheckErr) throw nameCheckErr;
+      if (nameOk === false) {
+        throw new Error("That username is already taken. Pick another — names are unique across the forge.");
+      }
+
       const { data: signUpData, error: authError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
@@ -111,24 +121,27 @@ export default function Auth() {
         const { error: profileError } = await supabase.from("profiles").upsert(
           {
             user_id: uid,
-            display_name: data.username,
+            display_name: trimmedName,
           },
           { onConflict: "user_id" },
         );
-        if (profileError) console.warn(profileError);
+        if (profileError) {
+          if (profileError.code === "23505") {
+            throw new Error(
+              "That username was just taken by someone else. Try a different name — they are unique across the forge.",
+            );
+          }
+          throw profileError;
+        }
       }
 
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (session) {
-        toast.success("Account created — welcome to the forge.");
         navigate("/dashboard");
-      } else {
-        toast.message("Confirm your email", {
-          description: "We sent a link to finish setup. You can sign in after confirming.",
-        });
       }
+      // No email confirmation toast — check inbox / spam if sign-in fails after sign-up.
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Sign up failed");
     } finally {
@@ -143,7 +156,7 @@ export default function Auth() {
         localStorage.setItem("identifier", data.identifier.trim());
       }
 
-      const raw = data.identifier.trim();
+      const raw = stripLeadingAtForLoginIdentifier(data.identifier);
       const { data: resolvedEmail, error: resolveErr } = await supabase.rpc("resolve_login_email", {
         p_login: raw,
       });
@@ -165,7 +178,6 @@ export default function Auth() {
 
       if (error) throw error;
 
-      toast.success("Signed in — redirecting.");
       navigate("/dashboard");
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Sign in failed");
@@ -346,7 +358,8 @@ export default function Auth() {
                 Your username
               </label>
               <p className="text-[10px] text-muted-foreground/90 mb-1.5 leading-snug">
-                Shown in the app and used to sign in instead of email, if unique.
+                Global handle — no duplicates (case-insensitive). Used for sign-in with E-Mail/Username. Freed if someone
+                renames or their account is removed.
               </p>
               <div className="relative">
                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />

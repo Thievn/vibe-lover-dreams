@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Coins, Save, Sparkles, UserRound } from "lucide-react";
+import { ArrowLeft, Coins, LogOut, Save, Shield, Sparkles, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
 import { cn } from "@/lib/utils";
+import { isPlatformAdmin } from "@/config/auth";
+import type { User } from "@supabase/supabase-js";
 
 const NEON = "#FF2D7B";
 
@@ -15,6 +17,7 @@ export default function Account() {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [tokens, setTokens] = useState<number | null>(null);
+  const [sessionUser, setSessionUser] = useState<User | null>(null);
 
   const load = useCallback(async () => {
     const {
@@ -24,6 +27,7 @@ export default function Account() {
       navigate("/auth", { replace: true });
       return;
     }
+    setSessionUser(session.user);
     setEmail(session.user.email ?? "");
     const meta = session.user.user_metadata as Record<string, string | undefined> | undefined;
     const { data: profile } = await supabase
@@ -58,11 +62,25 @@ export default function Account() {
 
     setSaving(true);
     try {
+      const { data: nameOk, error: nameErr } = await supabase.rpc("is_display_name_available", {
+        p_name: trimmed,
+        p_exclude_user_id: session.user.id,
+      });
+      if (nameErr) throw nameErr;
+      if (nameOk === false) {
+        throw new Error("That username is already taken. Choose another — names are unique across the forge.");
+      }
+
       const { error: pErr } = await supabase
         .from("profiles")
         .update({ display_name: trimmed })
         .eq("user_id", session.user.id);
-      if (pErr) throw pErr;
+      if (pErr) {
+        if (pErr.code === "23505") {
+          throw new Error("That username is already taken. Choose another — names are unique across the forge.");
+        }
+        throw pErr;
+      }
 
       const { error: uErr } = await supabase.auth.updateUser({
         data: { username: trimmed, full_name: trimmed },
@@ -70,12 +88,16 @@ export default function Account() {
       if (uErr) console.warn(uErr);
 
       setUsername(trimmed);
-      toast.success("Username saved.");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Could not save username.");
     } finally {
       setSaving(false);
     }
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth", { replace: true });
   };
 
   if (loading) {
@@ -147,6 +169,16 @@ export default function Account() {
               </label>
               <div className="rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-muted-foreground">{email || "—"}</div>
               <p className="mt-2 text-xs text-muted-foreground/80">Email is tied to your sign-in and cannot be changed here.</p>
+              {sessionUser && isPlatformAdmin(sessionUser, { profileDisplayName: username }) && (
+                <p className="mt-3 flex items-center gap-2 rounded-xl border border-[#FF2D7B]/25 bg-[#FF2D7B]/[0.06] px-3 py-2 text-xs text-muted-foreground">
+                  <Shield className="h-3.5 w-3.5 shrink-0 text-[#FF2D7B]" />
+                  <span>
+                    <span className="text-foreground font-medium">Forge operator</span> — admin matches your allowed
+                    email (Gmail ignores dots), optional user id in env, and the reserved handle{" "}
+                    <span className="text-foreground">LustForge</span> only when paired with that same account.
+                  </span>
+                </p>
+              )}
             </div>
 
             <div>
@@ -170,7 +202,8 @@ export default function Account() {
                 autoComplete="nickname"
               />
               <p className="mt-2 text-xs text-muted-foreground/80">
-                Capitalization is preserved. This name appears in your dashboard greeting.
+                One-of-a-kind across the forge (case-insensitive): if you change or clear it, the old handle can be claimed
+                again. Shown in your dashboard greeting.
               </p>
             </div>
 
@@ -193,6 +226,17 @@ export default function Account() {
                 {saving ? "Saving…" : "Save username"}
               </span>
             </button>
+
+            <div className="pt-2 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => void signOut()}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-black/40 py-3.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-white/25 hover:bg-white/[0.04] transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                Log out
+              </button>
+            </div>
           </div>
         </div>
       </div>

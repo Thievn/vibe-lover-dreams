@@ -288,7 +288,12 @@ function AdminShell() {
         navigate("/auth", { replace: true });
         return;
       }
-      if (!isPlatformAdmin(session.user)) {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      if (!isPlatformAdmin(session.user, { profileDisplayName: prof?.display_name ?? null })) {
         toast.error("Access denied. Admin only.");
         navigate("/dashboard", { replace: true });
         return;

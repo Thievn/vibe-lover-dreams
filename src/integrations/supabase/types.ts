@@ -482,6 +482,13 @@ export type Database = {
         }
         Returns: string | null
       }
+      is_display_name_available: {
+        Args: {
+          p_name: string
+          p_exclude_user_id?: string | null
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

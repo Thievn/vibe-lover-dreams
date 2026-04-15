@@ -14,6 +14,7 @@ import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import EighteenPlusDisclaimer from "./pages/EighteenPlusDisclaimer";
 import { isPlatformAdmin } from "@/config/auth";
+import type { Session } from "@supabase/supabase-js";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Chat = lazy(() => import("./pages/Chat"));
@@ -80,6 +81,16 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   }
 }
 
+async function computeIsPlatformAdmin(session: Session | null): Promise<boolean> {
+  if (!session?.user) return false;
+  const { data: prof } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("user_id", session.user.id)
+    .maybeSingle();
+  return isPlatformAdmin(session.user, { profileDisplayName: prof?.display_name ?? null });
+}
+
 // Updated ProtectedRoute with admin check
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [loading, setLoading] = useState(true);
@@ -93,7 +104,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const authenticated = !!session;
-        const admin = authenticated && isPlatformAdmin(session?.user);
+        const admin = authenticated && (await computeIsPlatformAdmin(session));
         setIsAuthenticated(authenticated);
         setIsAdmin(admin);
         setLoading(false);
@@ -112,20 +123,21 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     checkAuth();
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      const authenticated = !!session;
-      const admin = authenticated && isPlatformAdmin(session?.user);
-      setIsAuthenticated(authenticated);
-      setIsAdmin(admin);
+      void (async () => {
+        const authenticated = !!session;
+        const admin = authenticated && (await computeIsPlatformAdmin(session));
+        setIsAuthenticated(authenticated);
+        setIsAdmin(admin);
 
-      if (!session && event === 'SIGNED_OUT') {
-        navigate('/auth', { replace: true });
-        return;
-      }
+        if (!session && event === 'SIGNED_OUT') {
+          navigate('/auth', { replace: true });
+          return;
+        }
 
-      // Handle /admin specifically on auth change
-      if (location.pathname === '/admin' && authenticated && !admin) {
-        navigate('/dashboard', { replace: true });
-      }
+        if (location.pathname === '/admin' && authenticated && !admin) {
+          navigate('/dashboard', { replace: true });
+        }
+      })();
     });
 
     return () => listener?.subscription.unsubscribe();

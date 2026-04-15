@@ -159,7 +159,6 @@ export default function AdminForgeAssistant() {
       setMessages((prev) => prev.map((m, i) => (i === msgIndex ? { ...m, applied: true } : m)));
       queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
       queryClient.invalidateQueries({ queryKey: ["companions"] });
-      toast.success("Changes applied to catalog.");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Apply failed");
     } finally {
@@ -169,7 +168,6 @@ export default function AdminForgeAssistant() {
 
   const clearThread = () => {
     setMessages([]);
-    toast.message("Forge Assistant thread cleared.");
   };
 
   return (

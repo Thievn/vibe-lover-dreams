@@ -5,6 +5,20 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/** Gmail / Googlemail: ignore dots in the local part when comparing allowlists. */
+function normalizeAuthEmailForCompare(email: string | null | undefined): string {
+  if (!email) return "";
+  const e = email.trim().toLowerCase();
+  const at = e.lastIndexOf("@");
+  if (at <= 0) return e;
+  const local = e.slice(0, at);
+  const domain = e.slice(at + 1);
+  if (domain === "gmail.com" || domain === "googlemail.com") {
+    return `${local.replace(/\./g, "")}@${domain}`;
+  }
+  return e;
+}
+
 /**
  * With `verify_jwt = false` on the function, Kong skips JWT algorithm checks (e.g. ES256).
  * Call this first and validate the caller with the anon key + Authorization bearer.
@@ -61,16 +75,29 @@ export async function requireAdminUser(req: Request): Promise<
   const session = await requireSessionUser(req);
   if ("response" in session) return session;
 
-  const adminRaw = (Deno.env.get("ADMIN_EMAIL") ?? "lustforgeapp@gmail.com").trim().toLowerCase();
+  const adminRaw = (Deno.env.get("ADMIN_EMAIL") ?? "lustforgeapp@gmail.com").trim();
   const adminEmails = new Set(
     adminRaw
       .split(",")
-      .map((s) => s.trim().toLowerCase())
+      .map((s) => normalizeAuthEmailForCompare(s.trim()))
       .filter(Boolean),
   );
-  const em = session.user.email?.trim().toLowerCase();
+  const em = normalizeAuthEmailForCompare(session.user.email);
   if (em && adminEmails.has(em)) {
     return { user: session.user };
+  }
+
+  const idsRaw = (Deno.env.get("ADMIN_USER_IDS") ?? "").trim();
+  if (idsRaw && session.user.id) {
+    const idSet = new Set(
+      idsRaw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    );
+    if (idSet.has(session.user.id)) {
+      return { user: session.user };
+    }
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";

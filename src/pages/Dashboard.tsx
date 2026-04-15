@@ -24,7 +24,6 @@ import {
   Wand2,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getToys } from "@/lib/lovense";
 import { cn } from "@/lib/utils";
@@ -124,7 +123,7 @@ export default function Dashboard() {
   const profileRef = useRef<HTMLDivElement>(null);
   const greetingName = resolveGreetingName(user, profileDisplayName);
 
-  const isAdmin = isPlatformAdmin(user);
+  const isAdmin = isPlatformAdmin(user, { profileDisplayName });
 
   const refreshToy = useCallback(async (uid: string) => {
     try {
@@ -209,7 +208,6 @@ export default function Dashboard() {
   const signOut = async () => {
     await supabase.auth.signOut();
     navigate("/");
-    toast.success("Signed out — return soon.");
   };
 
   const openSettings = () => {
@@ -228,9 +226,7 @@ export default function Dashboard() {
   };
 
   const quickImageGen = () => {
-    toast.message("Image forge", {
-      description: "Opening the visual forge — premium queue coming soon.",
-    });
+    // Reserved for image forge entry — no toast (keeps dashboard quiet).
   };
 
   if (authLoading) {
@@ -479,7 +475,6 @@ export default function Dashboard() {
                 onCreate={() => navigate("/create-companion")}
                 onBreed={() => {
                   setActiveNav("breeding");
-                  toast.message("Breeding Chamber", { description: "Prepare your lineages." });
                 }}
                 quickImageGen={quickImageGen}
                 collectionCards={collectionPreview}
@@ -606,12 +601,7 @@ export default function Dashboard() {
                 <div className="p-6 border-t border-border/60">
                   <button
                     type="button"
-                    onClick={() => {
-                      setSettingsOpen(false);
-                      toast.message("Panel closed", {
-                        description: "Notification toggles are UI-only for now; account changes live under Account.",
-                      });
-                    }}
+                    onClick={() => setSettingsOpen(false)}
                     className="w-full py-3 rounded-xl border border-accent/40 text-accent font-semibold hover:bg-accent/10 transition-colors"
                   >
                     Done

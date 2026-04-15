@@ -2,6 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Flame, Shield, LogOut, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
 import { isPlatformAdmin } from "@/config/auth";
 
 const Navbar = () => {
@@ -10,17 +11,27 @@ const Navbar = () => {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+    const applySession = async (session: Session | null) => {
       setUser(session?.user ?? null);
-      setIsAdmin(isPlatformAdmin(session?.user));
+      if (!session?.user) {
+        setIsAdmin(false);
+        return;
+      }
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      setIsAdmin(isPlatformAdmin(session.user, { profileDisplayName: prof?.display_name ?? null }));
     };
 
-    checkUser();
+    void (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      await applySession(session);
+    })();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setIsAdmin(isPlatformAdmin(session?.user));
+      void applySession(session);
     });
 
     return () => listener.subscription.unsubscribe();
