@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAdminCompanions, type DbCompanion } from "@/hooks/useCompanions";
@@ -9,17 +9,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Search, Save, RefreshCw, Plus, Eye, EyeOff, ChevronDown, ChevronUp,
-  Loader2, X, ImageIcon, Palette, ArrowLeft, Sparkles, MessageSquare, Send, Check, XCircle
+  Loader2, X, ImageIcon, Palette, ArrowLeft, Sparkles
 } from "lucide-react";
 
 type ViewMode = "list" | "edit" | "create";
-
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-  updates?: Array<{ id: string; fields: Record<string, any> }>;
-  applied?: boolean;
-}
 
 const emptyCompanion: Omit<DbCompanion, "created_at" | "updated_at"> = {
   id: "",
@@ -75,18 +68,6 @@ const CompanionManager = () => {
   const [autoFillPrompt, setAutoFillPrompt] = useState("");
   const [autoFilling, setAutoFilling] = useState(false);
   const [designLabHints, setDesignLabHints] = useState("");
-
-  // Admin chat state
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-  const [applyingUpdates, setApplyingUpdates] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
 
   if (isLoading) {
     return (
@@ -374,80 +355,6 @@ const CompanionManager = () => {
       toast.error("Auto-fill failed: " + err.message);
     } finally {
       setAutoFilling(false);
-    }
-  };
-
-  // Admin chat with Grok
-  const sendChatMessage = async () => {
-    if (!chatInput.trim() || chatLoading) return;
-    const userMsg = chatInput.trim();
-    setChatInput("");
-    setChatMessages((prev) => [...prev, { role: "user", content: userMsg }]);
-    setChatLoading(true);
-
-    try {
-      const { data, error } = await supabase.functions.invoke("admin-companion-chat", {
-        body: {
-          message: userMsg,
-          companions: (companions || []).map((c) => ({
-            id: c.id, name: c.name, tagline: c.tagline, gender: c.gender,
-            role: c.role, tags: c.tags, is_active: c.is_active,
-          })),
-          chatHistory: chatMessages.map((m) => ({ role: m.role, content: m.content })),
-        },
-      });
-      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
-      if (data?.error) throw new Error(data.error);
-
-      if (data.type === "updates") {
-        setChatMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: data.summary || "Ready to apply changes.",
-            updates: data.updates,
-            applied: false,
-          },
-        ]);
-      } else {
-        setChatMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: data.message || "Done." },
-        ]);
-      }
-    } catch (err: any) {
-      setChatMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: `Error: ${err.message}` },
-      ]);
-    } finally {
-      setChatLoading(false);
-    }
-  };
-
-  const applyUpdates = async (msgIndex: number) => {
-    const msg = chatMessages[msgIndex];
-    if (!msg?.updates || msg.applied) return;
-    setApplyingUpdates(true);
-
-    try {
-      for (const update of msg.updates) {
-        const { error } = await supabase
-          .from("companions")
-          .update(update.fields as any)
-          .eq("id", update.id);
-        if (error) throw new Error(`Failed to update ${update.id}: ${error.message}`);
-      }
-      setChatMessages((prev) =>
-        prev.map((m, i) => (i === msgIndex ? { ...m, applied: true } : m))
-      );
-      queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
-      queryClient.invalidateQueries({ queryKey: ["companions"] });
-      toast.success("Changes applied!");
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setApplyingUpdates(false);
     }
   };
 
@@ -844,110 +751,6 @@ const CompanionManager = () => {
       {filtered.length === 0 && (
         <p className="text-center text-muted-foreground py-12">No companions match your search.</p>
       )}
-
-      {/* Admin Chat Panel */}
-      <div className="fixed bottom-4 right-4 z-50">
-        {chatOpen ? (
-          <div className="w-96 h-[500px] rounded-xl border border-primary/30 bg-card shadow-2xl flex flex-col overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/50">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-primary" />
-                <span className="text-sm font-bold text-foreground">Grok Admin Chat</span>
-              </div>
-              <button onClick={() => setChatOpen(false)} className="p-1 rounded hover:bg-muted transition-colors">
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </div>
-
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-              {chatMessages.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-8">
-                  Ask Grok to modify companions.<br />
-                  e.g. "Change Lilith's tagline to..."
-                </p>
-              )}
-              {chatMessages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-foreground"
-                  }`}>
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                    {msg.updates && !msg.applied && (
-                      <div className="mt-2 pt-2 border-t border-border/50 space-y-1">
-                        <p className="text-[10px] font-bold opacity-70">
-                          {msg.updates.length} update{msg.updates.length > 1 ? "s" : ""} ready
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => applyUpdates(i)}
-                            disabled={applyingUpdates}
-                            className="flex items-center gap-1 px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs hover:bg-green-500/30 transition-colors disabled:opacity-50"
-                          >
-                            {applyingUpdates ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                            Apply
-                          </button>
-                          <button
-                            onClick={() => setChatMessages(prev => prev.map((m, idx) => idx === i ? { ...m, updates: undefined } : m))}
-                            className="flex items-center gap-1 px-2 py-1 rounded bg-destructive/20 text-destructive text-xs hover:bg-destructive/30 transition-colors"
-                          >
-                            <XCircle className="h-3 w-3" /> Dismiss
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {msg.applied && (
-                      <p className="text-[10px] text-green-400 mt-1 flex items-center gap-1">
-                        <Check className="h-3 w-3" /> Applied
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {chatLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-muted rounded-lg px-3 py-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  </div>
-                </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-
-            {/* Input */}
-            <div className="px-4 py-3 border-t border-border">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendChatMessage()}
-                  placeholder="Tell Grok what to change..."
-                  className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm focus:outline-none focus:border-primary transition-colors"
-                />
-                <button
-                  onClick={sendChatMessage}
-                  disabled={chatLoading || !chatInput.trim()}
-                  className="px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
-                >
-                  <Send className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={() => setChatOpen(true)}
-            className="p-4 rounded-full bg-primary text-primary-foreground shadow-lg hover:opacity-90 transition-opacity"
-            title="Open Grok Admin Chat"
-          >
-            <MessageSquare className="h-5 w-5" />
-          </button>
-        )}
-      </div>
     </div>
   );
 };

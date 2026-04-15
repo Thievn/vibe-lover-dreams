@@ -216,6 +216,53 @@ function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;
 }
 
+function normalizeFantasyStartersFromFields(raw: unknown): { title: string; description: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as Record<string, unknown>[])
+    .map((s) => {
+      if (!s || typeof s !== "object") return null;
+      const description = String(s.description ?? s.message ?? "").trim();
+      const title =
+        String(s.title ?? s.label ?? "").trim() ||
+        (description ? `${description.slice(0, 44)}${description.length > 44 ? "…" : ""}` : "");
+      if (!title || !description) return null;
+      return { title, description };
+    })
+    .filter((x): x is { title: string; description: string } => x !== null);
+}
+
+/** If Grok returns fewer than 4, pad with tasteful in-character openers so chat UI always has buttons. */
+function padFantasyStartersToFour(
+  starters: { title: string; description: string }[],
+  displayName: string,
+): { title: string; description: string }[] {
+  const out = starters.filter((s) => s.title.trim() && s.description.trim()).slice(0, 4);
+  const fill: { title: string; description: string }[] = [
+    {
+      title: "Dangerous proximity",
+      description: `I've been counting your breaths from across the room. ${displayName} — say why you came before I invent a reason for you.`,
+    },
+    {
+      title: "Midnight honesty",
+      description: `Don't look away. If we're doing this, we're doing it with teeth. (${displayName})`,
+    },
+    {
+      title: "Soft opening",
+      description: `Okay. One drink's worth of courage—you first. I'm ${displayName}, and I'm already too curious.`,
+    },
+    {
+      title: "Pressure point",
+      description: `You're already flustered. Good. ${displayName} wants the real version, not the polite one.`,
+    },
+  ];
+  let i = 0;
+  while (out.length < 4 && i < fill.length) {
+    out.push(fill[i]!);
+    i++;
+  }
+  return out;
+}
+
 export default function CompanionCreator({ mode = "user", embedded = false, onForged }: CompanionCreatorProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -256,6 +303,17 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
 
   const [parodyArchetype, setParodyArchetype] = useState("");
   const [parodyLoading, setParodyLoading] = useState(false);
+
+  /** Grok-filled narrative pack (forge roulette + design lab). */
+  const [rouletteLoading, setRouletteLoading] = useState(false);
+  const [narrativeAppearance, setNarrativeAppearance] = useState("");
+  const [chronicleBackstory, setChronicleBackstory] = useState("");
+  const [hookBio, setHookBio] = useState("");
+  const [charterSystemPrompt, setCharterSystemPrompt] = useState("");
+  const [packshotPrompt, setPackshotPrompt] = useState("");
+  const [rosterTags, setRosterTags] = useState<string[]>([]);
+  const [rosterKinks, setRosterKinks] = useState<string[]>([]);
+  const [fantasyStartersVault, setFantasyStartersVault] = useState<{ title: string; description: string }[]>([]);
 
   const batchCount = useMemo(() => {
     if (batchPreset === -1) {
@@ -342,7 +400,7 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
   );
 
   const accordionDefaultOpen = useMemo((): string[] => {
-    const base = ["identity", "personality", "world", "body", "reference", "output"];
+    const base = ["identity", "personality", "world", "body", "narrative", "reference", "output"];
     return isAdmin ? [...base, "parody"] : base;
   }, [isAdmin]);
 
@@ -351,9 +409,14 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
     return `${bodyType} build; ${gender}; ${artStyle} look; ${t}. Overall ${vibe} mood${theme ? ` — ${theme}` : ""}. ${extraNotes}`.trim();
   }, [traits, bodyType, gender, artStyle, vibe, theme, extraNotes]);
 
+  const portraitAppearanceText = useMemo(
+    () => narrativeAppearance.trim() || appearanceBlurb,
+    [narrativeAppearance, appearanceBlurb],
+  );
+
   const grokPrompt = useMemo(() => {
     return [
-      `Portrait of ${name || "an original companion"}: ${appearanceBlurb}.`,
+      `Portrait of ${name || "an original companion"}: ${portraitAppearanceText}.`,
       `Personality energy: ${personality}.`,
       `Setting / aesthetic: ${vibe}${theme ? `, ${theme}` : ""}.`,
       `Render in ${artStyle} style, premium seductive SFW pin-up / romance cover quality.`,
@@ -362,7 +425,7 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
     ]
       .filter(Boolean)
       .join(" ");
-  }, [name, appearanceBlurb, personality, vibe, theme, artStyle, extraNotes, referenceNotes]);
+  }, [name, portraitAppearanceText, personality, vibe, theme, artStyle, extraNotes, referenceNotes]);
 
   const buildSystemPromptFor = useCallback(
     (who: string) => {
@@ -448,27 +511,114 @@ User flavor notes: ${extraNotes || "none"}`;
     };
   }, [referencePreviewUrl]);
 
-  const randomizeAll = () => {
-    setGender(pick(GENDERS));
-    setPersonality(pick(PERSONALITIES));
-    setVibe(pick(VIBES));
-    setTheme(
-      ["neon cathedral", "acid rain alley", "obsidian ballroom", "orbital spa", "cursed library"][
-        Math.floor(Math.random() * 5)
-      ]!,
+  const syncPillsFromGrokFields = (fields: Record<string, unknown>) => {
+    const gRaw = String(fields.gender || "");
+    const gHit = GENDERS.find(
+      (x) => gRaw.toLowerCase().includes(x.toLowerCase()) || x.toLowerCase().includes(gRaw.slice(0, 6).toLowerCase()),
     );
-    setArtStyle(pick(ART_STYLES));
-    setBodyType(pick(BODY_TYPES));
+    if (gHit) setGender(gHit);
+
+    const oRaw = String(fields.orientation || "");
+    const oHit = ORIENTATIONS.find((x) => oRaw.toLowerCase().includes(x.toLowerCase()));
+    if (oHit) setOrientation(oHit);
+
+    const pBlob = `${fields.personality || ""} ${fields.role || ""}`;
+    const pHit = PERSONALITIES.find((x) => pBlob.toLowerCase().includes(x.toLowerCase()));
+    if (pHit) setPersonality(pHit);
+
+    const tagArr = Array.isArray(fields.tags) ? fields.tags.map(String) : [];
+    const vHit = VIBES.find((v) => tagArr.some((t) => t.toLowerCase().includes(v.toLowerCase())));
+    if (vHit) setVibe(vHit);
+
+    const bHit = BODY_TYPES.find((b) => tagArr.some((t) => t.toLowerCase().includes(b.toLowerCase())));
+    if (bHit) setBodyType(bHit);
+
+    const aHit = ART_STYLES.find((a) => tagArr.some((t) => t.toLowerCase().includes(a.toLowerCase())));
+    if (aHit) setArtStyle(aHit);
+
+    const traitHits = TRAITS.filter((tr) => tagArr.some((t) => t.toLowerCase().includes(tr.toLowerCase())));
+    if (traitHits.length) setTraits(traitHits.slice(0, 6));
+  };
+
+  const randomizeForgeCharacter = async () => {
+    setRouletteLoading(true);
+    const g = pick(GENDERS);
+    const p = pick(PERSONALITIES);
+    const v = pick(VIBES);
+    const th = pick([
+      "neon cathedral",
+      "acid rain alley",
+      "obsidian ballroom",
+      "orbital spa",
+      "cursed library",
+      "glass desert dawn",
+      "submerged jazz bar",
+    ]);
+    const ar = pick(ART_STYLES);
+    const bt = pick(BODY_TYPES);
+    const ori = pick(ORIENTATIONS);
     const shuffled = [...TRAITS].sort(() => Math.random() - 0.5).slice(0, 3 + Math.floor(Math.random() * 4));
+
+    setGender(g);
+    setPersonality(p);
+    setVibe(v);
+    setTheme(th);
+    setArtStyle(ar);
+    setBodyType(bt);
     setTraits(shuffled);
-    setOrientation(pick(ORIENTATIONS));
-    const prefixes = ["Nyx", "Vex", "Rune", "Sable", "Zephyr", "Marrow", "Lux", "Hex"];
-    setNamePrefix(pick(prefixes));
-    setName(`${pick(prefixes)} ${pick(["Vale", "Noct", "Drift", "Quill", "Fable"])}`);
-    setTagline(
-      pick(["Whispers behind velvet rope", "Your glitch in the matrix", "Built from desire & code", "Dangerously attentive"]),
-    );
-    toast.success("Roulette — new DNA spun.");
+    setOrientation(ori);
+    setNamePrefix("");
+
+    const seedPrompt = `FORGE ROULETTE — treat the lines below as creative SEEDS only. Interpret into a cohesive original character. Do NOT paste the seed list into "appearance" or "backstory".
+
+Seeds:
+- gender leaning: ${g}
+- personality archetype: ${p}
+- vibe: ${v}
+- theme / setting hint: ${th}
+- art style: ${ar}
+- body type: ${bt}
+- orientation: ${ori}
+- notable traits: ${shuffled.join(", ")}
+
+Hard requirements:
+1) name: evocative themed name (titles, epithets, surnames welcome). NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs.
+2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps.
+3) backstory: 3–4 paragraphs of premium dark-romance storytelling; do not restate tags as a recap.
+4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
+5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences).
+6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
+7) image_prompt: one dense SFW paragraph for a vertical portrait card.
+8) system_prompt: full chat charter for this persona.`;
+
+    try {
+      const { data, error } = await supabase.functions.invoke("parse-companion-prompt", {
+        body: { mode: "companion_design_lab", prompt: seedPrompt },
+      });
+      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
+      if (data?.error) throw new Error(String(data.error));
+      const fields = data?.fields as Record<string, unknown> | undefined;
+      if (!fields || typeof fields.name !== "string") throw new Error("No profile returned");
+
+      setName(String(fields.name).slice(0, 120));
+      if (typeof fields.tagline === "string" && fields.tagline.trim()) setTagline(fields.tagline.slice(0, 240));
+      syncPillsFromGrokFields(fields);
+
+      setNarrativeAppearance(String(fields.appearance || "").slice(0, 12000));
+      setChronicleBackstory(String(fields.backstory || "").slice(0, 24000));
+      setHookBio(String(fields.bio || "").slice(0, 12000));
+      setCharterSystemPrompt(String(fields.system_prompt || "").slice(0, 32000));
+      setPackshotPrompt(fields.image_prompt != null ? String(fields.image_prompt).slice(0, 8000) : "");
+      setRosterTags(Array.isArray(fields.tags) ? (fields.tags as string[]).map(String).slice(0, 24) : []);
+      setRosterKinks(Array.isArray(fields.kinks) ? (fields.kinks as string[]).map(String).slice(0, 24) : []);
+      setFantasyStartersVault(normalizeFantasyStartersFromFields(fields.fantasy_starters));
+
+      toast.success("Roulette — Grok drafted a full premium character. Tweak, preview, forge.");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Roulette failed");
+    } finally {
+      setRouletteLoading(false);
+    }
   };
 
   const toggleTrait = (t: string) => {
@@ -477,8 +627,11 @@ User flavor notes: ${extraNotes || "none"}`;
 
   const buildPortraitGeneratePayload = useCallback((): Record<string, unknown> | null => {
     if (!userId) return null;
+    const baseDesc = narrativeAppearance.trim()
+      ? narrativeAppearance.trim().slice(0, 900)
+      : `an original seductive character, ${gender}, ${bodyType}, ${traits.join(", ") || "clean aesthetic"}`;
     return {
-      prompt: grokPrompt,
+      prompt: packshotPrompt.trim() || grokPrompt,
       userId,
       isPortrait: true,
       name: name || "Custom Companion",
@@ -495,7 +648,7 @@ User flavor notes: ${extraNotes || "none"}`;
         ethnicity: "any",
         ageRange: "young adult",
         pose: "three-quarter portrait, alluring confident pose",
-        baseDescription: `an original seductive character, ${gender}, ${bodyType}, ${traits.join(", ") || "clean aesthetic"}`,
+        baseDescription: baseDesc,
         ...(referencePalette ? { referencePalette } : {}),
         ...(referenceNotes.trim() ? { referenceNotes: referenceNotes.trim() } : {}),
       },
@@ -503,6 +656,8 @@ User flavor notes: ${extraNotes || "none"}`;
   }, [
     userId,
     grokPrompt,
+    packshotPrompt,
+    narrativeAppearance,
     name,
     tagline,
     artStyle,
@@ -570,33 +725,31 @@ User flavor notes: ${extraNotes || "none"}`;
 
       setName(String(fields.name).slice(0, 120));
       if (typeof fields.tagline === "string" && fields.tagline) setTagline(fields.tagline.slice(0, 200));
-
-      const gRaw = String(fields.gender || "");
-      const gHit = GENDERS.find((x) => gRaw.toLowerCase().includes(x.toLowerCase()) || x.toLowerCase().includes(gRaw.slice(0, 6).toLowerCase()));
-      if (gHit) setGender(gHit);
-
-      const oRaw = String(fields.orientation || "");
-      const oHit = ORIENTATIONS.find((x) => oRaw.toLowerCase().includes(x.toLowerCase()));
-      if (oHit) setOrientation(oHit);
-
-      const pBlob = `${fields.personality || ""} ${fields.role || ""}`;
-      const pHit = PERSONALITIES.find((x) => pBlob.toLowerCase().includes(x.toLowerCase()));
-      if (pHit) setPersonality(pHit);
-
-      const tagArr = Array.isArray(fields.tags) ? fields.tags.map(String) : [];
-      const vHit = VIBES.find((v) => tagArr.some((t) => t.toLowerCase().includes(v.toLowerCase())));
-      if (vHit) setVibe(vHit);
+      syncPillsFromGrokFields(fields);
 
       if (typeof fields.appearance === "string" && fields.appearance.trim()) {
-        setTheme((t) => (t.trim() ? t : fields.appearance!.slice(0, 160)));
+        setNarrativeAppearance(fields.appearance.slice(0, 12000));
+      }
+      if (typeof fields.backstory === "string" && fields.backstory.trim()) {
+        setChronicleBackstory(fields.backstory.slice(0, 24000));
+      }
+      if (typeof fields.bio === "string" && fields.bio.trim()) setHookBio(fields.bio.slice(0, 12000));
+      if (typeof fields.system_prompt === "string" && fields.system_prompt.trim()) {
+        setCharterSystemPrompt(fields.system_prompt.slice(0, 32000));
       }
       if (typeof fields.image_prompt === "string" && fields.image_prompt.trim()) {
+        setPackshotPrompt(fields.image_prompt.slice(0, 8000));
         setArtStyle((prev) => {
           const ip = fields.image_prompt!.toLowerCase();
           const match = ART_STYLES.find((s) => ip.includes(s.toLowerCase()));
           return match ?? prev;
         });
       }
+      if (Array.isArray(fields.tags)) setRosterTags((fields.tags as string[]).map(String).slice(0, 24));
+      if (Array.isArray(fields.kinks)) setRosterKinks((fields.kinks as string[]).map(String).slice(0, 24));
+      const st = normalizeFantasyStartersFromFields(fields.fantasy_starters);
+      if (st.length) setFantasyStartersVault(st);
+
       toast.success("Parody profile loaded — tweak, preview, then forge.");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Parody lab failed");
@@ -646,13 +799,24 @@ User flavor notes: ${extraNotes || "none"}`;
       }
 
       const rowImagePrompt = name.trim() ? grokPrompt : grokPrompt.replace("an original companion", forgeName);
-      const bio = `${forgeName} is a ${personality.toLowerCase()} ${gender.toLowerCase()} presence wrapped in ${vibe.toLowerCase()} aesthetics. ${tagline ? tagline + "." : ""} They move through the world with ${orientation.toLowerCase()} magnetism.`;
+      const defaultBio = `${forgeName} is a ${personality.toLowerCase()} ${gender.toLowerCase()} presence wrapped in ${vibe.toLowerCase()} aesthetics. ${tagline ? tagline + "." : ""} They move through the world with ${orientation.toLowerCase()} magnetism.`;
+      const bioOut = hookBio.trim() || defaultBio;
+      const backstoryOut = chronicleBackstory.trim() || hookBio.trim() || bioOut;
+      const appearanceOut = portraitAppearanceText;
+      const tagsOut = rosterTags.length
+        ? rosterTags.slice(0, 12)
+        : [vibe, artStyle, bodyType, ...traits].filter(Boolean).slice(0, 12);
+      const kinksOut = rosterKinks.length ? rosterKinks.slice(0, 16) : [];
+      const imagePromptOut = packshotPrompt.trim() || rowImagePrompt;
+
       const rows = [];
       for (let i = 0; i < batchCount; i++) {
         const suffix = batchCount > 1 ? ` ${i + 1}` : "";
         const displayName = namePrefix.trim() ? `${namePrefix.trim()} ${forgeName}${suffix}`.trim() : `${forgeName}${suffix}`;
         const basePrompt = buildSystemPromptFor(displayName);
+        const charter = charterSystemPrompt.trim() ? charterSystemPrompt.trim() : basePrompt;
         const goPublic = saveVisibility === "public" && !isAdmin;
+        const startersForRow = padFantasyStartersToFour(fantasyStartersVault, displayName);
         rows.push({
           user_id: userId,
           name: displayName,
@@ -661,16 +825,17 @@ User flavor notes: ${extraNotes || "none"}`;
           gender,
           orientation,
           role: personality,
-          tags: [vibe, artStyle, bodyType, ...traits].slice(0, 12),
-          kinks: [],
-          appearance: appearanceBlurb,
-          bio,
-          system_prompt: basePrompt,
-          fantasy_starters: [],
+          tags: tagsOut,
+          kinks: kinksOut,
+          appearance: appearanceOut,
+          bio: bioOut,
+          backstory: backstoryOut,
+          system_prompt: charter,
+          fantasy_starters: startersForRow,
           gradient_from: "#7B2D8E",
           gradient_to: NEON,
           image_url: portraitUrl,
-          image_prompt: rowImagePrompt,
+          image_prompt: imagePromptOut,
           is_public: goPublic,
           approved: goPublic,
           avatar_url: portraitUrl,
@@ -830,18 +995,23 @@ User flavor notes: ${extraNotes || "none"}`;
 
             <motion.button
               type="button"
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              onClick={randomizeAll}
-              className="w-full flex items-center justify-center gap-2.5 rounded-2xl py-4 font-semibold text-white border border-white/10"
+              whileHover={{ scale: rouletteLoading ? 1 : 1.01 }}
+              whileTap={{ scale: rouletteLoading ? 1 : 0.99 }}
+              disabled={rouletteLoading}
+              onClick={() => void randomizeForgeCharacter()}
+              className="w-full flex items-center justify-center gap-2.5 rounded-2xl py-4 font-semibold text-white border border-white/10 disabled:opacity-55 disabled:pointer-events-none"
               style={{
                 background: `linear-gradient(135deg, ${NEON}, hsl(280 48% 38%), hsl(170 55% 32%))`,
                 boxShadow: `0 0 40px ${NEON}35, inset 0 1px 0 rgba(255,255,255,0.15)`,
               }}
             >
-              <Dices className="h-5 w-5" />
-              Randomize / Roulette
+              {rouletteLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Dices className="h-5 w-5" />}
+              {rouletteLoading ? "Grok is forging…" : "Randomize / Roulette"}
             </motion.button>
+            <p className="text-[10px] text-muted-foreground leading-relaxed -mt-2">
+              Spins pills, then calls Grok for a full premium draft: name, cinematic appearance prose, 3–4 paragraph
+              backstory, bio, 4 fantasy starters, tags &amp; interests, SFW packshot prompt, and chat charter.
+            </p>
 
             <Accordion type="multiple" defaultValue={accordionDefaultOpen} className={cn(panelClass, "px-1")}>
               <AccordionItem value="identity" className="border-white/10 px-4">
@@ -925,6 +1095,92 @@ User flavor notes: ${extraNotes || "none"}`;
                       ))}
                     </div>
                   </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="narrative" className="border-white/10 px-4">
+                <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
+                  Literary draft &amp; portrait brief
+                </AccordionTrigger>
+                <AccordionContent className="pb-5 space-y-4">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Filled automatically by <strong className="text-white/90">Randomize</strong> or Parody lab. Edit freely
+                    — this is what saves to your vault (appearance prose, bio, backstory, SFW packshot prompt, chat charter).
+                    Pills above stay for quick tweaks; vault text wins for the final card when present.
+                  </p>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
+                      Cinematic appearance (prose)
+                    </p>
+                    <textarea
+                      value={narrativeAppearance}
+                      onChange={(e) => setNarrativeAppearance(e.target.value)}
+                      rows={5}
+                      placeholder="Flowing description — not a tag list…"
+                      className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm resize-y focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
+                      Hook bio
+                    </p>
+                    <textarea
+                      value={hookBio}
+                      onChange={(e) => setHookBio(e.target.value)}
+                      rows={3}
+                      placeholder="Short elevator hook…"
+                      className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm resize-y focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
+                      Chronicle backstory
+                    </p>
+                    <textarea
+                      value={chronicleBackstory}
+                      onChange={(e) => setChronicleBackstory(e.target.value)}
+                      rows={8}
+                      placeholder="3–4 paragraphs of premium lore…"
+                      className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm resize-y focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
+                      SFW packshot prompt (Grok Imagine)
+                    </p>
+                    <textarea
+                      value={packshotPrompt}
+                      onChange={(e) => setPackshotPrompt(e.target.value)}
+                      rows={4}
+                      placeholder="Dense cinematic portrait brief…"
+                      className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm resize-y focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
+                      Chat charter (system prompt)
+                    </p>
+                    <textarea
+                      value={charterSystemPrompt}
+                      onChange={(e) => setCharterSystemPrompt(e.target.value)}
+                      rows={6}
+                      placeholder="Full persona rules for Grok chat…"
+                      className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm resize-y focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
+                    />
+                  </div>
+                  {fantasyStartersVault.length > 0 && (
+                    <div className="rounded-xl border border-white/10 bg-black/35 p-4 space-y-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                        Fantasy starters ({fantasyStartersVault.length})
+                      </p>
+                      {fantasyStartersVault.map((s, i) => (
+                        <div key={`${s.title}-${i}`} className="rounded-lg border border-white/10 bg-black/40 p-3 text-left">
+                          <p className="text-xs font-semibold text-white">{s.title}</p>
+                          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{s.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </AccordionContent>
               </AccordionItem>
 

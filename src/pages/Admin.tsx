@@ -38,6 +38,7 @@ import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
 import CompanionCreator from "@/components/CompanionCreator";
 import CompanionManager from "@/components/admin/CompanionManager";
+import AdminForgeAssistant from "@/components/admin/AdminForgeAssistant";
 import { getGaMeasurementId } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
@@ -651,6 +652,7 @@ function AdminShell() {
           </>
         )}
       </AnimatePresence>
+      <AdminForgeAssistant />
     </div>
   );
 }

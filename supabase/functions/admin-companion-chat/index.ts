@@ -1,4 +1,5 @@
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { buildForgeAssistantSystemPrompt } from "../_shared/forgeAssistantSystemPrompt.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,21 +35,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Build companion context summary
-    const companionSummary = (companions || []).map((c: any) =>
-      `- ID: "${c.id}", Name: "${c.name}", Gender: ${c.gender}, Role: ${c.role}, Tags: [${c.tags?.join(", ")}], Active: ${c.is_active}`
-    ).join("\n");
+    const companionSummary = (companions || []).map((c: Record<string, unknown>) => {
+      const tags = Array.isArray(c.tags) ? (c.tags as string[]).join(", ") : "";
+      const rarity = typeof c.rarity === "string" ? c.rarity : "common";
+      return `- ID: "${c.id}", Name: "${c.name}", Rarity: ${rarity}, Tagline: "${c.tagline ?? ""}", Gender: ${c.gender}, Role: ${c.role}, Tags: [${tags}], Active: ${c.is_active}`;
+    }).join("\n");
 
-    const systemPrompt = `You are an admin assistant for the ViceVibe AI companion platform. You can modify companion profiles based on admin requests.
-
-Here are the current companions:
-${companionSummary}
-
-When the admin asks to change companion data, return the specific updates via the apply_companion_updates tool. You can update multiple companions at once. Match companions by name (case-insensitive) or ID.
-
-Available fields to update: name, tagline, gender, orientation, role, tags (string array), kinks (string array), appearance, personality, bio, system_prompt, gradient_from (hex), gradient_to (hex), image_prompt, is_active (boolean).
-
-If the request is ambiguous or you need clarification, return a message via the respond_to_admin tool instead.`;
+    const systemPrompt = buildForgeAssistantSystemPrompt(
+      companionSummary || "(No companions loaded — ask the admin to open Character management or refresh.)",
+    );
 
     const messages: any[] = [
       { role: "system", content: systemPrompt },
@@ -89,7 +84,8 @@ If the request is ambiguous or you need clarification, return a message via the 
                         id: { type: "string", description: "Companion ID to update" },
                         fields: {
                           type: "object",
-                          description: "Key-value pairs of fields to update"
+                          description:
+                            "Key-value pairs to update. Allowed keys: name, tagline, gender, orientation, role, tags, kinks, appearance, personality, bio, backstory, system_prompt, image_prompt, gradient_from, gradient_to, rarity, is_active, static_image_url, animated_image_url, rarity_border_overlay_url, image_url, fantasy_starters (array of {title, description})",
                         }
                       },
                       required: ["id", "fields"]
@@ -166,7 +162,8 @@ If the request is ambiguous or you need clarification, return a message via the 
     });
   } catch (err) {
     console.error("Edge function error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
+    const msg = err instanceof Error ? err.message : String(err);
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
