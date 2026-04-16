@@ -4,6 +4,7 @@ import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
+import { isPlatformAdmin } from "@/config/auth";
 import { motion } from "framer-motion";
 import { ArrowLeft, Send, Loader2, Zap, AlertOctagon, Flame, Image as ImageIcon, Heart, Sparkles, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
@@ -56,14 +57,17 @@ const Chat = () => {
   const [patternSending, setPatternSending] = useState(false);
   const [pairingUrl, setPairingUrl] = useState<string | null>(null);
   const [pairingLoading, setPairingLoading] = useState(false);
-  const [starterPrompt, setStarterPrompt] = useState<string | null>(null);
-  const [starterTitle, setStarterTitle] = useState<string | null>(null);
   const [intensity, setIntensity] = useState<number>(() => parseInt(localStorage.getItem("lustforge-intensity") || "50"));
   const [isPatternPersistent, setIsPatternPersistent] = useState<boolean>(false);
+  const [historyReady, setHistoryReady] = useState(false);
   const starterSentRef = useRef(false);
+  const messagesRef = useRef<ChatMessage[]>([]);
+  const sendMessageRef = useRef<(text?: string) => Promise<void>>(async () => {});
   const openingFantasyStarterTitleRef = useRef<string | null>(null);
   const location = useLocation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const isAdminUser = useMemo(() => isPlatformAdmin(user), [user]);
 
   const {
     relationship,
@@ -80,38 +84,32 @@ const Chat = () => {
   }, [id]);
 
   useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    const state = location.state as { starterPrompt?: string } | undefined;
+    if (state?.starterPrompt?.trim()) {
+      starterSentRef.current = false;
+    }
+  }, [location.state]);
+
+  useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session?.user) {
         navigate("/auth");
         return;
       }
       setUser(session.user);
-      loadChatHistory(session.user.id);
       fetchTokens(session.user.id);
       checkDevice(session.user.id);
     });
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
-    if (!location.state) return;
-    const state = location.state as { starterPrompt?: string; starterTitle?: string };
-    if (state.starterPrompt) {
-      setStarterPrompt(state.starterPrompt);
-      setStarterTitle(state.starterTitle || null);
-    }
-  }, [location.state]);
-
-  useEffect(() => {
-    if (starterTitle) openingFantasyStarterTitleRef.current = starterTitle;
-  }, [starterTitle]);
-
-  useEffect(() => {
-    if (!user || !starterPrompt || starterSentRef.current || loading) return;
-    if (messages.length === 1 && messages[0].role === "assistant" && messages[0].id === "greeting") {
-      starterSentRef.current = true;
-      sendMessage(starterPrompt);
-    }
-  }, [starterPrompt, user, messages, loading]);
+    if (!user?.id || !companion || companion.id !== id) return;
+    void loadChatHistory(user.id);
+  }, [user?.id, companion?.id, id]);
 
     useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -136,11 +134,11 @@ const Chat = () => {
   };
 
   const deductTokens = async (userId: string) => {
-    const newBalance = Math.max(0, tokensBalance - TOKEN_COST);
-    await supabase
-      .from("profiles")
-      .update({ tokens_balance: newBalance })
-      .eq("user_id", userId);
+    if (isAdminUser) return;
+    const { data } = await supabase.from("profiles").select("tokens_balance").eq("user_id", userId).maybeSingle();
+    const cur = data?.tokens_balance ?? 0;
+    const newBalance = Math.max(0, cur - TOKEN_COST);
+    await supabase.from("profiles").update({ tokens_balance: newBalance }).eq("user_id", userId);
     setTokensBalance(newBalance);
   };
 
@@ -161,6 +159,7 @@ const Chat = () => {
     if (!companion || !dbComp) return null;
 
     try {
+      /** Raw desire text — `generate-image` runs `rewritePromptForImagine` + SFW portrait brief server-side. */
       const prompt = `${userRequest}\n\n(Character: ${companion.name}, ${companion.gender}. ${companion.appearance})`.slice(
         0,
         8000,
@@ -170,11 +169,13 @@ const Chat = () => {
         prompt,
         userId,
         isPortrait: false,
-        tokenCost: IMAGE_TOKEN_COST,
+        tokenCost: isAdminUser ? 0 : IMAGE_TOKEN_COST,
         characterData: {
           companionId: companion.id,
           style: "chat-session",
           baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
+          vibe: companion.personality,
+          clothing: companion.role ? `fits ${companion.role} energy` : undefined,
         },
       });
 
@@ -260,36 +261,6 @@ const Chat = () => {
     }
   };
 
-  const loadChatHistory = async (userId: string) => {
-    const { data } = await supabase
-      .from("chat_messages")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("companion_id", id)
-      .order("created_at", { ascending: true })
-      .limit(50);
-
-    if (data && data.length > 0) {
-      setMessages(
-        data.map((m: any) => ({
-          id: m.id,
-          role: m.role as "user" | "assistant",
-          content: m.content,
-          lovenseCommand: m.lovense_command,
-          timestamp: new Date(m.created_at),
-        }))
-      );
-    } else {
-      const greeting: ChatMessage = {
-        id: "greeting",
-        role: "assistant",
-        content: getGreeting(),
-        timestamp: new Date(),
-      };
-      setMessages([greeting]);
-    }
-  };
-
   const getGreeting = () => {
     if (!companion) return "Hey there...";
     const greetings: Record<string, string> = {
@@ -300,6 +271,41 @@ const Chat = () => {
       "bianca-rose": "*appears in a puff of sparkly smoke, trips over own tail* I AM BIANCA, DEVOURER OF— ow. Hold on. *fixes horn* Okay. Take two. Hey cutie 😅",
     };
     return greetings[companion.id] || `*${companion.name} appears before you* Hey there... I've been waiting for someone like you. Ready to begin?`;
+  };
+
+  const loadChatHistory = async (userId: string) => {
+    setHistoryReady(false);
+    try {
+      const { data } = await supabase
+        .from("chat_messages")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("companion_id", id)
+        .order("created_at", { ascending: true })
+        .limit(50);
+
+      if (data && data.length > 0) {
+        setMessages(
+          data.map((m: any) => ({
+            id: m.id,
+            role: m.role as "user" | "assistant",
+            content: m.content,
+            lovenseCommand: m.lovense_command,
+            timestamp: new Date(m.created_at),
+          })),
+        );
+      } else {
+        const greeting: ChatMessage = {
+          id: "greeting",
+          role: "assistant",
+          content: getGreeting(),
+          timestamp: new Date(),
+        };
+        setMessages([greeting]);
+      }
+    } finally {
+      setHistoryReady(true);
+    }
   };
 
   const composeGrokSystemPrompt = () => {
@@ -481,105 +487,143 @@ const Chat = () => {
   };
 
   const sendMessage = async (overrideText?: string) => {
-    const messageText = overrideText?.trim() ?? input.trim();
-    if (!messageText || loading || !user || !companion) return;
+      const messageText = overrideText?.trim() ?? input.trim();
+      if (!messageText || loading || !user || !companion) return;
 
-    // If starter prompt or auto-send is used, clear the input field but keep it from blocking.
-    if (overrideText) {
-      setInput("");
-    }
-
-    // Check if it's an image request
-    const requestingImage = isImageRequest(messageText);
-    const requiredTokens = requestingImage ? IMAGE_TOKEN_COST : TOKEN_COST;
-
-    if (tokensBalance < requiredTokens) {
-      const tokenType = requestingImage ? "image generation" : "messaging";
-      toast.error(`Not enough tokens for ${tokenType}. You need ${requiredTokens} but only have ${tokensBalance}.`, {
-        action: {
-          label: "Upgrade",
-          onClick: () => navigate("/"),
-        },
-      });
-      return;
-    }
-
-    if (messageText.toUpperCase() === safeWord.toUpperCase()) {
-      toast.info("🛑 Safe word activated. All activity stopped. You're safe.");
-      setInput("");
-
-      // Also send emergency stop if device connected
-      if (connectedToys.length > 0) {
-        handleEmergencyStop();
+      if (overrideText) {
+        setInput("");
       }
 
-      const safeMsg: ChatMessage = {
+      const requestingImage = isImageRequest(messageText);
+      const requiredTokens = requestingImage ? IMAGE_TOKEN_COST : TOKEN_COST;
+
+      if (!isAdminUser && tokensBalance < requiredTokens) {
+        const tokenType = requestingImage ? "image generation" : "messaging";
+        toast.error(`Not enough tokens for ${tokenType}. You need ${requiredTokens} but only have ${tokensBalance}.`, {
+          action: {
+            label: "Upgrade",
+            onClick: () => navigate("/"),
+          },
+        });
+        return;
+      }
+
+      if (messageText.toUpperCase() === safeWord.toUpperCase()) {
+        toast.info("🛑 Safe word activated. All activity stopped. You're safe.");
+        setInput("");
+
+        if (connectedToys.length > 0) {
+          handleEmergencyStop();
+        }
+
+        const safeMsg: ChatMessage = {
+          id: Date.now().toString(),
+          role: "assistant",
+          content:
+            "*immediately stops everything* Of course. Everything stops right now. You're safe. Take all the time you need. I'm here when and if you want to continue. No pressure, no judgment. 💛",
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, safeMsg]);
+        return;
+      }
+
+      const priorThread = messagesRef.current;
+      const userMsg: ChatMessage = {
         id: Date.now().toString(),
-        role: "assistant",
-        content: "*immediately stops everything* Of course. Everything stops right now. You're safe. Take all the time you need. I'm here when and if you want to continue. No pressure, no judgment. 💛",
+        role: "user",
+        content: messageText,
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, safeMsg]);
-      return;
-    }
 
-    const userMsg: ChatMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content: messageText,
-      timestamp: new Date(),
-    };
+      const threadForModel = [...priorThread, userMsg].slice(-20).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
 
-    setMessages((prev) => [...prev, userMsg]);
-    setInput("");
-    setLoading(true);
+      setMessages((prev) => [...prev, userMsg]);
+      setInput("");
+      setLoading(true);
 
-    try {
-      await supabase.from("chat_messages").insert({
-        user_id: user.id,
-        companion_id: companion.id,
-        role: "user",
-        content: userMsg.content,
-      });
+      try {
+        await supabase.from("chat_messages").insert({
+          user_id: user.id,
+          companion_id: companion.id,
+          role: "user",
+          content: userMsg.content,
+        });
 
-      // If image is requested, generate it
-      if (requestingImage) {
-        const imageResult = await generateImage(userMsg.content, user.id);
-        
-        if (imageResult) {
-          // Add image response message
-          const imageMsg: ChatMessage = {
-            id: (Date.now() + 1).toString(),
-            role: "assistant",
-            content: `*creates a captivating image just for you*`,
-            imageUrl: imageResult.imageUrl,
-            imageId: imageResult.imageId,
-            generatedImageId: imageResult.imageId,
-            imagePrompt: userMsg.content,
-            timestamp: new Date(),
-            savedToCompanionGallery: false,
-            savedToPersonalGallery: false,
-          };
+        if (requestingImage) {
+          const imageResult = await generateImage(userMsg.content, user.id);
 
-          setMessages((prev) => [...prev, imageMsg]);
+          if (imageResult) {
+            const imageMsg: ChatMessage = {
+              id: (Date.now() + 1).toString(),
+              role: "assistant",
+              content: `*creates a captivating image just for you*`,
+              imageUrl: imageResult.imageUrl,
+              imageId: imageResult.imageId,
+              generatedImageId: imageResult.imageId,
+              imagePrompt: userMsg.content,
+              timestamp: new Date(),
+              savedToCompanionGallery: false,
+              savedToPersonalGallery: false,
+            };
 
-          toast.success(`✨ Image generated! (${IMAGE_TOKEN_COST} forge credits)`, {
-            duration: 3000,
-          });
-          clearOpeningStarterContext();
+            setMessages((prev) => [...prev, imageMsg]);
+
+            toast.success(
+              isAdminUser ? "✨ Image generated (admin — no credits charged)." : `✨ Image generated! (${IMAGE_TOKEN_COST} forge credits)`,
+              { duration: 3000 },
+            );
+            clearOpeningStarterContext();
+          } else {
+            const { data, error } = await supabase.functions.invoke("chat-with-companion", {
+              body: {
+                companionId: companion.id,
+                messages: threadForModel,
+                systemPrompt: composeGrokSystemPrompt(),
+                companionName: companion.name,
+                connectedToys: connectedToys,
+              },
+            });
+
+            if (error) throw error;
+
+            const { cleanText, command } = parseLovenseCommand(data.response || data.message || "");
+
+            const assistantMsg: ChatMessage = {
+              id: (Date.now() + 2).toString(),
+              role: "assistant",
+              content: cleanText,
+              lovenseCommand: command,
+              timestamp: new Date(),
+            };
+
+            setMessages((prev) => [...prev, assistantMsg]);
+
+            await supabase.from("chat_messages").insert({
+              user_id: user.id,
+              companion_id: companion.id,
+              role: "assistant",
+              content: cleanText,
+              lovense_command: command,
+            });
+
+            if (command && hasDevice) {
+              executeDeviceCommand(command);
+            }
+
+            await deductTokens(user.id);
+            clearOpeningStarterContext();
+          }
         } else {
-          // If image generation fails, provide a chat response instead
-          const contextMessages = messages.slice(-20).map((m) => ({
-            role: m.role,
-            content: m.content,
-          }));
-
           const { data, error } = await supabase.functions.invoke("chat-with-companion", {
             body: {
               companionId: companion.id,
-              messages: [...contextMessages, { role: "user", content: userMsg.content }],
+              messages: threadForModel,
               systemPrompt: composeGrokSystemPrompt(),
               companionName: companion.name,
+              connectedToys: connectedToys,
             },
           });
 
@@ -588,7 +632,7 @@ const Chat = () => {
           const { cleanText, command } = parseLovenseCommand(data.response || data.message || "");
 
           const assistantMsg: ChatMessage = {
-            id: (Date.now() + 2).toString(),
+            id: (Date.now() + 1).toString(),
             role: "assistant",
             content: cleanText,
             lovenseCommand: command,
@@ -605,67 +649,35 @@ const Chat = () => {
             lovense_command: command,
           });
 
-          if (command && hasDevice) {
+          if (command && connectedToys.length > 0) {
             executeDeviceCommand(command);
           }
 
           await deductTokens(user.id);
           clearOpeningStarterContext();
         }
-      } else {
-        // Regular chat message
-        const contextMessages = messages.slice(-20).map((m) => ({
-          role: m.role,
-          content: m.content,
-        }));
-
-        const { data, error } = await supabase.functions.invoke("chat-with-companion", {
-          body: {
-            companionId: companion.id,
-            messages: [...contextMessages, { role: "user", content: userMsg.content }],
-            systemPrompt: composeGrokSystemPrompt(),
-            companionName: companion.name,
-            connectedToys: connectedToys,
-          },
-        });
-
-        if (error) throw error;
-
-        const { cleanText, command } = parseLovenseCommand(data.response || data.message || "");
-
-        const assistantMsg: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content: cleanText,
-          lovenseCommand: command,
-          timestamp: new Date(),
-        };
-
-        setMessages((prev) => [...prev, assistantMsg]);
-
-        await supabase.from("chat_messages").insert({
-          user_id: user.id,
-          companion_id: companion.id,
-          role: "assistant",
-          content: cleanText,
-          lovense_command: command,
-        });
-
-        // Auto-execute device command if connected
-        if (command && connectedToys.length > 0) {
-          executeDeviceCommand(command);
-        }
-
-        await deductTokens(user.id);
-        clearOpeningStarterContext();
+      } catch (err: unknown) {
+        console.error("Chat error:", err);
+        toast.error("Failed to process your request. Check your connection.");
+      } finally {
+        setLoading(false);
       }
-    } catch (err: any) {
-      console.error("Chat error:", err);
-      toast.error("Failed to process your request. Check your connection.");
-    } finally {
-      setLoading(false);
-    }
   };
+
+  sendMessageRef.current = sendMessage;
+
+  /** Fantasy starter from profile: first line is the exact scripted USER message; works with new or existing threads. */
+  useEffect(() => {
+    if (!user || !companion || !historyReady || loading) return;
+    const state = location.state as { starterPrompt?: string; starterTitle?: string } | undefined;
+    const sp = state?.starterPrompt?.trim();
+    const st = state?.starterTitle?.trim();
+    if (!sp || starterSentRef.current) return;
+    starterSentRef.current = true;
+    if (st) openingFantasyStarterTitleRef.current = st;
+    navigate(location.pathname, { replace: true, state: {} });
+    queueMicrotask(() => void sendMessageRef.current(sp));
+  }, [user, companion, historyReady, loading, location.pathname, location.state, navigate]);
 
   if (!companion && dbCompanions) {
     return (
@@ -722,8 +734,10 @@ const Chat = () => {
           )}
           <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-xs">
             <Flame className="h-3 w-3 text-primary" />
-            <span className={`font-medium ${tokensBalance < 100 ? "text-destructive" : "text-foreground"}`}>
-              {tokensBalance.toLocaleString()}
+            <span
+              className={`font-medium ${!isAdminUser && tokensBalance < 100 ? "text-destructive" : "text-foreground"}`}
+            >
+              {isAdminUser ? "∞" : tokensBalance.toLocaleString()}
             </span>
           </div>
           <button
@@ -909,14 +923,14 @@ const Chat = () => {
       </div>
 
       {/* Token warning */}
-      {tokensBalance < 100 && tokensBalance > 0 && (
+      {!isAdminUser && tokensBalance < 100 && tokensBalance > 0 && (
         <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-2 text-center text-xs text-destructive">
           ⚠️ Low tokens! You have {tokensBalance} left.{" "}
           <Link to="/" className="underline font-medium">Upgrade for more</Link>
         </div>
       )}
 
-      {tokensBalance <= 0 && (
+      {!isAdminUser && tokensBalance <= 0 && (
         <div className="bg-destructive/20 border-b border-destructive/30 px-4 py-3 text-center text-sm text-destructive font-medium">
           🔒 Out of tokens!{" "}
           <Link to="/" className="underline">Upgrade now</Link> to keep chatting.
@@ -1004,18 +1018,24 @@ const Chat = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={
-              tokensBalance <= 0
+              !isAdminUser && tokensBalance <= 0
                 ? "Out of tokens — upgrade to continue"
                 : `Message ${companion.name}... (ask for selfies or pics!)`
             }
             className="flex-1 px-4 py-3 rounded-xl bg-muted border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
-            disabled={loading || tokensBalance <= 0}
+            disabled={loading || (!isAdminUser && tokensBalance <= 0)}
           />
           <button
             type="submit"
-            disabled={loading || !input.trim() || tokensBalance <= 0}
+            disabled={loading || !input.trim() || (!isAdminUser && tokensBalance <= 0)}
             className="px-4 py-3 rounded-xl bg-primary text-primary-foreground disabled:opacity-30 hover:glow-pink transition-all flex items-center gap-2"
-            title={isImageRequest(input) ? `Generate image (${IMAGE_TOKEN_COST} tokens)` : `Send message (${TOKEN_COST} tokens)`}
+            title={
+              isAdminUser
+                ? "Admin — no credit cost"
+                : isImageRequest(input)
+                  ? `Generate image (${IMAGE_TOKEN_COST} tokens)`
+                  : `Send message (${TOKEN_COST} tokens)`
+            }
           >
             {isImageRequest(input) ? (
               <>
@@ -1027,7 +1047,9 @@ const Chat = () => {
           </button>
         </form>
         <p className="text-[10px] text-muted-foreground text-center mt-2">
-          Safe word: <span className="text-destructive font-bold">{safeWord}</span> · {TOKEN_COST} tokens/message · {IMAGE_TOKEN_COST} tokens/image · 18+ only
+          Safe word: <span className="text-destructive font-bold">{safeWord}</span> ·{" "}
+          {isAdminUser ? "Admin session — credits waived · " : `${TOKEN_COST} tokens/message · ${IMAGE_TOKEN_COST} tokens/image · `}
+          18+ only
         </p>
       </div>
 

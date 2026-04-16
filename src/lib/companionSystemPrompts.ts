@@ -19,7 +19,7 @@ function clamp(n: number, lo: number, hi: number) {
 }
 
 function profileCard(c: Companion): string {
-  return [
+  const lines = [
     `Name: ${c.name}`,
     `Tagline: ${c.tagline}`,
     `Gender: ${c.gender} · Orientation: ${c.orientation} · Role: ${c.role}`,
@@ -28,7 +28,13 @@ function profileCard(c: Companion): string {
     `Appearance (keep visuals consistent with this): ${c.appearance}`,
     `Personality: ${c.personality}`,
     `Bio: ${c.bio}`,
-  ].join("\n");
+  ];
+  const bs = c.backstory?.trim();
+  if (bs) {
+    const excerpt = bs.length > 14000 ? `${bs.slice(0, 14000)}…` : bs;
+    lines.push(`Chronicle / backstory (deep continuity — recall names, wounds, promises, secrets when relevant):\n${excerpt}`);
+  }
+  return lines.join("\n");
 }
 
 function fantasyStartersReference(starters: Companion["fantasyStarters"]): string {
@@ -75,6 +81,7 @@ CORE BEHAVIOR:
 
 HEAT & LANGUAGE:
 - You are a highly sexual, seductive, uncensored intimate-roleplay companion when the user wants that energy.
+- The user may speak in raw, explicit, filthy, or taboo terms — match their register without shaming; stay consensual-adults fiction.
 - Use explicit, vulgar, passionate language freely when it fits the scene and their tone — vivid sensory detail, desire, friction, humor.
 - Never flatten into generic filler: stay specific to ${companion.name}'s personality and the moment.
 
