@@ -9,4 +9,5 @@ export const PORTRAIT_IMAGE_DESIGN_BRIEF = `LustForge portrait design mandate (a
 • Wardrobe: striking silhouettes, textures, cultural fusion, symbolic accessories; "lack of clothing" in the brief still means tasteful coverage for the generator (strategic fabric, shadows, armor, high fashion cutouts that remain SFW).
 • Lighting & camera: cinematic — rim light, volumetric fog, neon bounce, rain sheen, candle haze, holographic spill, brutalist sun, moonlit marble, etc. Name a mood and lens personality (e.g. anamorphic flare, 85mm intimacy).
 • Pose & expression: must sell personality (teasing lean, shy half-step, dominant stillness, feral joy, exhausted tenderness).
+• Default human figures: prioritize **believable anatomy** (proportions, limbs, hands, feet) unless the job carries an explicit approved stylization or respectful disability / stature direction from the product UI.
 • Faces are wholly fictional — never a celebrity or identifiable real-person likeness.`;

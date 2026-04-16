@@ -22,6 +22,13 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { formatSupabaseError } from "@/lib/supabaseError";
@@ -33,6 +40,7 @@ import {
   type CompanionRarity,
   normalizeCompanionRarity,
 } from "@/lib/companionRarity";
+import { FORGE_BODY_TYPES, normalizeForgeBodyType } from "@/lib/forgeBodyTypes";
 
 const NEON = "#FF2D7B";
 const PREVIEW_COST = 50;
@@ -142,21 +150,6 @@ const ART_STYLES = [
   "Neon airbrush",
   "Low-poly stylized",
   "Baroque portrait",
-] as const;
-
-const BODY_TYPES = [
-  "Slim",
-  "Athletic",
-  "Curvy",
-  "Thick",
-  "Petite",
-  "Tall & statuesque",
-  "Muscular",
-  "Plus-size",
-  "Soft",
-  "Androgynous",
-  "Hyper-feminine",
-  "Hyper-masculine",
 ] as const;
 
 const TRAITS = [
@@ -321,7 +314,7 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
   const [personalitySelections, setPersonalitySelections] = useState<string[]>(() => [PERSONALITIES[0]!]);
   const [vibeThemeSelections, setVibeThemeSelections] = useState<string[]>(() => [VIBES[0]!]);
   const [artStyle, setArtStyle] = useState<string>(ART_STYLES[0]!);
-  const [bodyType, setBodyType] = useState<string>(BODY_TYPES[2]!);
+  const [bodyType, setBodyType] = useState<string>(() => normalizeForgeBodyType(FORGE_BODY_TYPES[0]!));
   const [traits, setTraits] = useState<string[]>(["Tattoos", "Piercings"]);
   const [orientation, setOrientation] = useState<string>(ORIENTATIONS[0]!);
   const [extraNotes, setExtraNotes] = useState("");
@@ -613,8 +606,27 @@ User flavor notes: ${extraNotes || "none"}`;
       if (vOne) setVibeThemeSelections([vOne]);
     }
 
-    const bHit = BODY_TYPES.find((b) => tagArr.some((t) => t.toLowerCase().includes(b.toLowerCase())));
-    if (bHit) setBodyType(bHit);
+    const blob = tagArr.join(" | ").toLowerCase();
+    const forgeHit = FORGE_BODY_TYPES.find((b) => blob.includes(b.toLowerCase()));
+    if (forgeHit) setBodyType(forgeHit);
+    else {
+      const legacyLabels = [
+        "Slim",
+        "Athletic",
+        "Curvy",
+        "Thick",
+        "Petite",
+        "Tall & statuesque",
+        "Muscular",
+        "Plus-size",
+        "Soft",
+        "Androgynous",
+        "Hyper-feminine",
+        "Hyper-masculine",
+      ];
+      const legacyHit = legacyLabels.find((lb) => blob.includes(lb.toLowerCase()));
+      if (legacyHit) setBodyType(normalizeForgeBodyType(legacyHit));
+    }
 
     const aHit = ART_STYLES.find((a) => tagArr.some((t) => t.toLowerCase().includes(a.toLowerCase())));
     if (aHit) setArtStyle(aHit);
@@ -631,7 +643,7 @@ User flavor notes: ${extraNotes || "none"}`;
     const vibeCount = 1 + Math.floor(Math.random() * 3);
     const vibesPicked = [...VIBE_THEME_POOL].sort(() => Math.random() - 0.5).slice(0, vibeCount);
     const ar = pick(ART_STYLES);
-    const bt = pick(BODY_TYPES);
+    const bt = pick([...FORGE_BODY_TYPES]);
     const ori = pick(ORIENTATIONS);
     const shuffled = [...TRAITS].sort(() => Math.random() - 0.5).slice(0, 3 + Math.floor(Math.random() * 4));
 
@@ -712,6 +724,7 @@ Hard requirements:
       subtitle: tagline || "LustForge forged",
       characterData: {
         style: artStyle.toLowerCase().replace(/\s+/g, "-"),
+        artStyleLabel: artStyle,
         randomize: false,
         bodyType,
         vibe: vibeThemeLabel,
@@ -1275,7 +1288,34 @@ Hard requirements:
                 </AccordionTrigger>
                 <AccordionContent className="pb-5 space-y-5">
                   <PillGroup label="Art style" options={ART_STYLES} value={artStyle} onChange={setArtStyle} />
-                  <PillGroup label="Body type" options={BODY_TYPES} value={bodyType} onChange={setBodyType} />
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
+                      Body type
+                    </p>
+                    <Select
+                      value={bodyType}
+                      onValueChange={(v) => setBodyType(normalizeForgeBodyType(v))}
+                    >
+                      <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
+                        <SelectValue placeholder="Body type" />
+                      </SelectTrigger>
+                      <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
+                        {FORGE_BODY_TYPES.map((opt) => (
+                          <SelectItem
+                            key={opt}
+                            value={opt}
+                            className="focus:bg-white/10 focus:text-white cursor-pointer"
+                          >
+                            {opt}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
+                      Anatomy stays photoreal unless you pick a stylized art style or a listed body type that
+                      intentionally allows respectful variations.
+                    </p>
+                  </div>
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
                       Special traits

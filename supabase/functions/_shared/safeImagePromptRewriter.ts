@@ -25,6 +25,8 @@ YOUR JOB: produce ONE final English image prompt (plain text only, no markdown, 
 export type RewritePromptForImagineArgs = {
   raw: string;
   context?: string;
+  /** Injected anatomy policy (from anatomyImageRules) — applied to every rewrite. */
+  anatomyPolicy?: string;
   apiKey: string;
   /** Override model id (default: env GROK_SAFE_PROMPT_MODEL or grok-3). */
   chatModel?: string;
@@ -54,14 +56,18 @@ export async function rewritePromptForImagine(args: RewritePromptForImagineArgs)
     (args.chatModel && args.chatModel.trim()) || Deno.env.get("GROK_SAFE_PROMPT_MODEL")?.trim() || "grok-3";
 
   const contextBlock = (args.context || "").trim().slice(0, 6000);
+  const anatomy = (args.anatomyPolicy || "").trim();
 
   const userContent = [
+    anatomy ? `ANATOMY_POLICY (must obey — do not contradict in the rewritten prompt):\n${anatomy}\n` : "",
     "RAW_TEXT:",
     raw.slice(0, 12000),
     "",
     "OPTIONAL_CONTEXT (character / scene — respect but stay SFW for the image):",
     contextBlock || "(none)",
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const res = await fetch("https://api.x.ai/v1/chat/completions", {
     method: "POST",

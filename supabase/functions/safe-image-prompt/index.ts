@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { buildAnatomyRewriterDirective, resolveAnatomyVariant } from "../_shared/anatomyImageRules.ts";
 import { rewritePromptForImagine } from "../_shared/safeImagePromptRewriter.ts";
 
 const corsHeaders = {
@@ -58,7 +59,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    const body = (await req.json()) as { raw?: string; context?: string; userId?: string };
+    const body = (await req.json()) as {
+      raw?: string;
+      context?: string;
+      characterData?: Record<string, unknown>;
+      userId?: string;
+    };
     const raw = (body.raw ?? "").trim();
     if (!raw) {
       return new Response(JSON.stringify({ error: "Missing raw text (field: raw)." }), {
@@ -85,7 +91,25 @@ Deno.serve(async (req) => {
     }
 
     const context = (body.context ?? "").trim();
-    const safePrompt = await rewritePromptForImagine({ raw, context, apiKey });
+    let characterData: Record<string, unknown> =
+      body.characterData && typeof body.characterData === "object" ? { ...body.characterData } : {};
+    if (!Object.keys(characterData).length && context) {
+      try {
+        const parsed = JSON.parse(context) as { characterData?: Record<string, unknown> };
+        if (parsed?.characterData && typeof parsed.characterData === "object") {
+          characterData = { ...parsed.characterData };
+        }
+      } catch {
+        /* context not JSON */
+      }
+    }
+    const anatomyVariant = resolveAnatomyVariant(characterData);
+    const safePrompt = await rewritePromptForImagine({
+      raw,
+      context,
+      apiKey,
+      anatomyPolicy: buildAnatomyRewriterDirective(anatomyVariant),
+    });
 
     return new Response(JSON.stringify({ safePrompt }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

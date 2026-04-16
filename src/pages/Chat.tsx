@@ -29,6 +29,7 @@ import { ToyControlPanel } from "@/components/toy/ToyControlPanel";
 import { ToyHubPopover } from "@/components/toy/ToyHubPopover";
 import { payloadToLovenseCommand } from "@/lib/vibrationPatternPayload";
 import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
+import { inferForgeBodyTypeFromTags, inferStylizedArtFromTags } from "@/lib/forgeBodyTypes";
 
 const TOKEN_COST = 15;
 const IMAGE_TOKEN_COST = 75;
@@ -272,6 +273,9 @@ const Chat = () => {
         characterData: {
           companionId: companion.id,
           style: "chat-session",
+          artStyleLabel: inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic",
+          bodyType: inferForgeBodyTypeFromTags(dbComp.tags ?? []) ?? "Average",
+          tags: dbComp.tags ?? [],
           baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
           vibe: companion.personality,
           clothing: companion.role ? `fits ${companion.role} energy` : undefined,

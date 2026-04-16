@@ -2,6 +2,11 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { PORTRAIT_IMAGE_DESIGN_BRIEF } from "../_shared/portraitImageDesignBrief.ts";
+import {
+  buildAnatomyImagineKeyRules,
+  buildAnatomyRewriterDirective,
+  resolveAnatomyVariant,
+} from "../_shared/anatomyImageRules.ts";
 import { rewritePromptForImagine } from "../_shared/safeImagePromptRewriter.ts";
 
 const corsHeaders = {
@@ -166,11 +171,16 @@ serve(async (req) => {
       characterData,
     }).slice(0, 6000);
 
+    const anatomyVariant = resolveAnatomyVariant(characterData as Record<string, unknown>);
+    const anatomyDirective = buildAnatomyRewriterDirective(anatomyVariant);
+    const anatomyKeyRules = buildAnatomyImagineKeyRules(anatomyVariant);
+
     let safeRewritten: string;
     try {
       safeRewritten = await rewritePromptForImagine({
         raw: String(prompt),
         context: rewriterContext,
+        anatomyPolicy: anatomyDirective,
         apiKey,
       });
     } catch (rewriteErr) {
@@ -208,7 +218,7 @@ Character Details:
 Key Rules:
 - Strictly SFW — no nudity, no visible genitals, no explicit sex acts
 - Extremely sexy and provocative but tasteful and artistic
-- Perfect anatomy is NOT required — body can be realistic, curvy, thick, skinny, muscular, soft, etc.
+- ${anatomyKeyRules}
 - Highly detailed, cinematic lighting, premium quality, vertical portrait composition suitable for TCG-style card
 ${characterData.referencePalette ? `- Loosely echo this abstract color mood from a user-supplied reference thumbnail (palette only; do not copy any real person's face): ${characterData.referencePalette}` : ""}
 ${characterData.referenceNotes ? `- User style notes (interpret as generic art direction, not likeness): ${characterData.referenceNotes}` : ""}
