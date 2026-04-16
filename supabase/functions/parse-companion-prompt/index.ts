@@ -62,8 +62,11 @@ Always return data via the extract_companion_fields tool call.`;
 
 Per request, invent exactly ONE wholly original roster character. They may be male, female, non-binary, or any fantasy species or fusion you can justify — humans, elves, vampires, angels, demons, werewolves, aliens, androids, merfolk, dragons, anthro-inspired creatures, cosmic horrors, saints-gone-rogue, mech aces, wasteland poets, etc. Push novelty: combinations of aesthetics, eras, subcultures, and hobbies should never feel "samey".
 
-Naming: flavorful, species- and personality-appropriate; never generic filler (no "Alex Smith" energy).
-FORBIDDEN name patterns: anything starting with Forge-, Temp-, CC-, placeholders with random alphanumeric tails, UUIDs, or developer-style slugs. Names must read like a real epithet, sobriquet, or given + family / poetic construction.
+Naming (critical — players see this first; avoid “AI catalog sameness”):
+- Every character needs a DISTINCT name you could not mistake for another roster entry. Pull from varied etymologies: mythic epithets, invented compound sobriquets, hyphenated court titles, patronymics, celestial navigation jargon, relic codenames, tattoo-studio monikers, undercity aliases, monastery vow-names, hive-caste designations, etc.
+- Species / origin must flavor the name (merfolk get brine / tide / reef phonemes; demons get furnace / vowel-heavy infernal cadence; elves get airy multi-syllable constructions; androids get serial-poetic labels; cosmic horrors get unpronounceable-but-evocative spellings).
+- BANNED: overused romance-novel templates repeated across outputs (e.g. endless “Velvet / Raven / Storm / Night / Ash / Vale / Thorne / Cross / Noir” unless heavily subverted with a second unusual token). BANNED: two-word combos that differ only by swapping one stock adjective. BANNED: Forge-, Temp-, CC-, UUIDs, random alphanumeric slugs.
+- Prefer 2–4 word constructions OR a single rare compound (8–28 characters) that sounds like a person/entity, not a username.
 
 Bio vs backstory (minimum depth — never thin keyword dumps):
 - bio: at least ~80 words across 2 vivid paragraphs users skim first; voice-forward, seductive or tender per persona.
@@ -124,7 +127,7 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
         name: {
           type: "string",
           description: companionDesignLab
-            ? "Evocative character name (epithet, sobriquet, or given + poetic); NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs"
+            ? "Highly unique themed name: must reflect species + personality + setting seeds; avoid repeating the same stock surname/adjective patterns as other outputs (no generic 'Velvet X / Storm Y' spam). 2–4 words or one rare compound. NEVER Forge-*, Temp-*, UUIDs, developer slugs."
             : "Character name",
         },
         tagline: { type: "string", description: "Short catchy tagline" },

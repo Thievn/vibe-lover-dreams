@@ -38,6 +38,8 @@ function fallbackFromAssets(): HeroCard[] {
 export default function HeroSection({ onGetStarted }: HeroSectionProps) {
   const { data: dbList, isLoading } = useCompanions();
   const [shuffled, setShuffled] = useState<HeroCard[]>([]);
+  /** Portrait URLs that failed to load (expired signed links, etc.) — show gradient + initial instead. */
+  const [brokenPortraitIds, setBrokenPortraitIds] = useState<Set<string>>(() => new Set());
 
   const pool = useMemo((): HeroCard[] => {
     const rows = dbList || [];
@@ -193,12 +195,20 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
                       background: comp.img ? undefined : "linear-gradient(135deg, #FF2D7B, #00b89a)",
                     }}
                   >
-                    {comp.img ? (
+                    {comp.img && !brokenPortraitIds.has(comp.id) ? (
                       <img
                         src={comp.img}
                         alt=""
                         className="absolute inset-0 w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500 ease-out"
                         loading="lazy"
+                        referrerPolicy="no-referrer"
+                        onError={() =>
+                          setBrokenPortraitIds((prev) => {
+                            const next = new Set(prev);
+                            next.add(comp.id);
+                            return next;
+                          })
+                        }
                       />
                     ) : (
                       <div className="absolute inset-0 flex items-center justify-center">

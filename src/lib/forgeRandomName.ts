@@ -1,3 +1,76 @@
+/** Themed fragments — combined for extra variety when the static list would feel repetitive. */
+const NAME_CORES = [
+  "Myrrh",
+  "Vex",
+  "Kael",
+  "Zohra",
+  "Thalen",
+  "Ixis",
+  "Oryx",
+  "Niamh",
+  "Sorin",
+  "Yael",
+  "Qirin",
+  "Fen",
+  "Rhea",
+  "Tamsin",
+  "Umbrae",
+  "Virel",
+  "Xanth",
+  "Zephy",
+  "Aurex",
+  "Brume",
+] as const;
+
+const NAME_TAILS = [
+  "ithis",
+  "astra",
+  "vane",
+  "kai",
+  "thiel",
+  "lun",
+  "mire",
+  "vex",
+  "nox",
+  "sol",
+  "drift",
+  "harrow",
+  "quill",
+  "shard",
+  "rime",
+  "ash",
+  "vale",
+  "nyx",
+] as const;
+
+const EPITHETS = [
+  "the Inkbound",
+  "of the Veil",
+  "Nine-Fingers",
+  "the Hollow Choir",
+  "Saltglass",
+  "the Ember Oath",
+  "Black-Tide",
+  "the Gilded Fault",
+  "Starveling",
+  "the Quiet Furnace",
+] as const;
+
+function compoundEvocativeName(): string {
+  const roll = Math.random();
+  if (roll < 0.34) {
+    return `${pick(NAME_CORES)} ${pick(NAME_TAILS)}`.replace(/\s+/g, "");
+  }
+  if (roll < 0.67) {
+    return `${pick(NAME_CORES)} ${pick(EPITHETS)}`;
+  }
+  return `${pick(NAME_CORES)}'${pick(NAME_TAILS)}`;
+}
+
+function pick<T extends readonly string[]>(arr: T): T[number] {
+  return arr[Math.floor(Math.random() * arr.length)]!;
+}
+
 /** Evocative catalog-style names — never `Forge-*` developer slugs. */
 const FORGE_DISPLAY_NAMES = [
   "Seraphine Devereaux",
@@ -100,6 +173,9 @@ const FORGE_DISPLAY_NAMES = [
 ];
 
 export function suggestedForgeDisplayName(): string {
+  if (Math.random() < 0.55) {
+    return compoundEvocativeName();
+  }
   const i = Math.floor(Math.random() * FORGE_DISPLAY_NAMES.length);
-  return FORGE_DISPLAY_NAMES[i] ?? "Seraphine Devereaux";
+  return FORGE_DISPLAY_NAMES[i] ?? compoundEvocativeName();
 }

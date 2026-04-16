@@ -27,6 +27,7 @@ import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { formatSupabaseError } from "@/lib/supabaseError";
 import { suggestedForgeDisplayName } from "@/lib/forgeRandomName";
 import { cn } from "@/lib/utils";
+import { stablePortraitDisplayUrl } from "@/lib/companionMedia";
 
 const NEON = "#FF2D7B";
 const PREVIEW_COST = 50;
@@ -401,11 +402,13 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
       const raw = localStorage.getItem(previewStorageKey(userId, "user"));
       if (!raw) return;
       const j = JSON.parse(raw) as { previewUrl?: string; previewCanonicalUrl?: string };
-      if (j?.previewUrl && typeof j.previewUrl === "string") setPreviewUrl(j.previewUrl);
+      if (j?.previewUrl && typeof j.previewUrl === "string") {
+        setPreviewUrl(stablePortraitDisplayUrl(j.previewUrl) ?? j.previewUrl);
+      }
       if (j?.previewCanonicalUrl && typeof j.previewCanonicalUrl === "string") {
-        setPreviewCanonicalUrl(j.previewCanonicalUrl);
+        setPreviewCanonicalUrl(stablePortraitDisplayUrl(j.previewCanonicalUrl) ?? j.previewCanonicalUrl);
       } else if (j?.previewUrl && typeof j.previewUrl === "string") {
-        setPreviewCanonicalUrl(j.previewUrl);
+        setPreviewCanonicalUrl(stablePortraitDisplayUrl(j.previewUrl) ?? j.previewUrl);
       }
     } catch {
       /* ignore corrupt storage */
@@ -453,9 +456,8 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
   );
 
   const accordionDefaultOpen = useMemo((): string[] => {
-    const base = ["identity", "personality", "world", "body", "narrative", "reference", "output"];
-    return isAdmin ? [...base, "parody"] : base;
-  }, [isAdmin]);
+    return ["identity", "personality", "world", "body", "narrative", "reference", "output"];
+  }, []);
 
   const appearanceBlurb = useMemo(() => {
     const t = traits.length ? traits.join(", ") : "no listed special traits";
@@ -479,6 +481,15 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
       .filter(Boolean)
       .join(" ");
   }, [name, portraitAppearanceText, personalityLabel, vibeThemeLabel, artStyle, extraNotes, referenceNotes]);
+
+  /** Text shown under live preview — same fields that save to the vault card. */
+  const profilePreviewBlurb = useMemo(() => {
+    const hook = hookBio.trim();
+    if (hook.length > 0) return hook.length > 280 ? `${hook.slice(0, 277)}…` : hook;
+    const nar = narrativeAppearance.trim();
+    if (nar.length > 0) return nar.length > 280 ? `${nar.slice(0, 277)}…` : nar;
+    return appearanceBlurb.length > 220 ? `${appearanceBlurb.slice(0, 217)}…` : appearanceBlurb;
+  }, [hookBio, narrativeAppearance, appearanceBlurb]);
 
   const buildSystemPromptFor = useCallback(
     (who: string) => {
@@ -636,7 +647,7 @@ Seeds:
 - notable traits: ${shuffled.join(", ")}
 
 Hard requirements:
-1) name: evocative themed name (titles, epithets, surnames welcome). NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs.
+1) name: highly unique, species- and setting-themed (vary etymology every time — no recycled "Velvet / Storm / Night / Vale" spam). Epithets, court titles, monastery vow-names, relic codenames, or 2–4 word constructions. NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs.
 2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps.
 3) backstory: 3–4 paragraphs of premium dark-romance storytelling that weaves every archetype and vibe/theme into one coherent history — not a bullet recap of tags.
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
@@ -742,8 +753,10 @@ Hard requirements:
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Generation failed");
       if (!data.imageUrl) throw new Error("No image URL returned");
-      setPreviewUrl(data.imageUrl);
-      setPreviewCanonicalUrl(data.publicImageUrl ?? data.imageUrl);
+      const canonical = stablePortraitDisplayUrl(data.publicImageUrl ?? data.imageUrl) ?? data.imageUrl;
+      const display = stablePortraitDisplayUrl(data.imageUrl) ?? data.imageUrl;
+      setPreviewUrl(display);
+      setPreviewCanonicalUrl(canonical);
       if (typeof data.newTokensBalance === "number") setTokens(data.newTokensBalance);
       else if (!isAdmin) {
         const {
@@ -852,7 +865,8 @@ Hard requirements:
         return;
       }
 
-      let portraitUrl: string | null = previewCanonicalUrl || previewUrl;
+      const previewRaw = previewCanonicalUrl || previewUrl;
+      let portraitUrl: string | null = stablePortraitDisplayUrl(previewRaw) ?? previewRaw;
       if (!portraitUrl) {
         const payload = buildPortraitGeneratePayload();
         if (payload) {
@@ -860,11 +874,14 @@ Hard requirements:
           if (genErr) {
             toast.error(`Portrait: ${genErr.message}`);
           } else if (genData?.success && genData.imageUrl) {
-            portraitUrl = genData.publicImageUrl ?? genData.imageUrl;
-            setPreviewUrl(genData.imageUrl);
-            setPreviewCanonicalUrl(genData.publicImageUrl ?? genData.imageUrl);
+            const canon = stablePortraitDisplayUrl(genData.publicImageUrl ?? genData.imageUrl) ?? genData.imageUrl;
+            portraitUrl = canon;
+            setPreviewUrl(stablePortraitDisplayUrl(genData.imageUrl) ?? genData.imageUrl);
+            setPreviewCanonicalUrl(canon);
           }
         }
+      } else {
+        portraitUrl = stablePortraitDisplayUrl(portraitUrl) ?? portraitUrl;
       }
 
       const rowImagePrompt = name.trim() ? grokPrompt : grokPrompt.replace("an original companion", forgeName);
@@ -1261,9 +1278,9 @@ Hard requirements:
                 </AccordionTrigger>
                 <AccordionContent className="pb-5 space-y-4">
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Filled automatically by <strong className="text-white/90">Randomize</strong> or Parody lab. Edit freely
-                    — this is what saves to your vault (appearance prose, bio, backstory, SFW packshot prompt, chat charter).
-                    Pills above stay for quick tweaks; vault text wins for the final card when present.
+                    Filled by <strong className="text-white/90">Randomize / Roulette</strong> (full profile at once). Edit freely
+                    — this is what saves to your vault (appearance, bio, backstory, packshot prompt, chat charter). The{" "}
+                    <strong className="text-white/90">profile card</strong> under Live preview mirrors these fields.
                   </p>
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
@@ -1553,42 +1570,38 @@ Hard requirements:
                 </AccordionContent>
               </AccordionItem>
 
-              {isAdmin && (
-                <AccordionItem value="parody" className="border-white/10 px-4 border-b-0">
-                  <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
-                    Parody lab (admin only)
-                  </AccordionTrigger>
-                  <AccordionContent className="pb-5 space-y-4">
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      Spin a <strong className="text-white/90">wholly fictional</strong> “garbage pale” satire profile from a broad archetype
-                      (glam pop chaos, noir spy, etc.). Never name real celebrities — the model invents punny originals.
-                    </p>
-                    <textarea
-                      value={parodyArchetype}
-                      onChange={(e) => setParodyArchetype(e.target.value)}
-                      rows={3}
-                      placeholder="e.g. exhausted reality-show diva energy, or gritty 90s action hero but make it absurd…"
-                      className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm resize-none focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
-                    />
-                    <motion.button
-                      type="button"
-                      whileHover={{ scale: 1.01 }}
-                      whileTap={{ scale: 0.99 }}
-                      disabled={parodyLoading}
-                      onClick={() => void runParodyLab()}
-                      className="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 font-semibold text-white border border-white/10 disabled:opacity-45"
-                      style={{
-                        background: `linear-gradient(135deg, hsl(280 48% 38%), ${NEON})`,
-                        boxShadow: `0 0 28px ${NEON}25`,
-                      }}
-                    >
-                      {parodyLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
-                      Generate parody profile
-                    </motion.button>
-                  </AccordionContent>
-                </AccordionItem>
-              )}
             </Accordion>
+
+            {isAdmin && (
+              <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-950/40 to-black/50 px-4 py-4 space-y-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-200/90">Admin · Parody lab</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Separate from the main forge — satire profiles only. Fills the same narrative fields; use{" "}
+                  <strong className="text-white/90">Live preview</strong> on the right to render a portrait from the result.
+                </p>
+                <textarea
+                  value={parodyArchetype}
+                  onChange={(e) => setParodyArchetype(e.target.value)}
+                  rows={3}
+                  placeholder="Broad fictional archetype (no real celebrities)…"
+                  className="w-full rounded-xl border border-amber-500/20 bg-black/50 px-4 py-3 text-sm resize-none focus:outline-none focus:border-amber-500/40 focus:ring-2 focus:ring-amber-500/15"
+                />
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  disabled={parodyLoading}
+                  onClick={() => void runParodyLab()}
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl py-3 font-semibold text-white border border-amber-500/35 disabled:opacity-45"
+                  style={{
+                    background: `linear-gradient(135deg, hsl(35 40% 22%), hsl(280 35% 28%))`,
+                  }}
+                >
+                  {parodyLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+                  Generate parody profile
+                </motion.button>
+              </div>
+            )}
           </div>
 
           {/* Preview — TCG-sized (~63×88mm), sticky right on desktop; on mobile shown above options */}
@@ -1604,7 +1617,7 @@ Hard requirements:
                   </span>
                   <span className="min-w-0">
                     <span className="block text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">Live preview</span>
-                    <span className="text-[9px] text-muted-foreground/80 hidden sm:block">TCG · pins while you scroll</span>
+                    <span className="text-[9px] text-muted-foreground/80 hidden sm:block">Portrait + profile card</span>
                   </span>
                 </span>
                 {previewUrl && (
@@ -1667,14 +1680,31 @@ Hard requirements:
                     )}
                   </AnimatePresence>
                   {previewLoading && (
-                    <div className="absolute inset-0 bg-black/65 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+                    <div className="absolute inset-0 bg-black/65 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-[5]">
                       <Loader2 className="h-10 w-10 animate-spin" style={{ color: NEON }} />
                       <p className="text-sm text-white/90">Forging your portrait…</p>
                     </div>
                   )}
                 </div>
 
-                {/* Generate actions directly under preview */}
+                <div className="mt-3 rounded-xl border border-white/[0.12] bg-black/55 px-3 py-3 space-y-2">
+                  <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Profile preview</p>
+                  <p className="font-gothic text-base text-white leading-snug line-clamp-2">{name.trim() || "—"}</p>
+                  <p className="text-[11px] text-[#ffb8d9]/90 line-clamp-2">{tagline.trim() || "—"}</p>
+                  <p className="text-[10px] text-white/70 leading-relaxed line-clamp-5">{profilePreviewBlurb}</p>
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {[...personalitySelections.slice(0, 3), ...vibeThemeSelections.slice(0, 3)].map((x, i) => (
+                      <span
+                        key={`pv-${x}-${i}`}
+                        className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-white/85 max-w-[10rem] truncate"
+                      >
+                        {x}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Portrait from prompts — then save companion */}
                 <div className="mt-4 grid gap-2.5 grid-cols-1">
                   <motion.button
                     type="button"
@@ -1696,9 +1726,9 @@ Hard requirements:
                       )}
                     </span>
                     <span className="text-left leading-tight min-w-0">
-                      <span className="block">Live preview</span>
+                      <span className="block">Generate portrait</span>
                       <span className="block text-[10px] font-normal opacity-90">
-                        {isAdmin ? "No token spend" : `${PREVIEW_COST} tokens`}
+                        Packshot prompt + fields below · {isAdmin ? "no tokens" : `${PREVIEW_COST} tokens`}
                       </span>
                     </span>
                   </motion.button>
@@ -1732,9 +1762,9 @@ Hard requirements:
                   </motion.button>
                 </div>
 
-                <div className="mt-6 rounded-xl border border-white/10 bg-black/35 p-4 backdrop-blur-sm">
+                <div className="mt-4 rounded-xl border border-white/10 bg-black/35 p-4 backdrop-blur-sm">
                   <div className="flex items-center justify-between gap-2 mb-2">
-                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Prompt snapshot</p>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Portrait prompt (image gen)</p>
                     {isAdmin && (
                       <button
                         type="button"
@@ -1774,8 +1804,8 @@ Hard requirements:
               <p className="text-xs text-muted-foreground leading-relaxed">
                 {isAdmin ? (
                   <>
-                    <strong className="text-white/90">Admin forge</strong> does not debit profiles. Use Parody lab + Copy JSON to stress-test
-                    prompts before shipping anything to players. Previews still hit xAI — keep batches reasonable.
+                    <strong className="text-white/90">Admin forge</strong> does not debit profiles. Parody lab is in its own panel on the
+                    left. Previews still hit xAI — keep batches reasonable.
                   </>
                 ) : (
                   <>
