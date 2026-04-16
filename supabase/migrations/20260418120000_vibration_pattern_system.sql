@@ -93,7 +93,7 @@ BEGIN
     pi := (abs(hashtext(p_companion_id || ':' || i::text)) % 50) + 1;
     SELECT id INTO pool_id FROM public.vibration_pattern_pool WHERE pool_index = pi LIMIT 1;
     IF pool_id IS NULL THEN
-      RAISE EXCEPTION 'Missing pool pattern %%', pi;
+      RAISE EXCEPTION 'Missing pool pattern %', pi;
     END IF;
     INSERT INTO public.companion_vibration_patterns (companion_id, pool_pattern_id, display_name, sort_order, is_abyssal_signature)
     VALUES (
