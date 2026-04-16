@@ -359,6 +359,36 @@ export type Database = {
         }
         Relationships: []
       }
+      companion_vibration_patterns: {
+        Row: {
+          companion_id: string
+          created_at: string
+          display_name: string
+          id: string
+          is_abyssal_signature: boolean
+          pool_pattern_id: string
+          sort_order: number
+        }
+        Insert: {
+          companion_id: string
+          created_at?: string
+          display_name: string
+          id?: string
+          is_abyssal_signature?: boolean
+          pool_pattern_id: string
+          sort_order: number
+        }
+        Update: {
+          companion_id?: string
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_abyssal_signature?: boolean
+          pool_pattern_id?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       generated_images: {
         Row: {
           companion_id: string | null
@@ -497,6 +527,78 @@ export type Database = {
           companion_id?: string
           created_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      user_lovense_toys: {
+        Row: {
+          battery: number | null
+          capabilities: string[]
+          created_at: string
+          device_uid: string
+          display_name: string
+          enabled: boolean
+          id: string
+          image_url: string | null
+          nickname: string | null
+          toy_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          battery?: number | null
+          capabilities?: string[]
+          created_at?: string
+          device_uid: string
+          display_name: string
+          enabled?: boolean
+          id?: string
+          image_url?: string | null
+          nickname?: string | null
+          toy_type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          battery?: number | null
+          capabilities?: string[]
+          created_at?: string
+          device_uid?: string
+          display_name?: string
+          enabled?: boolean
+          id?: string
+          image_url?: string | null
+          nickname?: string | null
+          toy_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vibration_pattern_pool: {
+        Row: {
+          created_at: string
+          id: string
+          internal_label: string
+          payload: Json
+          pool_index: number
+          vibe_family: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          internal_label: string
+          payload: Json
+          pool_index: number
+          vibe_family?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          internal_label?: string
+          payload?: Json
+          pool_index?: number
+          vibe_family?: string | null
         }
         Relationships: []
       }

@@ -6,14 +6,29 @@ import { supabase } from "@/integrations/supabase/client";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { isPlatformAdmin } from "@/config/auth";
 import { motion } from "framer-motion";
-import { ArrowLeft, Send, Loader2, Zap, AlertOctagon, Flame, Image as ImageIcon, Heart, Sparkles, Pause, Play } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Zap, AlertOctagon, Flame, Image as ImageIcon, Heart, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { ImageViewer } from "@/components/ImageViewer";
 import { ImageMessage } from "@/components/ImageMessage";
 import { BreedingRitual } from "@/components/BreedingRitual";
 import { useCompanionRelationship } from "@/hooks/useCompanionRelationship";
-import { getToys, sendCommand, testToy, generatePairingQR, disconnectToy, LovenseToy, LovenseCommand } from "@/lib/lovense";
+import {
+  getToys,
+  sendCommand,
+  testToy,
+  generatePairingQR,
+  disconnectToy,
+  stopAllUserToys,
+  setToyEnabled,
+  LovenseToy,
+  LovenseCommand,
+} from "@/lib/lovense";
 import { buildChatSystemPrompt } from "@/lib/companionSystemPrompts";
+import { useCompanionVibrationPatterns, type CompanionVibrationPatternRow } from "@/hooks/useCompanionVibrationPatterns";
+import { ToyControlPanel } from "@/components/toy/ToyControlPanel";
+import { ToyHubPopover } from "@/components/toy/ToyHubPopover";
+import { payloadToLovenseCommand } from "@/lib/vibrationPatternPayload";
+import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
 
 const TOKEN_COST = 15;
 const IMAGE_TOKEN_COST = 75;
@@ -51,14 +66,15 @@ const Chat = () => {
   const [tokensBalance, setTokensBalance] = useState<number>(0);
   const [safeWord] = useState(() => localStorage.getItem("lustforge-safeword") || "RED");
   const [connectedToys, setConnectedToys] = useState<LovenseToy[]>([]);
+  const [primaryToyUid, setPrimaryToyUid] = useState<string | null>(null);
+  const [toysPanelLoading, setToysPanelLoading] = useState(false);
   const [viewingImage, setViewingImage] = useState<ChatMessage | null>(null);
   const [showBreedingRitual, setShowBreedingRitual] = useState(false);
-  const [activePattern, setActivePattern] = useState<string>(() => localStorage.getItem("lustforge-active-pattern") || "steady");
-  const [patternSending, setPatternSending] = useState(false);
   const [pairingUrl, setPairingUrl] = useState<string | null>(null);
   const [pairingLoading, setPairingLoading] = useState(false);
   const [intensity, setIntensity] = useState<number>(() => parseInt(localStorage.getItem("lustforge-intensity") || "50"));
-  const [isPatternPersistent, setIsPatternPersistent] = useState<boolean>(false);
+  const [sendingVibrationId, setSendingVibrationId] = useState<string | null>(null);
+  const [toyUtilityBusy, setToyUtilityBusy] = useState(false);
   const [historyReady, setHistoryReady] = useState(false);
   const starterSentRef = useRef(false);
   const messagesRef = useRef<ChatMessage[]>([]);
@@ -76,7 +92,57 @@ const Chat = () => {
     refresh: refreshRelationship,
   } = useCompanionRelationship(companion?.id || "");
 
-  const hasDevice = connectedToys.length > 0;
+  const activeToys = useMemo(() => connectedToys.filter((t) => t.enabled), [connectedToys]);
+  const hasDevice = activeToys.length > 0;
+
+  useEffect(() => {
+    const enabled = connectedToys.filter((t) => t.enabled);
+    if (enabled.length === 0) {
+      setPrimaryToyUid(null);
+      return;
+    }
+    const stored = localStorage.getItem("lustforge-primary-toy-uid");
+    const next = stored && enabled.some((t) => t.id === stored) ? stored : enabled[0].id;
+    setPrimaryToyUid(next);
+  }, [connectedToys]);
+
+  const selectPrimaryToy = (uid: string) => {
+    localStorage.setItem("lustforge-primary-toy-uid", uid);
+    setPrimaryToyUid(uid);
+  };
+
+  const { data: vibrationPatterns = [], isLoading: vibrationPatternsLoading } = useCompanionVibrationPatterns(
+    companion?.id,
+  );
+
+  const triggerCompanionVibration = async (row: CompanionVibrationPatternRow) => {
+    if (!user || !hasDevice) {
+      toast.error("Connect a Lovense toy to use these patterns.");
+      return;
+    }
+    const cmd = payloadToLovenseCommand(row.vibration_pattern_pool?.payload);
+    if (!cmd) {
+      toast.error("Could not read this pattern.");
+      return;
+    }
+    setSendingVibrationId(row.id);
+    try {
+      const target = primaryToyUid ?? activeToys[0]?.id;
+      if (!target) {
+        toast.error("No active toy selected.");
+        return;
+      }
+      const ok = await sendCommand(user.id, { ...cmd, toyId: target });
+      if (ok) {
+        const tn = activeToys.find((t) => t.id === target)?.name ?? "toy";
+        toast.success(`${row.display_name} → ${tn}`, { duration: 2200 });
+      } else {
+        toast.error("Could not send to device.");
+      }
+    } finally {
+      setSendingVibrationId(null);
+    }
+  };
 
   useEffect(() => {
     starterSentRef.current = false;
@@ -122,6 +188,39 @@ const Chat = () => {
   const checkDevice = async (userId: string) => {
     const toys = await getToys(userId);
     setConnectedToys(toys);
+  };
+
+  const refreshToys = async () => {
+    if (!user?.id) return;
+    setToysPanelLoading(true);
+    try {
+      await checkDevice(user.id);
+    } finally {
+      setToysPanelLoading(false);
+    }
+  };
+
+  const handleToggleToyEnabled = async (deviceUid: string, enabled: boolean) => {
+    if (!user) return;
+    const ok = await setToyEnabled(user.id, deviceUid, enabled);
+    if (ok) {
+      setConnectedToys((prev) =>
+        prev.map((t) => (t.id === deviceUid ? { ...t, enabled } : t)),
+      );
+    } else {
+      toast.error("Could not update toy.");
+    }
+  };
+
+  const handleDisconnectOneToy = async (deviceUid: string) => {
+    if (!user) return;
+    const ok = await disconnectToy(user.id, deviceUid);
+    if (ok) {
+      await checkDevice(user.id);
+      toast.success("Toy unlinked.");
+    } else {
+      toast.error("Failed to unlink toy.");
+    }
   };
 
   const fetchTokens = async (userId: string) => {
@@ -310,11 +409,19 @@ const Chat = () => {
 
   const composeGrokSystemPrompt = () => {
     if (!companion) return "";
-    const toys = connectedToys.length > 0 ? connectedToys.map((t) => t.name).join(", ") : "No toys connected";
+    const toyBlock =
+      connectedToys.length === 0
+        ? "None — no toys linked."
+        : connectedToys
+            .map(
+              (t) =>
+                `• ${t.enabled ? "ENABLED" : "paused"} — ${t.name} (${t.type}) — device_uid="${t.id}"`,
+            )
+            .join("\n");
     const pct = parseInt(localStorage.getItem("lustforge-intensity") || "50", 10);
     return buildChatSystemPrompt(companion, {
       safeWord,
-      connectedToysSummary: toys,
+      connectedToysSummary: toyBlock,
       openingFantasyStarterTitle: openingFantasyStarterTitleRef.current,
       userToyIntensityPercent: Number.isFinite(pct) ? pct : 50,
     });
@@ -339,17 +446,35 @@ const Chat = () => {
   };
 
   const executeDeviceCommand = async (command: any) => {
-    if (!user || connectedToys.length === 0 || !command) return;
+    if (!user || !hasDevice || !command) return;
 
-    const intensityLimit = parseInt(localStorage.getItem("lustforge-intensity") || "100");
-    const scaledIntensity = Math.round((command.intensity || 50) * (intensityLimit / 100));
+    const intensityLimit = parseInt(localStorage.getItem("lustforge-intensity") || "100", 10);
+    let raw = Number(command.intensity ?? 50);
+    if (raw <= 20) raw = raw * 5;
+    const scaledIntensity = Math.round(raw * (intensityLimit / 100));
 
-    const lovenseCommand: LovenseCommand = {
-      command: command.command || "vibrate",
-      intensity: Math.min(20, Math.max(0, scaledIntensity)),
-      duration: command.duration || 5000,
-      pattern: command.pattern,
-    };
+    const baseCmd = String(command.command || "vibrate").toLowerCase();
+    const deviceUid =
+      (typeof command.device_uid === "string" && command.device_uid.trim()) ||
+      (typeof command.deviceUid === "string" && command.deviceUid.trim()) ||
+      primaryToyUid ||
+      activeToys[0]?.id;
+
+    const lovenseCommand: LovenseCommand =
+      baseCmd === "pattern" && command.pattern
+        ? {
+            command: "pattern",
+            pattern: String(command.pattern),
+            intensity: Math.min(100, Math.max(0, scaledIntensity)),
+            duration: command.duration || 5000,
+            toyId: deviceUid,
+          }
+        : {
+            command: "vibrate",
+            intensity: Math.min(100, Math.max(0, scaledIntensity)),
+            duration: command.duration || 5000,
+            toyId: deviceUid,
+          };
 
     try {
       const success = await sendCommand(user.id, lovenseCommand);
@@ -379,37 +504,17 @@ const Chat = () => {
 
   const handleDisconnectToy = async () => {
     if (!user) return;
-    const success = await disconnectToy(user.id);
+    const uid = primaryToyUid ?? activeToys[0]?.id ?? connectedToys[0]?.id;
+    if (!uid) {
+      toast.error("No toy to disconnect.");
+      return;
+    }
+    const success = await disconnectToy(user.id, uid);
     if (success) {
-      setConnectedToys([]);
+      await checkDevice(user.id);
       toast.success("Toy disconnected.");
     } else {
       toast.error("Failed to disconnect toy.");
-    }
-  };
-
-  const handleSendPattern = async (pattern?: string, customIntensity?: number, persistent?: boolean) => {
-    if (!user || !hasDevice) {
-      toast.error("No connected device available.");
-      return;
-    }
-    setPatternSending(true);
-    const intensityLimit = customIntensity !== undefined ? customIntensity : intensity;
-    const patternIntensity = Math.min(20, Math.max(0, Math.round(intensityLimit * 0.18))); // Scale to 0-20 range for Lovense
-    const command: LovenseCommand = {
-      command: "vibrate",
-      intensity: patternIntensity,
-      duration: persistent ? 0 : 8000, // 0 for persistent (no auto-stop)
-      pattern: pattern || activePattern,
-    };
-    const success = await sendCommand(user.id, command);
-    setPatternSending(false);
-    if (success) {
-      if (pattern) setActivePattern(pattern);
-      setIsPatternPersistent(!!persistent);
-      toast.success(`Pattern “${pattern || activePattern}” sent to ${connectedToys[0].name}.`);
-    } else {
-      toast.error("Failed to send pattern.");
     }
   };
 
@@ -418,17 +523,11 @@ const Chat = () => {
       toast.error("No connected device available.");
       return;
     }
-    setPatternSending(true);
-    const command: LovenseCommand = {
-      command: "stop",
-      intensity: 0,
-      duration: 0,
-    };
-    const success = await sendCommand(user.id, command);
-    setPatternSending(false);
+    setToyUtilityBusy(true);
+    const success = await stopAllUserToys(user.id, connectedToys);
+    setToyUtilityBusy(false);
     if (success) {
-      setIsPatternPersistent(false);
-      toast.success(`All patterns stopped on ${connectedToys[0].name}.`);
+      toast.success("Stopped patterns on all active toys.");
     } else {
       toast.error("Failed to stop patterns.");
     }
@@ -439,7 +538,12 @@ const Chat = () => {
       toast.error("No connected device available.");
       return;
     }
-    const success = await testToy(user.id, connectedToys[0].id);
+    const uid = primaryToyUid ?? activeToys[0]?.id;
+    if (!uid) {
+      toast.error("Select an active toy.");
+      return;
+    }
+    const success = await testToy(user.id, uid);
     if (success) {
       toast.success("Toy test successful.");
     } else {
@@ -466,12 +570,11 @@ const Chat = () => {
   };
 
   const handleEmergencyStop = async () => {
+    if (!user) return;
     try {
-      await supabase.functions.invoke("send-device-command", {
-        body: { command: "Stop", intensity: 0, duration: 0 },
-      });
-      setIsPatternPersistent(false);
-      toast.success("🛑 All devices stopped");
+      const ok = await stopAllUserToys(user.id, connectedToys);
+      if (ok) toast.success("🛑 All devices stopped");
+      else toast.error("Failed to stop device");
     } catch {
       toast.error("Failed to stop device");
     }
@@ -544,13 +647,24 @@ const Chat = () => {
       setInput("");
       setLoading(true);
 
+      let savedUserMessageId: string | null = null;
+
       try {
-        await supabase.from("chat_messages").insert({
-          user_id: user.id,
-          companion_id: companion.id,
-          role: "user",
-          content: userMsg.content,
-        });
+        const { data: insertedUserRow, error: userInsertError } = await supabase
+          .from("chat_messages")
+          .insert({
+            user_id: user.id,
+            companion_id: companion.id,
+            role: "user",
+            content: userMsg.content,
+          })
+          .select("id")
+          .single();
+
+        if (userInsertError) {
+          throw new Error(userInsertError.message || "Could not save your message.");
+        }
+        savedUserMessageId = insertedUserRow?.id ?? null;
 
         if (requestingImage) {
           const imageResult = await generateImage(userMsg.content, user.id);
@@ -587,9 +701,17 @@ const Chat = () => {
               },
             });
 
-            if (error) throw error;
+            if (error) {
+              throw new Error(await messageFromFunctionsInvoke(error, data));
+            }
+            const chatPayload = data as { response?: string; message?: string; error?: string } | undefined;
+            if (chatPayload?.error && !chatPayload?.response && !chatPayload?.message) {
+              throw new Error(chatPayload.error);
+            }
 
-            const { cleanText, command } = parseLovenseCommand(data.response || data.message || "");
+            const { cleanText, command } = parseLovenseCommand(
+              chatPayload?.response || chatPayload?.message || "",
+            );
 
             const assistantMsg: ChatMessage = {
               id: (Date.now() + 2).toString(),
@@ -627,9 +749,17 @@ const Chat = () => {
             },
           });
 
-          if (error) throw error;
+          if (error) {
+            throw new Error(await messageFromFunctionsInvoke(error, data));
+          }
+          const chatPayload = data as { response?: string; message?: string; error?: string } | undefined;
+          if (chatPayload?.error && !chatPayload?.response && !chatPayload?.message) {
+            throw new Error(chatPayload.error);
+          }
 
-          const { cleanText, command } = parseLovenseCommand(data.response || data.message || "");
+          const { cleanText, command } = parseLovenseCommand(
+            chatPayload?.response || chatPayload?.message || "",
+          );
 
           const assistantMsg: ChatMessage = {
             id: (Date.now() + 1).toString(),
@@ -649,7 +779,7 @@ const Chat = () => {
             lovense_command: command,
           });
 
-          if (command && connectedToys.length > 0) {
+          if (command && hasDevice) {
             executeDeviceCommand(command);
           }
 
@@ -658,7 +788,13 @@ const Chat = () => {
         }
       } catch (err: unknown) {
         console.error("Chat error:", err);
-        toast.error("Failed to process your request. Check your connection.");
+        if (savedUserMessageId) {
+          await supabase.from("chat_messages").delete().eq("id", savedUserMessageId);
+        }
+        setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+        setInput(messageText);
+        const raw = err instanceof Error ? err.message : "Failed to process your request.";
+        toast.error(raw.length > 240 ? `${raw.slice(0, 237)}…` : raw);
       } finally {
         setLoading(false);
       }
@@ -695,6 +831,21 @@ const Chat = () => {
     );
   }
 
+  const labelForLovenseCmd = (cmd: Record<string, unknown> | null | undefined) => {
+    if (!cmd) return "Toy";
+    const id =
+      typeof cmd.device_uid === "string"
+        ? cmd.device_uid
+        : typeof cmd.deviceUid === "string"
+          ? cmd.deviceUid
+          : null;
+    if (id) {
+      const t = connectedToys.find((x) => x.id === id);
+      return t?.name ?? id.slice(0, 10);
+    }
+    return activeToys[0]?.name ?? "Toy";
+  };
+
   return (
     <div className="h-screen bg-background flex flex-col">
       {/* Header */}
@@ -724,13 +875,17 @@ const Chat = () => {
           <p className="text-xs text-primary truncate">{companion.tagline}</p>
         </div>
         <div className="flex items-center gap-2">
-          {connectedToys.length > 0 && (
-            <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-accent/10 text-accent text-xs">
-              <Zap className="h-3 w-3" />
-              <span className="font-medium">
-                {connectedToys[0].name} ({connectedToys[0].type})
-              </span>
-            </div>
+          {user && (
+            <ToyHubPopover
+              toys={connectedToys}
+              loading={toysPanelLoading}
+              pairingLoading={pairingLoading}
+              pairingUrl={pairingUrl}
+              onRefresh={refreshToys}
+              onConnect={() => void handleConnectToy()}
+              onDisconnectOne={(uid) => void handleDisconnectOneToy(uid)}
+              onToggleEnabled={(uid, en) => void handleToggleToyEnabled(uid, en)}
+            />
           )}
           <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-xs">
             <Flame className="h-3 w-3 text-primary" />
@@ -752,19 +907,21 @@ const Chat = () => {
         </div>
       </div>
 
-            <div className="border-b border-border bg-card/80 backdrop-blur-xl px-4 py-4 space-y-4">
+      <div className="border-b border-border bg-card/80 backdrop-blur-xl px-4 py-4 space-y-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Toy Control</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Session</p>
             <div className="flex flex-wrap gap-2 items-center">
               <span className="rounded-full bg-muted px-3 py-1 text-xs text-foreground">
-                {hasDevice ? `${connectedToys[0].name} (${connectedToys[0].status})` : "No toy connected"}
+                {connectedToys.length > 0
+                  ? `${connectedToys.length} linked · ${activeToys.length} active`
+                  : "No toy connected"}
               </span>
               <span className="rounded-full bg-muted px-3 py-1 text-xs text-foreground">
                 Affection: {relationship?.affection_level ?? 0}%
               </span>
               <span className="rounded-full bg-muted px-3 py-1 text-xs text-foreground">
-                Breeding Stage: {relationship?.breeding_stage ?? 0} / 3
+                Breeding: {relationship?.breeding_stage ?? 0} / 3
               </span>
             </div>
           </div>
@@ -773,27 +930,34 @@ const Chat = () => {
             {hasDevice ? (
               <>
                 <button
-                  onClick={handleTestToy}
-                  className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                  type="button"
+                  onClick={() => void handleTestToy()}
+                  disabled={toyUtilityBusy}
+                  className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                   Test Toy
                 </button>
                 <button
-                  onClick={handleDisconnectToy}
-                  className="rounded-xl bg-destructive px-4 py-2 text-xs font-semibold text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                  type="button"
+                  onClick={() => void handleDisconnectToy()}
+                  disabled={toyUtilityBusy}
+                  className="rounded-xl bg-destructive px-4 py-2 text-xs font-semibold text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50"
                 >
                   Disconnect
                 </button>
                 <button
-                  onClick={handleStopAll}
-                  className="rounded-xl bg-destructive/80 px-4 py-2 text-xs font-semibold text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                  type="button"
+                  onClick={() => void handleStopAll()}
+                  disabled={toyUtilityBusy}
+                  className="rounded-xl bg-destructive/80 px-4 py-2 text-xs font-semibold text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50"
                 >
                   Stop All
                 </button>
               </>
             ) : (
               <button
-                onClick={handleConnectToy}
+                type="button"
+                onClick={() => void handleConnectToy()}
                 disabled={pairingLoading}
                 className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
@@ -801,124 +965,41 @@ const Chat = () => {
               </button>
             )}
             <button
+              type="button"
               onClick={handleStartBreedingRitual}
               className="rounded-xl bg-secondary px-4 py-2 text-xs font-semibold text-foreground hover:bg-secondary/90 transition-colors"
             >
-              Start Breeding Ritual
+              Breeding Ritual
             </button>
           </div>
         </div>
 
-        {hasDevice && (
-          <>
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
-              <button
-                onClick={() => handleSendPattern("tease", intensity, isPatternPersistent)}
-                className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
-                  activePattern === "tease"
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-foreground hover:bg-muted/90'
-                }`}
+        {hasDevice ? (
+          <ToyControlPanel
+            toys={activeToys}
+            primaryToyId={primaryToyUid}
+            onSelectPrimaryToy={selectPrimaryToy}
+            patterns={vibrationPatterns}
+            patternsLoading={vibrationPatternsLoading}
+            disabled={false}
+            sendingId={sendingVibrationId}
+            onTrigger={(row) => void triggerCompanionVibration(row)}
+          />
+        ) : (
+          <div className="rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-3 text-center text-xs text-muted-foreground">
+            Pair your Lovense toy to unlock <span className="text-primary/90">{companion.name}</span>&apos;s signature
+            vibration patterns in this chat.
+            {pairingUrl ? (
+              <a
+                href={pairingUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="ml-2 text-primary underline font-medium"
               >
-                Tease
-              </button>
-              <button
-                onClick={() => handleSendPattern("pulse", intensity, isPatternPersistent)}
-                className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
-                  activePattern === "pulse"
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-foreground hover:bg-muted/90'
-                }`}
-              >
-                Pulse
-              </button>
-              {connectedToys[0].capabilities.includes("thrust") && (
-                <button
-                  onClick={() => handleSendPattern("thrust", intensity, isPatternPersistent)}
-                  className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
-                    activePattern === "thrust"
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-foreground hover:bg-muted/90'
-                  }`}
-                >
-                  Thrust
-                </button>
-              )}
-              <button
-                onClick={() => handleSendPattern(activePattern, Math.min(100, intensity + 20), isPatternPersistent)}
-                className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors bg-muted text-foreground hover:bg-muted/90`}
-              >
-                Intensify
-              </button>
-              <button
-                onClick={() => handleSendPattern(activePattern, Math.max(0, intensity - 20), isPatternPersistent)}
-                className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors bg-muted text-foreground hover:bg-muted/90`}
-              >
-                Slow Down
-              </button>
-              <button
-                onClick={() => setIsPatternPersistent(!isPatternPersistent)}
-                className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
-                  isPatternPersistent
-                    ? 'bg-accent text-accent-foreground'
-                    : 'bg-muted text-foreground hover:bg-muted/90'
-                }`}
-              >
-                {isPatternPersistent ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-                Persistent
-              </button>
-            </div>
-
-            <div className="flex flex-wrap gap-2 items-center justify-between">
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <span className="text-xs text-muted-foreground">Intensity:</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="10"
-                  value={intensity}
-                  onChange={(e) => setIntensity(parseInt(e.target.value))}
-                  className="w-full sm:w-48 accent-primary"
-                />
-                <span className="text-xs text-foreground">{intensity}%</span>
-              </div>
-              <button
-                onClick={() => handleSendPattern(undefined, intensity, isPatternPersistent)}
-                disabled={!hasDevice || patternSending}
-                className="rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-accent-foreground hover:bg-accent/90 transition-colors disabled:opacity-50"
-              >
-                {patternSending ? "Sending pattern..." : `Send ${activePattern}`}
-              </button>
-              {pairingUrl && !hasDevice && (
-                <a
-                  href={pairingUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-xl bg-primary/10 px-4 py-2 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
-                >
-                  Open pairing portal
-                </a>
-              )}
-            </div>
-
-            {connectedToys.length > 1 && (
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-xs text-muted-foreground">Enabled Toys:</span>
-                {connectedToys.map(toy => (
-                  <button
-                    key={toy.id}
-                    onClick={() => toggleToyEnabled(toy.id)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                      toy.enabled ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    {toy.name} {toy.enabled ? '✓' : '✗'}
-                  </button>
-                ))}
-              </div>
-            )}
-          </>
+                Open pairing portal
+              </a>
+            ) : null}
+          </div>
         )}
       </div>
 
@@ -968,14 +1049,15 @@ const Chat = () => {
               {msg.lovenseCommand && (
                 <div className="mt-2 px-3 py-2 rounded-lg bg-accent/10 border border-accent/20 text-accent text-xs flex items-center gap-2">
                   <Zap className="h-3 w-3" />
-                  {connectedToys.length > 0 ? (
+                  {hasDevice ? (
                     <>
-                      {connectedToys[0].name}: {msg.lovenseCommand.command} at {msg.lovenseCommand.intensity}%
+                      {labelForLovenseCmd(msg.lovenseCommand)}: {String(msg.lovenseCommand.command)} at{" "}
+                      {msg.lovenseCommand.intensity}%
                       <span className="text-accent ml-1">✓ Sent</span>
                     </>
                   ) : (
                     <>
-                      Device: {msg.lovenseCommand.command} at {msg.lovenseCommand.intensity}%
+                      Device: {String(msg.lovenseCommand.command)} at {msg.lovenseCommand.intensity}%
                       <span className="text-muted-foreground ml-1">(Connect device to activate)</span>
                     </>
                   )}

@@ -3,7 +3,7 @@ import { OctagonX } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
-import { getToys, sendCommand, type LovenseToy } from "@/lib/lovense";
+import { getToys, stopAllUserToys, type LovenseToy } from "@/lib/lovense";
 
 const EmergencyStop = () => {
   const [connectedToys, setConnectedToys] = useState<LovenseToy[]>([]);
@@ -45,8 +45,7 @@ const EmergencyStop = () => {
 
     setStopping(true);
     try {
-      // Stop all connected toys
-      await sendCommand(userId, { command: "stop", intensity: 0, duration: 0 });
+      await stopAllUserToys(userId, connectedToys);
       toast.success("🛑 All devices stopped");
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));

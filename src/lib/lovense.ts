@@ -1,211 +1,289 @@
 import { supabase } from "@/integrations/supabase/client";
+import { lovenseToyAvatarUrl } from "@/lib/lovenseToyAvatar";
 
-// Lovense API integration
 export interface LovenseToy {
+  /** DB row id */
+  rowId: string;
+  /** Lovense device uid — pass to commands as toyId */
   id: string;
   name: string;
   type: string;
-  status: 'online' | 'offline' | 'busy';
+  status: "online" | "offline" | "busy";
   battery: number;
-  capabilities: string[]; // ['vibrate', 'thrust', 'pulse', 'rotate', etc.]
-  enabled: boolean; // Added for enable/disable toggle
+  capabilities: string[];
+  enabled: boolean;
+  /** Resolved display image (DB or generated avatar) */
+  imageUrl: string;
 }
 
 export interface LovenseCommand {
-  command: 'vibrate' | 'thrust' | 'pulse' | 'rotate' | 'stop';
-  intensity: number; // 0-20
-  duration?: number; // milliseconds, use 0 or -1 for persistent until stopped
-  pattern?: string; // for advanced patterns
-  toyId?: string; // Optional specific toy ID for multi-toy support
+  command: "vibrate" | "thrust" | "pulse" | "rotate" | "stop" | "pattern";
+  intensity: number;
+  duration?: number;
+  pattern?: string;
+  /** Lovense `device_uid` — which toy to target (required when multiple are linked). */
+  toyId?: string;
 }
 
-/**
- * Connect a toy using callback data from Lovense
- */
-export const connectToy = async (callbackData: any): Promise<boolean> => {
+export const connectToy = async (callbackData: Record<string, unknown>): Promise<boolean> => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
 
-    // Parse Lovense callback data
     const toyData = {
       uid: callbackData.uid,
-      name: callbackData.name || 'Unknown Toy',
-      type: callbackData.toyType || 'Unknown',
-      status: 'online' as const,
+      name: callbackData.name || "Unknown Toy",
+      type: callbackData.toyType || "Unknown",
+      status: "online" as const,
       battery: callbackData.battery || 100,
-      capabilities: parseCapabilities(callbackData.toyType),
+      capabilities: parseCapabilities(String(callbackData.toyType || "")),
       connected_at: new Date().toISOString(),
     };
 
-    // Update user profile with toy information
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        device_uid: toyData.uid,
-        device_name: toyData.name,
-        device_type: toyData.type,
-        device_capabilities: toyData.capabilities,
-        device_connected: true,
-        device_last_seen: toyData.connected_at,
-      })
-      .eq('user_id', user.id);
+    const { error } = await supabase.from("profiles").update({
+      device_uid: toyData.uid,
+    }).eq("user_id", user.id);
 
     if (error) throw error;
     return true;
   } catch (error) {
-    console.error('Failed to connect toy:', error);
+    console.error("Failed to connect toy:", error);
     return false;
   }
 };
 
-/**
- * Send command to user's connected toy
- */
 export const sendCommand = async (userId: string, command: LovenseCommand): Promise<boolean> => {
   try {
-    // Get user's toy information
     const { data: profile } = await supabase
-      .from('profiles')
-      .select('device_uid, device_type, device_capabilities')
-      .eq('user_id', userId)
+      .from("profiles")
+      .select("device_uid")
+      .eq("user_id", userId)
       .single();
 
-    if (!profile?.device_uid) {
-      throw new Error('No toy connected');
+    const targetUid = command.toyId?.trim() || profile?.device_uid?.trim() || null;
+    if (!targetUid) {
+      throw new Error("No toy connected");
     }
 
-    // Validate command against toy capabilities
-    if (profile.device_capabilities && !profile.device_capabilities.includes(command.command)) {
+    const { data: toyRow } = await supabase
+      .from("user_lovense_toys")
+      .select("capabilities")
+      .eq("user_id", userId)
+      .eq("device_uid", targetUid)
+      .maybeSingle();
+
+    const caps = toyRow?.capabilities ?? ["vibrate"];
+
+    if (
+      caps.length > 0 &&
+      command.command !== "pattern" &&
+      command.command !== "stop" &&
+      !caps.includes(command.command)
+    ) {
       throw new Error(`Toy does not support ${command.command} command`);
     }
 
-    // Send command via Supabase edge function
-    const { error } = await supabase.functions.invoke('send-device-command', {
+    const { error } = await supabase.functions.invoke("send-device-command", {
       body: {
         command: command.command,
-        intensity: Math.min(20, Math.max(0, command.intensity)),
-        duration: command.duration || 5000,
+        intensity: Math.min(100, Math.max(0, command.intensity)),
+        duration: command.duration ?? 5000,
         pattern: command.pattern,
-        persistent: command.duration === 0 || command.duration === -1, // Flag for persistent command
+        deviceUid: targetUid,
       },
     });
 
     if (error) throw error;
     return true;
   } catch (error) {
-    console.error('Failed to send command:', error);
+    console.error("Failed to send command:", error);
     return false;
   }
 };
 
-/**
- * Get user's connected toys
- */
+/** Stop every linked toy (enabled first — still sends stop to each uid you pass in). */
+export const stopAllUserToys = async (userId: string, toys: LovenseToy[]): Promise<boolean> => {
+  const targets = toys.filter((t) => t.enabled).length > 0 ? toys.filter((t) => t.enabled) : toys;
+  if (targets.length === 0) return false;
+  let ok = true;
+  for (const t of targets) {
+    const s = await sendCommand(userId, {
+      command: "stop",
+      intensity: 0,
+      duration: 0,
+      toyId: t.id,
+    });
+    ok = ok && s;
+  }
+  return ok;
+};
+
 export const getToys = async (userId: string): Promise<LovenseToy[]> => {
   try {
-    // Get user's connected toys and their status
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('device_uid, device_name, device_type, device_capabilities, device_connected, device_last_seen')
-      .eq('user_id', userId)
-      .single();
+    const { data: rows, error } = await supabase
+      .from("user_lovense_toys")
+      .select("id, device_uid, display_name, toy_type, capabilities, enabled, battery, image_url")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true });
 
-    if (!profile?.device_uid) return [];
+    if (error) {
+      console.error("getToys:", error);
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("device_uid")
+        .eq("user_id", userId)
+        .single();
+      if (!profile?.device_uid) return [];
+      return [
+        {
+          rowId: `legacy-${profile.device_uid}`,
+          id: profile.device_uid,
+          name: "Connected device",
+          type: "unknown",
+          status: "online",
+          battery: 100,
+          capabilities: ["vibrate"],
+          enabled: true,
+          imageUrl: lovenseToyAvatarUrl(profile.device_uid),
+        },
+      ];
+    }
 
-    const toy: LovenseToy = {
-      id: profile.device_uid,
-      name: profile.device_name || 'Unknown Toy',
-      type: profile.device_type || 'Unknown',
-      status: profile.device_connected ? 'online' : 'offline',
-      battery: 100, // Would need to be updated from API
-      capabilities: profile.device_capabilities || ['vibrate'],
-      enabled: true, // Default to enabled for now, can be toggled in UI
-    };
-    return [toy];
+    if (!rows?.length) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("device_uid")
+        .eq("user_id", userId)
+        .single();
+
+      if (!profile?.device_uid) return [];
+
+      return [
+        {
+          rowId: `legacy-${profile.device_uid}`,
+          id: profile.device_uid,
+          name: "Connected device",
+          type: "unknown",
+          status: "online",
+          battery: 100,
+          capabilities: ["vibrate"],
+          enabled: true,
+          imageUrl: lovenseToyAvatarUrl(profile.device_uid),
+        },
+      ];
+    }
+
+    return rows.map((row) => {
+      const seed = `${row.device_uid}:${row.display_name}`;
+      const imageUrl = row.image_url?.trim() || lovenseToyAvatarUrl(seed);
+      return {
+        rowId: row.id,
+        id: row.device_uid,
+        name: row.display_name,
+        type: row.toy_type,
+        status: "online" as const,
+        battery: typeof row.battery === "number" && row.battery >= 0 ? row.battery : 100,
+        capabilities: row.capabilities?.length ? row.capabilities : ["vibrate"],
+        enabled: row.enabled,
+        imageUrl,
+      };
+    });
   } catch (error) {
-    console.error('Failed to get toys:', error);
+    console.error("Failed to get toys:", error);
     return [];
   }
 };
 
-/**
- * Test toy with short vibration
- */
-export const testToy = async (userId: string, toyId: string): Promise<boolean> => {
-  try {
-    // Send a short vibration test
-    const testCommand: LovenseCommand = {
-      command: 'vibrate',
-      intensity: 5,
-      duration: 2000,
-    };
+export const setToyEnabled = async (
+  userId: string,
+  deviceUid: string,
+  enabled: boolean,
+): Promise<boolean> => {
+  const { error } = await supabase
+    .from("user_lovense_toys")
+    .update({ enabled })
+    .eq("user_id", userId)
+    .eq("device_uid", deviceUid);
 
-    return await sendCommand(userId, testCommand);
-  } catch (error) {
-    console.error('Toy test failed:', error);
+  if (error) {
+    console.error("setToyEnabled:", error);
     return false;
   }
+  return true;
 };
 
-/**
- * Parse toy capabilities
- */
+export const testToy = async (userId: string, toyDeviceUid: string): Promise<boolean> => {
+  const testCommand: LovenseCommand = {
+    command: "vibrate",
+    intensity: 35,
+    duration: 2000,
+    toyId: toyDeviceUid,
+  };
+  return sendCommand(userId, testCommand);
+};
+
 const parseCapabilities = (toyType: string): string[] => {
   const capabilities: Record<string, string[]> = {
-    'vibrator': ['vibrate', 'pulse'],
-    'stroker': ['vibrate', 'thrust', 'stroke'],
-    'coupler': ['vibrate', 'thrust', 'rotate'],
-    'smart_dildo': ['vibrate', 'thrust', 'rotate'],
-    'nipple_clamps': ['vibrate', 'clamp'],
-    'prostate_massager': ['vibrate', 'pulse', 'rotate'],
-    'rabbit': ['vibrate', 'thrust', 'rotate'],
-    'egg': ['vibrate', 'pulse'],
-    'plug': ['vibrate', 'pulse'],
-    'default': ['vibrate'],
+    vibrator: ["vibrate", "pulse"],
+    stroker: ["vibrate", "thrust", "stroke"],
+    coupler: ["vibrate", "thrust", "rotate"],
+    smart_dildo: ["vibrate", "thrust", "rotate"],
+    nipple_clamps: ["vibrate", "clamp"],
+    prostate_massager: ["vibrate", "pulse", "rotate"],
+    rabbit: ["vibrate", "thrust", "rotate"],
+    egg: ["vibrate", "pulse"],
+    plug: ["vibrate", "pulse"],
+    default: ["vibrate"],
   };
   return capabilities[toyType?.toLowerCase()] || capabilities.default;
 };
 
-/**
- * Generate QR code for toy pairing
- */
-export const generatePairingQR = async (userId: string): Promise<string | null> => {
+export const generatePairingQR = async (_userId: string): Promise<string | null> => {
   try {
-    const { data, error } = await supabase.functions.invoke('lovense-qrcode', {
-      body: { userId },
+    const { data, error } = await supabase.functions.invoke("lovense-qrcode", {
+      body: {},
     });
 
     if (error) throw error;
 
     return data.qrCodeUrl;
   } catch (error) {
-    console.error('Failed to generate pairing QR:', error);
+    console.error("Failed to generate pairing QR:", error);
     return null;
   }
 };
 
-/**
- * Disconnect toy
- */
-export const disconnectToy = async (userId: string): Promise<boolean> => {
+/** Remove one toy by Lovense uid, or all toys if deviceUid omitted. Syncs profiles.device_uid. */
+export const disconnectToy = async (userId: string, deviceUid?: string): Promise<boolean> => {
   try {
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        device_uid: null,
-        device_name: null,
-        device_type: null,
-        device_capabilities: null,
-        device_connected: false,
-        device_last_seen: null,
-      })
-      .eq('user_id', user.id);
+    if (deviceUid) {
+      const { error } = await supabase
+        .from("user_lovense_toys")
+        .delete()
+        .eq("user_id", userId)
+        .eq("device_uid", deviceUid);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from("user_lovense_toys").delete().eq("user_id", userId);
+      if (error) throw error;
+    }
 
-    if (error) throw error;
+    const { data: rest } = await supabase
+      .from("user_lovense_toys")
+      .select("device_uid")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true })
+      .limit(1);
+
+    const nextPrimary = rest?.[0]?.device_uid ?? null;
+
+    await supabase.from("profiles").update({ device_uid: nextPrimary }).eq("user_id", userId);
+
     return true;
   } catch (error) {
-    console.error('Failed to disconnect toy:', error);
+    console.error("Failed to disconnect toy:", error);
     return false;
   }
 };

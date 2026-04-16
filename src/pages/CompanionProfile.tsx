@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ThumbsDown,
   ThumbsUp,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +27,10 @@ import type { CompanionRarity } from "@/lib/companionRarity";
 import { RarityBorderOverlay } from "@/components/rarity/RarityBorderOverlay";
 import { AbyssalProfileParticles } from "@/components/rarity/AbyssalProfileParticles";
 import { cn } from "@/lib/utils";
+import { getToys, sendCommand, type LovenseToy } from "@/lib/lovense";
+import { useCompanionVibrationPatterns, type CompanionVibrationPatternRow } from "@/hooks/useCompanionVibrationPatterns";
+import { VibrationPatternButtons } from "@/components/toy/VibrationPatternButtons";
+import { payloadToLovenseCommand } from "@/lib/vibrationPatternPayload";
 
 const RARITY_BADGE: Record<
   CompanionRarity,
@@ -74,6 +79,10 @@ const CompanionProfile = () => {
   const [pinned, setPinned] = useState(false);
   const [voteBusy, setVoteBusy] = useState(false);
   const [pinBusy, setPinBusy] = useState(false);
+  const [connectedToys, setConnectedToys] = useState<LovenseToy[]>([]);
+  const [sendingVibrationId, setSendingVibrationId] = useState<string | null>(null);
+
+  const { data: vibrationPatterns = [], isLoading: vibrationPatternsLoading } = useCompanionVibrationPatterns(id);
 
   const dbComp = useMemo(
     () => (dbCompanions || []).find((c) => c.id === id),
@@ -94,6 +103,58 @@ const CompanionProfile = () => {
       setUser(session?.user ?? null);
     });
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setConnectedToys([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const toys = await getToys(user.id);
+      if (!cancelled) setConnectedToys(toys);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  const activeToys = useMemo(() => connectedToys.filter((t) => t.enabled), [connectedToys]);
+  const hasLovenseToy = activeToys.length > 0;
+
+  const triggerProfileVibration = async (row: CompanionVibrationPatternRow) => {
+    if (!user) {
+      navigate("/auth", { state: { from: `/companions/${companion?.id}` } });
+      return;
+    }
+    if (!hasLovenseToy) {
+      toast.message("Pair a Lovense toy in Settings to feel these patterns.", {
+        action: { label: "Settings", onClick: () => navigate("/settings") },
+      });
+      return;
+    }
+    const cmd = payloadToLovenseCommand(row.vibration_pattern_pool?.payload);
+    if (!cmd) {
+      toast.error("Invalid pattern.");
+      return;
+    }
+    const stored = typeof localStorage !== "undefined" ? localStorage.getItem("lustforge-primary-toy-uid") : null;
+    const target =
+      (stored && activeToys.some((t) => t.id === stored) ? stored : null) ?? activeToys[0]?.id;
+    if (!target) {
+      toast.error("No active toy.");
+      return;
+    }
+    setSendingVibrationId(row.id);
+    try {
+      const ok = await sendCommand(user.id, { ...cmd, toyId: target });
+      const tn = activeToys.find((t) => t.id === target)?.name ?? "device";
+      if (ok) toast.success(`${row.display_name} sent to ${tn}.`);
+      else toast.error("Could not reach your toy.");
+    } finally {
+      setSendingVibrationId(null);
+    }
+  };
 
   useEffect(() => {
     if (!id || !user?.id) {
@@ -495,6 +556,52 @@ const CompanionProfile = () => {
                     </span>
                   ))}
                 </div>
+              </div>
+            ) : null}
+
+            {id && vibrationPatterns.length > 0 ? (
+              <div className="rounded-[1.35rem] border border-[#ff2d7b]/25 bg-gradient-to-br from-black/55 via-[hsl(280_28%_9%)]/95 to-black/50 p-5 sm:p-6 shadow-[0_0_48px_rgba(255,45,123,0.08),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-xl">
+                <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                  <div>
+                    <h3 className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#ff2d7b]/80">
+                      Haptic signature
+                    </h3>
+                    <p className="mt-1 font-gothic text-xl text-white flex items-center gap-2">
+                      <Zap className="h-5 w-5 text-[#00ffd4] shrink-0 drop-shadow-[0_0_10px_rgba(0,255,212,0.35)]" />
+                      Lovense patterns
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                      {hasLovenseToy
+                        ? `Tap to send ${companion.name}'s curated patterns to your linked toy.`
+                        : "Connect a Lovense device in Settings to feel these patterns live."}
+                    </p>
+                  </div>
+                  {!hasLovenseToy ? (
+                    <Link
+                      to="/settings"
+                      className="text-[11px] font-semibold uppercase tracking-wider text-primary hover:underline shrink-0"
+                    >
+                      Pair toy
+                    </Link>
+                  ) : (
+                    <span className="rounded-full border border-[#00ffd4]/30 bg-[#00ffd4]/10 px-2.5 py-1 text-[10px] font-medium text-[#00ffd4]">
+                      Linked
+                    </span>
+                  )}
+                </div>
+                {vibrationPatternsLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <VibrationPatternButtons
+                    patterns={vibrationPatterns}
+                    disabled={!hasLovenseToy}
+                    sendingId={sendingVibrationId}
+                    onTrigger={(row) => void triggerProfileVibration(row)}
+                    variant="profile"
+                  />
+                )}
               </div>
             ) : null}
           </motion.div>

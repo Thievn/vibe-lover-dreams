@@ -1,8 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 Deno.serve(async (req) => {
@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
+      { global: { headers: { Authorization: authHeader } } },
     );
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -33,18 +33,48 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { command, intensity, duration, pattern } = await req.json();
+    const body = await req.json();
+    const command = body.command as string | undefined;
+    const intensity = body.intensity as number | undefined;
+    const duration = body.duration as number | undefined;
+    const pattern = body.pattern as string | undefined;
+    /** Lovense LAN uid — required when user has multiple toys registered */
+    const deviceUidFromBody =
+      typeof body.deviceUid === "string"
+        ? body.deviceUid.trim()
+        : typeof body.device_uid === "string"
+          ? body.device_uid.trim()
+          : "";
 
-    // Get user's device UID from profile
     const { data: profile } = await supabase
       .from("profiles")
       .select("device_uid")
       .eq("user_id", user.id)
       .single();
 
-    if (!profile?.device_uid) {
+    const legacyUid = profile?.device_uid?.trim() || "";
+
+    const { data: toys } = await supabase
+      .from("user_lovense_toys")
+      .select("device_uid")
+      .eq("user_id", user.id);
+
+    const owned = new Set((toys ?? []).map((t: { device_uid: string }) => t.device_uid));
+
+    const requestedUid = deviceUidFromBody || legacyUid;
+
+    if (!requestedUid) {
       return new Response(JSON.stringify({ error: "No device connected. Connect your device in Settings." }), {
         status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const inRegistry = owned.has(requestedUid);
+    const legacyMatch = Boolean(legacyUid && requestedUid === legacyUid);
+    if (!inRegistry && !legacyMatch) {
+      return new Response(JSON.stringify({ error: "That device is not linked to your account." }), {
+        status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -57,14 +87,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Handle stop command
+    const uidForLovense = requestedUid;
+
     if (command === "Stop" || command === "stop") {
       const lovenseResponse = await fetch("https://api.lovense.com/api/lan/v2/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           token: developerToken,
-          uid: profile.device_uid,
+          uid: uidForLovense,
           command: "Function",
           action: "Stop",
           apiVer: 1,
@@ -84,16 +115,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Scale intensity from 0-100 to 0-20 (Lovense API range)
     const scaledIntensity = Math.min(Math.max(0, Math.round((intensity / 100) * 20)), 20);
     const clampedDuration = Math.min(Math.max(1, Math.round((duration || 5000) / 1000)), 30);
 
-    // Handle pattern command
     let action: string;
     if (command === "pattern" && pattern) {
       action = `Preset:${pattern}`;
     } else {
-      // Map commands: vibrate, pulse, rotate
       const commandMap: Record<string, string> = {
         vibrate: "Vibrate",
         pulse: "Vibrate",
@@ -108,7 +136,7 @@ Deno.serve(async (req) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         token: developerToken,
-        uid: profile.device_uid,
+        uid: uidForLovense,
         command: "Function",
         action,
         timeSec: clampedDuration,
@@ -122,8 +150,9 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     console.error("Device command error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

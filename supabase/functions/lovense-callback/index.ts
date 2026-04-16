@@ -1,9 +1,28 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+function capabilitiesForToyType(toyType: string): string[] {
+  const t = (toyType || "").toLowerCase();
+  const map: Record<string, string[]> = {
+    lush: ["vibrate"],
+    hush: ["vibrate"],
+    nora: ["vibrate", "rotate"],
+    max: ["vibrate", "thrust"],
+    calor: ["vibrate"],
+    gush: ["vibrate"],
+    ferri: ["vibrate"],
+    domi: ["vibrate"],
+    osci: ["vibrate"],
+    edge: ["vibrate"],
+    solace: ["vibrate", "thrust"],
+    default: ["vibrate"],
+  };
+  return map[t] || map.default;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -13,34 +32,31 @@ Deno.serve(async (req) => {
   try {
     const serviceClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Lovense sends callback data as JSON POST
-    let callbackData: any;
+    let callbackData: Record<string, unknown>;
     const contentType = req.headers.get("content-type") || "";
-    
+
     if (contentType.includes("application/json")) {
-      callbackData = await req.json();
+      callbackData = (await req.json()) as Record<string, unknown>;
     } else {
-      // Could be form-encoded
       const text = await req.text();
       try {
-        callbackData = JSON.parse(text);
+        callbackData = JSON.parse(text) as Record<string, unknown>;
       } catch {
         const params = new URLSearchParams(text);
-        callbackData = Object.fromEntries(params.entries());
+        callbackData = Object.fromEntries(params.entries()) as Record<string, unknown>;
       }
     }
 
     console.log("Lovense callback received:", JSON.stringify(callbackData));
 
-    // Extract uid from callback - Lovense sends uid in the callback body
-    const deviceUid = callbackData.uid || callbackData.deviceId || callbackData.utoken;
-    
-    // Get pairing token from query params or callback data
     const url = new URL(req.url);
-    const pairingToken = url.searchParams.get("token") || callbackData.utoken;
+    const pairingToken =
+      url.searchParams.get("token") ||
+      (typeof callbackData.utoken === "string" ? callbackData.utoken : null) ||
+      (typeof callbackData.token === "string" ? callbackData.token : null);
 
     if (!pairingToken) {
       console.error("No pairing token in callback");
@@ -50,7 +66,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Look up user from pairing token
     const { data: pairing, error: pairingError } = await serviceClient
       .from("lovense_pairings")
       .select("user_id, expires_at")
@@ -65,7 +80,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check expiration
     if (new Date(pairing.expires_at) < new Date()) {
       return new Response(JSON.stringify({ error: "Pairing token expired" }), {
         status: 410,
@@ -73,36 +87,107 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Save device UID to user's profile
-    const uidToStore = deviceUid || pairingToken;
-    const { error: updateError } = await serviceClient
-      .from("profiles")
-      .update({ device_uid: uidToStore })
-      .eq("user_id", pairing.user_id);
+    const toyList = callbackData.toyList;
+    const toys: Array<Record<string, unknown>> = Array.isArray(toyList)
+      ? (toyList as Array<Record<string, unknown>>)
+      : [];
 
-    if (updateError) {
-      console.error("Profile update error:", updateError);
-      return new Response(JSON.stringify({ error: "Failed to save device" }), {
-        status: 500,
+    const legacyUid =
+      (typeof callbackData.uid === "string" && callbackData.uid) ||
+      (typeof callbackData.deviceId === "string" && callbackData.deviceId) ||
+      null;
+
+    let firstDeviceUid: string | null = null;
+
+    if (toys.length > 0) {
+      for (const toy of toys) {
+        const rawId = toy.id ?? toy.uid;
+        const deviceUid = rawId != null ? String(rawId).trim() : "";
+        if (!deviceUid) continue;
+
+        if (!firstDeviceUid) firstDeviceUid = deviceUid;
+
+        const name =
+          (typeof toy.nickname === "string" && toy.nickname.trim()) ||
+          (typeof toy.name === "string" && toy.name.trim()) ||
+          "Lovense toy";
+        const toyType =
+          typeof toy.toyType === "string"
+            ? toy.toyType.toLowerCase()
+            : typeof toy.type === "string"
+              ? toy.type.toLowerCase()
+              : "unknown";
+        const nickname = typeof toy.nickname === "string" ? toy.nickname : null;
+        const battery =
+          typeof toy.battery === "number" && Number.isFinite(toy.battery) ? Math.round(toy.battery) : null;
+
+        const { error: upsertErr } = await serviceClient.from("user_lovense_toys").upsert(
+          {
+            user_id: pairing.user_id,
+            device_uid: deviceUid,
+            display_name: name,
+            toy_type: toyType,
+            nickname,
+            capabilities: capabilitiesForToyType(toyType),
+            battery,
+            enabled: true,
+          },
+          { onConflict: "user_id,device_uid" },
+        );
+
+        if (upsertErr) {
+          console.error("user_lovense_toys upsert error:", upsertErr);
+          return new Response(JSON.stringify({ error: "Failed to save device" }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+    } else if (legacyUid) {
+      firstDeviceUid = legacyUid.trim();
+      const { error: upsertErr } = await serviceClient.from("user_lovense_toys").upsert(
+        {
+          user_id: pairing.user_id,
+          device_uid: firstDeviceUid,
+          display_name: "Connected device",
+          toy_type: "unknown",
+          capabilities: capabilitiesForToyType("unknown"),
+          enabled: true,
+        },
+        { onConflict: "user_id,device_uid" },
+      );
+
+      if (upsertErr) {
+        console.error("user_lovense_toys legacy upsert error:", upsertErr);
+        return new Response(JSON.stringify({ error: "Failed to save device" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      return new Response(JSON.stringify({ error: "No toy data in callback" }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Clean up pairing record
     await serviceClient
-      .from("lovense_pairings")
-      .delete()
-      .eq("pairing_token", pairingToken);
+      .from("profiles")
+      .update({ device_uid: firstDeviceUid })
+      .eq("user_id", pairing.user_id);
 
-    console.log("Device connected for user:", pairing.user_id, "uid:", uidToStore);
+    await serviceClient.from("lovense_pairings").delete().eq("pairing_token", pairingToken);
+
+    console.log("Device(s) connected for user:", pairing.user_id, "primary uid:", firstDeviceUid);
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     console.error("Callback error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

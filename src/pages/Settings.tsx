@@ -6,6 +6,7 @@ import ParticleBackground from "@/components/ParticleBackground";
 import { motion } from "framer-motion";
 import { Save, Trash2, Shield, Loader2, Wifi, WifiOff, QrCode } from "lucide-react";
 import { toast } from "sonner";
+import { disconnectToy } from "@/lib/lovense";
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -110,16 +111,12 @@ const Settings = () => {
 
   const handleDisconnect = async () => {
     if (!user) return;
-    const { error } = await supabase
-      .from("profiles")
-      .update({ device_uid: null })
-      .eq("user_id", user.id);
-
-    if (error) {
-      toast.error("Failed to disconnect device");
-    } else {
+    const ok = await disconnectToy(user.id);
+    if (ok) {
       setDeviceUid("");
-      toast.success("Device disconnected");
+      toast.success("All devices disconnected");
+    } else {
+      toast.error("Failed to disconnect devices");
     }
   };
 
