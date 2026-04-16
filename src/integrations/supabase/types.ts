@@ -645,6 +645,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      admin_reassign_vibration_patterns: {
+        Args: {
+          p_companion_id: string
+        }
+        Returns: undefined
+      }
+      admin_backfill_missing_vibration_patterns: {
+        Args: Record<string, never>
+        Returns: number
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

@@ -44,6 +44,8 @@ Deno.serve(async (req) => {
     const systemDefault =
       `You are a companion profile parser for an AI companion platform. Extract structured fields from the user's pasted profile text. If a field isn't explicitly mentioned, infer it from context. Always return data via the extract_companion_fields tool call.
 
+For backstory: write at least 3 full paragraphs of continuous narrative (roughly 400+ words when you must invent from thin hints). FORBIDDEN: comma-only trait dumps, lines that look like "Tags: …", or pasting the tags array as prose — tell a story with scenes, relationships, and turning points.
+
 For fantasy_starters: each item must have "title" (short card label) and "description" (the EXACT first USER chat line the UI will send when the card is tapped — write it as the human's in-world opener, second person or first-person user POV, not assistant narration). Optional "emoji" for decoration only.`;
 
     const systemParody =
@@ -53,12 +55,12 @@ Rules (non-negotiable):
 - Invent a silly satirical name that vaguely rhymes with or puns on a vibe (e.g. "Blornda Snores" style) — not a real person.
 - The character is a "garbage pale" parody: washed-out skin, tired eyes, harsh flash, bargain-bin glamour, uncanny paparazzi energy — still SFW, no nudity.
 - Personality should echo a broad fictional archetype (e.g. "diva pop chaos", "gritty spy lead") only as caricature, not as impersonation of any real individual.
-- Fill every tool field richly: tagline, bio, system_prompt, image_prompt, fantasy_starters (exactly 4), gradients, tags, kinks as appropriate for the parody.
+- Fill every tool field richly: tagline, bio, system_prompt, image_prompt (SFW portrait; no fake shop signs or legible product/app names in-frame), fantasy_starters (exactly 4), gradients, tags, kinks as appropriate for the parody.
 - fantasy_starters: exactly 4; each description = verbatim first USER chat line (in-world).
 Always return data via the extract_companion_fields tool call.`;
 
     const systemCompanionDesignLab =
-      `You are a master character designer for LustForge — a premium catalog of AI companions for adults seeking romance, fantasy, and emotional chemistry (the product is intimate; you still avoid illegal or exploitative themes).
+      `You are a master character designer for a premium catalog of wholly original AI companions for adults seeking romance, fantasy, and emotional chemistry (the product is intimate; you still avoid illegal or exploitative themes).
 
 Per request, invent exactly ONE wholly original roster character. They may be male, female, non-binary, or any fantasy species or fusion you can justify — humans, elves, vampires, angels, demons, werewolves, aliens, androids, merfolk, dragons, anthro-inspired creatures, cosmic horrors, saints-gone-rogue, mech aces, wasteland poets, etc. Push novelty: combinations of aesthetics, eras, subcultures, and hobbies should never feel "samey".
 
@@ -70,19 +72,19 @@ Naming (critical — players see this first; avoid “AI catalog sameness”):
 
 Bio vs backstory (minimum depth — never thin keyword dumps):
 - bio: at least ~80 words across 2 vivid paragraphs users skim first; voice-forward, seductive or tender per persona.
-- backstory: at least ~220 words across 4 paragraphs — deep, memorable, addictive lore (wound, want, secret, sensory texture, one cinematic scene). May imply mature chemistry without pornographic blow-by-blow.
+- backstory: at least ~400 words across 3+ full paragraphs of continuous prose — deep, memorable lore (wound, want, secret, relationships, at least one cinematic scene with concrete place/time). May imply mature chemistry without pornographic blow-by-blow. FORBIDDEN: restating tags as a list, "Tags:" lines, comma-only keyword dumps, or any paragraph that is mostly traits without narrative.
 
 Fantasy starters: exactly 4 items (mandatory in this mode). Each needs title (card label) + description (the verbatim first USER chat line when they tap the card — in-world, may be seductive / playful / dominant / teasing per persona; not assistant narration). Each description should be 1–4 natural sentences the human would plausibly type.
 
 Appearance: NEVER output the seed trait list as comma-separated keywords. Write 3+ flowing sentences of cinematic prose (silhouette, skin, hair, eyes, wardrobe, aura). Tags belong in the tags array, not copy-pasted into appearance.
 
-Backstory: literary dark-romance energy — scene, wound, want, friction, desire. Do NOT restate tags as a bullet recap; tell a story.
+Backstory: literary dark-romance energy — scene, wound, want, friction, desire. Do NOT restate tags as a bullet recap; tell a story. Every paragraph must advance plot or emotional history (not a catalog of kinks).
 
 Tags: 8-14 strings — mix species/archetype, visual aesthetic, era, location vibe, and hobbies or obsessions (music, dueling, botany, street racing, relic hunting, tea ceremony, orbital sports, antiquarian books, DJ culture, courtroom drama, forge-craft…).
 
 Kinks / interests bucket: 4-10 optional strings for dynamics & story kinks the character gravitates toward (aftercare, praise, rivalry-to-trust, voyeuristic tension, service top, found family, cosmic loneliness, discipline contracts, etc.) — think "what they're into" broadly, not only anatomy lists.
 
-image_prompt: one dense cinematic paragraph optimized for a vertical SFW portrait generator — species cues, silhouette, wardrobe, props echoing hobbies, lighting, lens mood, atmosphere, pose, micro-expression — strictly SFW for imagery (no nudity / no visible genitals / no explicit sex acts in the visual brief).
+image_prompt: one dense cinematic paragraph optimized for a vertical SFW portrait generator — species cues, silhouette, wardrobe, props echoing hobbies, lighting, lens mood, atmosphere, pose, micro-expression — strictly SFW for imagery (no nudity / no visible genitals / no explicit sex acts in the visual brief). Do NOT mention real apps, storefronts, or product/platform names, and do not describe neon signs, posters, tattoos, or title cards that would spell branding — keep the frame character-forward only.
 
 system_prompt: full chat charter — voice, attitude, how they flirt, hard limits, safeword behavior, optional Lovense JSON convention when toys exist.
 
@@ -93,7 +95,7 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
     const userContent = parodyLab
       ? `Parody lab request (broad archetypes / genres only — no real people named):\n\n${prompt}\n\nGenerate ONE original parody companion profile via the tool.`
       : companionDesignLab
-      ? `Invent ONE premium catalog companion for LustForge.\n\nOperator hints (optional — if blank, maximize surprise and variety):\n${prompt.trim() || "(none — go wild within policy)"}\n\nPopulate all tool fields.`
+      ? `Invent ONE premium catalog companion.\n\nOperator hints (optional — if blank, maximize surprise and variety):\n${prompt.trim() || "(none — go wild within policy)"}\n\nPopulate all tool fields.`
       : `Parse this companion profile and extract all fields:\n\n${prompt}`;
 
     const fantasyStartersSchema: Record<string, unknown> = {
@@ -156,7 +158,11 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
         bio: { type: "string", description: "Short hook bio (1-2 tight paragraphs when inventing full profiles)" },
         backstory: {
           type: "string",
-          description: "Longer chronicle (3-4 paragraphs) for profile page — may echo bio with more depth",
+          description: companionDesignLab
+            ? "MINIMUM 3 full paragraphs, ~400+ words of continuous narrative lore. FORBIDDEN: tag lists, comma keyword dumps, 'Tags:' lines, or re-listing the tags array. Include concrete scenes, relationships, secrets, and emotional arc — not a catalog recap."
+            : parodyLab
+            ? "3+ paragraphs of satirical parody lore; still prose, not tag dumps"
+            : "Profile backstory: 3+ narrative paragraphs when inferring; never a bare trait list",
         },
         system_prompt: { type: "string", description: "Full roleplay system prompt for chat (voice, limits, toys)" },
         fantasy_starters: fantasyStartersSchema,
@@ -165,7 +171,7 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
         image_prompt: {
           type: "string",
           description:
-            "Single cinematic SFW portrait brief: species, wardrobe, props, lighting, lens mood, pose, expression",
+            "Single cinematic SFW portrait brief: species, wardrobe, props, lighting, lens mood, pose, expression. No legible product/app/platform branding, signage-as-logo, watermarks, or UI text in the scene.",
         },
       },
       required: ["name"],

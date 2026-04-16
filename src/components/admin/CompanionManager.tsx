@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAdminCompanions, type DbCompanion } from "@/hooks/useCompanions";
@@ -9,7 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Search, Save, RefreshCw, Plus, Eye, EyeOff, ChevronDown, ChevronUp,
-  Loader2, X, ImageIcon, Palette, ArrowLeft, Sparkles
+  Loader2, X, ImageIcon, Palette, ArrowLeft, Sparkles, Trash2, Waves,
 } from "lucide-react";
 
 type ViewMode = "list" | "edit" | "create";
@@ -40,6 +40,237 @@ const emptyCompanion: Omit<DbCompanion, "created_at" | "updated_at"> = {
   rarity_border_overlay_url: null,
 };
 
+type AdminVibRow = {
+  id: string;
+  display_name: string;
+  sort_order: number;
+  is_abyssal_signature: boolean;
+  pool_pattern_id: string;
+  pool_index: number | null;
+  internal_label: string | null;
+};
+
+function AdminToyPatternsSection({ companionId }: { companionId: string }) {
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [addPoolIndex, setAddPoolIndex] = useState(1);
+
+  const { data: pool = [] } = useQuery({
+    queryKey: ["vibration-pattern-pool"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vibration_pattern_pool")
+        .select("id, pool_index, internal_label")
+        .order("pool_index", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ["admin-vib-rows", companionId],
+    queryFn: async (): Promise<AdminVibRow[]> => {
+      const { data: raws, error: e1 } = await supabase
+        .from("companion_vibration_patterns")
+        .select("id, display_name, sort_order, is_abyssal_signature, pool_pattern_id")
+        .eq("companion_id", companionId)
+        .order("sort_order", { ascending: true });
+      if (e1) throw e1;
+      if (!raws?.length) return [];
+      const poolIds = [...new Set(raws.map((r) => r.pool_pattern_id))];
+      const { data: pools, error: e2 } = await supabase
+        .from("vibration_pattern_pool")
+        .select("id, pool_index, internal_label")
+        .in("id", poolIds);
+      if (e2) throw e2;
+      const byPool = new Map((pools ?? []).map((p) => [p.id, p]));
+      return raws.map((r) => {
+        const p = byPool.get(r.pool_pattern_id);
+        return {
+          id: r.id,
+          display_name: r.display_name,
+          sort_order: r.sort_order,
+          is_abyssal_signature: r.is_abyssal_signature,
+          pool_pattern_id: r.pool_pattern_id,
+          pool_index: p?.pool_index ?? null,
+          internal_label: p?.internal_label ?? null,
+        };
+      });
+    },
+  });
+
+  const invalidate = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["admin-vib-rows", companionId] });
+    void queryClient.invalidateQueries({ queryKey: ["companion-vibration-patterns", companionId] });
+  }, [queryClient, companionId]);
+
+  const reloadFromRarity = async () => {
+    setBusy("reload");
+    try {
+      const { error } = await supabase.rpc("admin_reassign_vibration_patterns", {
+        p_companion_id: companionId,
+      });
+      if (error) throw error;
+      toast.success("Toy patterns rebuilt from current rarity.");
+      invalidate();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Reload failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const removeRow = async (rowId: string) => {
+    setBusy(rowId);
+    try {
+      const { error } = await supabase.from("companion_vibration_patterns").delete().eq("id", rowId);
+      if (error) throw error;
+      toast.success("Pattern removed from this character.");
+      invalidate();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const addPattern = async () => {
+    const slot = pool.find((p) => p.pool_index === addPoolIndex);
+    if (!slot) {
+      toast.error("Pool not loaded.");
+      return;
+    }
+    setBusy("add");
+    try {
+      const maxSort = rows.reduce((m, r) => Math.max(m, r.sort_order), 0);
+      const next = maxSort + 1;
+      if (next > 20) {
+        toast.error("Maximum 20 pattern slots per companion.");
+        return;
+      }
+      const { error } = await supabase.from("companion_vibration_patterns").insert({
+        companion_id: companionId,
+        pool_pattern_id: slot.id,
+        display_name: slot.internal_label,
+        sort_order: next,
+        is_abyssal_signature: slot.pool_index === 50,
+      });
+      if (error) throw error;
+      toast.success("Pattern added.");
+      invalidate();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Add failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-violet-500/25 bg-violet-950/20 p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Waves className="h-4 w-4 text-violet-300" />
+        <h4 className="text-sm font-bold text-foreground">Lovense toy patterns (chat)</h4>
+      </div>
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        Rarity sets the default slot count (common 1 … abyssal 5 + signature). Use{" "}
+        <strong className="text-foreground/90">Reload from rarity</strong> to wipe custom rows and rebuild. Add/remove
+        individual pool entries below; changes apply server-side immediately.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={busy === "reload"}
+          onClick={() => void reloadFromRarity()}
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-600/90 text-white text-xs font-semibold hover:opacity-90 disabled:opacity-50 border border-violet-400/30"
+        >
+          {busy === "reload" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          Reload from rarity
+        </button>
+      </div>
+      {isLoading ? (
+        <p className="text-xs text-muted-foreground flex items-center gap-2">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading assignments…
+        </p>
+      ) : rows.length === 0 ? (
+        <p className="text-xs text-amber-200/90">
+          No patterns for this ID. Save rarity/name on the stock row (auto-trigger) or click Reload from rarity / Repair
+          missing (list).
+        </p>
+      ) : (
+        <ul className="space-y-2 max-h-56 overflow-y-auto pr-1">
+          {rows.map((r) => (
+            <li
+              key={r.id}
+              className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/40 px-2 py-1.5 text-xs"
+            >
+              <span className="text-muted-foreground w-6 shrink-0">{r.sort_order}</span>
+              <input
+                type="text"
+                defaultValue={r.display_name}
+                key={r.id}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (!v || v === r.display_name) return;
+                  void supabase
+                    .from("companion_vibration_patterns")
+                    .update({ display_name: v })
+                    .eq("id", r.id)
+                    .then(({ error }) => {
+                      if (error) toast.error(error.message);
+                      else invalidate();
+                    });
+                }}
+                className="flex-1 min-w-0 rounded border border-border/80 bg-muted/40 px-2 py-1 text-foreground"
+              />
+              <span className="hidden sm:inline text-[10px] text-muted-foreground truncate max-w-[140px]" title={r.internal_label ?? ""}>
+                #{r.pool_index ?? "?"} {r.internal_label ?? ""}
+              </span>
+              {r.is_abyssal_signature && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/30 text-violet-200 shrink-0">sig</span>
+              )}
+              <button
+                type="button"
+                title="Remove this slot"
+                disabled={busy === r.id}
+                onClick={() => void removeRow(r.id)}
+                className="p-1.5 rounded-md hover:bg-destructive/20 text-muted-foreground hover:text-destructive shrink-0 disabled:opacity-50"
+              >
+                {busy === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex flex-wrap items-end gap-2 pt-1 border-t border-border/40">
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Pool preset</label>
+          <select
+            value={addPoolIndex}
+            onChange={(e) => setAddPoolIndex(Number(e.target.value))}
+            className="rounded-lg bg-muted border border-border px-2 py-1.5 text-xs text-foreground min-w-[12rem]"
+          >
+            {pool.map((p) => (
+              <option key={p.id} value={p.pool_index}>
+                {p.pool_index}. {p.internal_label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="button"
+          disabled={busy === "add" || pool.length === 0}
+          onClick={() => void addPattern()}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-400/40 text-violet-200 text-xs font-medium hover:bg-violet-500/10 disabled:opacity-50"
+        >
+          {busy === "add" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+          Add slot
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const CompanionManager = () => {
   const { data: companions, isLoading, error } = useAdminCompanions();
   const { data: forgedRows = [], isLoading: forgedLoading } = useQuery({
@@ -64,7 +295,9 @@ const CompanionManager = () => {
   const [createData, setCreateData] = useState({ ...emptyCompanion, id: `custom-${Date.now()}` });
   const [creatingLoading, setCreatingLoading] = useState(false);
   const [forgeBusyId, setForgeBusyId] = useState<string | null>(null);
+  const [forgeVibBusyId, setForgeVibBusyId] = useState<string | null>(null);
   const [loreBusyId, setLoreBusyId] = useState<string | null>(null);
+  const [repairVibBusy, setRepairVibBusy] = useState(false);
 
   // Auto-fill state
   const [autoFillPrompt, setAutoFillPrompt] = useState("");
@@ -128,10 +361,47 @@ const CompanionManager = () => {
       });
       queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
       queryClient.invalidateQueries({ queryKey: ["companions"] });
+      if ("rarity" in changes || "name" in changes) {
+        void queryClient.invalidateQueries({ queryKey: ["companion-vibration-patterns", companion.id] });
+        void queryClient.invalidateQueries({ queryKey: ["admin-vib-rows", companion.id] });
+      }
     } catch (err: any) {
       toast.error("Save failed: " + err.message);
     } finally {
       setSaving((prev) => ({ ...prev, [companion.id]: false }));
+    }
+  };
+
+  const repairMissingVibrationPatterns = async () => {
+    setRepairVibBusy(true);
+    try {
+      const { data, error } = await supabase.rpc("admin_backfill_missing_vibration_patterns");
+      if (error) throw error;
+      const n = typeof data === "number" ? data : 0;
+      toast.success(`Repaired ${n} companion(s) that had no toy pattern rows.`);
+      void queryClient.invalidateQueries({ queryKey: ["admin-vib-rows"] });
+      void queryClient.invalidateQueries({ queryKey: ["companion-vibration-patterns"] });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Repair failed");
+    } finally {
+      setRepairVibBusy(false);
+    }
+  };
+
+  const reloadForgeVibrationPatterns = async (customUuid: string) => {
+    setForgeVibBusyId(customUuid);
+    try {
+      const { error } = await supabase.rpc("admin_reassign_vibration_patterns", {
+        p_companion_id: `cc-${customUuid}`,
+      });
+      if (error) throw error;
+      toast.success("Toy patterns rebuilt for this forge save.");
+      void queryClient.invalidateQueries({ queryKey: ["admin-vib-rows", `cc-${customUuid}`] });
+      void queryClient.invalidateQueries({ queryKey: ["companion-vibration-patterns", `cc-${customUuid}`] });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Reload failed");
+    } finally {
+      setForgeVibBusyId(null);
     }
   };
 
@@ -683,6 +953,7 @@ const CompanionManager = () => {
                 ))}
               </select>
             </div>
+            <AdminToyPatternsSection companionId={companion.id} />
             <Field label="Static portrait URL" value={(val("static_image_url") as string) || ""} onChange={(v) => setField(companion.id, "static_image_url", v || null)} />
             <Field label="Animated portrait URL" value={(val("animated_image_url") as string) || ""} onChange={(v) => setField(companion.id, "animated_image_url", v || null)} />
             <Field label="Border overlay URL (optional)" value={(val("rarity_border_overlay_url") as string) || ""} onChange={(v) => setField(companion.id, "rarity_border_overlay_url", v || null)} />
@@ -733,7 +1004,19 @@ const CompanionManager = () => {
       <div className="rounded-xl border border-accent/25 bg-accent/5 p-4 space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <h3 className="text-sm font-semibold text-foreground">Community forge saves</h3>
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">custom_characters</span>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <button
+              type="button"
+              disabled={repairVibBusy}
+              onClick={() => void repairMissingVibrationPatterns()}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-600/85 text-white text-[10px] font-semibold border border-violet-400/30 hover:opacity-90 disabled:opacity-50"
+              title="Assign patterns for any stock or forge row that has zero rows (does not overwrite existing)"
+            >
+              {repairVibBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Waves className="h-3 w-3" />}
+              Repair missing toy patterns
+            </button>
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">custom_characters</span>
+          </div>
         </div>
         <p className="text-xs text-muted-foreground leading-relaxed">
           Entries created from <strong className="text-foreground/90">Companion Forge → Create</strong>. Catalog rows
@@ -784,6 +1067,20 @@ const CompanionManager = () => {
                     </Link>
                   </div>
                   <div className="flex flex-wrap gap-2 mt-auto">
+                    <button
+                      type="button"
+                      disabled={forgeVibBusyId === row.id}
+                      onClick={() => void reloadForgeVibrationPatterns(row.id)}
+                      className="px-2.5 py-1 rounded-lg border border-violet-400/40 text-violet-200 text-[10px] font-medium hover:bg-violet-500/10 disabled:opacity-50 inline-flex items-center gap-1"
+                      title="Rebuild Lovense slots from this row’s rarity (same as Character edit → Reload from rarity)"
+                    >
+                      {forgeVibBusyId === row.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+                      ) : (
+                        <RefreshCw className="h-3 w-3 shrink-0" />
+                      )}
+                      Reload toy patterns
+                    </button>
                     {!row.approved && (
                       <button
                         type="button"

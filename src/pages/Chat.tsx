@@ -242,17 +242,63 @@ const Chat = () => {
     setTokensBalance(newBalance);
   };
 
+  /** Only treat as an image request when the user clearly asks for a picture — not casual words like "hot" or substrings like "pic" in "topic". */
   const isImageRequest = (text: string): boolean => {
-    const imageKeywords = [
-      'image', 'picture', 'photo', 'pic', 'send pic', 'send a picture',
-      'selfie', 'nude', 'spicy', 'hot', 'sexy', 'nudes', 'show', 'pose',
-      'take a photo', 'picture of you', 'image of you', 'photo of you',
-      'draw', 'generate', 'create image', 'create a picture',
-      'what do you look like', 'show yourself', 'let me see you',
-      'generate image', 'generate picture'
+    const t = text.toLowerCase().normalize("NFKC").trim();
+    if (t.length < 10) return false;
+
+    const phrases = [
+      "send me a picture",
+      "send me a photo",
+      "send me an image",
+      "send me a pic",
+      "send a picture",
+      "send a photo",
+      "send an image",
+      "send a pic",
+      "send nudes",
+      "take a picture",
+      "take a photo",
+      "take a selfie",
+      "take a pic",
+      "take another pic",
+      "take another picture",
+      "generate a picture",
+      "generate an image",
+      "generate image",
+      "generate a photo",
+      "create an image",
+      "create a picture",
+      "create image",
+      "draw yourself",
+      "draw you a",
+      "draw me a",
+      "paint me a",
+      "paint yourself",
+      "photo of you",
+      "picture of you",
+      "image of you",
+      "portrait of you",
+      "what do you look like",
+      "show yourself",
+      "show me what you look like",
+      "show me a picture",
+      "show me a photo",
+      "show me an image",
+      "let me see you",
+      "can i see you",
+      "can i see what you look like",
+      "see what you look like",
+      "snap a pic",
+      "snap a photo",
+      "another selfie",
+      "take a selfie for",
+      "selfie for me",
     ];
-    const lowerText = text.toLowerCase();
-    return imageKeywords.some(keyword => lowerText.includes(keyword));
+
+    if (phrases.some((p) => t.includes(p))) return true;
+
+    return false;
   };
 
   const generateImage = async (userRequest: string, userId: string): Promise<any> => {
@@ -815,7 +861,8 @@ const Chat = () => {
     if (!sp || starterSentRef.current) return;
     starterSentRef.current = true;
     if (st) openingFantasyStarterTitleRef.current = st;
-    navigate(location.pathname, { replace: true, state: {} });
+    const prev = location.state as { starterPrompt?: string; starterTitle?: string; from?: string } | undefined;
+    navigate(location.pathname, { replace: true, state: { from: prev?.from } });
     queueMicrotask(() => void sendMessageRef.current(sp));
   }, [user, companion, historyReady, loading, location.pathname, location.state, navigate]);
 
@@ -855,8 +902,15 @@ const Chat = () => {
       {/* Header */}
       <div className="border-b border-border bg-card/80 backdrop-blur-xl px-4 py-3 flex items-center gap-3 shrink-0">
         <button
-          onClick={() => navigate(`/companions/${companion.id}`)}
+          type="button"
+          onClick={() => {
+            const backTo = (location.state as { from?: string } | undefined)?.from;
+            if (backTo) navigate(backTo);
+            else if (location.key !== "default") navigate(-1);
+            else navigate(`/companions/${companion.id}`);
+          }}
           className="text-muted-foreground hover:text-foreground transition-colors"
+          title="Back"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>

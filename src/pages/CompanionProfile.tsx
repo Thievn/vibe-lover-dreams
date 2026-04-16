@@ -288,6 +288,7 @@ const CompanionProfile = () => {
     const prompt = starterPrompt?.trim();
     navigate(`/chat/${companion.id}`, {
       state: {
+        from: `/companions/${companion.id}`,
         starterPrompt: prompt || undefined,
         starterTitle: starterTitle || undefined,
       },
