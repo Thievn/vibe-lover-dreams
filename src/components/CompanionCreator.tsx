@@ -28,6 +28,11 @@ import { formatSupabaseError } from "@/lib/supabaseError";
 import { suggestedForgeDisplayName } from "@/lib/forgeRandomName";
 import { cn } from "@/lib/utils";
 import { stablePortraitDisplayUrl } from "@/lib/companionMedia";
+import {
+  COMPANION_RARITIES,
+  type CompanionRarity,
+  normalizeCompanionRarity,
+} from "@/lib/companionRarity";
 
 const NEON = "#FF2D7B";
 const PREVIEW_COST = 50;
@@ -341,6 +346,10 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
 
   const [parodyArchetype, setParodyArchetype] = useState("");
   const [parodyLoading, setParodyLoading] = useState(false);
+
+  /** Admin forge only — Discover tier; optional Abyssal overrides */
+  const [adminForgeRarity, setAdminForgeRarity] = useState<Exclude<CompanionRarity, "abyssal">>("epic");
+  const [adminAbyssalForge, setAdminAbyssalForge] = useState(false);
 
   /** Grok-filled narrative pack (forge roulette + design lab). */
   const [rouletteLoading, setRouletteLoading] = useState(false);
@@ -903,6 +912,9 @@ Hard requirements:
         const charter = charterSystemPrompt.trim() ? charterSystemPrompt.trim() : basePrompt;
         const goPublic = saveVisibility === "public" && !isAdmin;
         const startersForRow = padFantasyStartersToFour(fantasyStartersVault, displayName);
+        const adminTier = adminAbyssalForge
+          ? "abyssal"
+          : normalizeCompanionRarity(adminForgeRarity);
         rows.push({
           user_id: userId,
           name: displayName,
@@ -924,22 +936,39 @@ Hard requirements:
           gradient_to: NEON,
           image_url: portraitUrl,
           image_prompt: imagePromptOut,
-          is_public: goPublic,
-          approved: goPublic,
+          is_public: isAdmin ? true : goPublic,
+          approved: isAdmin ? true : goPublic,
+          ...(isAdmin
+            ? {
+                rarity: adminTier,
+                exclude_from_personal_vault: true,
+              }
+            : {}),
           avatar_url: portraitUrl,
         });
       }
 
       // Omit gallery_credit_name on insert: older DBs without that column (PGRST204) still work.
-      let insertRes = await supabase.from("custom_characters").insert(rows).select("id");
+      let attemptRows = rows as Record<string, unknown>[];
+      let insertRes = await supabase.from("custom_characters").insert(attemptRows).select("id");
       if (insertRes.error) {
         const msg = formatSupabaseError(insertRes.error);
         if (/personality_archetypes|vibe_theme_selections|PGRST204/i.test(msg)) {
-          const slimRows = rows.map((r) => {
+          attemptRows = attemptRows.map((r) => {
             const { personality_archetypes: _a, vibe_theme_selections: _v, ...rest } = r;
             return rest;
           });
-          insertRes = await supabase.from("custom_characters").insert(slimRows).select("id");
+          insertRes = await supabase.from("custom_characters").insert(attemptRows).select("id");
+        }
+      }
+      if (insertRes.error) {
+        const msg = formatSupabaseError(insertRes.error);
+        if (/exclude_from_personal_vault|rarity|PGRST204/i.test(msg)) {
+          attemptRows = attemptRows.map((r) => {
+            const { exclude_from_personal_vault: _e, rarity: _r, ...rest } = r;
+            return rest;
+          });
+          insertRes = await supabase.from("custom_characters").insert(attemptRows).select("id");
         }
       }
       const { data: insertedRows, error } = insertRes;
@@ -973,11 +1002,12 @@ Hard requirements:
           ? saveVisibility === "public" && !isAdmin
             ? "Companion forged — live on the public gallery."
             : isAdmin
-              ? "Companion saved — see Community forge below."
+              ? "Companion published to Discover — pin from the profile to add to your vault."
               : "Companion bound to your vault."
           : `${batchCount} companions forged.`,
       );
       void queryClient.invalidateQueries({ queryKey: ["companions"] });
+      void queryClient.invalidateQueries({ queryKey: ["vault-collection"] });
       void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
       if (!isAdmin) clearForgePreview({ silent: true });
       if (isAdmin && onForged) onForged();
@@ -1571,6 +1601,47 @@ Hard requirements:
               </AccordionItem>
 
             </Accordion>
+
+            {isAdmin && (
+              <div className="rounded-2xl border border-[#FF2D7B]/25 bg-gradient-to-br from-[#2a0a18]/80 to-black/50 px-4 py-4 space-y-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary/90">Admin · Discover card tier</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Forge is published to Discover. It stays out of your personal vault until you open the profile and save it
+                  to your roster.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                  <label className="flex flex-col gap-1 text-[11px] text-muted-foreground flex-1 min-w-0">
+                    <span className="uppercase tracking-wider text-[10px]">Rarity</span>
+                    <select
+                      value={adminForgeRarity}
+                      disabled={adminAbyssalForge}
+                      onChange={(e) =>
+                        setAdminForgeRarity(e.target.value as Exclude<CompanionRarity, "abyssal">)
+                      }
+                      className="w-full rounded-xl border border-white/10 bg-black/50 px-3 py-2.5 text-sm text-foreground disabled:opacity-45"
+                    >
+                      {COMPANION_RARITIES.filter((r) => r !== "abyssal").map((r) => (
+                        <option key={r} value={r}>
+                          {r.charAt(0).toUpperCase() + r.slice(1)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex items-start gap-2.5 rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={adminAbyssalForge}
+                      onChange={(e) => setAdminAbyssalForge(e.target.checked)}
+                      className="accent-[#FF2D7B] mt-0.5 h-4 w-4 shrink-0"
+                    />
+                    <span className="text-xs text-muted-foreground leading-snug">
+                      <span className="font-semibold text-foreground/90 block">Abyssal (super ultra rare)</span>
+                      Overrides the dropdown — uses the Abyssal frame on the card.
+                    </span>
+                  </label>
+                </div>
+              </div>
+            )}
 
             {isAdmin && (
               <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-950/40 to-black/50 px-4 py-4 space-y-3">

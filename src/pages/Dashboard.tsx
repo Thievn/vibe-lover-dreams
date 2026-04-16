@@ -31,6 +31,7 @@ import ParticleBackground from "@/components/ParticleBackground";
 import DiscoverCompanionsGallery from "@/components/DiscoverCompanionsGallery";
 import { Progress } from "@/components/ui/progress";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
+import { useVaultCollection } from "@/hooks/useVaultCollection";
 import { companions, type Companion } from "@/data/companions";
 import { isPlatformAdmin } from "@/config/auth";
 
@@ -102,11 +103,6 @@ export default function Dashboard() {
   const location = useLocation();
   const { data: dbCompanions = [], isLoading: companionsLoading } = useCompanions();
   const allCompanions = useMemo(() => dbCompanions.map(dbToCompanion), [dbCompanions]);
-  const collectionPreview = useMemo(() => allCompanions.slice(0, 12), [allCompanions]);
-  const hotPicks = useMemo(() => {
-    const hot = allCompanions.filter((c) => HOT_IDS.includes(c.id));
-    return hot.length > 0 ? hot : allCompanions.slice(0, 4);
-  }, [allCompanions]);
 
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -119,6 +115,14 @@ export default function Dashboard() {
   const [notifyMarketing, setNotifyMarketing] = useState(false);
   const [privateMode, setPrivateMode] = useState(true);
   const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
+
+  const { vaultCompanions, isLoading: vaultLoading } = useVaultCollection(user?.id ?? null, dbCompanions);
+  const collectionPreview = useMemo(() => vaultCompanions.slice(0, 12), [vaultCompanions]);
+  const hotPicks = useMemo(() => {
+    const pool = user ? vaultCompanions : allCompanions;
+    const hot = pool.filter((c) => HOT_IDS.includes(c.id));
+    return hot.length > 0 ? hot : pool.slice(0, 4);
+  }, [user, vaultCompanions, allCompanions]);
 
   const profileRef = useRef<HTMLDivElement>(null);
   const greetingName = resolveGreetingName(user, profileDisplayName);
@@ -479,14 +483,14 @@ export default function Dashboard() {
                 quickImageGen={quickImageGen}
                 collectionCards={collectionPreview}
                 hotPicks={hotPicks}
-                companionCount={dbCompanions.length}
-                companionsLoading={companionsLoading}
+                companionCount={vaultCompanions.length}
+                companionsLoading={companionsLoading || vaultLoading}
               />
             )}
             {activeNav === "collection" && (
               <CollectionView
-                companions={allCompanions}
-                loading={companionsLoading}
+                companions={vaultCompanions}
+                loading={companionsLoading || vaultLoading}
                 onForge={() => navigate("/create-companion")}
               />
             )}
@@ -934,7 +938,8 @@ function CollectionView({
       <div>
         <h2 className="font-gothic text-3xl gradient-vice-text">My Collection</h2>
         <p className="text-muted-foreground mt-2 text-sm max-w-xl">
-          Catalog companions plus anything you forged in Companion Forge. Tap a card for the full profile and chat.
+          Your forged cards (except admin Discover-only lab drops) plus anyone you saved from Discover. Pin more from a
+          companion profile.
         </p>
       </div>
       {loading ? (

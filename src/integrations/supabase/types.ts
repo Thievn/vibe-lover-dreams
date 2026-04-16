@@ -137,6 +137,7 @@ export type Database = {
           backstory: string
           bio: string
           created_at: string
+          exclude_from_personal_vault: boolean
           fantasy_starters: Json
           gallery_credit_name: string | null
           gender: string
@@ -170,6 +171,7 @@ export type Database = {
           backstory?: string
           bio?: string
           created_at?: string
+          exclude_from_personal_vault?: boolean
           fantasy_starters?: Json
           gallery_credit_name?: string | null
           gender?: string
@@ -203,6 +205,7 @@ export type Database = {
           backstory?: string
           bio?: string
           created_at?: string
+          exclude_from_personal_vault?: boolean
           fantasy_starters?: Json
           gallery_credit_name?: string | null
           gender?: string
@@ -227,6 +230,33 @@ export type Database = {
           updated_at?: string
           user_id?: string
           vibe_theme_selections?: string[] | null
+        }
+        Relationships: []
+      }
+      companion_discovery_votes: {
+        Row: {
+          companion_id: string
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+          vote: number
+        }
+        Insert: {
+          companion_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+          vote: number
+        }
+        Update: {
+          companion_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+          vote?: number
         }
         Relationships: []
       }
@@ -448,6 +478,24 @@ export type Database = {
         Update: {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_discover_pins: {
+        Row: {
+          companion_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          companion_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          companion_id?: string
+          created_at?: string
           user_id?: string
         }
         Relationships: []

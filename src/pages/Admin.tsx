@@ -986,6 +986,81 @@ function WaitlistSection({
   );
 }
 
+function DiscoveryVotesPanel() {
+  const [rows, setRows] = useState<{ companion_id: string; up: number; down: number; net: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.from("companion_discovery_votes").select("companion_id, vote");
+      if (cancelled) return;
+      if (error) {
+        setLoading(false);
+        return;
+      }
+      const map = new Map<string, { up: number; down: number }>();
+      for (const r of data ?? []) {
+        const cur = map.get(r.companion_id) ?? { up: 0, down: 0 };
+        if (r.vote === 1) cur.up++;
+        else if (r.vote === -1) cur.down++;
+        map.set(r.companion_id, cur);
+      }
+      const list = [...map.entries()].map(([companion_id, v]) => ({
+        companion_id,
+        up: v.up,
+        down: v.down,
+        net: v.up - v.down,
+      }));
+      list.sort((a, b) => b.up + b.down - (a.up + a.down));
+      setRows(list);
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <div className="rounded-2xl border border-border/80 bg-card/40 p-5 backdrop-blur-md space-y-4">
+      <div>
+        <h3 className="font-gothic text-lg">Discover feedback</h3>
+        <p className="text-xs text-muted-foreground mt-1">Likes and meh counts per companion (profile voting).</p>
+      </div>
+      {loading ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-4">No votes recorded yet.</p>
+      ) : (
+        <div className="overflow-x-auto max-h-[min(360px,50vh)] rounded-xl border border-border/60">
+          <table className="w-full text-sm text-left">
+            <thead className="sticky top-0 bg-black/50 backdrop-blur-md border-b border-border/60">
+              <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                <th className="px-3 py-2 font-semibold">Companion</th>
+                <th className="px-3 py-2 font-semibold text-right">Likes</th>
+                <th className="px-3 py-2 font-semibold text-right">Meh</th>
+                <th className="px-3 py-2 font-semibold text-right">Net</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.companion_id} className="border-b border-border/40 hover:bg-white/[0.03]">
+                  <td className="px-3 py-2 font-mono text-xs break-all max-w-[200px]">{r.companion_id}</td>
+                  <td className="px-3 py-2 text-right text-emerald-300/90">{r.up}</td>
+                  <td className="px-3 py-2 text-right text-amber-200/80">{r.down}</td>
+                  <td className="px-3 py-2 text-right text-foreground/90">{r.net}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AnalyticsSection({
   trendData,
   stats,
@@ -1083,6 +1158,7 @@ function AnalyticsSection({
           </ResponsiveContainer>
         </div>
       </div>
+      <DiscoveryVotesPanel />
       <p className="text-xs text-muted-foreground italic">
         {loading
           ? "Refreshing analytics…"

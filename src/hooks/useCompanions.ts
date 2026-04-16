@@ -34,6 +34,8 @@ export interface DbCompanion {
   gallery_credit_name?: string | null;
   personality_archetypes?: string[] | null;
   vibe_theme_selections?: string[] | null;
+  /** Admin forge: listed in Discover but omitted from the user’s personal vault until pinned */
+  exclude_from_personal_vault?: boolean;
 }
 
 function coerceStockRow(row: Record<string, unknown>): DbCompanion {
@@ -102,6 +104,7 @@ function customRowToDbCompanion(row: Record<string, unknown>): DbCompanion {
     vibe_theme_selections: Array.isArray(row.vibe_theme_selections)
       ? (row.vibe_theme_selections as string[])
       : null,
+    exclude_from_personal_vault: Boolean(row.exclude_from_personal_vault),
   };
 }
 
@@ -133,34 +136,6 @@ async function attachLatestGeneratedPortraits(
   }
 }
 
-/** Match forge preview rows in companion_portraits by user_id + normalized name (latest name match wins). */
-async function attachCompanionPortraitByName(
-  rawRows: Record<string, unknown>[],
-  userId: string,
-): Promise<void> {
-  const need = rawRows.filter((r) => !r.image_url && !r.static_image_url && r.name);
-  if (!need.length) return;
-  const { data: portraits, error } = await supabase
-    .from("companion_portraits")
-    .select("image_url, name, created_at")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(300);
-  if (error || !portraits?.length) return;
-  const norm = (s: string) => s.toLowerCase().trim().replace(/\s+/g, " ");
-  const bestByName = new Map<string, string>();
-  for (const p of portraits) {
-    const key = norm(String(p.name ?? ""));
-    if (!key || bestByName.has(key)) continue;
-    if (p.image_url) bestByName.set(key, p.image_url);
-  }
-  for (const r of need) {
-    const key = norm(String(r.name ?? ""));
-    const url = bestByName.get(key);
-    if (url) r.image_url = url;
-  }
-}
-
 async function fetchPublicCustomCharacters(): Promise<DbCompanion[]> {
   const { data, error } = await supabase
     .from("custom_characters")
@@ -183,6 +158,7 @@ async function fetchMyCustomCharacters(userId: string): Promise<DbCompanion[]> {
     .from("custom_characters")
     .select("*")
     .eq("user_id", userId)
+    .or("exclude_from_personal_vault.is.null,exclude_from_personal_vault.eq.false")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -191,7 +167,6 @@ async function fetchMyCustomCharacters(userId: string): Promise<DbCompanion[]> {
   }
   const raw = (data || []) as Record<string, unknown>[];
   await attachLatestGeneratedPortraits(raw, userId);
-  await attachCompanionPortraitByName(raw, userId);
   return raw.map((row) => customRowToDbCompanion(row));
 }
 

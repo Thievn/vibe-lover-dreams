@@ -1,17 +1,23 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
+import { VAULT_COLLECTION_QUERY_KEY } from "@/hooks/useVaultCollection";
 import Navbar from "@/components/Navbar";
 import ParticleBackground from "@/components/ParticleBackground";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
+  Bookmark,
   Heart,
   MessageCircle,
   Sparkles,
   Loader2,
   Flame,
   ChevronRight,
+  ThumbsDown,
+  ThumbsUp,
 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useMemo } from "react";
 import { getCompanionBackstoryParagraphs } from "@/lib/companionBackstory";
@@ -61,8 +67,13 @@ const RARITY_BADGE: Record<
 const CompanionProfile = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: dbCompanions, isLoading } = useCompanions();
   const [user, setUser] = useState<any>(null);
+  const [myVote, setMyVote] = useState<1 | -1 | null>(null);
+  const [pinned, setPinned] = useState(false);
+  const [voteBusy, setVoteBusy] = useState(false);
+  const [pinBusy, setPinBusy] = useState(false);
 
   const dbComp = useMemo(
     () => (dbCompanions || []).find((c) => c.id === id),
@@ -83,6 +94,105 @@ const CompanionProfile = () => {
       setUser(session?.user ?? null);
     });
   }, []);
+
+  useEffect(() => {
+    if (!id || !user?.id) {
+      setMyVote(null);
+      setPinned(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [voteRes, pinRes] = await Promise.all([
+        supabase
+          .from("companion_discovery_votes")
+          .select("vote")
+          .eq("user_id", user.id)
+          .eq("companion_id", id)
+          .maybeSingle(),
+        supabase
+          .from("user_discover_pins")
+          .select("companion_id")
+          .eq("user_id", user.id)
+          .eq("companion_id", id)
+          .maybeSingle(),
+      ]);
+      if (cancelled) return;
+      const v = voteRes.data?.vote;
+      setMyVote(v === 1 ? 1 : v === -1 ? -1 : null);
+      setPinned(!!pinRes.data?.companion_id);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, user?.id]);
+
+  const submitVote = async (next: 1 | -1) => {
+    if (!id) return;
+    if (!user) {
+      navigate("/auth", { state: { from: `/companions/${id}` } });
+      return;
+    }
+    setVoteBusy(true);
+    try {
+      if (myVote === next) {
+        const { error } = await supabase
+          .from("companion_discovery_votes")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("companion_id", id);
+        if (error) throw error;
+        setMyVote(null);
+        toast.message("Vote cleared.");
+      } else {
+        const { error } = await supabase.from("companion_discovery_votes").upsert(
+          { user_id: user.id, companion_id: id, vote: next },
+          { onConflict: "user_id,companion_id" },
+        );
+        if (error) throw error;
+        setMyVote(next);
+        toast.success(next === 1 ? "Marked as like." : "Marked as meh.");
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Could not save vote.");
+    } finally {
+      setVoteBusy(false);
+    }
+  };
+
+  const togglePin = async () => {
+    if (!id) return;
+    if (!user) {
+      navigate("/auth", { state: { from: `/companions/${id}` } });
+      return;
+    }
+    setPinBusy(true);
+    try {
+      if (pinned) {
+        const { error } = await supabase
+          .from("user_discover_pins")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("companion_id", id);
+        if (error) throw error;
+        setPinned(false);
+        toast.message("Removed from your collection.");
+      } else {
+        const { error } = await supabase.from("user_discover_pins").insert({
+          user_id: user.id,
+          companion_id: id,
+        });
+        if (error) throw error;
+        setPinned(true);
+        toast.success("Saved to My Collection.");
+      }
+      void queryClient.invalidateQueries({ queryKey: VAULT_COLLECTION_QUERY_KEY });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Could not update collection.");
+    } finally {
+      setPinBusy(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -293,6 +403,66 @@ const CompanionProfile = () => {
                 <Flame className="h-4 w-4" />
                 Browse forge
               </Link>
+            </div>
+
+            <div className="flex flex-col gap-2 rounded-2xl border border-white/[0.08] bg-black/35 px-4 py-3 backdrop-blur-md sm:flex-row sm:flex-wrap sm:items-center">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground shrink-0">
+                Discover
+              </span>
+              <div className="flex flex-wrap gap-2 sm:ml-auto">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  disabled={voteBusy}
+                  onClick={() => void submitVote(1)}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50",
+                    myVote === 1
+                      ? "border-primary/50 bg-primary/20 text-primary"
+                      : "border-white/10 bg-white/[0.04] text-muted-foreground hover:border-primary/35 hover:text-foreground",
+                  )}
+                >
+                  {voteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsUp className="h-4 w-4 shrink-0" />}
+                  Like
+                </motion.button>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  disabled={voteBusy}
+                  onClick={() => void submitVote(-1)}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50",
+                    myVote === -1
+                      ? "border-amber-500/45 bg-amber-500/15 text-amber-100"
+                      : "border-white/10 bg-white/[0.04] text-muted-foreground hover:border-white/25 hover:text-foreground",
+                  )}
+                >
+                  {voteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsDown className="h-4 w-4 shrink-0" />}
+                  Meh
+                </motion.button>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  disabled={pinBusy}
+                  onClick={() => void togglePin()}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50",
+                    pinned
+                      ? "border-accent/45 bg-accent/15 text-accent"
+                      : "border-white/10 bg-white/[0.04] text-muted-foreground hover:border-accent/35 hover:text-foreground",
+                  )}
+                >
+                  {pinBusy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Bookmark className={cn("h-4 w-4 shrink-0", pinned && "fill-current")} />
+                  )}
+                  {pinned ? "In my collection" : "Save to my collection"}
+                </motion.button>
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
