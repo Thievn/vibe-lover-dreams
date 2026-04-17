@@ -33,6 +33,7 @@ import {
   RefreshCw,
   ChevronRight,
   Orbit,
+  Megaphone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,6 +41,7 @@ import ParticleBackground from "@/components/ParticleBackground";
 import CompanionCreator from "@/components/CompanionCreator";
 import CompanionManager from "@/components/admin/CompanionManager";
 import AdminForgeAssistant from "@/components/admin/AdminForgeAssistant";
+import XMarketingHub from "@/components/admin/XMarketingHub";
 import AdminTheNexus from "@/components/AdminTheNexus";
 import { getGaMeasurementId } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
@@ -55,6 +57,7 @@ type AdminSection =
   | "creator"
   | "nexus"
   | "characters"
+  | "xmarketing"
   | "users"
   | "waitlist"
   | "analytics"
@@ -65,6 +68,7 @@ const NAV: { id: AdminSection; label: string; icon: typeof LayoutDashboard }[] =
   { id: "creator", label: "Companion Forge", icon: Sparkles },
   { id: "nexus", label: "The Nexus", icon: Orbit },
   { id: "characters", label: "Character Management", icon: Palette },
+  { id: "xmarketing", label: "X Marketing Hub", icon: Megaphone },
   { id: "users", label: "User Management", icon: Users },
   { id: "waitlist", label: "Waitlist", icon: ScrollText },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
@@ -532,6 +536,7 @@ function AdminShell() {
               <CompanionManager />
             </div>
           )}
+          {section === "xmarketing" && <XMarketingHub />}
           {section === "users" && (
             <UsersSection
               profiles={profiles}

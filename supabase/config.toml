@@ -11,6 +11,9 @@ verify_jwt = false
 [functions.admin-companion-chat]
 verify_jwt = false
 
+[functions.admin-x-marketing]
+verify_jwt = false
+
 [functions.parse-companion-prompt]
 verify_jwt = false
 
