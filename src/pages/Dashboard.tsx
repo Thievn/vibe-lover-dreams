@@ -6,7 +6,6 @@ import {
   Activity,
   Bell,
   ChevronRight,
-  Dna,
   Flame,
   Gamepad2,
   Heart,
@@ -15,6 +14,7 @@ import {
   Layers,
   LogOut,
   MessageSquare,
+  Orbit,
   Settings,
   Shield,
   Sparkles,
@@ -22,13 +22,16 @@ import {
   TrendingUp,
   UserRound,
   Wand2,
+  Waves,
   X,
+  Zap,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getToys } from "@/lib/lovense";
 import { cn } from "@/lib/utils";
 import ParticleBackground from "@/components/ParticleBackground";
 import DiscoverCompanionsGallery from "@/components/DiscoverCompanionsGallery";
+import TheNexus from "@/components/TheNexus";
 import { Progress } from "@/components/ui/progress";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { useVaultCollection } from "@/hooks/useVaultCollection";
@@ -37,20 +40,20 @@ import { isPlatformAdmin } from "@/config/auth";
 
 const NEON_PINK = "#FF2D7B";
 
-type NavId = "dashboard" | "collection" | "discover" | "breeding" | "toy" | "history";
+type NavId = "dashboard" | "collection" | "discover" | "nexus" | "toy" | "history";
 
 const NAV_ITEMS: { id: NavId; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "collection", label: "My Collection", icon: Layers },
   { id: "discover", label: "Discover", icon: Telescope },
-  { id: "breeding", label: "Breeding Chamber", icon: Dna },
+  { id: "nexus", label: "The Nexus", icon: Orbit },
   { id: "toy", label: "Toy Control", icon: Gamepad2 },
   { id: "history", label: "Chat History", icon: MessageSquare },
 ];
 
 const DASHBOARD_STATS = [
   { key: "companions", label: "Companions", value: "12", accent: "text-primary" },
-  { key: "hybrids", label: "Hybrids Bred", value: "7", accent: "text-accent" },
+  { key: "hybrids", label: "Nexus-born", value: "0", accent: "text-accent" },
   { key: "toySessions", label: "Toy Sessions", value: "48", accent: "text-[#FF2D7B]" },
   { key: "legendaries", label: "Legendaries", value: "3", accent: "text-velvet-purple" },
   { key: "hours", label: "Hours Chatted", value: "186", accent: "text-primary/80" },
@@ -115,9 +118,15 @@ export default function Dashboard() {
   const [notifyMarketing, setNotifyMarketing] = useState(false);
   const [privateMode, setPrivateMode] = useState(true);
   const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
+  const [tokensBalance, setTokensBalance] = useState(0);
 
   const { vaultCompanions, isLoading: vaultLoading } = useVaultCollection(user?.id ?? null, dbCompanions);
   const collectionPreview = useMemo(() => vaultCompanions.slice(0, 12), [vaultCompanions]);
+  const forgeParents = useMemo(() => {
+    if (!user?.id) return [];
+    return dbCompanions.filter((c) => c.id.startsWith("cc-") && c.user_id === user.id);
+  }, [dbCompanions, user?.id]);
+  const nexusBornCount = useMemo(() => vaultCompanions.filter((c) => c.isNexusHybrid).length, [vaultCompanions]);
   const hotPicks = useMemo(() => {
     const pool = user ? vaultCompanions : allCompanions;
     const hot = pool.filter((c) => HOT_IDS.includes(c.id));
@@ -160,10 +169,13 @@ export default function Dashboard() {
         setUser(session.user);
         const { data: prof } = await supabase
           .from("profiles")
-          .select("display_name")
+          .select("display_name, tokens_balance")
           .eq("user_id", session.user.id)
           .maybeSingle();
-        if (!cancelled) setProfileDisplayName(prof?.display_name ?? null);
+        if (!cancelled) {
+          setProfileDisplayName(prof?.display_name ?? null);
+          setTokensBalance(typeof prof?.tokens_balance === "number" ? prof.tokens_balance : 0);
+        }
         await refreshToy(session.user.id);
       }
       if (!cancelled) setAuthLoading(false);
@@ -177,10 +189,11 @@ export default function Dashboard() {
       void (async () => {
         const { data: prof } = await supabase
           .from("profiles")
-          .select("display_name")
+          .select("display_name, tokens_balance")
           .eq("user_id", session.user.id)
           .maybeSingle();
         setProfileDisplayName(prof?.display_name ?? null);
+        setTokensBalance(typeof prof?.tokens_balance === "number" ? prof.tokens_balance : 0);
       })();
       void refreshToy(session.user.id);
     });
@@ -191,9 +204,10 @@ export default function Dashboard() {
   }, [navigate, refreshToy]);
 
   useEffect(() => {
-    const st = location.state as { activeNav?: NavId } | null | undefined;
-    if (st?.activeNav) {
-      setActiveNav(st.activeNav);
+    const st = location.state as { activeNav?: NavId | "breeding" } | null | undefined;
+    const nav = st?.activeNav;
+    if (nav) {
+      setActiveNav(nav === "breeding" ? "nexus" : nav);
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, location.pathname, navigate]);
@@ -232,6 +246,16 @@ export default function Dashboard() {
   const quickImageGen = () => {
     // Reserved for image forge entry — no toast (keeps dashboard quiet).
   };
+
+  const refreshProfileCredits = useCallback(async () => {
+    if (!user?.id) return;
+    const { data } = await supabase
+      .from("profiles")
+      .select("tokens_balance")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    setTokensBalance(typeof data?.tokens_balance === "number" ? data.tokens_balance : 0);
+  }, [user?.id]);
 
   if (authLoading) {
     return (
@@ -477,13 +501,14 @@ export default function Dashboard() {
             {activeNav === "dashboard" && (
               <DashboardHome
                 onCreate={() => navigate("/create-companion")}
-                onBreed={() => {
-                  setActiveNav("breeding");
+                onOpenNexus={() => {
+                  setActiveNav("nexus");
                 }}
                 quickImageGen={quickImageGen}
                 collectionCards={collectionPreview}
                 hotPicks={hotPicks}
                 companionCount={vaultCompanions.length}
+                nexusBornCount={nexusBornCount}
                 companionsLoading={companionsLoading || vaultLoading}
               />
             )}
@@ -495,7 +520,14 @@ export default function Dashboard() {
               />
             )}
             {activeNav === "discover" && <DiscoverCompanionsGallery />}
-            {activeNav === "breeding" && <BreedingView onStartChat={() => navigate("/chat")} />}
+            {activeNav === "nexus" && user && (
+              <TheNexus
+                userId={user.id}
+                forgeParents={forgeParents}
+                tokensBalance={tokensBalance}
+                onCreditsChanged={() => void refreshProfileCredits()}
+              />
+            )}
             {activeNav === "toy" && (
               <ToyControlView
                 connected={toyConnected}
@@ -650,19 +682,21 @@ function ToggleRow({
 
 function DashboardHome({
   onCreate,
-  onBreed,
+  onOpenNexus,
   quickImageGen,
   collectionCards,
   hotPicks,
   companionCount,
+  nexusBornCount,
   companionsLoading,
 }: {
   onCreate: () => void;
-  onBreed: () => void;
+  onOpenNexus: () => void;
   quickImageGen: () => void;
   collectionCards: Companion[];
   hotPicks: Companion[];
   companionCount: number;
+  nexusBornCount: number;
   companionsLoading: boolean;
 }) {
   return (
@@ -692,7 +726,7 @@ function DashboardHome({
               {s.label}
             </p>
             <p className={cn("font-gothic text-2xl sm:text-3xl mt-2", s.accent)}>
-              {s.key === "companions" ? companionCount : s.value}
+              {s.key === "companions" ? companionCount : s.key === "hybrids" ? nexusBornCount : s.value}
             </p>
           </motion.div>
         ))}
@@ -715,11 +749,11 @@ function DashboardHome({
           type="button"
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          onClick={onBreed}
+          onClick={onOpenNexus}
           className="flex-1 min-w-[200px] flex items-center justify-center gap-3 rounded-2xl py-4 px-6 font-semibold text-primary-foreground border border-accent/40 bg-accent/20 text-accent hover:bg-accent/30 transition-colors"
         >
-          <Dna className="h-5 w-5" />
-          Breed Hybrid
+          <Orbit className="h-5 w-5" />
+          The Nexus
         </motion.button>
         <motion.button
           type="button"
@@ -879,6 +913,7 @@ function DashboardHome({
 }
 
 function MiniCompanionCard({ companion: c, index }: { companion: Companion; index: number }) {
+  const ms = c.mergeStats;
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -906,6 +941,18 @@ function MiniCompanionCard({ companion: c, index }: { companion: Companion; inde
             />
           ) : null}
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
+          {c.isNexusHybrid && ms ? (
+            <div className="absolute left-2 top-2 flex items-center gap-1 rounded-md bg-black/55 border border-white/10 px-1.5 py-1">
+              <Heart className="h-3 w-3 text-rose-300" style={{ opacity: 0.35 + (ms.compatibility / 100) * 0.65 }} />
+              <Waves className="h-3 w-3 text-cyan-200" style={{ opacity: 0.35 + (ms.resonance / 100) * 0.65 }} />
+              <Zap className="h-3 w-3 text-amber-200" style={{ opacity: 0.35 + (ms.pulse / 100) * 0.65 }} />
+              <Sparkles className="h-3 w-3 text-fuchsia-200" style={{ opacity: 0.35 + (ms.affinity / 100) * 0.65 }} />
+            </div>
+          ) : c.isNexusHybrid ? (
+            <div className="absolute left-2 top-2 rounded-md bg-black/55 border border-primary/30 px-1.5 py-0.5">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+            </div>
+          ) : null}
           <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-black/50 border border-white/10 text-[9px] font-bold uppercase tracking-wider text-white/90">
             {c.role}
           </div>
@@ -970,51 +1017,6 @@ function CollectionView({
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function BreedingView({ onStartChat }: { onStartChat: () => void }) {
-  return (
-    <div className="max-w-3xl mx-auto text-center py-8 px-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="rounded-[2rem] border border-primary/30 bg-card/50 backdrop-blur-xl p-10 sm:p-14 relative overflow-hidden"
-      >
-        <div
-          className="absolute inset-0 opacity-30 pointer-events-none"
-          style={{
-            background: `radial-gradient(circle at 50% 0%, ${NEON_PINK}55, transparent 55%), radial-gradient(circle at 80% 100%, hsl(170 100% 50% / 0.2), transparent 40%)`,
-          }}
-        />
-        <Dna className="h-14 w-14 mx-auto text-accent mb-6 relative" />
-        <h2 className="font-gothic text-3xl sm:text-4xl mb-4 relative">
-          <span className="gradient-vice-text">Breeding Chamber</span>
-        </h2>
-        <p className="text-muted-foreground text-sm sm:text-base max-w-lg mx-auto mb-8 relative leading-relaxed">
-          Merge personas, inherit kinks, and birth hybrids that remember your rhythm. The chamber opens into your
-          deepest threads — toys, voice, and tension in lockstep.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center relative">
-          <Link
-            to="/create-companion"
-            className="inline-flex items-center justify-center gap-2 rounded-xl px-8 py-3 font-bold text-primary-foreground glow-pink"
-            style={{ backgroundColor: NEON_PINK }}
-          >
-            <Sparkles className="h-5 w-5" />
-            Design lineage
-          </Link>
-          <button
-            type="button"
-            onClick={onStartChat}
-            className="inline-flex items-center justify-center gap-2 rounded-xl px-8 py-3 font-bold border border-accent text-accent hover:bg-accent/10 transition-colors"
-          >
-            <MessageSquare className="h-5 w-5" />
-            Continue in chat
-          </button>
-        </div>
-      </motion.div>
     </div>
   );
 }

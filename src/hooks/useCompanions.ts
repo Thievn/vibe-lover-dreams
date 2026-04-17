@@ -36,6 +36,12 @@ export interface DbCompanion {
   vibe_theme_selections?: string[] | null;
   /** Admin forge: listed in Discover but omitted from the user’s personal vault until pinned */
   exclude_from_personal_vault?: boolean;
+  /** Forge row owner (custom_characters only). */
+  user_id?: string | null;
+  nexus_cooldown_until?: string | null;
+  lineage_parent_ids?: string[] | null;
+  merge_stats?: Record<string, unknown> | null;
+  is_nexus_hybrid?: boolean;
 }
 
 function coerceStockRow(row: Record<string, unknown>): DbCompanion {
@@ -105,6 +111,16 @@ function customRowToDbCompanion(row: Record<string, unknown>): DbCompanion {
       ? (row.vibe_theme_selections as string[])
       : null,
     exclude_from_personal_vault: Boolean(row.exclude_from_personal_vault),
+    user_id: typeof row.user_id === "string" ? row.user_id : null,
+    nexus_cooldown_until: (row.nexus_cooldown_until as string | null | undefined) ?? null,
+    lineage_parent_ids: Array.isArray(row.lineage_parent_ids)
+      ? (row.lineage_parent_ids as string[])
+      : null,
+    merge_stats:
+      row.merge_stats && typeof row.merge_stats === "object"
+        ? (row.merge_stats as Record<string, unknown>)
+        : null,
+    is_nexus_hybrid: Boolean(row.is_nexus_hybrid),
   };
 }
 
@@ -200,6 +216,19 @@ function staticListToDb(): DbCompanion[] {
   }));
 }
 
+function parseMergeStats(raw: Record<string, unknown> | null | undefined): NonNullable<Companion["mergeStats"]> {
+  const c = (k: string) => {
+    const v = raw?.[k];
+    return typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : 0;
+  };
+  return {
+    compatibility: c("compatibility"),
+    resonance: c("resonance"),
+    pulse: c("pulse"),
+    affinity: c("affinity"),
+  };
+}
+
 // Convert DB companion to the app's Companion interface
 export const dbToCompanion = (db: DbCompanion): Companion => ({
   id: db.id,
@@ -220,6 +249,12 @@ export const dbToCompanion = (db: DbCompanion): Companion => ({
   rarity: normalizeCompanionRarity(db.rarity),
   backstory: db.backstory?.trim() ? db.backstory : undefined,
   portraitUrl: galleryStaticPortraitUrl(db, db.id) ?? null,
+  isNexusHybrid: Boolean(db.is_nexus_hybrid),
+  mergeStats: db.is_nexus_hybrid && db.merge_stats ? parseMergeStats(db.merge_stats) : undefined,
+  nexusCooldownUntil: db.nexus_cooldown_until ?? undefined,
+  lineageParentIds: db.lineage_parent_ids?.length
+    ? db.lineage_parent_ids.map((id) => `cc-${id}`)
+    : undefined,
 });
 
 export const useCompanions = () => {

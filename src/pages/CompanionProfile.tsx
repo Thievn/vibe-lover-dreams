@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft,
   Bookmark,
+  GitBranch,
   Heart,
   MessageCircle,
   Sparkles,
@@ -16,6 +17,7 @@ import {
   ChevronRight,
   ThumbsDown,
   ThumbsUp,
+  Waves,
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -31,6 +33,7 @@ import { getToys, sendCommand, type LovenseToy } from "@/lib/lovense";
 import { useCompanionVibrationPatterns, type CompanionVibrationPatternRow } from "@/hooks/useCompanionVibrationPatterns";
 import { VibrationPatternButtons } from "@/components/toy/VibrationPatternButtons";
 import { payloadToLovenseCommand } from "@/lib/vibrationPatternPayload";
+import { formatNexusCooldownShort, nexusCooldownRemainingMs } from "@/lib/nexusMerge";
 
 const RARITY_BADGE: Record<
   CompanionRarity,
@@ -97,6 +100,20 @@ const CompanionProfile = () => {
     : [];
   const starters = companion?.fantasyStarters?.slice(0, 5) ?? [];
   const isAbyssal = rarity === "abyssal";
+
+  const lineageParents = useMemo(() => {
+    const ids = companion?.lineageParentIds;
+    if (!ids?.length || !dbCompanions) return [];
+    return ids.map((pid) => {
+      const row = dbCompanions.find((x) => x.id === pid);
+      return { id: pid, name: row?.name ?? "Lineage parent" };
+    });
+  }, [companion?.lineageParentIds, dbCompanions]);
+
+  const nexusCooldownMs =
+    dbComp?.id.startsWith("cc-") && user?.id && dbComp.user_id === user.id
+      ? nexusCooldownRemainingMs(dbComp.nexus_cooldown_until ?? null)
+      : 0;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -466,6 +483,75 @@ const CompanionProfile = () => {
                 Browse forge
               </Link>
             </div>
+
+            {nexusCooldownMs > 0 ? (
+              <p className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-100/95 leading-relaxed">
+                Nexus recovery: this companion rests{" "}
+                <span className="font-semibold tabular-nums">{formatNexusCooldownShort(nexusCooldownMs)}</span>{" "}
+                longer before they can enter another merge.
+              </p>
+            ) : null}
+
+            {(companion.isNexusHybrid || companion.mergeStats || lineageParents.length > 0) && (
+              <section className="rounded-2xl border border-primary/25 bg-black/40 backdrop-blur-md p-5 sm:p-6 space-y-4">
+                <h2 className="text-xs font-bold uppercase tracking-[0.25em] text-primary flex items-center gap-2">
+                  <GitBranch className="h-4 w-4 shrink-0" />
+                  The Nexus
+                </h2>
+                {lineageParents.length > 0 ? (
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">Lineage</p>
+                    <ul className="flex flex-wrap gap-2">
+                      {lineageParents.map((p) => (
+                        <li key={p.id}>
+                          <Link
+                            to={`/companions/${p.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-foreground/90 hover:border-primary/40 hover:text-primary transition-colors"
+                          >
+                            {p.name}
+                            <ChevronRight className="h-3.5 w-3.5 opacity-60" />
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {companion.mergeStats ? (
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-3">Merge signature</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {(
+                        [
+                          ["Compatibility", companion.mergeStats.compatibility, Heart],
+                          ["Resonance", companion.mergeStats.resonance, Waves],
+                          ["Pulse", companion.mergeStats.pulse, Zap],
+                          ["Affinity", companion.mergeStats.affinity, Sparkles],
+                        ] as const
+                      ).map(([label, val, Icon], i) => (
+                        <div
+                          key={`${label}-${i}`}
+                          className="rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2.5 space-y-1"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+                            <Icon className="h-3.5 w-3.5 text-primary/80 shrink-0" />
+                          </div>
+                          <p className="font-gothic text-2xl tabular-nums text-foreground">{val}</p>
+                          <div className="h-1 rounded-full bg-white/10 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
+                              style={{ width: `${val}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : companion.isNexusHybrid ? (
+                  <p className="text-sm text-muted-foreground">Born from The Nexus — merge metrics will appear here.</p>
+                ) : null}
+              </section>
+            )}
 
             <div className="flex flex-col gap-2 rounded-2xl border border-white/[0.08] bg-black/35 px-4 py-3 backdrop-blur-md sm:flex-row sm:flex-wrap sm:items-center">
               <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground shrink-0">

@@ -22,6 +22,17 @@ export interface Companion {
   backstory?: string;
   /** Resolved still portrait (DB URL, static asset, or enriched from generated_images). */
   portraitUrl?: string | null;
+  /** The Nexus — surfaced on profile & cards when present. */
+  mergeStats?: {
+    compatibility: number;
+    resonance: number;
+    pulse: number;
+    affinity: number;
+  } | null;
+  isNexusHybrid?: boolean;
+  nexusCooldownUntil?: string | null;
+  /** Parent forge UUIDs as `cc-…` app ids. */
+  lineageParentIds?: string[] | null;
 }
 
 export const companions: Companion[] = [

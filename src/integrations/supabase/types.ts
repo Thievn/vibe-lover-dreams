@@ -146,9 +146,13 @@ export type Database = {
           id: string
           image_prompt: string | null
           image_url: string | null
+          is_nexus_hybrid: boolean
           is_public: boolean
           kinks: string[]
+          lineage_parent_ids: string[] | null
+          merge_stats: Json | null
           name: string
+          nexus_cooldown_until: string | null
           orientation: string
           personality: string
           personality_archetypes: string[] | null
@@ -180,9 +184,13 @@ export type Database = {
           id?: string
           image_prompt?: string | null
           image_url?: string | null
+          is_nexus_hybrid?: boolean
           is_public?: boolean
           kinks?: string[]
+          lineage_parent_ids?: string[] | null
+          merge_stats?: Json | null
           name: string
+          nexus_cooldown_until?: string | null
           orientation?: string
           personality?: string
           personality_archetypes?: string[] | null
@@ -214,9 +222,13 @@ export type Database = {
           id?: string
           image_prompt?: string | null
           image_url?: string | null
+          is_nexus_hybrid?: boolean
           is_public?: boolean
           kinks?: string[]
+          lineage_parent_ids?: string[] | null
+          merge_stats?: Json | null
           name?: string
+          nexus_cooldown_until?: string | null
           orientation?: string
           personality?: string
           personality_archetypes?: string[] | null
