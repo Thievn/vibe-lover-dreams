@@ -1,9 +1,10 @@
 -- Run in Supabase SQL Editor (postgres / service role).
--- Sets forge token balance to 5,000 for the primary LustForge account.
+-- Sets forge token balance to 10,000 for the primary LustForge account.
+-- Prefer the migration `20260424180000_forge_credits_10000_admins_and_operators.sql` on deploy.
 -- Change the email in the WHERE clause if your test user uses a different address.
 
 UPDATE public.profiles p
-SET tokens_balance = 5000,
+SET tokens_balance = 10000,
     updated_at = now()
 FROM auth.users u
 WHERE p.user_id = u.id

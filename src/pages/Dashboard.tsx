@@ -168,11 +168,20 @@ export default function Dashboard() {
       }
       if (!cancelled) {
         setUser(session.user);
-        const { data: prof } = await supabase
+        let { data: prof } = await supabase
           .from("profiles")
           .select("display_name, tokens_balance")
           .eq("user_id", session.user.id)
           .maybeSingle();
+        if (!prof) {
+          await supabase.from("profiles").insert({ user_id: session.user.id });
+          const again = await supabase
+            .from("profiles")
+            .select("display_name, tokens_balance")
+            .eq("user_id", session.user.id)
+            .maybeSingle();
+          prof = again.data;
+        }
         if (!cancelled) {
           setProfileDisplayName(prof?.display_name ?? null);
           setTokensBalance(typeof prof?.tokens_balance === "number" ? prof.tokens_balance : 0);
@@ -188,11 +197,20 @@ export default function Dashboard() {
       }
       setUser(session.user);
       void (async () => {
-        const { data: prof } = await supabase
+        let { data: prof } = await supabase
           .from("profiles")
           .select("display_name, tokens_balance")
           .eq("user_id", session.user.id)
           .maybeSingle();
+        if (!prof) {
+          await supabase.from("profiles").insert({ user_id: session.user.id });
+          const again = await supabase
+            .from("profiles")
+            .select("display_name, tokens_balance")
+            .eq("user_id", session.user.id)
+            .maybeSingle();
+          prof = again.data;
+        }
         setProfileDisplayName(prof?.display_name ?? null);
         setTokensBalance(typeof prof?.tokens_balance === "number" ? prof.tokens_balance : 0);
       })();
