@@ -8,6 +8,7 @@ import {
   resolveAnatomyVariant,
 } from "../_shared/anatomyImageRules.ts";
 import { rewritePromptForImagine } from "../_shared/safeImagePromptRewriter.ts";
+import { maybeAppendForgeStyleSceneBlock } from "../_shared/forgePortraitAugmentation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -175,10 +176,12 @@ serve(async (req) => {
     const anatomyDirective = buildAnatomyRewriterDirective(anatomyVariant);
     const anatomyKeyRules = buildAnatomyImagineKeyRules(anatomyVariant);
 
+    const rawForRewrite = maybeAppendForgeStyleSceneBlock(String(prompt), characterData as Record<string, unknown>);
+
     let safeRewritten: string;
     try {
       safeRewritten = await rewritePromptForImagine({
-        raw: String(prompt),
+        raw: rawForRewrite,
         context: rewriterContext,
         anatomyPolicy: anatomyDirective,
         apiKey,

@@ -51,13 +51,23 @@ export function inferForgeBodyTypeFromTags(tags: string[]): ForgeBodyType | unde
 /** Matches server `STYLIZED_ART_STYLE_LABELS` for anatomy policy. */
 export const STYLIZED_ART_STYLES_FOR_ANATOMY = [
   "Anime",
+  "Anime Style",
   "Comic / graphic novel",
   "Low-poly stylized",
   "Watercolor",
+  "Watercolor Painting",
   "Neon airbrush",
+  "Neon Cyberpunk",
   "Baroque portrait",
+  "Dramatic Baroque",
   "Oil painting",
+  "Digital Oil Painting",
   "Cyber-goth digital",
+  "Dark Fantasy Art",
+  "Gothic Victorian",
+  "Surreal Dreamscape",
+  "Film Noir",
+  "Grunge Aesthetic",
 ] as const;
 
 export function inferStylizedArtFromTags(tags: string[]): string | undefined {

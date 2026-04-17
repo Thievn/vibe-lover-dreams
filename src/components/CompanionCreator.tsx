@@ -41,6 +41,13 @@ import {
   normalizeCompanionRarity,
 } from "@/lib/companionRarity";
 import { FORGE_BODY_TYPES, normalizeForgeBodyType } from "@/lib/forgeBodyTypes";
+import {
+  FORGE_ART_STYLES,
+  FORGE_SCENE_ATMOSPHERES,
+  composeForgePortraitPrompt,
+  normalizeForgeArtStyle,
+  normalizeForgeScene,
+} from "@/lib/forgePortraitPrompt";
 
 const NEON = "#FF2D7B";
 const PREVIEW_COST = 50;
@@ -138,19 +145,6 @@ const THEME_PRESETS = [
 ] as const;
 
 const VIBE_THEME_POOL: readonly string[] = [...VIBES, ...THEME_PRESETS];
-
-const ART_STYLES = [
-  "Photorealistic",
-  "Anime",
-  "3D render",
-  "Comic / graphic novel",
-  "Oil painting",
-  "Cyber-goth digital",
-  "Watercolor",
-  "Neon airbrush",
-  "Low-poly stylized",
-  "Baroque portrait",
-] as const;
 
 const TRAITS = [
   "Tattoos",
@@ -313,7 +307,8 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
   const [gender, setGender] = useState<string>(GENDERS[0]!);
   const [personalitySelections, setPersonalitySelections] = useState<string[]>(() => [PERSONALITIES[0]!]);
   const [vibeThemeSelections, setVibeThemeSelections] = useState<string[]>(() => [VIBES[0]!]);
-  const [artStyle, setArtStyle] = useState<string>(ART_STYLES[0]!);
+  const [artStyle, setArtStyle] = useState<string>(() => FORGE_ART_STYLES[0]!);
+  const [sceneAtmosphere, setSceneAtmosphere] = useState<string>(() => FORGE_SCENE_ATMOSPHERES[0]!);
   const [bodyType, setBodyType] = useState<string>(() => normalizeForgeBodyType(FORGE_BODY_TYPES[0]!));
   const [traits, setTraits] = useState<string[]>(["Tattoos", "Piercings"]);
   const [orientation, setOrientation] = useState<string>(ORIENTATIONS[0]!);
@@ -463,26 +458,37 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
 
   const appearanceBlurb = useMemo(() => {
     const t = traits.length ? traits.join(", ") : "no listed special traits";
-    return `${bodyType} build; ${gender}; ${artStyle} look; ${t}. Archetypes: ${personalityLabel}. Mood & world: ${vibeThemeLabel}. ${extraNotes}`.trim();
-  }, [traits, bodyType, gender, artStyle, personalityLabel, vibeThemeLabel, extraNotes]);
+    return `${bodyType} build; ${gender}; ${artStyle} look; scene: ${sceneAtmosphere}; ${t}. Archetypes: ${personalityLabel}. Mood tags: ${vibeThemeLabel}. ${extraNotes}`.trim();
+  }, [traits, bodyType, gender, artStyle, sceneAtmosphere, personalityLabel, vibeThemeLabel, extraNotes]);
 
   const portraitAppearanceText = useMemo(
     () => narrativeAppearance.trim() || appearanceBlurb,
     [narrativeAppearance, appearanceBlurb],
   );
 
-  const grokPrompt = useMemo(() => {
-    return [
-      `Portrait of ${name || "an original companion"}: ${portraitAppearanceText}.`,
-      `Personality blend (weave all): ${personalityLabel}.`,
-      `Setting / aesthetic fusion: ${vibeThemeLabel}.`,
-      `Render in ${artStyle} style, premium seductive SFW pin-up / romance cover quality.`,
-      extraNotes ? `Notes: ${extraNotes}` : "",
-      referenceNotes.trim() ? `Reference direction: ${referenceNotes.trim()}` : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
-  }, [name, portraitAppearanceText, personalityLabel, vibeThemeLabel, artStyle, extraNotes, referenceNotes]);
+  const grokPrompt = useMemo(
+    () =>
+      composeForgePortraitPrompt({
+        name: name || "an original companion",
+        portraitAppearanceText,
+        personalityLabel,
+        vibeThemeLabel,
+        artStyle,
+        sceneAtmosphere,
+        extraNotes,
+        referenceNotes,
+      }),
+    [
+      name,
+      portraitAppearanceText,
+      personalityLabel,
+      vibeThemeLabel,
+      artStyle,
+      sceneAtmosphere,
+      extraNotes,
+      referenceNotes,
+    ],
+  );
 
   /** Text shown under live preview — same fields that save to the vault card. */
   const profilePreviewBlurb = useMemo(() => {
@@ -496,13 +502,13 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
   const buildSystemPromptFor = useCallback(
     (who: string) => {
       const n = who.trim() || "a custom AI companion";
-      return `You are ${n}, ${gender.toLowerCase()}, ${orientation}. Archetype blend: ${personalityLabel}. Visual & world: ${vibeThemeLabel}, ${artStyle} aesthetic, ${bodyType} body, notable traits: ${traits.join(", ") || "none specified"}.
+      return `You are ${n}, ${gender.toLowerCase()}, ${orientation}. Archetype blend: ${personalityLabel}. Visual & world: primary scene "${sceneAtmosphere}", ${artStyle} aesthetic; mood tags: ${vibeThemeLabel}. ${bodyType} body; notable traits: ${traits.join(", ") || "none specified"}.
 
 Speak and act consistently with this persona — let every archetype thread show up in voice and behavior, not as a list. Stay immersive; respect safe words immediately. When toy control fits the scene and the user consents, you may end messages with: {"lovense_command":{"command":"vibrate","intensity":0-20,"duration":5000}}.
 
 User flavor notes: ${extraNotes || "none"}`;
     },
-    [gender, orientation, personalityLabel, vibeThemeLabel, artStyle, bodyType, traits, extraNotes],
+    [gender, orientation, personalityLabel, vibeThemeLabel, artStyle, sceneAtmosphere, bodyType, traits, extraNotes],
   );
 
   const systemPrompt = useMemo(() => buildSystemPromptFor(name), [name, buildSystemPromptFor]);
@@ -628,8 +634,14 @@ User flavor notes: ${extraNotes || "none"}`;
       if (legacyHit) setBodyType(normalizeForgeBodyType(legacyHit));
     }
 
-    const aHit = ART_STYLES.find((a) => tagArr.some((t) => t.toLowerCase().includes(a.toLowerCase())));
-    if (aHit) setArtStyle(aHit);
+    const ip = String(fields.image_prompt || "").toLowerCase();
+    const sceneHit = FORGE_SCENE_ATMOSPHERES.find((s) => ip.includes(s.toLowerCase()));
+    if (sceneHit) setSceneAtmosphere(sceneHit);
+
+    const aHit =
+      FORGE_ART_STYLES.find((a) => tagArr.some((t) => t.toLowerCase().includes(a.toLowerCase()))) ||
+      FORGE_ART_STYLES.find((a) => ip.includes(a.toLowerCase()));
+    if (aHit) setArtStyle(normalizeForgeArtStyle(aHit));
 
     const traitHits = TRAITS.filter((tr) => tagArr.some((t) => t.toLowerCase().includes(tr.toLowerCase())));
     if (traitHits.length) setTraits(traitHits.slice(0, 6));
@@ -642,7 +654,8 @@ User flavor notes: ${extraNotes || "none"}`;
     const pers = [...PERSONALITIES].sort(() => Math.random() - 0.5).slice(0, persCount);
     const vibeCount = 1 + Math.floor(Math.random() * 3);
     const vibesPicked = [...VIBE_THEME_POOL].sort(() => Math.random() - 0.5).slice(0, vibeCount);
-    const ar = pick(ART_STYLES);
+    const ar = pick([...FORGE_ART_STYLES]);
+    const sc = pick([...FORGE_SCENE_ATMOSPHERES]);
     const bt = pick([...FORGE_BODY_TYPES]);
     const ori = pick(ORIENTATIONS);
     const shuffled = [...TRAITS].sort(() => Math.random() - 0.5).slice(0, 3 + Math.floor(Math.random() * 4));
@@ -651,6 +664,7 @@ User flavor notes: ${extraNotes || "none"}`;
     setPersonalitySelections(pers);
     setVibeThemeSelections(vibesPicked);
     setArtStyle(ar);
+    setSceneAtmosphere(sc);
     setBodyType(bt);
     setTraits(shuffled);
     setOrientation(ori);
@@ -663,6 +677,7 @@ Seeds:
 - personality archetypes (fuse ALL into one voice): ${pers.join(" · ")}
 - vibe / theme fusion: ${vibesPicked.join(" · ")}
 - art style: ${ar}
+- scene anchor: ${sc}
 - body type: ${bt}
 - orientation: ${ori}
 - notable traits: ${shuffled.join(", ")}
@@ -674,7 +689,7 @@ Hard requirements:
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
 5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences).
 6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
-7) image_prompt: one dense SFW paragraph for a vertical portrait card.
+7) image_prompt: one dense SFW paragraph for a vertical portrait card; must visually align with art style "${ar}" and environment "${sc}" (lighting, wardrobe, and set pieces coherent with both).
 8) system_prompt: full chat charter for this persona.`;
 
     try {
@@ -730,12 +745,13 @@ Hard requirements:
         vibe: vibeThemeLabel,
         hair: `styled to match ${vibeThemeLabel} and ${artStyle}`,
         eyes: traits.includes("Glowing eyes") ? "striking glowing eyes" : "expressive, magnetic eyes",
-        clothing: `fashion and textures echoing ${vibeThemeLabel}, ${artStyle} presentation`,
+        clothing: `fashion and textures echoing ${sceneAtmosphere}, ${vibeThemeLabel}, ${artStyle} presentation`,
         expression: `${personalityLabel} energy`,
         ethnicity: "any",
         ageRange: "young adult",
         pose: "three-quarter portrait, alluring confident pose",
         baseDescription: baseDesc,
+        sceneAtmosphere,
         ...(referencePalette ? { referencePalette } : {}),
         ...(referenceNotes.trim() ? { referenceNotes: referenceNotes.trim() } : {}),
       },
@@ -748,6 +764,7 @@ Hard requirements:
     name,
     tagline,
     artStyle,
+    sceneAtmosphere,
     bodyType,
     vibeThemeLabel,
     traits,
@@ -837,11 +854,11 @@ Hard requirements:
       }
       if (typeof fields.image_prompt === "string" && fields.image_prompt.trim()) {
         setPackshotPrompt(fields.image_prompt.slice(0, 8000));
-        setArtStyle((prev) => {
-          const ip = fields.image_prompt!.toLowerCase();
-          const match = ART_STYLES.find((s) => ip.includes(s.toLowerCase()));
-          return match ?? prev;
-        });
+        const ip = fields.image_prompt.toLowerCase();
+        const matchArt = FORGE_ART_STYLES.find((s) => ip.includes(s.toLowerCase()));
+        const matchScene = FORGE_SCENE_ATMOSPHERES.find((s) => ip.includes(s.toLowerCase()));
+        if (matchArt) setArtStyle(normalizeForgeArtStyle(matchArt));
+        if (matchScene) setSceneAtmosphere(normalizeForgeScene(matchScene));
       }
       if (Array.isArray(fields.tags)) setRosterTags((fields.tags as string[]).map(String).slice(0, 24));
       if (Array.isArray(fields.kinks)) setRosterKinks((fields.kinks as string[]).map(String).slice(0, 24));
@@ -907,13 +924,15 @@ Hard requirements:
       }
 
       const rowImagePrompt = name.trim() ? grokPrompt : grokPrompt.replace("an original companion", forgeName);
-      const defaultBio = `${forgeName} is a ${gender.toLowerCase()} presence blending ${personalityLabel.toLowerCase()} energy with ${vibeThemeLabel.toLowerCase()} aesthetics. ${tagline ? tagline + "." : ""} They move through the world with ${orientation.toLowerCase()} magnetism.`;
+      const defaultBio = `${forgeName} is a ${gender.toLowerCase()} presence blending ${personalityLabel.toLowerCase()} energy with ${vibeThemeLabel.toLowerCase()} aesthetics, often imagined in ${sceneAtmosphere.toLowerCase()} light. ${tagline ? tagline + "." : ""} They move through the world with ${orientation.toLowerCase()} magnetism.`;
       const bioOut = hookBio.trim() || defaultBio;
       const backstoryOut = chronicleBackstory.trim() || hookBio.trim() || bioOut;
       const appearanceOut = portraitAppearanceText;
       const tagsOut = rosterTags.length
         ? rosterTags.slice(0, 12)
-        : [...personalitySelections, ...vibeThemeSelections, artStyle, bodyType, ...traits].filter(Boolean).slice(0, 12);
+        : [...personalitySelections, ...vibeThemeSelections, artStyle, sceneAtmosphere, bodyType, ...traits]
+            .filter(Boolean)
+            .slice(0, 12);
       const kinksOut = rosterKinks.length ? rosterKinks.slice(0, 16) : [];
       const imagePromptOut = packshotPrompt.trim() || rowImagePrompt;
 
@@ -1229,12 +1248,18 @@ Hard requirements:
 
               <AccordionItem value="world" className="border-white/10 px-4">
                 <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
-                  Vibe &amp; theme
+                  Mood tags (optional)
                 </AccordionTrigger>
                 <AccordionContent className="pb-5 space-y-4">
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Primary <strong className="text-white/85">environment &amp; lighting</strong> come from{" "}
+                    <strong className="text-white/85">Art style &amp; body → Scene &amp; atmosphere</strong> below. Use
+                    these pills for extra genre flavor (goth, sci-fi, pirate…) — they layer under the scene, not
+                    replace it.
+                  </p>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                      Pick 1–3 · genre vibes + setting presets
+                      Pick 1–3 · optional genre / flavor tags
                     </p>
                     <button
                       type="button"
@@ -1284,10 +1309,60 @@ Hard requirements:
 
               <AccordionItem value="body" className="border-white/10 px-4">
                 <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
-                  Art style & body
+                  Art style, scene &amp; body
                 </AccordionTrigger>
                 <AccordionContent className="pb-5 space-y-5">
-                  <PillGroup label="Art style" options={ART_STYLES} value={artStyle} onChange={setArtStyle} />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
+                        Art style
+                      </p>
+                      <Select value={artStyle} onValueChange={(v) => setArtStyle(normalizeForgeArtStyle(v))}>
+                        <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
+                          <SelectValue placeholder="Art style" />
+                        </SelectTrigger>
+                        <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
+                          {FORGE_ART_STYLES.map((opt) => (
+                            <SelectItem
+                              key={opt}
+                              value={opt}
+                              className="focus:bg-white/10 focus:text-white cursor-pointer"
+                            >
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
+                        Scene &amp; atmosphere
+                      </p>
+                      <Select
+                        value={sceneAtmosphere}
+                        onValueChange={(v) => setSceneAtmosphere(normalizeForgeScene(v))}
+                      >
+                        <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
+                          <SelectValue placeholder="Scene" />
+                        </SelectTrigger>
+                        <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
+                          {FORGE_SCENE_ATMOSPHERES.map((opt) => (
+                            <SelectItem
+                              key={opt}
+                              value={opt}
+                              className="focus:bg-white/10 focus:text-white cursor-pointer"
+                            >
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    Portrait prompts merge your cinematic description with these choices (lighting, lens, mood, and
+                    set dressing). Regenerate preview after changing them.
+                  </p>
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
                       Body type
@@ -1776,7 +1851,14 @@ Hard requirements:
                         </h2>
                         <p className="text-[11px] text-white/75 italic mt-1 relative line-clamp-2">{tagline || "Your fantasy, forged live."}</p>
                         <div className="mt-2 flex flex-wrap gap-1 relative">
-                          {[gender, artStyle, bodyType, ...personalitySelections.slice(0, 3), ...vibeThemeSelections.slice(0, 3)].map(
+                          {[
+                            gender,
+                            artStyle,
+                            sceneAtmosphere,
+                            bodyType,
+                            ...personalitySelections.slice(0, 2),
+                            ...vibeThemeSelections.slice(0, 2),
+                          ].map(
                             (x, i) => (
                               <span
                                 key={`${x}-${i}`}
@@ -1888,6 +1970,7 @@ Hard requirements:
                             personalitySelections,
                             vibeThemeSelections,
                             artStyle,
+                            sceneAtmosphere,
                             bodyType,
                             traits,
                             referencePalette,

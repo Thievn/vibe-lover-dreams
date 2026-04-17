@@ -12,13 +12,23 @@ export type AnatomyVariant =
 /** Art directions where non-photoreal proportions are an intentional part of the medium. */
 const STYLIZED_ART_STYLE_LABELS: readonly string[] = [
   "Anime",
+  "Anime Style",
   "Comic / graphic novel",
   "Low-poly stylized",
   "Watercolor",
+  "Watercolor Painting",
   "Neon airbrush",
+  "Neon Cyberpunk",
   "Baroque portrait",
+  "Dramatic Baroque",
   "Oil painting",
+  "Digital Oil Painting",
   "Cyber-goth digital",
+  "Dark Fantasy Art",
+  "Gothic Victorian",
+  "Surreal Dreamscape",
+  "Film Noir",
+  "Grunge Aesthetic",
 ];
 
 function norm(s: unknown): string {
@@ -78,8 +88,29 @@ export function resolveAnatomyVariant(characterData: Record<string, unknown>): A
 
   const styleSlug = norm(characterData.style);
   if (
-    ["anime", "comic", "graphic-novel", "low-poly", "watercolor", "neon-airbrush", "baroque", "oil-painting", "cyber-goth"]
-      .some((k) => styleSlug.includes(k))
+    [
+      "anime",
+      "anime-style",
+      "comic",
+      "graphic-novel",
+      "low-poly",
+      "watercolor",
+      "watercolor-painting",
+      "neon-airbrush",
+      "neon-cyberpunk",
+      "baroque",
+      "dramatic-baroque",
+      "oil-painting",
+      "digital-oil-painting",
+      "cyber-goth",
+      "dark-fantasy",
+      "dark-fantasy-art",
+      "gothic-victorian",
+      "surreal-dreamscape",
+      "film-noir",
+      "grunge",
+      "grunge-aesthetic",
+    ].some((k) => styleSlug.includes(k))
   ) {
     return "stylized_medium";
   }
