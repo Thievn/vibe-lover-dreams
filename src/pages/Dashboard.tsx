@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import ParticleBackground from "@/components/ParticleBackground";
 import DiscoverCompanionsGallery from "@/components/DiscoverCompanionsGallery";
 import TheNexus from "@/components/TheNexus";
+import { TcgMicroStrip } from "@/components/tcg/TcgStatDisplay";
 import { Progress } from "@/components/ui/progress";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { useVaultCollection } from "@/hooks/useVaultCollection";
@@ -960,6 +961,7 @@ function MiniCompanionCard({ companion: c, index }: { companion: Companion; inde
             <p className="text-xs font-bold text-white truncate leading-tight">{c.name}</p>
             <p className="text-[10px] text-white/70 truncate">{c.tagline}</p>
           </div>
+          <TcgMicroStrip stats={c.tcgStats} />
           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none" />
         </div>
         <div className="px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/40">

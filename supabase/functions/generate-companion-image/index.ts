@@ -1,14 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
-import { PORTRAIT_IMAGE_DESIGN_BRIEF } from "../_shared/portraitImageDesignBrief.ts";
-import { buildAnatomyImagineKeyRules, resolveAnatomyVariant } from "../_shared/anatomyImageRules.ts";
+import { renderPortraitToStorage } from "../_shared/renderCompanionPortrait.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-const DEFAULT_IMAGE_MODEL = "grok-imagine-image";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -53,10 +50,33 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { companionId, imagePrompt } = await req.json();
+    const body = await req.json() as {
+      companionId?: string;
+      imagePrompt?: string;
+      target?: "catalog" | "forge";
+      forgeRowUuid?: string;
+    };
 
-    if (!companionId || !imagePrompt) {
-      return new Response(JSON.stringify({ error: "companionId and imagePrompt are required" }), {
+    const { companionId, imagePrompt } = body;
+    const target = body.target === "forge" ? "forge" : "catalog";
+    const forgeRowUuid = typeof body.forgeRowUuid === "string" ? body.forgeRowUuid.trim() : "";
+
+    if (!imagePrompt) {
+      return new Response(JSON.stringify({ error: "imagePrompt is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (target === "catalog" && !companionId) {
+      return new Response(JSON.stringify({ error: "companionId is required for catalog portraits" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (target === "forge" && !forgeRowUuid) {
+      return new Response(JSON.stringify({ error: "forgeRowUuid is required for forge portraits" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -73,135 +93,62 @@ Deno.serve(async (req) => {
       );
     }
 
-    const model = Deno.env.get("GROK_IMAGE_MODEL")?.trim() || DEFAULT_IMAGE_MODEL;
+    let characterData: Record<string, unknown> = {};
+    if (target === "forge") {
+      const { data: row } = await adminClient
+        .from("custom_characters")
+        .select("*")
+        .eq("id", forgeRowUuid)
+        .maybeSingle();
+      characterData = (row as Record<string, unknown>) ?? {};
+    } else if (companionId) {
+      const { data: row } = await adminClient.from("companions").select("*").eq("id", companionId).maybeSingle();
+      characterData = (row as Record<string, unknown>) ?? {};
+    }
 
-    const anatomyKey = buildAnatomyImagineKeyRules(resolveAnatomyVariant({}));
+    const storageTarget =
+      target === "forge"
+        ? ({ kind: "forge" as const, uuid: forgeRowUuid })
+        : ({ kind: "catalog" as const, catalogId: companionId! });
 
-    const finalPrompt = `
-${PORTRAIT_IMAGE_DESIGN_BRIEF}
-
-Create a highly detailed, cinematic, seductive SFW portrait for a romance / AI companion catalog card.
-Strictly SFW: no nudity, no visible genitals, no explicit sex acts. Artistic pin-up or cover quality.
-
-${anatomyKey}
-
-Character / scene request:
-${imagePrompt}
-    `.trim();
-
-    const aiResponse = await fetch("https://api.x.ai/v1/images/generations", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        prompt: finalPrompt,
-        n: 1,
-        aspect_ratio: "3:4",
-      }),
+    const { publicUrl, displayUrl } = await renderPortraitToStorage({
+      adminClient,
+      apiKey,
+      imagePrompt,
+      characterData,
+      target: storageTarget,
     });
 
-    const rawText = await aiResponse.text();
-    let parsed: { data?: Array<{ url?: string; b64_json?: string }>; error?: { message?: string } } = {};
-    try {
-      parsed = JSON.parse(rawText) as typeof parsed;
-    } catch {
-      return new Response(
-        JSON.stringify({ error: "xAI returned invalid JSON", details: rawText.slice(0, 400) }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
+    if (target === "forge") {
+      const { error: updateError } = await adminClient
+        .from("custom_characters")
+        .update({
+          image_url: publicUrl,
+          avatar_url: publicUrl,
+          static_image_url: publicUrl,
+          image_prompt: imagePrompt,
+        })
+        .eq("id", forgeRowUuid);
 
-    if (!aiResponse.ok) {
-      const msg = parsed.error?.message || rawText.slice(0, 500);
-      return new Response(JSON.stringify({ error: "xAI image generation failed", details: msg }), {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    let remoteUrl = parsed.data?.[0]?.url;
-    const b64 = parsed.data?.[0]?.b64_json;
-
-    let binaryData: Uint8Array;
-    let ext = "jpg";
-    let contentType = "image/jpeg";
-
-    if (remoteUrl) {
-      if (remoteUrl.startsWith("data:")) {
-        const m = remoteUrl.match(/^data:image\/(\w+);base64,(.+)$/);
-        if (!m) {
-          return new Response(JSON.stringify({ error: "Invalid data URL from xAI" }), {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        ext = m[1] === "jpeg" ? "jpg" : m[1]!;
-        contentType = `image/${m[1] === "jpeg" ? "jpeg" : m[1]}`;
-        binaryData = Uint8Array.from(atob(m[2]!), (c) => c.charCodeAt(0));
-      } else {
-        const imgRes = await fetch(remoteUrl);
-        if (!imgRes.ok) {
-          return new Response(JSON.stringify({ error: "Failed to download image from xAI URL" }), {
-            status: 502,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        const ct = imgRes.headers.get("content-type") || "";
-        if (ct.includes("png")) {
-          ext = "png";
-          contentType = "image/png";
-        }
-        const buf = await imgRes.arrayBuffer();
-        binaryData = new Uint8Array(buf);
+      if (updateError) {
+        console.error("DB update error (forge):", updateError);
+        return new Response(JSON.stringify({ error: updateError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
-    } else if (b64) {
-      binaryData = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
     } else {
-      return new Response(JSON.stringify({ error: "No image URL or base64 in xAI response" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+      const { error: updateError } = await adminClient
+        .from("companions")
+        .update({
+          image_url: publicUrl,
+          image_prompt: imagePrompt,
+        })
+        .eq("id", companionId!);
 
-    const fileName = `${companionId}.${ext}`;
-
-    const { error: uploadError } = await adminClient.storage
-      .from("companion-portraits")
-      .upload(fileName, binaryData, {
-        contentType,
-        upsert: true,
-      });
-
-    if (uploadError) {
-      console.error("Storage upload error:", uploadError);
-      return new Response(JSON.stringify({ error: "Failed to upload image", details: uploadError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const publicUrl = adminClient.storage.from("companion-portraits").getPublicUrl(fileName).data.publicUrl;
-    let displayUrl = `${publicUrl}?t=${Date.now()}`;
-    const { data: signedData, error: signErr } = await adminClient.storage
-      .from("companion-portraits")
-      .createSignedUrl(fileName, 60 * 60 * 24 * 365);
-    if (!signErr && signedData?.signedUrl) {
-      displayUrl = signedData.signedUrl;
-    }
-
-    const { error: updateError } = await adminClient
-      .from("companions")
-      .update({
-        image_url: publicUrl,
-        image_prompt: imagePrompt,
-      })
-      .eq("id", companionId);
-
-    if (updateError) {
-      console.error("DB update error:", updateError);
+      if (updateError) {
+        console.error("DB update error (catalog):", updateError);
+      }
     }
 
     return new Response(JSON.stringify({ imageUrl: displayUrl, publicImageUrl: publicUrl }), {

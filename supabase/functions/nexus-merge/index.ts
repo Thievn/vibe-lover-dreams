@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { requireAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
+import { mergeTcgForNexusChild } from "../_shared/tcgStatsGenerate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -445,6 +446,13 @@ Output ONLY via the nexus_merge_companion tool call.`;
 
     const merge_stats = normalizeMergeStats(fields.merge_stats);
     const coolUntil = new Date(Date.now() + COOLDOWN_MS).toISOString();
+    const childRarity = String(fields.rarity || "rare").toLowerCase();
+    const childTcg = mergeTcgForNexusChild(
+      `${idA}:${idB}:${userId}`,
+      childRarity,
+      pa as Record<string, unknown>,
+      pb as Record<string, unknown>,
+    );
 
     const insertRow: Record<string, unknown> = {
       user_id: userId,
@@ -473,7 +481,8 @@ Output ONLY via the nexus_merge_companion tool call.`;
       is_nexus_hybrid: true,
       lineage_parent_ids: [idA, idB],
       merge_stats,
-      rarity: String(fields.rarity || "rare").toLowerCase(),
+      rarity: childRarity,
+      tcg_stats: childTcg,
     };
 
     const { data: inserted, error: insErr } = await supabase

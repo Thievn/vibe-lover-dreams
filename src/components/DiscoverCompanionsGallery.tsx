@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import type { CompanionRarity } from "@/lib/companionRarity";
 import { COMPANION_RARITIES, normalizeCompanionRarity } from "@/lib/companionRarity";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
+import { TcgMicroStrip } from "@/components/tcg/TcgStatDisplay";
 
 const NEON_PINK = "#FF2D7B";
 
@@ -375,6 +376,7 @@ export default function DiscoverCompanionsGallery() {
                           </p>
                         ) : null}
                       </div>
+                      <TcgMicroStrip stats={c.tcgStats} />
                       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/[0.07] to-primary/10 pointer-events-none" />
                     </div>
                     <div className="px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/50">

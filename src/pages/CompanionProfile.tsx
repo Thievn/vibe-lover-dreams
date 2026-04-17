@@ -34,6 +34,9 @@ import { useCompanionVibrationPatterns, type CompanionVibrationPatternRow } from
 import { VibrationPatternButtons } from "@/components/toy/VibrationPatternButtons";
 import { payloadToLovenseCommand } from "@/lib/vibrationPatternPayload";
 import { formatNexusCooldownShort, nexusCooldownRemainingMs } from "@/lib/nexusMerge";
+import { splitProseIntoParagraphs } from "@/lib/profileProseSplit";
+import { buildProfileSearchTags } from "@/lib/companionSearchTags";
+import { TcgProfilePanel } from "@/components/tcg/TcgStatDisplay";
 
 const RARITY_BADGE: Record<
   CompanionRarity,
@@ -100,6 +103,19 @@ const CompanionProfile = () => {
     : [];
   const starters = companion?.fantasyStarters?.slice(0, 5) ?? [];
   const isAbyssal = rarity === "abyssal";
+
+  const appearanceParagraphs = useMemo(
+    () => (companion ? splitProseIntoParagraphs(companion.appearance, 3) : []),
+    [companion?.appearance],
+  );
+  const personalityParagraphs = useMemo(
+    () => (companion ? splitProseIntoParagraphs(companion.personality, 3) : []),
+    [companion?.personality],
+  );
+  const profileSearchTags = useMemo(
+    () => (companion ? buildProfileSearchTags(companion) : []),
+    [companion],
+  );
 
   const lineageParents = useMemo(() => {
     const ids = companion?.lineageParentIds;
@@ -570,7 +586,7 @@ const CompanionProfile = () => {
                     "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50",
                     myVote === 1
                       ? "border-primary/50 bg-primary/20 text-primary"
-                      : "border-white/10 bg-white/[0.04] text-muted-foreground hover:border-primary/35 hover:text-foreground",
+                      : "border-stone-400/20 bg-stone-400/[0.12] text-stone-200/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-primary/35 hover:bg-stone-400/[0.16] hover:text-white",
                   )}
                 >
                   {voteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsUp className="h-4 w-4 shrink-0" />}
@@ -586,7 +602,7 @@ const CompanionProfile = () => {
                     "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50",
                     myVote === -1
                       ? "border-amber-500/45 bg-amber-500/15 text-amber-100"
-                      : "border-white/10 bg-white/[0.04] text-muted-foreground hover:border-white/25 hover:text-foreground",
+                      : "border-stone-400/20 bg-stone-400/[0.12] text-stone-200/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-stone-300/30 hover:bg-stone-500/[0.14] hover:text-white",
                   )}
                 >
                   {voteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsDown className="h-4 w-4 shrink-0" />}
@@ -602,7 +618,7 @@ const CompanionProfile = () => {
                     "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50",
                     pinned
                       ? "border-accent/45 bg-accent/15 text-accent"
-                      : "border-white/10 bg-white/[0.04] text-muted-foreground hover:border-accent/35 hover:text-foreground",
+                      : "border-stone-400/20 bg-stone-400/[0.12] text-stone-200/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-accent/35 hover:bg-stone-500/[0.14] hover:text-white",
                   )}
                 >
                   {pinBusy ? (
@@ -615,31 +631,62 @@ const CompanionProfile = () => {
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <TcgProfilePanel stats={companion.tcgStats} />
+
+            <div className="grid gap-4 sm:grid-cols-2 items-start">
               <div className="rounded-2xl border border-white/[0.08] bg-card/70 p-5 shadow-lg shadow-black/25 ring-1 ring-white/[0.04] backdrop-blur-xl">
                 <h3 className="mb-2 flex items-center gap-2 font-gothic text-lg font-bold text-foreground">
                   <Sparkles className="h-4 w-4 text-primary shrink-0" />
                   Appearance
                 </h3>
-                <p className="text-sm leading-relaxed text-muted-foreground/90">{companion.appearance}</p>
+                <div className="space-y-4">
+                  {appearanceParagraphs.length > 0 ? (
+                    appearanceParagraphs.map((p, i) => (
+                      <p
+                        key={i}
+                        className="text-sm leading-relaxed text-muted-foreground/90 first-letter:text-primary first-letter:font-gothic first-letter:text-2xl first-letter:float-left first-letter:mr-1.5 first-letter:leading-none"
+                      >
+                        {p}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-sm leading-relaxed text-muted-foreground/90">{companion.appearance}</p>
+                  )}
+                </div>
               </div>
               <div className="rounded-2xl border border-white/[0.08] bg-card/70 p-5 shadow-lg shadow-black/25 ring-1 ring-white/[0.04] backdrop-blur-xl">
                 <h3 className="mb-2 flex items-center gap-2 font-gothic text-lg font-bold text-foreground">
                   <Heart className="h-4 w-4 text-primary shrink-0" />
                   Personality
                 </h3>
-                <p className="text-sm leading-relaxed text-muted-foreground/90">{companion.personality}</p>
+                <div className="space-y-4">
+                  {personalityParagraphs.length > 0 ? (
+                    personalityParagraphs.map((p, i) => (
+                      <p
+                        key={i}
+                        className="text-sm leading-relaxed text-muted-foreground/90 first-letter:text-primary first-letter:font-gothic first-letter:text-2xl first-letter:float-left first-letter:mr-1.5 first-letter:leading-none"
+                      >
+                        {p}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-sm leading-relaxed text-muted-foreground/90">{companion.personality}</p>
+                  )}
+                </div>
               </div>
             </div>
 
             {companion.kinks.length > 0 ? (
-              <div className="rounded-2xl border border-white/[0.08] bg-card/60 p-5 backdrop-blur-xl ring-1 ring-white/[0.03]">
-                <h3 className="mb-3 font-gothic text-lg font-bold text-foreground">Kinks &amp; interests</h3>
+              <div className="rounded-2xl border border-fuchsia-500/20 bg-black/40 p-5 backdrop-blur-xl ring-1 ring-fuchsia-500/10">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground/90 mb-1">
+                  Kinks &amp; interests
+                </p>
+                <h3 className="mb-4 font-gothic text-xl font-bold text-foreground">Signature cravings</h3>
                 <div className="flex flex-wrap gap-2">
                   {companion.kinks.map((kink) => (
                     <span
                       key={kink}
-                      className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs text-primary"
+                      className="rounded-full border border-fuchsia-400/40 bg-fuchsia-950/25 px-3 py-1 text-xs font-medium text-fuchsia-100/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
                     >
                       {kink}
                     </span>
@@ -767,12 +814,12 @@ const CompanionProfile = () => {
           )}
         </section>
 
-        {/* Tags */}
+        {/* Tags — merged for search (gender, orientation, role, forge tags) */}
         <div className="mt-10 flex flex-wrap gap-2">
-          {companion.tags.map((tag) => (
+          {profileSearchTags.map((tag) => (
             <span
               key={tag}
-              className="rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1 text-xs text-muted-foreground"
+              className="rounded-full border border-white/[0.1] bg-white/[0.05] px-3 py-1 text-xs text-muted-foreground/95"
             >
               {tag}
             </span>

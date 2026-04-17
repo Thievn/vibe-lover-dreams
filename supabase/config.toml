@@ -1,4 +1,4 @@
-project_id = "awqmiqiyugllpcdqrdjj"
+project_id = "tyaplrrlirlbqrfjqryo"
 
 # Let the browser call `generate-image` without Kong rejecting some user JWTs.
 # Auth is enforced inside the function (session user must match body.userId).
@@ -15,6 +15,9 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.generate-companion-image]
+verify_jwt = false
+
+[functions.admin-regenerate-companion-section]
 verify_jwt = false
 
 # Validates session inside Deno (same pattern as generate-image).

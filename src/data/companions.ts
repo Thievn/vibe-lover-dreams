@@ -1,4 +1,5 @@
 import type { CompanionRarity } from "@/lib/companionRarity";
+import type { TcgStatBlock } from "@/lib/tcgStats";
 
 export interface Companion {
   id: string;
@@ -33,6 +34,8 @@ export interface Companion {
   nexusCooldownUntil?: string | null;
   /** Parent forge UUIDs as `cc-…` app ids. */
   lineageParentIds?: string[] | null;
+  /** TCG ascendant stats — exactly four keys from the global pool. */
+  tcgStats?: TcgStatBlock | null;
 }
 
 export const companions: Companion[] = [

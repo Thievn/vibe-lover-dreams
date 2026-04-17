@@ -78,6 +78,8 @@ const Chat = () => {
   const [toyUtilityBusy, setToyUtilityBusy] = useState(false);
   const [historyReady, setHistoryReady] = useState(false);
   const starterSentRef = useRef(false);
+  /** Keeps token checks in sync with async `fetchTokens` before React state flushes (fantasy starters). */
+  const tokensBalanceRef = useRef(0);
   const messagesRef = useRef<ChatMessage[]>([]);
   const sendMessageRef = useRef<(text?: string) => Promise<void>>(async () => {});
   const openingFantasyStarterTitleRef = useRef<string | null>(null);
@@ -85,6 +87,10 @@ const Chat = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const isAdminUser = useMemo(() => isPlatformAdmin(user), [user]);
+
+  useEffect(() => {
+    tokensBalanceRef.current = tokensBalance;
+  }, [tokensBalance]);
 
   const {
     relationship,
@@ -224,13 +230,17 @@ const Chat = () => {
     }
   };
 
-  const fetchTokens = async (userId: string) => {
+  const fetchTokens = async (userId: string): Promise<number> => {
     const { data } = await supabase
       .from("profiles")
       .select("tokens_balance")
       .eq("user_id", userId)
-      .single();
-    if (data) setTokensBalance(data.tokens_balance);
+      .maybeSingle();
+    const bal =
+      typeof data?.tokens_balance === "number" && Number.isFinite(data.tokens_balance) ? data.tokens_balance : 0;
+    setTokensBalance(bal);
+    tokensBalanceRef.current = bal;
+    return bal;
   };
 
   const deductTokens = async (userId: string) => {
@@ -240,6 +250,7 @@ const Chat = () => {
     const newBalance = Math.max(0, cur - TOKEN_COST);
     await supabase.from("profiles").update({ tokens_balance: newBalance }).eq("user_id", userId);
     setTokensBalance(newBalance);
+    tokensBalanceRef.current = newBalance;
   };
 
   /** Only treat as an image request when the user clearly asks for a picture — not casual words like "hot" or substrings like "pic" in "topic". */
@@ -650,9 +661,10 @@ const Chat = () => {
       const requestingImage = isImageRequest(messageText);
       const requiredTokens = requestingImage ? IMAGE_TOKEN_COST : TOKEN_COST;
 
-      if (!isAdminUser && tokensBalance < requiredTokens) {
+      const balanceNow = tokensBalanceRef.current;
+      if (!isAdminUser && balanceNow < requiredTokens) {
         const tokenType = requestingImage ? "image generation" : "messaging";
-        toast.error(`Not enough tokens for ${tokenType}. You need ${requiredTokens} but only have ${tokensBalance}.`, {
+        toast.error(`Not enough tokens for ${tokenType}. You need ${requiredTokens} but only have ${balanceNow}.`, {
           action: {
             label: "Upgrade",
             onClick: () => navigate("/"),
@@ -843,6 +855,7 @@ const Chat = () => {
         }
         setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
         setInput(messageText);
+        if (overrideText) starterSentRef.current = false;
         const raw = err instanceof Error ? err.message : "Failed to process your request.";
         toast.error(raw.length > 240 ? `${raw.slice(0, 237)}…` : raw);
       } finally {
@@ -860,11 +873,22 @@ const Chat = () => {
     const st = state?.starterTitle?.trim();
     if (!sp || starterSentRef.current) return;
     starterSentRef.current = true;
-    if (st) openingFantasyStarterTitleRef.current = st;
-    const prev = location.state as { starterPrompt?: string; starterTitle?: string; from?: string } | undefined;
-    navigate(location.pathname, { replace: true, state: { from: prev?.from } });
-    queueMicrotask(() => void sendMessageRef.current(sp));
-  }, [user, companion, historyReady, loading, location.pathname, location.state, navigate]);
+
+    void (async () => {
+      const bal = await fetchTokens(user.id);
+      if (!isAdminUser && bal < TOKEN_COST) {
+        starterSentRef.current = false;
+        toast.error(`Not enough tokens to begin this fantasy. You need ${TOKEN_COST} but have ${bal}.`, {
+          action: { label: "Upgrade", onClick: () => navigate("/") },
+        });
+        return;
+      }
+      if (st) openingFantasyStarterTitleRef.current = st;
+      const prev = location.state as { starterPrompt?: string; starterTitle?: string; from?: string } | undefined;
+      navigate(location.pathname, { replace: true, state: { from: prev?.from } });
+      queueMicrotask(() => void sendMessageRef.current(sp));
+    })();
+  }, [user, companion, historyReady, loading, location.pathname, location.state, navigate, isAdminUser]);
 
   if (!companion && dbCompanions) {
     return (

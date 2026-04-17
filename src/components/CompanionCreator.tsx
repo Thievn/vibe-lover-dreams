@@ -40,6 +40,7 @@ import {
   type CompanionRarity,
   normalizeCompanionRarity,
 } from "@/lib/companionRarity";
+import { generateTcgStatBlock } from "@/lib/tcgStats";
 import { FORGE_BODY_TYPES, normalizeForgeBodyType } from "@/lib/forgeBodyTypes";
 import {
   FORGE_ART_STYLES,
@@ -928,11 +929,18 @@ Hard requirements:
       const bioOut = hookBio.trim() || defaultBio;
       const backstoryOut = chronicleBackstory.trim() || hookBio.trim() || bioOut;
       const appearanceOut = portraitAppearanceText;
-      const tagsOut = rosterTags.length
+      const tagsOutRaw = rosterTags.length
         ? rosterTags.slice(0, 12)
         : [...personalitySelections, ...vibeThemeSelections, artStyle, sceneAtmosphere, bodyType, ...traits]
             .filter(Boolean)
             .slice(0, 12);
+      const tagsOut = [
+        ...new Set(
+          [...tagsOutRaw, gender, orientation]
+            .map((t) => String(t).trim())
+            .filter((t) => t && t !== "—"),
+        ),
+      ].slice(0, 14);
       const kinksOut = rosterKinks.length ? rosterKinks.slice(0, 16) : [];
       const imagePromptOut = packshotPrompt.trim() || rowImagePrompt;
 
@@ -947,6 +955,7 @@ Hard requirements:
         const adminTier = adminAbyssalForge
           ? "abyssal"
           : normalizeCompanionRarity(adminForgeRarity);
+        const rarityForTcg = isAdmin ? adminTier : "rare";
         rows.push({
           user_id: userId,
           name: displayName,
@@ -977,6 +986,7 @@ Hard requirements:
               }
             : {}),
           avatar_url: portraitUrl,
+          tcg_stats: generateTcgStatBlock(`${userId}:${displayName}:${i}:${batchCount}`, rarityForTcg),
         });
       }
 

@@ -1,4 +1,6 @@
 import type { DbCompanion } from "@/hooks/useCompanions";
+import type { TcgStatKey } from "@/lib/tcgStats";
+import { normalizeTcgStatBlock } from "@/lib/tcgStats";
 
 function fnv1a32(input: string): number {
   let h = 0x811c9dc5;
@@ -26,7 +28,22 @@ export function computeNexusCompatibility(a: DbCompanion, b: DbCompanion): numbe
   const roleMatch = a.role.trim().toLowerCase() === b.role.trim().toLowerCase() ? 6 : 0;
   const base = 54 + Math.min(28, tagOverlap * 4 + kOverlap * 3 + roleMatch);
   const jitter = fnv1a32(`${a.id}|${b.id}`) % 11;
-  return Math.min(98, Math.max(61, base + jitter));
+  const ta = normalizeTcgStatBlock(a.tcg_stats as unknown);
+  const tb = normalizeTcgStatBlock(b.tcg_stats as unknown);
+  let tcgBonus = 0;
+  if (ta && tb) {
+    const keysA = new Set(Object.keys(ta) as TcgStatKey[]);
+    for (const k of Object.keys(tb) as TcgStatKey[]) {
+      if (!keysA.has(k)) continue;
+      const va = ta[k];
+      const vb = tb[k];
+      if (typeof va !== "number" || typeof vb !== "number") continue;
+      const closeness = 1 - Math.abs(va - vb) / 100;
+      const weight = k === "fertility" || k === "synergy" ? 5.5 : 2.2;
+      tcgBonus += closeness * weight;
+    }
+  }
+  return Math.min(98, Math.max(61, base + jitter + Math.min(16, tcgBonus)));
 }
 
 /** Short prose preview of how traits might fuse (client-side; merge uses Grok). */

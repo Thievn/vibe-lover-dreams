@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { companions as staticCompanions, type Companion } from "@/data/companions";
 import { getStaticRarityForCatalog, normalizeCompanionRarity } from "@/lib/companionRarity";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
+import { generateTcgStatBlock, normalizeTcgStatBlock } from "@/lib/tcgStats";
 
 export interface DbCompanion {
   id: string;
@@ -42,6 +43,7 @@ export interface DbCompanion {
   lineage_parent_ids?: string[] | null;
   merge_stats?: Record<string, unknown> | null;
   is_nexus_hybrid?: boolean;
+  tcg_stats?: Record<string, unknown> | null;
 }
 
 function coerceStockRow(row: Record<string, unknown>): DbCompanion {
@@ -53,9 +55,12 @@ function coerceStockRow(row: Record<string, unknown>): DbCompanion {
     static_image_url: (row.static_image_url as string | null | undefined) ?? null,
     animated_image_url: (row.animated_image_url as string | null | undefined) ?? null,
     rarity_border_overlay_url: (row.rarity_border_overlay_url as string | null | undefined) ?? null,
+    tcg_stats:
+      row.tcg_stats && typeof row.tcg_stats === "object" ? (row.tcg_stats as Record<string, unknown>) : null,
   };
 }
 
+/** Maps a `custom_characters` DB row to `DbCompanion` (`id` is `cc-{uuid}`). Exported for admin forge editor. */
 export function mapSupabaseCustomCharacterRow(row: Record<string, unknown>): DbCompanion {
   const startersRaw = row.fantasy_starters;
   const starters = Array.isArray(startersRaw)
@@ -121,6 +126,8 @@ export function mapSupabaseCustomCharacterRow(row: Record<string, unknown>): DbC
         ? (row.merge_stats as Record<string, unknown>)
         : null,
     is_nexus_hybrid: Boolean(row.is_nexus_hybrid),
+    tcg_stats:
+      row.tcg_stats && typeof row.tcg_stats === "object" ? (row.tcg_stats as Record<string, unknown>) : null,
   };
 }
 
@@ -213,6 +220,7 @@ function staticListToDb(): DbCompanion[] {
     static_image_url: null,
     animated_image_url: null,
     rarity_border_overlay_url: null,
+    tcg_stats: generateTcgStatBlock(c.id, getStaticRarityForCatalog(c.id)) as unknown as Record<string, unknown>,
   }));
 }
 
@@ -255,6 +263,7 @@ export const dbToCompanion = (db: DbCompanion): Companion => ({
   lineageParentIds: db.lineage_parent_ids?.length
     ? db.lineage_parent_ids.map((id) => `cc-${id}`)
     : undefined,
+  tcgStats: normalizeTcgStatBlock(db.tcg_stats as unknown) ?? undefined,
 });
 
 export const useCompanions = () => {

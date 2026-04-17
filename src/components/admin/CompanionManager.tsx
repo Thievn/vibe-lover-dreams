@@ -1,7 +1,7 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { useAdminCompanions, type DbCompanion } from "@/hooks/useCompanions";
+import { useAdminCompanions, mapSupabaseCustomCharacterRow, type DbCompanion } from "@/hooks/useCompanions";
 import { COMPANION_RARITIES } from "@/lib/companionRarity";
 import { supabase } from "@/integrations/supabase/client";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
@@ -11,6 +11,7 @@ import {
   Search, Save, RefreshCw, Plus, Eye, EyeOff, ChevronDown, ChevronUp,
   Loader2, X, ImageIcon, Palette, ArrowLeft, Sparkles, Trash2, Waves,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type ViewMode = "list" | "edit" | "create";
 
@@ -39,6 +40,66 @@ const emptyCompanion: Omit<DbCompanion, "created_at" | "updated_at"> = {
   animated_image_url: null,
   rarity_border_overlay_url: null,
 };
+
+/** Allowed columns on `custom_characters` when saving from admin forge editor. */
+const CUSTOM_CHARACTER_UPDATE_KEYS = new Set([
+  "name",
+  "tagline",
+  "gender",
+  "orientation",
+  "role",
+  "tags",
+  "kinks",
+  "appearance",
+  "personality",
+  "bio",
+  "backstory",
+  "system_prompt",
+  "fantasy_starters",
+  "gradient_from",
+  "gradient_to",
+  "image_prompt",
+  "image_url",
+  "avatar_url",
+  "static_image_url",
+  "animated_image_url",
+  "rarity_border_overlay_url",
+  "rarity",
+  "gallery_credit_name",
+  "exclude_from_personal_vault",
+  "personality_archetypes",
+  "vibe_theme_selections",
+]);
+
+function LabeledRegenWrap({
+  label,
+  busy,
+  onRegen,
+  children,
+}: {
+  label: string;
+  busy: boolean;
+  onRegen: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <label className="text-xs text-muted-foreground">{label}</label>
+        <button
+          type="button"
+          onClick={() => void onRegen()}
+          disabled={busy}
+          title={`Regenerate ${label} from current theme (Grok)`}
+          className="p-1.5 rounded-md border border-border bg-muted/40 text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", busy && "animate-spin")} />
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+}
 
 type AdminVibRow = {
   id: string;
@@ -298,6 +359,10 @@ const CompanionManager = () => {
   const [forgeVibBusyId, setForgeVibBusyId] = useState<string | null>(null);
   const [loreBusyId, setLoreBusyId] = useState<string | null>(null);
   const [repairVibBusy, setRepairVibBusy] = useState(false);
+  /** When set, edit view uses this row (e.g. full forge profile) instead of catalog list lookup. */
+  const [editOverride, setEditOverride] = useState<DbCompanion | null>(null);
+  const [forgeEditLoadingId, setForgeEditLoadingId] = useState<string | null>(null);
+  const [sectionBusy, setSectionBusy] = useState<Record<string, boolean>>({});
 
   // Auto-fill state
   const [autoFillPrompt, setAutoFillPrompt] = useState("");
@@ -348,12 +413,32 @@ const CompanionManager = () => {
     }
     setSaving((prev) => ({ ...prev, [companion.id]: true }));
     try {
-      const { error } = await supabase
-        .from("companions")
-        .update(changes as any)
-        .eq("id", companion.id);
-      if (error) throw error;
-      toast.success(`${companion.name} updated!`);
+      const isForge = companion.id.startsWith("cc-");
+      if (isForge) {
+        const uuid = companion.id.slice(3);
+        const patch: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(changes)) {
+          if (CUSTOM_CHARACTER_UPDATE_KEYS.has(k)) patch[k] = v;
+        }
+        if (Object.keys(patch).length === 0) {
+          toast.info("No forge-safe fields to save.");
+          return;
+        }
+        const { error } = await supabase.from("custom_characters").update(patch as any).eq("id", uuid);
+        if (error) throw error;
+        toast.success(`${companion.name} (forge) updated!`);
+      } else {
+        const { error } = await supabase
+          .from("companions")
+          .update(changes as any)
+          .eq("id", companion.id);
+        if (error) throw error;
+        toast.success(`${companion.name} updated!`);
+        if ("rarity" in changes || "name" in changes) {
+          void queryClient.invalidateQueries({ queryKey: ["companion-vibration-patterns", companion.id] });
+          void queryClient.invalidateQueries({ queryKey: ["admin-vib-rows", companion.id] });
+        }
+      }
       setEditData((prev) => {
         const next = { ...prev };
         delete next[companion.id];
@@ -361,14 +446,52 @@ const CompanionManager = () => {
       });
       queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
       queryClient.invalidateQueries({ queryKey: ["companions"] });
-      if ("rarity" in changes || "name" in changes) {
-        void queryClient.invalidateQueries({ queryKey: ["companion-vibration-patterns", companion.id] });
-        void queryClient.invalidateQueries({ queryKey: ["admin-vib-rows", companion.id] });
-      }
+      queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
     } catch (err: any) {
       toast.error("Save failed: " + err.message);
     } finally {
       setSaving((prev) => ({ ...prev, [companion.id]: false }));
+    }
+  };
+
+  const regenSection = async (companion: DbCompanion, section: string) => {
+    const rk = `${companion.id}::${section}`;
+    setSectionBusy((prev) => ({ ...prev, [rk]: true }));
+    try {
+      const source = companion.id.startsWith("cc-") ? "forge" : "catalog";
+      const { data, error } = await supabase.functions.invoke("admin-regenerate-companion-section", {
+        body: { source, companionAppId: companion.id, section },
+      });
+      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
+      if (data?.error) throw new Error(String(data.error));
+      if (data?.fields && typeof data.fields === "object") {
+        setEditData((prev) => ({
+          ...prev,
+          [companion.id]: { ...prev[companion.id], ...(data.fields as Record<string, unknown>) },
+        }));
+      }
+      if (section === "portrait" && typeof data?.publicImageUrl === "string") {
+        setEditData((prev) => ({
+          ...prev,
+          [companion.id]: {
+            ...prev[companion.id],
+            image_url: data.publicImageUrl,
+            static_image_url: data.publicImageUrl,
+          },
+        }));
+      }
+      toast.success(section === "portrait" ? "Portrait regenerated." : `Regenerated ${section.replace(/_/g, " ")}.`);
+      void queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
+      void queryClient.invalidateQueries({ queryKey: ["companions"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Regenerate failed");
+    } finally {
+      setSectionBusy((prev) => {
+        const next = { ...prev };
+        delete next[rk];
+        return next;
+      });
     }
   };
 
@@ -470,22 +593,38 @@ const CompanionManager = () => {
   };
 
   const regenerateImage = async (companion: DbCompanion) => {
-    const imagePrompt = getEdit(companion.id)?.image_prompt ?? companion.image_prompt;
-    if (!imagePrompt) {
-      toast.error("Enter an image prompt first.");
+    const imagePrompt =
+      (getEdit(companion.id)?.image_prompt as string | null | undefined) ??
+      companion.image_prompt ??
+      `SFW portrait: ${companion.name}. ${companion.appearance}`.slice(0, 4000);
+    if (!String(imagePrompt).trim()) {
+      toast.error("Need appearance or image prompt to generate a portrait.");
       return;
     }
     setGenerating((prev) => ({ ...prev, [companion.id]: true }));
     try {
-      const { data, error } = await supabase.functions.invoke(
-        "generate-companion-image",
-        { body: { companionId: companion.id, imagePrompt } }
-      );
+      const isForge = companion.id.startsWith("cc-");
+      const { data, error } = await supabase.functions.invoke("generate-companion-image", {
+        body: isForge
+          ? { target: "forge", forgeRowUuid: companion.id.replace(/^cc-/, ""), imagePrompt: String(imagePrompt).trim() }
+          : { target: "catalog", companionId: companion.id, imagePrompt: String(imagePrompt).trim() },
+      });
       if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
       if (data?.error) throw new Error(data.error);
       toast.success("Portrait generated!");
+      if (typeof data?.publicImageUrl === "string") {
+        setEditData((prev) => ({
+          ...prev,
+          [companion.id]: {
+            ...prev[companion.id],
+            image_url: data.publicImageUrl,
+            static_image_url: data.publicImageUrl,
+          },
+        }));
+      }
       queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
       queryClient.invalidateQueries({ queryKey: ["companions"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
     } catch (err: any) {
       toast.error("Generation failed: " + err.message);
     } finally {
@@ -508,8 +647,29 @@ const CompanionManager = () => {
   };
 
   const openEdit = (id: string) => {
+    setEditOverride(null);
     setEditingId(id);
     setViewMode("edit");
+  };
+
+  const openForgeAdminEdit = async (uuid: string) => {
+    setForgeEditLoadingId(uuid);
+    try {
+      const { data, error } = await supabase.from("custom_characters").select("*").eq("id", uuid).maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        toast.error("Forge row not found.");
+        return;
+      }
+      const mapped = mapSupabaseCustomCharacterRow(data as Record<string, unknown>);
+      setEditOverride(mapped);
+      setEditingId(mapped.id);
+      setViewMode("edit");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Could not load forge row");
+    } finally {
+      setForgeEditLoadingId(null);
+    }
   };
 
   const openCreate = () => {
@@ -521,6 +681,7 @@ const CompanionManager = () => {
   const backToList = () => {
     setViewMode("list");
     setEditingId(null);
+    setEditOverride(null);
   };
 
   const createCompanion = async () => {
@@ -848,7 +1009,7 @@ const CompanionManager = () => {
 
   // EDIT VIEW
   if (viewMode === "edit" && editingId) {
-    const companion = companions?.find(c => c.id === editingId);
+    const companion = editOverride ?? companions?.find((c) => c.id === editingId);
     if (!companion) {
       return <p className="text-muted-foreground">Companion not found.</p>;
     }
@@ -860,11 +1021,17 @@ const CompanionManager = () => {
         <button onClick={backToList} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-4 w-4" /> Back to list
         </button>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <h2 className="text-lg font-bold text-foreground">{val("name") as string}</h2>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] ${companion.is_active ? "bg-green-500/20 text-green-400" : "bg-muted text-muted-foreground"}`}>
-            {companion.is_active ? "Active" : "Inactive"}
-          </span>
+          {companion.id.startsWith("cc-") ? (
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-500/35">
+              Forge row
+            </span>
+          ) : (
+            <span className={`px-2 py-0.5 rounded-full text-[10px] ${companion.is_active ? "bg-green-500/20 text-green-400" : "bg-muted text-muted-foreground"}`}>
+              {companion.is_active ? "Active" : "Inactive"}
+            </span>
+          )}
           {hasChanges(companion.id) && <span className="px-2 py-0.5 rounded-full text-[10px] bg-primary/20 text-primary">Unsaved</span>}
         </div>
 
@@ -872,16 +1039,31 @@ const CompanionManager = () => {
           {/* Left Column: Portrait + Appearance + Image Prompt + Regenerate */}
           <div className="space-y-4">
             <div className="rounded-lg border border-border bg-muted/50 p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <ImageIcon className="h-4 w-4 text-primary" />
-                <h4 className="text-sm font-bold text-foreground">Portrait & Appearance</h4>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <ImageIcon className="h-4 w-4 text-primary shrink-0" />
+                  <h4 className="text-sm font-bold text-foreground truncate">Portrait & Appearance</h4>
+                </div>
+                <button
+                  type="button"
+                  disabled={!!sectionBusy[`${companion.id}::portrait`]}
+                  onClick={() => void regenSection(companion, "portrait")}
+                  title="Regenerate portrait (admin edge — same brief as forge)"
+                  className="p-1.5 rounded-full border border-border bg-muted/50 text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-50 shrink-0"
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", sectionBusy[`${companion.id}::portrait`] && "animate-spin")} />
+                </button>
               </div>
 
               {/* Portrait Preview */}
               <div className="flex items-start gap-4">
                 <div className="w-32 h-32 rounded-lg overflow-hidden shrink-0" style={{ background: `linear-gradient(135deg, ${val("gradient_from")}, ${val("gradient_to")})` }}>
-                  {(companion.static_image_url || companion.image_url) ? (
-                    <img src={(companion.static_image_url || companion.image_url)!} alt={companion.name} className="w-full h-full object-cover" />
+                  {(val("static_image_url") as string | null) || (val("image_url") as string | null) || companion.static_image_url || companion.image_url ? (
+                    <img
+                      src={((val("static_image_url") as string | null) || (val("image_url") as string | null) || companion.static_image_url || companion.image_url)!}
+                      alt={companion.name}
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <span className="text-3xl font-bold text-white/80">{companion.name.charAt(0)}</span>
@@ -905,10 +1087,34 @@ const CompanionManager = () => {
               </div>
 
               {/* Appearance */}
-              <TextArea label="Appearance" value={val("appearance") as string} onChange={(v) => setField(companion.id, "appearance", v)} rows={4} placeholder="Physical description for reference..." />
+              <LabeledRegenWrap
+                label="Appearance"
+                busy={!!sectionBusy[`${companion.id}::appearance`]}
+                onRegen={() => void regenSection(companion, "appearance")}
+              >
+                <textarea
+                  value={val("appearance") as string}
+                  onChange={(e) => setField(companion.id, "appearance", e.target.value)}
+                  rows={4}
+                  placeholder="Physical description for reference..."
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm focus:outline-none focus:border-primary transition-colors resize-y"
+                />
+              </LabeledRegenWrap>
 
               {/* Image Prompt */}
-              <TextArea label="Image Prompt" value={(val("image_prompt") as string) || ""} onChange={(v) => setField(companion.id, "image_prompt", v)} rows={3} placeholder="Describe the portrait to generate..." />
+              <LabeledRegenWrap
+                label="Image Prompt"
+                busy={!!sectionBusy[`${companion.id}::image_prompt`]}
+                onRegen={() => void regenSection(companion, "image_prompt")}
+              >
+                <textarea
+                  value={(val("image_prompt") as string) || ""}
+                  onChange={(e) => setField(companion.id, "image_prompt", e.target.value)}
+                  rows={3}
+                  placeholder="Describe the portrait to generate..."
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm focus:outline-none focus:border-primary transition-colors resize-y"
+                />
+              </LabeledRegenWrap>
 
               {/* Regenerate */}
               <button
@@ -929,16 +1135,70 @@ const CompanionManager = () => {
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Name" value={val("name") as string} onChange={(v) => setField(companion.id, "name", v)} />
-              <Field label="Tagline" value={val("tagline") as string} onChange={(v) => setField(companion.id, "tagline", v)} />
+              <div className="flex items-end gap-2">
+                <div className="flex-1 min-w-0">
+                  <Field label="Tagline" value={val("tagline") as string} onChange={(v) => setField(companion.id, "tagline", v)} />
+                </div>
+                <button
+                  type="button"
+                  disabled={!!sectionBusy[`${companion.id}::tagline`]}
+                  onClick={() => void regenSection(companion, "tagline")}
+                  title="Regenerate tagline"
+                  className="mb-0.5 p-2 rounded-md border border-border bg-muted/40 text-muted-foreground hover:text-primary shrink-0"
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", sectionBusy[`${companion.id}::tagline`] && "animate-spin")} />
+                </button>
+              </div>
               <Field label="Gender" value={val("gender") as string} onChange={(v) => setField(companion.id, "gender", v)} />
               <Field label="Orientation" value={val("orientation") as string} onChange={(v) => setField(companion.id, "orientation", v)} />
               <Field label="Role" value={val("role") as string} onChange={(v) => setField(companion.id, "role", v)} />
               <Field label="ID" value={companion.id} onChange={() => {}} disabled />
             </div>
-            <Field label="Tags (comma-separated)" value={(val("tags") as string[]).join(", ")} onChange={(v) => setField(companion.id, "tags", v.split(",").map(s => s.trim()).filter(Boolean))} />
-            <Field label="Kinks (comma-separated)" value={(val("kinks") as string[]).join(", ")} onChange={(v) => setField(companion.id, "kinks", v.split(",").map(s => s.trim()).filter(Boolean))} />
-            <TextArea label="Bio" value={val("bio") as string} onChange={(v) => setField(companion.id, "bio", v)} rows={3} />
-            <TextArea label="Backstory (2–4 paragraphs)" value={val("backstory") as string} onChange={(v) => setField(companion.id, "backstory", v)} rows={6} />
+            <div className="space-y-2">
+              <div className="flex items-end gap-2">
+                <div className="flex-1 min-w-0">
+                  <Field
+                    label="Tags (comma-separated)"
+                    value={(val("tags") as string[]).join(", ")}
+                    onChange={(v) => setField(companion.id, "tags", v.split(",").map((s) => s.trim()).filter(Boolean))}
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={!!sectionBusy[`${companion.id}::tags_kinks`]}
+                  onClick={() => void regenSection(companion, "tags_kinks")}
+                  title="Regenerate tags + kinks from theme"
+                  className="mb-0.5 p-2 rounded-md border border-border bg-muted/40 text-muted-foreground hover:text-primary shrink-0"
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", sectionBusy[`${companion.id}::tags_kinks`] && "animate-spin")} />
+                </button>
+              </div>
+              <Field
+                label="Kinks (comma-separated)"
+                value={(val("kinks") as string[]).join(", ")}
+                onChange={(v) => setField(companion.id, "kinks", v.split(",").map((s) => s.trim()).filter(Boolean))}
+              />
+            </div>
+            <LabeledRegenWrap label="Bio" busy={!!sectionBusy[`${companion.id}::bio`]} onRegen={() => void regenSection(companion, "bio")}>
+              <textarea
+                value={val("bio") as string}
+                onChange={(e) => setField(companion.id, "bio", e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm focus:outline-none focus:border-primary transition-colors resize-y"
+              />
+            </LabeledRegenWrap>
+            <LabeledRegenWrap
+              label="Backstory (2–4 paragraphs)"
+              busy={!!sectionBusy[`${companion.id}::backstory`]}
+              onRegen={() => void regenSection(companion, "backstory")}
+            >
+              <textarea
+                value={val("backstory") as string}
+                onChange={(e) => setField(companion.id, "backstory", e.target.value)}
+                rows={6}
+                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm focus:outline-none focus:border-primary transition-colors resize-y"
+              />
+            </LabeledRegenWrap>
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Rarity</label>
               <select
@@ -958,8 +1218,56 @@ const CompanionManager = () => {
             <Field label="Animated portrait URL" value={(val("animated_image_url") as string) || ""} onChange={(v) => setField(companion.id, "animated_image_url", v || null)} />
             <Field label="Border overlay URL (optional)" value={(val("rarity_border_overlay_url") as string) || ""} onChange={(v) => setField(companion.id, "rarity_border_overlay_url", v || null)} />
             <Field label="image_url (legacy)" value={(val("image_url") as string) || ""} onChange={(v) => setField(companion.id, "image_url", v || null)} />
-            <TextArea label="Personality" value={val("personality") as string} onChange={(v) => setField(companion.id, "personality", v)} rows={3} />
-            <TextArea label="Companion Prompt" value={val("system_prompt") as string} onChange={(v) => setField(companion.id, "system_prompt", v)} rows={6} />
+            <LabeledRegenWrap
+              label="Personality"
+              busy={!!sectionBusy[`${companion.id}::personality`]}
+              onRegen={() => void regenSection(companion, "personality")}
+            >
+              <textarea
+                value={val("personality") as string}
+                onChange={(e) => setField(companion.id, "personality", e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm focus:outline-none focus:border-primary transition-colors resize-y"
+              />
+            </LabeledRegenWrap>
+            <LabeledRegenWrap
+              label="Companion Prompt"
+              busy={!!sectionBusy[`${companion.id}::system_prompt`]}
+              onRegen={() => void regenSection(companion, "system_prompt")}
+            >
+              <textarea
+                value={val("system_prompt") as string}
+                onChange={(e) => setField(companion.id, "system_prompt", e.target.value)}
+                rows={6}
+                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm focus:outline-none focus:border-primary transition-colors resize-y"
+              />
+            </LabeledRegenWrap>
+            <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-foreground">Fantasy starters</span>
+                <button
+                  type="button"
+                  disabled={!!sectionBusy[`${companion.id}::fantasy_starters`]}
+                  onClick={() => void regenSection(companion, "fantasy_starters")}
+                  title="Regenerate all four starters"
+                  className="p-1.5 rounded-md border border-border bg-muted/40 text-muted-foreground hover:text-primary shrink-0"
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", sectionBusy[`${companion.id}::fantasy_starters`] && "animate-spin")} />
+                </button>
+              </div>
+              <ul className="space-y-2 text-[11px] text-muted-foreground">
+                {((val("fantasy_starters") as { title: string; description: string }[]) || []).length === 0 ? (
+                  <li>None — use refresh or lore tools.</li>
+                ) : (
+                  ((val("fantasy_starters") as { title: string; description: string }[]) || []).map((s, i) => (
+                    <li key={i} className="border border-border/60 rounded-md p-2 bg-background/60">
+                      <span className="font-semibold text-foreground/90">{s.title}</span>
+                      <p className="mt-1 line-clamp-3">{s.description}</p>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
           </div>
         </div>
 
@@ -990,9 +1298,11 @@ const CompanionManager = () => {
               <X className="h-4 w-4" /> Discard
             </button>
           )}
-          <button onClick={(e) => { e.stopPropagation(); toggleActive(companion); }} className="ml-auto px-4 py-2 rounded-lg bg-muted border border-border text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
-            {companion.is_active ? <><EyeOff className="h-4 w-4" /> Deactivate</> : <><Eye className="h-4 w-4" /> Activate</>}
-          </button>
+          {!companion.id.startsWith("cc-") ? (
+            <button onClick={(e) => { e.stopPropagation(); toggleActive(companion); }} className="ml-auto px-4 py-2 rounded-lg bg-muted border border-border text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
+              {companion.is_active ? <><EyeOff className="h-4 w-4" /> Deactivate</> : <><Eye className="h-4 w-4" /> Activate</>}
+            </button>
+          ) : null}
         </div>
       </div>
     );
@@ -1067,6 +1377,23 @@ const CompanionManager = () => {
                     </Link>
                   </div>
                   <div className="flex flex-wrap gap-2 mt-auto">
+                    <button
+                      type="button"
+                      disabled={forgeEditLoadingId === row.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void openForgeAdminEdit(row.id);
+                      }}
+                      className="px-2.5 py-1 rounded-lg border border-primary/40 text-primary text-[10px] font-semibold hover:bg-primary/10 disabled:opacity-50 inline-flex items-center gap-1"
+                      title="Full profile editor + per-section Grok refresh"
+                    >
+                      {forgeEditLoadingId === row.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+                      ) : (
+                        <Sparkles className="h-3 w-3 shrink-0" />
+                      )}
+                      Admin edit
+                    </button>
                     <button
                       type="button"
                       disabled={forgeVibBusyId === row.id}

@@ -70,6 +70,7 @@ export type Database = {
           system_prompt: string
           tagline: string
           tags: string[]
+          tcg_stats: Json | null
           updated_at: string
         }
         Insert: {
@@ -97,6 +98,7 @@ export type Database = {
           system_prompt?: string
           tagline?: string
           tags?: string[]
+          tcg_stats?: Json | null
           updated_at?: string
         }
         Update: {
@@ -124,6 +126,7 @@ export type Database = {
           system_prompt?: string
           tagline?: string
           tags?: string[]
+          tcg_stats?: Json | null
           updated_at?: string
         }
         Relationships: []
@@ -163,6 +166,7 @@ export type Database = {
           system_prompt: string
           tagline: string
           tags: string[]
+          tcg_stats: Json | null
           updated_at: string
           user_id: string
           vibe_theme_selections: string[] | null
@@ -201,6 +205,7 @@ export type Database = {
           system_prompt?: string
           tagline?: string
           tags?: string[]
+          tcg_stats?: Json | null
           updated_at?: string
           user_id: string
           vibe_theme_selections?: string[] | null
@@ -239,6 +244,7 @@ export type Database = {
           system_prompt?: string
           tagline?: string
           tags?: string[]
+          tcg_stats?: Json | null
           updated_at?: string
           user_id?: string
           vibe_theme_selections?: string[] | null
