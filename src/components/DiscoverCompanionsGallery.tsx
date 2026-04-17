@@ -9,6 +9,7 @@ import type { CompanionRarity } from "@/lib/companionRarity";
 import { COMPANION_RARITIES, normalizeCompanionRarity } from "@/lib/companionRarity";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { TcgMicroStrip } from "@/components/tcg/TcgStatDisplay";
+import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 
 const NEON_PINK = "#FF2D7B";
 
@@ -18,6 +19,7 @@ export type CommunityGalleryRow = Companion & {
   imageUrl: string | null;
   galleryCredit: string | null;
   isForged: boolean;
+  rarityBorderOverlayUrl: string | null;
 };
 
 function rowsFromDb(dbList: DbCompanion[]): CommunityGalleryRow[] {
@@ -32,6 +34,7 @@ function rowsFromDb(dbList: DbCompanion[]): CommunityGalleryRow[] {
       imageUrl,
       galleryCredit: db.gallery_credit_name ?? null,
       isForged,
+      rarityBorderOverlayUrl: db.rarity_border_overlay_url ?? null,
     };
   });
 }
@@ -332,24 +335,31 @@ export default function DiscoverCompanionsGallery() {
                     className="text-left rounded-2xl border border-border/80 bg-card/50 backdrop-blur-md overflow-hidden group shadow-lg shadow-black/30 hover:border-primary/45 transition-all hover:shadow-[0_0_28px_rgba(255,45,123,0.15)] ring-0 hover:ring-2 hover:ring-primary/15"
                   >
                     <Link to={`/companions/${c.id}`} className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl">
-                    <div
-                      className="aspect-[3/4] relative"
-                      style={{
-                        background: img ? undefined : `linear-gradient(160deg, ${c.gradientFrom}, ${c.gradientTo})`,
-                      }}
+                    <TierHaloPortraitFrame
+                      variant="card"
+                      rarity={c.rarity}
+                      gradientFrom={c.gradientFrom}
+                      gradientTo={c.gradientTo}
+                      overlayUrl={c.rarityBorderOverlayUrl}
                     >
+                      <div
+                        className="absolute inset-0 z-0"
+                        style={{
+                          background: img ? undefined : `linear-gradient(160deg, ${c.gradientFrom}, ${c.gradientTo})`,
+                        }}
+                      />
                       {img ? (
                         <img
                           src={img}
                           alt=""
-                          className="absolute inset-0 w-full h-full object-cover object-top"
+                          className="absolute inset-0 z-[1] w-full h-full object-cover object-top"
                           loading="lazy"
                         />
                       ) : null}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/25 to-transparent pointer-events-none" />
+                      <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/95 via-black/25 to-transparent pointer-events-none" />
                       <div
                         className={cn(
-                          "absolute top-2 left-2 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider border backdrop-blur-md capitalize",
+                          "absolute top-2 left-2 z-[3] px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider border backdrop-blur-md capitalize",
                           rarityStyle[c.rarity],
                         )}
                       >
@@ -357,7 +367,7 @@ export default function DiscoverCompanionsGallery() {
                       </div>
                       <div
                         className={cn(
-                          "absolute top-2 right-2 px-2 py-0.5 rounded-md bg-black/55 border text-[9px] font-semibold uppercase tracking-wider",
+                          "absolute top-2 right-2 z-[3] px-2 py-0.5 rounded-md bg-black/55 border text-[9px] font-semibold uppercase tracking-wider",
                           c.isForged
                             ? "border-[#FF2D7B]/40 text-[#ffb8d9]"
                             : "border-teal-500/30 text-accent/95",
@@ -365,7 +375,7 @@ export default function DiscoverCompanionsGallery() {
                       >
                         {c.isForged ? "Forged" : "Catalog"}
                       </div>
-                      <div className="absolute inset-x-0 bottom-0 p-3 space-y-0.5">
+                      <div className="absolute inset-x-0 bottom-0 z-[3] p-3 space-y-0.5">
                         <p className="text-xs font-bold text-white truncate leading-tight font-gothic">{c.name}</p>
                         <p className="text-[10px] text-white/75 truncate">{c.tagline}</p>
                         <p className="text-[9px] text-teal-300/90 truncate pt-0.5">{c.vibe}</p>
@@ -377,8 +387,8 @@ export default function DiscoverCompanionsGallery() {
                         ) : null}
                       </div>
                       <TcgMicroStrip stats={c.tcgStats} />
-                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/[0.07] to-primary/10 pointer-events-none" />
-                    </div>
+                      <div className="absolute inset-0 z-[3] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/[0.07] to-primary/10 pointer-events-none" />
+                    </TierHaloPortraitFrame>
                     <div className="px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/50">
                       <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Open profile</span>
                       <Sparkles className="h-3.5 w-3.5 text-accent" />

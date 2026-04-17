@@ -111,6 +111,34 @@
   }
 }
 
+/* Profile portrait — tier halo (CompanionProfile only) */
+@keyframes profile-tier-sheen-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes profile-tier-pop {
+  0% {
+    filter: brightness(1.2) saturate(1.12);
+  }
+  100% {
+    filter: brightness(1) saturate(1);
+  }
+}
+
+@keyframes profile-border-glow {
+  0%,
+  100% {
+    opacity: 0.22;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.42;
+    transform: scale(1.015);
+  }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;

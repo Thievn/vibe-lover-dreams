@@ -41,7 +41,7 @@ export function TcgMicroStrip({
   return (
     <div
       className={cn(
-        "absolute right-1.5 bottom-10 z-[2] flex flex-col items-end gap-0.5 rounded-lg bg-black/55 px-1 py-1 border border-white/[0.06] backdrop-blur-sm",
+        "absolute right-1.5 bottom-10 z-[4] flex flex-col items-end gap-0.5 rounded-lg bg-black/55 px-1 py-1 border border-white/[0.06] backdrop-blur-sm",
         className,
       )}
     >

@@ -255,6 +255,7 @@ export const dbToCompanion = (db: DbCompanion): Companion => ({
   gradientFrom: db.gradient_from,
   gradientTo: db.gradient_to,
   rarity: normalizeCompanionRarity(db.rarity),
+  rarityBorderOverlayUrl: db.rarity_border_overlay_url ?? null,
   backstory: db.backstory?.trim() ? db.backstory : undefined,
   portraitUrl: galleryStaticPortraitUrl(db, db.id) ?? null,
   isNexusHybrid: Boolean(db.is_nexus_hybrid),

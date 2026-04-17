@@ -30,6 +30,8 @@ import { ToyHubPopover } from "@/components/toy/ToyHubPopover";
 import { payloadToLovenseCommand } from "@/lib/vibrationPatternPayload";
 import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
 import { inferForgeBodyTypeFromTags, inferStylizedArtFromTags } from "@/lib/forgeBodyTypes";
+import { normalizeCompanionRarity } from "@/lib/companionRarity";
+import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 
 const TOKEN_COST = 15;
 const IMAGE_TOKEN_COST = 75;
@@ -938,19 +940,33 @@ const Chat = () => {
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 overflow-hidden"
-          style={{
-            background: `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
-          }}
-        >
-          {imageUrl ? (
-            <img src={imageUrl} alt={companion.name} className="w-full h-full object-cover object-top" />
-          ) : (
-            <span className="text-lg font-gothic font-bold text-white/90">
-              {companion.name.charAt(0)}
-            </span>
-          )}
+        <div className="shrink-0 w-10 h-10">
+          <TierHaloPortraitFrame
+            variant="avatar"
+            rarity={normalizeCompanionRarity(companion.rarity)}
+            gradientFrom={companion.gradientFrom}
+            gradientTo={companion.gradientTo}
+            overlayUrl={dbComp?.rarity_border_overlay_url ?? null}
+            aspectClassName="aspect-square w-full h-full"
+          >
+            <div
+              className="absolute inset-0 z-0"
+              style={{
+                background: `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
+              }}
+            />
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={companion.name}
+                className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
+              />
+            ) : (
+              <span className="absolute inset-0 z-[2] flex items-center justify-center text-lg font-gothic font-bold text-white/90">
+                {companion.name.charAt(0)}
+              </span>
+            )}
+          </TierHaloPortraitFrame>
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="font-bold text-foreground text-sm truncate">{companion.name}</h2>

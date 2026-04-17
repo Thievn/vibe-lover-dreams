@@ -2,6 +2,8 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { UserRound } from "lucide-react";
 import type { Companion } from "@/data/companions";
+import { getStaticRarityForCatalog } from "@/lib/companionRarity";
+import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 
 interface CompanionCardProps {
   companion: Companion;
@@ -15,6 +17,7 @@ export default function CompanionCard({ companion, index, imageOverride, gallery
   const img = imageOverride;
   const isCommunity = companion.id.startsWith("cc-");
   const to = `/companions/${companion.id}`;
+  const rarity = companion.rarity ?? getStaticRarityForCatalog(companion.id);
 
   return (
     <motion.div
@@ -29,22 +32,34 @@ export default function CompanionCard({ companion, index, imageOverride, gallery
         className="block rounded-2xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden hover:border-primary/50 transition-colors group h-full touch-manipulation"
       >
         <motion.div whileHover={{ y: -3, transition: { type: "spring", stiffness: 400, damping: 18 } }} whileTap={{ scale: 0.98 }} className="h-full">
-        <div
-          className="w-full aspect-[3/4] relative"
-          style={{
-            background: img ? undefined : `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
-          }}
+        <TierHaloPortraitFrame
+          variant="card"
+          rarity={rarity}
+          gradientFrom={companion.gradientFrom}
+          gradientTo={companion.gradientTo}
+          overlayUrl={companion.rarityBorderOverlayUrl}
         >
+          <div
+            className="absolute inset-0 z-0"
+            style={{
+              background: img ? undefined : `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
+            }}
+          />
           {img ? (
-            <img src={img} alt={companion.name} className="absolute inset-0 w-full h-full object-cover object-top" loading="lazy" />
+            <img
+              src={img}
+              alt={companion.name}
+              className="absolute inset-0 z-[1] w-full h-full object-cover object-top"
+              loading="lazy"
+            />
           ) : null}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent pointer-events-none" />
+          <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/85 via-black/20 to-transparent pointer-events-none" />
           {isCommunity && (
-            <span className="absolute top-2 left-2 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md bg-black/60 border border-[#FF2D7B]/40 text-[#FF2D7B]">
+            <span className="absolute top-2 left-2 z-[3] text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md bg-black/60 border border-[#FF2D7B]/40 text-[#FF2D7B]">
               Forged
             </span>
           )}
-          <div className="absolute bottom-0 left-0 right-0 p-3 text-left">
+          <div className="absolute bottom-0 left-0 right-0 z-[3] p-3 text-left">
             <h3 className="font-gothic text-sm font-bold text-white leading-tight line-clamp-2 drop-shadow-md">{companion.name}</h3>
             <p className="text-[11px] text-white/80 line-clamp-2 mt-0.5">{companion.tagline}</p>
             {galleryCredit ? (
@@ -54,7 +69,7 @@ export default function CompanionCard({ companion, index, imageOverride, gallery
               </p>
             ) : null}
           </div>
-        </div>
+        </TierHaloPortraitFrame>
         </motion.div>
       </Link>
     </motion.div>

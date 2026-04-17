@@ -33,6 +33,8 @@ import ParticleBackground from "@/components/ParticleBackground";
 import DiscoverCompanionsGallery from "@/components/DiscoverCompanionsGallery";
 import TheNexus from "@/components/TheNexus";
 import { TcgMicroStrip } from "@/components/tcg/TcgStatDisplay";
+import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
+import { normalizeCompanionRarity } from "@/lib/companionRarity";
 import { Progress } from "@/components/ui/progress";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { useVaultCollection } from "@/hooks/useVaultCollection";
@@ -865,17 +867,31 @@ function DashboardHome({
                   to={`/companions/${c.id}`}
                   className="w-full flex items-center gap-3 rounded-xl border border-border/60 bg-black/30 p-2 text-left hover:border-primary/35 transition-colors group"
                 >
-                  <div
-                    className="h-12 w-10 rounded-lg shrink-0 overflow-hidden border border-white/10"
-                    style={{
-                      background: c.portraitUrl
-                        ? undefined
-                        : `linear-gradient(135deg, ${c.gradientFrom}, ${c.gradientTo})`,
-                    }}
-                  >
-                    {c.portraitUrl ? (
-                      <img src={c.portraitUrl} alt="" className="w-full h-full object-cover object-top" />
-                    ) : null}
+                  <div className="h-12 w-10 shrink-0">
+                    <TierHaloPortraitFrame
+                      variant="compact"
+                      rarity={normalizeCompanionRarity(c.rarity)}
+                      gradientFrom={c.gradientFrom}
+                      gradientTo={c.gradientTo}
+                      overlayUrl={c.rarityBorderOverlayUrl ?? null}
+                      aspectClassName="aspect-[5/6] w-full h-full"
+                    >
+                      <div
+                        className="absolute inset-0 z-0"
+                        style={{
+                          background: c.portraitUrl
+                            ? undefined
+                            : `linear-gradient(135deg, ${c.gradientFrom}, ${c.gradientTo})`,
+                        }}
+                      />
+                      {c.portraitUrl ? (
+                        <img
+                          src={c.portraitUrl}
+                          alt=""
+                          className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
+                        />
+                      ) : null}
+                    </TierHaloPortraitFrame>
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
@@ -933,6 +949,7 @@ function DashboardHome({
 
 function MiniCompanionCard({ companion: c, index }: { companion: Companion; index: number }) {
   const ms = c.mergeStats;
+  const rarity = c.rarity ?? "common";
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -942,46 +959,53 @@ function MiniCompanionCard({ companion: c, index }: { companion: Companion; inde
       className="text-left rounded-2xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden group shadow-lg shadow-black/20 hover:border-primary/40 transition-colors ring-0 hover:ring-2 hover:ring-primary/20"
     >
       <Link to={`/companions/${c.id}`} className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded-2xl">
-        <div
-          className="aspect-[3/4] relative"
-          style={{
-            background: c.portraitUrl
-              ? undefined
-              : `linear-gradient(160deg, ${c.gradientFrom}, ${c.gradientTo})`,
-          }}
+        <TierHaloPortraitFrame
+          variant="card"
+          rarity={rarity}
+          gradientFrom={c.gradientFrom}
+          gradientTo={c.gradientTo}
+          overlayUrl={c.rarityBorderOverlayUrl}
         >
+          <div
+            className="absolute inset-0 z-0"
+            style={{
+              background: c.portraitUrl
+                ? undefined
+                : `linear-gradient(160deg, ${c.gradientFrom}, ${c.gradientTo})`,
+            }}
+          />
           {c.portraitUrl ? (
             <img
               src={c.portraitUrl}
               alt=""
-              className="absolute inset-0 w-full h-full object-cover object-top"
+              className="absolute inset-0 z-[1] w-full h-full object-cover object-top"
               loading="lazy"
               referrerPolicy="no-referrer"
             />
           ) : null}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
+          <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
           {c.isNexusHybrid && ms ? (
-            <div className="absolute left-2 top-2 flex items-center gap-1 rounded-md bg-black/55 border border-white/10 px-1.5 py-1">
+            <div className="absolute left-2 top-2 z-[3] flex items-center gap-1 rounded-md bg-black/55 border border-white/10 px-1.5 py-1">
               <Heart className="h-3 w-3 text-rose-300" style={{ opacity: 0.35 + (ms.compatibility / 100) * 0.65 }} />
               <Waves className="h-3 w-3 text-cyan-200" style={{ opacity: 0.35 + (ms.resonance / 100) * 0.65 }} />
               <Zap className="h-3 w-3 text-amber-200" style={{ opacity: 0.35 + (ms.pulse / 100) * 0.65 }} />
               <Sparkles className="h-3 w-3 text-fuchsia-200" style={{ opacity: 0.35 + (ms.affinity / 100) * 0.65 }} />
             </div>
           ) : c.isNexusHybrid ? (
-            <div className="absolute left-2 top-2 rounded-md bg-black/55 border border-primary/30 px-1.5 py-0.5">
+            <div className="absolute left-2 top-2 z-[3] rounded-md bg-black/55 border border-primary/30 px-1.5 py-0.5">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
             </div>
           ) : null}
-          <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-black/50 border border-white/10 text-[9px] font-bold uppercase tracking-wider text-white/90">
+          <div className="absolute top-2 right-2 z-[3] px-1.5 py-0.5 rounded-md bg-black/50 border border-white/10 text-[9px] font-bold uppercase tracking-wider text-white/90">
             {c.role}
           </div>
-          <div className="absolute inset-x-0 bottom-0 p-3 space-y-0.5">
+          <div className="absolute inset-x-0 bottom-0 z-[3] p-3 space-y-0.5">
             <p className="text-xs font-bold text-white truncate leading-tight">{c.name}</p>
             <p className="text-[10px] text-white/70 truncate">{c.tagline}</p>
           </div>
           <TcgMicroStrip stats={c.tcgStats} />
-          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none" />
-        </div>
+          <div className="absolute inset-0 z-[3] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none" />
+        </TierHaloPortraitFrame>
         <div className="px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/40">
           <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Profile</span>
           <Sparkles className="h-3.5 w-3.5 text-accent" />

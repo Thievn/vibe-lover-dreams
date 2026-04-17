@@ -19,6 +19,8 @@ export interface Companion {
   systemPrompt: string;
   /** Present when merged from DB or static catalog mapping. */
   rarity?: CompanionRarity;
+  /** Custom vector frame from DB; optional on forged rows. */
+  rarityBorderOverlayUrl?: string | null;
   /** Long-form profile copy when set in DB. */
   backstory?: string;
   /** Resolved still portrait (DB URL, static asset, or enriched from generated_images). */

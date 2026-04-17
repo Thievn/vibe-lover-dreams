@@ -4,7 +4,11 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useCompanions } from "@/hooks/useCompanions";
 import { companionImages } from "@/data/companionImages";
+import { companions } from "@/data/companions";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
+import { getStaticRarityForCatalog, normalizeCompanionRarity } from "@/lib/companionRarity";
+import type { CompanionRarity } from "@/lib/companionRarity";
+import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 
 interface HeroSectionProps {
   onGetStarted: () => void;
@@ -15,6 +19,10 @@ type HeroCard = {
   name: string;
   subtitle: string;
   img: string | undefined;
+  rarity: CompanionRarity;
+  gradientFrom: string;
+  gradientTo: string;
+  rarityBorderOverlayUrl: string | null;
 };
 
 function shufflePickSix(pool: HeroCard[]): HeroCard[] {
@@ -24,15 +32,22 @@ function shufflePickSix(pool: HeroCard[]): HeroCard[] {
 }
 
 function fallbackFromAssets(): HeroCard[] {
-  return Object.entries(companionImages).map(([id, url]) => ({
-    id,
-    name: id
-      .split("-")
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(" "),
-    subtitle: "LustForge catalog",
-    img: url,
-  }));
+  return Object.entries(companionImages).map(([id, url]) => {
+    const staticC = companions.find((c) => c.id === id);
+    return {
+      id,
+      name: id
+        .split("-")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" "),
+      subtitle: "LustForge catalog",
+      img: url,
+      rarity: getStaticRarityForCatalog(id),
+      gradientFrom: staticC?.gradientFrom ?? "#FF2D7B",
+      gradientTo: staticC?.gradientTo ?? "#00b89a",
+      rarityBorderOverlayUrl: null,
+    };
+  });
 }
 
 export default function HeroSection({ onGetStarted }: HeroSectionProps) {
@@ -49,6 +64,10 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
       name: db.name,
       subtitle: db.tagline || "AI companion",
       img: galleryStaticPortraitUrl(db, db.id),
+      rarity: normalizeCompanionRarity(db.rarity),
+      gradientFrom: db.gradient_from,
+      gradientTo: db.gradient_to,
+      rarityBorderOverlayUrl: db.rarity_border_overlay_url ?? null,
     }));
   }, [dbList]);
 
@@ -189,17 +208,24 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
                   to={`/companions/${comp.id}`}
                   className="block h-full rounded-2xl border border-white/[0.08] bg-card/75 backdrop-blur-md overflow-hidden hover:border-primary/45 transition-all duration-300 shadow-lg shadow-black/25 hover:shadow-[0_12px_40px_rgba(255,45,123,0.12)] ring-1 ring-white/[0.04] group touch-manipulation"
                 >
-                  <div
-                    className="w-full aspect-[3/4] relative overflow-hidden"
-                    style={{
-                      background: comp.img ? undefined : "linear-gradient(135deg, #FF2D7B, #00b89a)",
-                    }}
+                  <TierHaloPortraitFrame
+                    variant="card"
+                    rarity={comp.rarity}
+                    gradientFrom={comp.gradientFrom}
+                    gradientTo={comp.gradientTo}
+                    overlayUrl={comp.rarityBorderOverlayUrl}
                   >
+                    <div
+                      className="absolute inset-0 z-0"
+                      style={{
+                        background: comp.img ? undefined : `linear-gradient(135deg, ${comp.gradientFrom}, ${comp.gradientTo})`,
+                      }}
+                    />
                     {comp.img && !brokenPortraitIds.has(comp.id) ? (
                       <img
                         src={comp.img}
                         alt=""
-                        className="absolute inset-0 w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500 ease-out"
+                        className="absolute inset-0 z-[1] w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500 ease-out"
                         loading="lazy"
                         referrerPolicy="no-referrer"
                         onError={() =>
@@ -211,15 +237,15 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
                         }
                       />
                     ) : (
-                      <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="absolute inset-0 z-[1] flex items-center justify-center">
                         <span className="font-gothic text-3xl sm:text-4xl text-white/90">{comp.name.charAt(0)}</span>
                       </div>
                     )}
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-2.5 sm:p-3">
+                    <div className="absolute inset-x-0 bottom-0 z-[3] bg-gradient-to-t from-black/90 via-black/40 to-transparent p-2.5 sm:p-3">
                       <p className="text-xs sm:text-sm font-bold text-white truncate font-gothic">{comp.name}</p>
                       <p className="text-[10px] sm:text-[11px] text-white/75 line-clamp-2 leading-snug">{comp.subtitle}</p>
                     </div>
-                  </div>
+                  </TierHaloPortraitFrame>
                 </Link>
               </motion.div>
             ))}

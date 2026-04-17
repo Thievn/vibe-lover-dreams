@@ -27,6 +27,8 @@ import { getCompanionBackstoryParagraphs } from "@/lib/companionBackstory";
 import { profileAnimatedPortraitUrl, profileStillPortraitUrl, isVideoPortraitUrl } from "@/lib/companionMedia";
 import type { CompanionRarity } from "@/lib/companionRarity";
 import { RarityBorderOverlay } from "@/components/rarity/RarityBorderOverlay";
+import { ProfilePortraitTierHalo } from "@/components/rarity/ProfilePortraitTierHalo";
+import { RarityBadgeIcon } from "@/components/rarity/RarityBadgeIcon";
 import { AbyssalProfileParticles } from "@/components/rarity/AbyssalProfileParticles";
 import { cn } from "@/lib/utils";
 import { getToys, sendCommand, type LovenseToy } from "@/lib/lovense";
@@ -369,18 +371,11 @@ const CompanionProfile = () => {
             transition={{ type: "spring", stiffness: 280, damping: 26 }}
             className="mx-auto w-full max-w-[min(100%,380px)] lg:mx-0 lg:max-w-none"
           >
-            <div
-              className={cn(
-                "relative rounded-[1.35rem] p-[3px] overflow-hidden",
-                isAbyssal
-                  ? "shadow-[0_0_60px_rgba(255,45,123,0.35),0_0_100px_rgba(168,85,247,0.2),inset_0_1px_0_rgba(255,255,255,0.08)]"
-                  : "shadow-[0_0_40px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.05)]",
-              )}
-              style={{
-                background: isAbyssal
-                  ? "linear-gradient(135deg, rgba(255,45,123,0.5), rgba(168,85,247,0.35), rgba(0,255,212,0.25))"
-                  : `linear-gradient(135deg, ${companion.gradientFrom}55, ${companion.gradientTo}44)`,
-              }}
+            <ProfilePortraitTierHalo
+              rarity={rarity}
+              isAbyssal={isAbyssal}
+              gradientFrom={companion.gradientFrom}
+              gradientTo={companion.gradientTo}
             >
               <div
                 className={cn(
@@ -427,6 +422,7 @@ const CompanionProfile = () => {
                   rarity={rarity}
                   overlayUrl={dbComp?.rarity_border_overlay_url}
                   abyssal={isAbyssal}
+                  profilePolish
                 />
                 <div className="absolute left-3 top-3 z-[4] flex flex-col gap-2">
                   <span
@@ -436,7 +432,7 @@ const CompanionProfile = () => {
                     )}
                   >
                     <span className="flex items-center gap-1.5">
-                      <Sparkles className="h-3 w-3 shrink-0 opacity-90" />
+                      <RarityBadgeIcon rarity={rarity} className="opacity-95" />
                       {badge.label}
                     </span>
                     {badge.sub ? (
@@ -447,11 +443,13 @@ const CompanionProfile = () => {
                   </span>
                 </div>
               </div>
-            </div>
+            </ProfilePortraitTierHalo>
             <p className="mt-4 text-center text-[11px] text-muted-foreground/80 lg:text-left">
-              {animatedPortrait
+              {animatedPortrait && isVideoPortraitUrl(animatedPortrait)
                 ? "Live portrait — motion plays here only, never on gallery cards."
-                : "Forge an animated portrait URL in admin to unlock motion on this sheet."}
+                : animatedPortrait
+                  ? "Portrait art is shown here only — gallery cards stay still."
+                  : "Your tier halo animates on this sheet. Add a looped portrait in Admin anytime for full motion here only."}
             </p>
           </motion.div>
 

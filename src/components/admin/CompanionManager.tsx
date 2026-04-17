@@ -2,7 +2,8 @@ import { useState, useCallback, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAdminCompanions, mapSupabaseCustomCharacterRow, type DbCompanion } from "@/hooks/useCompanions";
-import { COMPANION_RARITIES } from "@/lib/companionRarity";
+import { COMPANION_RARITIES, normalizeCompanionRarity } from "@/lib/companionRarity";
+import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { supabase } from "@/integrations/supabase/client";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
 import { useQueryClient } from "@tanstack/react-query";
@@ -339,7 +340,9 @@ const CompanionManager = () => {
     queryFn: async () => {
       const { data, error: qErr } = await supabase
         .from("custom_characters")
-        .select("id,name,user_id,is_public,approved,created_at,image_url,avatar_url,tagline")
+        .select(
+          "id,name,user_id,is_public,approved,created_at,image_url,avatar_url,tagline,rarity,gradient_from,gradient_to,rarity_border_overlay_url",
+        )
         .order("created_at", { ascending: false })
         .limit(80);
       if (qErr) throw qErr;
@@ -937,8 +940,31 @@ const CompanionManager = () => {
                 <ImageIcon className="h-4 w-4 text-primary" />
                 <h4 className="text-sm font-bold text-foreground">Portrait & Appearance</h4>
               </div>
-              <div className="w-24 h-24 rounded-lg flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${createData.gradient_from}, ${createData.gradient_to})` }}>
-                <span className="text-2xl font-bold text-white/80">{createData.name.charAt(0) || "?"}</span>
+              <div className="w-24 h-24 shrink-0">
+                <TierHaloPortraitFrame
+                  variant="compact"
+                  rarity={normalizeCompanionRarity(createData.rarity)}
+                  gradientFrom={createData.gradient_from}
+                  gradientTo={createData.gradient_to}
+                  overlayUrl={createData.rarity_border_overlay_url}
+                  aspectClassName="aspect-square w-full h-full"
+                >
+                  <div
+                    className="absolute inset-0 z-0"
+                    style={{ background: `linear-gradient(135deg, ${createData.gradient_from}, ${createData.gradient_to})` }}
+                  />
+                  {createData.static_image_url || createData.image_url ? (
+                    <img
+                      src={(createData.static_image_url || createData.image_url)!}
+                      alt=""
+                      className="absolute inset-0 z-[1] h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="absolute inset-0 z-[2] flex items-center justify-center text-2xl font-bold text-white/80">
+                      {createData.name.charAt(0) || "?"}
+                    </span>
+                  )}
+                </TierHaloPortraitFrame>
               </div>
               <TextArea label="Appearance" value={createData.appearance} onChange={(v) => setCreateData(p => ({ ...p, appearance: v }))} rows={4} placeholder="Physical description..." />
               <TextArea label="Image Prompt" value={createData.image_prompt || ""} onChange={(v) => setCreateData(p => ({ ...p, image_prompt: v }))} rows={3} placeholder="Image generation prompt..." />
@@ -1057,18 +1083,41 @@ const CompanionManager = () => {
 
               {/* Portrait Preview */}
               <div className="flex items-start gap-4">
-                <div className="w-32 h-32 rounded-lg overflow-hidden shrink-0" style={{ background: `linear-gradient(135deg, ${val("gradient_from")}, ${val("gradient_to")})` }}>
-                  {(val("static_image_url") as string | null) || (val("image_url") as string | null) || companion.static_image_url || companion.image_url ? (
-                    <img
-                      src={((val("static_image_url") as string | null) || (val("image_url") as string | null) || companion.static_image_url || companion.image_url)!}
-                      alt={companion.name}
-                      className="w-full h-full object-cover"
+                <div className="w-32 h-32 shrink-0">
+                  <TierHaloPortraitFrame
+                    variant="compact"
+                    rarity={normalizeCompanionRarity(String(val("rarity")))}
+                    gradientFrom={String(val("gradient_from"))}
+                    gradientTo={String(val("gradient_to"))}
+                    overlayUrl={(val("rarity_border_overlay_url") as string | null) ?? companion.rarity_border_overlay_url}
+                    aspectClassName="aspect-square w-full h-full"
+                  >
+                    <div
+                      className="absolute inset-0 z-0"
+                      style={{
+                        background: `linear-gradient(135deg, ${String(val("gradient_from"))}, ${String(val("gradient_to"))})`,
+                      }}
                     />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-3xl font-bold text-white/80">{companion.name.charAt(0)}</span>
-                    </div>
-                  )}
+                    {(val("static_image_url") as string | null) ||
+                    (val("image_url") as string | null) ||
+                    companion.static_image_url ||
+                    companion.image_url ? (
+                      <img
+                        src={
+                          ((val("static_image_url") as string | null) ||
+                            (val("image_url") as string | null) ||
+                            companion.static_image_url ||
+                            companion.image_url)!
+                        }
+                        alt={companion.name}
+                        className="absolute inset-0 z-[1] h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="absolute inset-0 z-[2] flex items-center justify-center text-3xl font-bold text-white/80">
+                        {companion.name.charAt(0)}
+                      </span>
+                    )}
+                  </TierHaloPortraitFrame>
                 </div>
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center gap-4">
@@ -1340,24 +1389,47 @@ const CompanionManager = () => {
           <p className="text-xs text-muted-foreground py-1">No community forge rows yet.</p>
         ) : (
           <ul className="space-y-3 max-h-[28rem] overflow-y-auto pr-1">
-            {forgedRows.map((row) => (
+            {forgedRows.map((row) => {
+              const fr = row as Record<string, unknown>;
+              const frRarity = normalizeCompanionRarity(typeof fr.rarity === "string" ? fr.rarity : undefined);
+              const frGf =
+                typeof fr.gradient_from === "string" && fr.gradient_from.trim() ? fr.gradient_from : "#7B2D8E";
+              const frGt = typeof fr.gradient_to === "string" && fr.gradient_to.trim() ? fr.gradient_to : "#FF2D7B";
+              const frOb =
+                typeof fr.rarity_border_overlay_url === "string" && fr.rarity_border_overlay_url.trim()
+                  ? fr.rarity_border_overlay_url
+                  : null;
+              return (
               <li
-                key={row.id}
+                key={String(fr.id)}
                 className="flex items-stretch gap-3 text-xs border border-border/60 rounded-xl p-3 bg-gradient-to-br from-black/40 to-muted/20"
               >
-                <div className="w-14 h-20 rounded-lg overflow-hidden shrink-0 border border-white/10 bg-muted">
-                  {row.image_url || row.avatar_url ? (
-                    <img
-                      src={(row.image_url || row.avatar_url)!}
-                      alt=""
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
+                <div className="w-14 h-20 shrink-0">
+                  <TierHaloPortraitFrame
+                    variant="compact"
+                    rarity={frRarity}
+                    gradientFrom={frGf}
+                    gradientTo={frGt}
+                    overlayUrl={frOb}
+                    aspectClassName="aspect-[7/10] w-full h-full"
+                  >
+                    <div
+                      className="absolute inset-0 z-0"
+                      style={{ background: `linear-gradient(135deg, ${frGf}, ${frGt})` }}
                     />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-lg font-bold text-white/50">
-                      {(row.name || "?").charAt(0)}
-                    </div>
-                  )}
+                    {row.image_url || row.avatar_url ? (
+                      <img
+                        src={(row.image_url || row.avatar_url)!}
+                        alt=""
+                        className="absolute inset-0 z-[1] h-full w-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <span className="absolute inset-0 z-[2] flex items-center justify-center text-lg font-bold text-white/50">
+                        {(row.name || "?").charAt(0)}
+                      </span>
+                    )}
+                  </TierHaloPortraitFrame>
                 </div>
                 <div className="min-w-0 flex-1 flex flex-col gap-2">
                   <div>
@@ -1441,7 +1513,8 @@ const CompanionManager = () => {
                   </div>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>
@@ -1471,12 +1544,31 @@ const CompanionManager = () => {
           onClick={() => openEdit(companion.id)}
         >
           <div className="flex items-center gap-3 p-4">
-            <div className="w-12 h-12 rounded-lg flex items-center justify-center shrink-0 overflow-hidden" style={{ background: `linear-gradient(135deg, ${companion.gradient_from}, ${companion.gradient_to})` }}>
-              {(companion.static_image_url || companion.image_url) ? (
-                <img src={(companion.static_image_url || companion.image_url)!} alt={companion.name} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-lg font-bold text-white/80">{companion.name.charAt(0)}</span>
-              )}
+            <div className="w-12 h-12 shrink-0">
+              <TierHaloPortraitFrame
+                variant="compact"
+                rarity={normalizeCompanionRarity(companion.rarity)}
+                gradientFrom={companion.gradient_from}
+                gradientTo={companion.gradient_to}
+                overlayUrl={companion.rarity_border_overlay_url}
+                aspectClassName="aspect-square w-full h-full"
+              >
+                <div
+                  className="absolute inset-0 z-0"
+                  style={{ background: `linear-gradient(135deg, ${companion.gradient_from}, ${companion.gradient_to})` }}
+                />
+                {companion.static_image_url || companion.image_url ? (
+                  <img
+                    src={(companion.static_image_url || companion.image_url)!}
+                    alt={companion.name}
+                    className="absolute inset-0 z-[1] h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="absolute inset-0 z-[2] flex items-center justify-center text-lg font-bold text-white/80">
+                    {companion.name.charAt(0)}
+                  </span>
+                )}
+              </TierHaloPortraitFrame>
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">

@@ -18,6 +18,8 @@ import {
   nexusCooldownRemainingMs,
 } from "@/lib/nexusMerge";
 import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
+import { normalizeCompanionRarity } from "@/lib/companionRarity";
+import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 
 export type TheNexusMode = "user" | "admin";
 
@@ -46,13 +48,14 @@ function NexusCard({
   const coolMs = mode === "user" ? nexusCooldownRemainingMs(db.nexus_cooldown_until ?? null) : 0;
   const locked = coolMs > 0;
   const isOperatorForge = Boolean(db.user_id && db.user_id === operatorUserId);
+  const rarity = normalizeCompanionRarity(db.rarity);
   return (
     <button
       type="button"
       disabled={locked}
       onClick={onToggle}
       className={cn(
-        "group relative rounded-2xl border overflow-hidden text-left transition-all aspect-[3/4] w-full",
+        "group relative rounded-2xl border overflow-hidden text-left transition-all aspect-[3/4] w-full p-0",
         orderMark === 1 &&
           "border-primary ring-2 ring-primary/50 shadow-[0_0_32px_rgba(255,45,123,0.38)] z-[1] scale-[1.02]",
         orderMark === 2 &&
@@ -60,45 +63,63 @@ function NexusCard({
         orderMark === 0 && "border-white/[0.08] hover:border-primary/35 hover:shadow-lg hover:shadow-black/40",
         locked && "opacity-40 cursor-not-allowed scale-100",
       )}
-      style={{
-        background: url ? undefined : `linear-gradient(160deg, ${db.gradient_from}, ${db.gradient_to})`,
-      }}
     >
-      {url ? (
-        <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover object-top" loading="lazy" />
-      ) : null}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/25 to-transparent" />
-      {orderMark > 0 ? (
-        <div
-          className={cn(
-            "absolute top-2 left-2 h-8 w-8 rounded-full flex items-center justify-center text-xs font-black border backdrop-blur-md",
-            orderMark === 1
-              ? "border-primary/60 bg-primary/25 text-primary-foreground"
-              : "border-accent/50 bg-accent/20 text-accent",
-          )}
-        >
-          {orderMark === 1 ? "I" : "II"}
+      <TierHaloPortraitFrame
+        className="absolute inset-0 h-full w-full"
+        variant="card"
+        rarity={rarity}
+        gradientFrom={db.gradient_from}
+        gradientTo={db.gradient_to}
+        overlayUrl={db.rarity_border_overlay_url}
+        aspectClassName="aspect-[3/4] h-full w-full"
+      >
+        {!url ? (
+          <div
+            className="absolute inset-0 z-0"
+            style={{ background: `linear-gradient(160deg, ${db.gradient_from}, ${db.gradient_to})` }}
+          />
+        ) : null}
+        {url ? (
+          <img
+            src={url}
+            alt=""
+            className="absolute inset-0 z-[1] w-full h-full object-cover object-top"
+            loading="lazy"
+          />
+        ) : null}
+        <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/95 via-black/25 to-transparent" />
+        {orderMark > 0 ? (
+          <div
+            className={cn(
+              "absolute top-2 left-2 z-[3] h-8 w-8 rounded-full flex items-center justify-center text-xs font-black border backdrop-blur-md",
+              orderMark === 1
+                ? "border-primary/60 bg-primary/25 text-primary-foreground"
+                : "border-accent/50 bg-accent/20 text-accent",
+            )}
+          >
+            {orderMark === 1 ? "I" : "II"}
+          </div>
+        ) : null}
+        {mode === "admin" && isOperatorForge ? (
+          <span className="absolute top-2 right-2 z-[3] text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/60 border border-white/10 text-white/80">
+            Yours
+          </span>
+        ) : mode === "admin" ? (
+          <span className="absolute top-2 right-2 z-[3] text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/60 border border-emerald-500/30 text-emerald-200/90">
+            Gallery
+          </span>
+        ) : null}
+        {locked ? (
+          <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center gap-1 bg-black/70 text-[10px] uppercase tracking-widest text-white/90 px-2 text-center">
+            <Lock className="h-5 w-5" />
+            <span>Cooldown {formatNexusCooldownShort(coolMs)}</span>
+          </div>
+        ) : null}
+        <div className="absolute inset-x-0 bottom-0 z-[3] p-2.5 pt-8">
+          <p className="text-xs font-bold text-white truncate drop-shadow-md">{db.name}</p>
+          <p className="text-[10px] text-white/65 truncate">{db.tagline || db.role}</p>
         </div>
-      ) : null}
-      {mode === "admin" && isOperatorForge ? (
-        <span className="absolute top-2 right-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/60 border border-white/10 text-white/80">
-          Yours
-        </span>
-      ) : mode === "admin" ? (
-        <span className="absolute top-2 right-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/60 border border-emerald-500/30 text-emerald-200/90">
-          Gallery
-        </span>
-      ) : null}
-      {locked ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/70 text-[10px] uppercase tracking-widest text-white/90 px-2 text-center">
-          <Lock className="h-5 w-5" />
-          <span>Cooldown {formatNexusCooldownShort(coolMs)}</span>
-        </div>
-      ) : null}
-      <div className="absolute inset-x-0 bottom-0 p-2.5 pt-8">
-        <p className="text-xs font-bold text-white truncate drop-shadow-md">{db.name}</p>
-        <p className="text-[10px] text-white/65 truncate">{db.tagline || db.role}</p>
-      </div>
+      </TierHaloPortraitFrame>
     </button>
   );
 }

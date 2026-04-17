@@ -34,6 +34,7 @@ import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { formatSupabaseError } from "@/lib/supabaseError";
 import { suggestedForgeDisplayName } from "@/lib/forgeRandomName";
 import { cn } from "@/lib/utils";
+import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { stablePortraitDisplayUrl } from "@/lib/companionMedia";
 import {
   COMPANION_RARITIES,
@@ -363,6 +364,13 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
 
   const personalityLabel = useMemo(() => personalitySelections.join(" · "), [personalitySelections]);
   const vibeThemeLabel = useMemo(() => vibeThemeSelections.join(" · "), [vibeThemeSelections]);
+
+  const forgePreviewTier = useMemo((): CompanionRarity => {
+    if (isAdmin) {
+      return adminAbyssalForge ? "abyssal" : normalizeCompanionRarity(adminForgeRarity);
+    }
+    return "rare";
+  }, [isAdmin, adminAbyssalForge, adminForgeRarity]);
 
   const loadProfile = useCallback(async () => {
     const {
@@ -1828,66 +1836,74 @@ Hard requirements:
                 )}
               </div>
               <div className="p-4 sm:p-5">
-                <div className="relative aspect-[63/88] w-full max-w-[252px] mx-auto lg:mx-0 rounded-xl overflow-hidden border border-[#FF2D7B]/25 shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
-                  <AnimatePresence mode="wait">
-                    {previewUrl ? (
-                      <motion.img
-                        key={previewUrl}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        src={previewUrl}
-                        alt="Preview"
-                        referrerPolicy="no-referrer"
-                        className="absolute inset-0 w-full h-full object-cover"
-                        onError={() => {
-                          toast.error("Preview image failed to load — check Storage bucket is public, then try Live preview again.");
-                        }}
-                      />
-                    ) : (
-                      <motion.div
-                        key="grad"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="absolute inset-0 flex flex-col justify-end p-3 sm:p-4"
-                        style={{
-                          background: `linear-gradient(160deg, #0a0508, ${NEON}44, hsl(280 40% 18%), hsl(170 25% 12%))`,
-                        }}
-                      >
-                        <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_30%_20%,white,transparent_45%)]" />
-                        <p className="text-[8px] uppercase tracking-[0.28em] text-white/55 mb-1 relative">Spec sheet</p>
-                        <h2 className="font-gothic text-lg sm:text-xl text-white relative leading-tight drop-shadow-[0_0_16px_rgba(255,45,123,0.35)] line-clamp-2">
-                          {name || "Unnamed desire"}
-                        </h2>
-                        <p className="text-[11px] text-white/75 italic mt-1 relative line-clamp-2">{tagline || "Your fantasy, forged live."}</p>
-                        <div className="mt-2 flex flex-wrap gap-1 relative">
-                          {[
-                            gender,
-                            artStyle,
-                            sceneAtmosphere,
-                            bodyType,
-                            ...personalitySelections.slice(0, 2),
-                            ...vibeThemeSelections.slice(0, 2),
-                          ].map(
-                            (x, i) => (
-                              <span
-                                key={`${x}-${i}`}
-                                className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/50 border border-white/10 text-white/90 max-w-[9rem] truncate"
-                              >
-                                {x}
-                              </span>
-                            ),
-                          )}
-                        </div>
-                      </motion.div>
+                <div className="w-full max-w-[252px] mx-auto lg:mx-0">
+                  <TierHaloPortraitFrame
+                    variant="compact"
+                    rarity={forgePreviewTier}
+                    gradientFrom="#7B2D8E"
+                    gradientTo={NEON}
+                    aspectClassName="aspect-[63/88] w-full"
+                  >
+                    <AnimatePresence mode="wait">
+                      {previewUrl ? (
+                        <motion.img
+                          key={previewUrl}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          src={previewUrl}
+                          alt="Preview"
+                          referrerPolicy="no-referrer"
+                          className="absolute inset-0 z-[1] w-full h-full object-cover"
+                          onError={() => {
+                            toast.error("Preview image failed to load — check Storage bucket is public, then try Live preview again.");
+                          }}
+                        />
+                      ) : (
+                        <motion.div
+                          key="grad"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="absolute inset-0 z-[1] flex flex-col justify-end p-3 sm:p-4"
+                          style={{
+                            background: `linear-gradient(160deg, #0a0508, ${NEON}44, hsl(280 40% 18%), hsl(170 25% 12%))`,
+                          }}
+                        >
+                          <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_30%_20%,white,transparent_45%)]" />
+                          <p className="text-[8px] uppercase tracking-[0.28em] text-white/55 mb-1 relative">Spec sheet</p>
+                          <h2 className="font-gothic text-lg sm:text-xl text-white relative leading-tight drop-shadow-[0_0_16px_rgba(255,45,123,0.35)] line-clamp-2">
+                            {name || "Unnamed desire"}
+                          </h2>
+                          <p className="text-[11px] text-white/75 italic mt-1 relative line-clamp-2">{tagline || "Your fantasy, forged live."}</p>
+                          <div className="mt-2 flex flex-wrap gap-1 relative">
+                            {[
+                              gender,
+                              artStyle,
+                              sceneAtmosphere,
+                              bodyType,
+                              ...personalitySelections.slice(0, 2),
+                              ...vibeThemeSelections.slice(0, 2),
+                            ].map(
+                              (x, i) => (
+                                <span
+                                  key={`${x}-${i}`}
+                                  className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/50 border border-white/10 text-white/90 max-w-[9rem] truncate"
+                                >
+                                  {x}
+                                </span>
+                              ),
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                    {previewLoading && (
+                      <div className="absolute inset-0 z-[5] bg-black/65 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="h-10 w-10 animate-spin" style={{ color: NEON }} />
+                        <p className="text-sm text-white/90">Forging your portrait…</p>
+                      </div>
                     )}
-                  </AnimatePresence>
-                  {previewLoading && (
-                    <div className="absolute inset-0 bg-black/65 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-[5]">
-                      <Loader2 className="h-10 w-10 animate-spin" style={{ color: NEON }} />
-                      <p className="text-sm text-white/90">Forging your portrait…</p>
-                    </div>
-                  )}
+                  </TierHaloPortraitFrame>
                 </div>
 
                 <div className="mt-3 rounded-xl border border-white/[0.12] bg-black/55 px-3 py-3 space-y-2">
