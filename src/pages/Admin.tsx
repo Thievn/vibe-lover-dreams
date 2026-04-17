@@ -154,17 +154,43 @@ function AdminShell() {
   const [trendData, setTrendData] = useState<TrendPoint[]>([]);
   const [barData, setBarData] = useState<{ name: string; value: number }[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [overviewDataIssues, setOverviewDataIssues] = useState<string | null>(null);
 
   const gaMeasurementId = getGaMeasurementId();
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
+    setOverviewDataIssues(null);
+    const failed: string[] = [];
     try {
-      const profilesCountRes = await supabase.from("profiles").select("id", { count: "exact", head: true });
-      const stockRes = await supabase.from("companions").select("id", { count: "exact", head: true });
-      const customRes = await supabase.from("custom_characters").select("id", { count: "exact", head: true });
-      const imgRes = await supabase.from("generated_images").select("id", { count: "exact", head: true });
-      const wlRes = await supabase.from("waitlist").select("id", { count: "exact", head: true });
+      const [
+        profilesCountRes,
+        stockRes,
+        customRes,
+        imgRes,
+        wlRes,
+        payingRes,
+        toysRes,
+      ] = await Promise.all([
+        supabase.from("profiles").select("id", { count: "exact", head: true }),
+        supabase.from("companions").select("id", { count: "exact", head: true }),
+        supabase.from("custom_characters").select("id", { count: "exact", head: true }),
+        supabase.from("generated_images").select("id", { count: "exact", head: true }),
+        supabase.from("waitlist").select("id", { count: "exact", head: true }),
+        supabase.from("profiles").select("id").not("stripe_customer_id", "is", null),
+        supabase.from("profiles").select("id").not("device_uid", "is", null),
+      ]);
+
+      const note = (label: string, res: { error: { message: string } | null }) => {
+        if (res.error) failed.push(`${label}: ${res.error.message}`);
+      };
+      note("Profiles (count)", profilesCountRes);
+      note("Companions (count)", stockRes);
+      note("Custom forges (count)", customRes);
+      note("Generated images (count)", imgRes);
+      note("Waitlist (count)", wlRes);
+      note("Profiles (paying list)", payingRes);
+      note("Profiles (toys list)", toysRes);
 
       const totalUsers = profilesCountRes.error ? 0 : (profilesCountRes.count ?? 0);
       const totalCompanions = stockRes.error ? 0 : (stockRes.count ?? 0);
@@ -172,24 +198,28 @@ function AdminShell() {
       const imagesGenerated = imgRes.error ? 0 : (imgRes.count ?? 0);
       const waitlistSignups = wlRes.error ? 0 : (wlRes.count ?? 0);
 
-      const { data: paying } = await supabase
-        .from("profiles")
-        .select("id")
-        .not("stripe_customer_id", "is", null);
-      const { data: toys } = await supabase.from("profiles").select("id").not("device_uid", "is", null);
-
       setStats({
         totalUsers,
         waitlistSignups,
         totalCompanions,
         imagesGenerated,
         companionsCreatedCustom: customCount,
-        revenueMrr: (paying?.length ?? 0) * 19.99,
-        toysLinked: toys?.length ?? 0,
+        revenueMrr: (payingRes.error ? 0 : payingRes.data?.length ?? 0) * 19.99,
+        toysLinked: toysRes.error ? 0 : toysRes.data?.length ?? 0,
       });
+
+      if (failed.length) {
+        const hint =
+          failed.join(" · ") +
+          " — Run the latest Supabase migration (admin overview RLS). Your account also needs `admin` in `user_roles` for cross-table counts.";
+        setOverviewDataIssues(hint);
+        toast.error("Some overview metrics could not load. See the banner on Overview.");
+      }
     } catch (e) {
       console.error(e);
-      toast.error("Some metrics failed to load (check RLS / tables).");
+      const msg = e instanceof Error ? e.message : String(e);
+      setOverviewDataIssues(msg);
+      toast.error("Overview metrics failed (check RLS / tables).");
     } finally {
       setStatsLoading(false);
     }
@@ -211,6 +241,18 @@ function AdminShell() {
         supabase.from("custom_characters").select("created_at").gte("created_at", fromIso),
         supabase.from("chat_messages").select("created_at").gte("created_at", fromIso),
       ]);
+
+      const telemetryErrors = [
+        profilesRes.error && `profiles: ${profilesRes.error.message}`,
+        waitlistRes.error && `waitlist: ${waitlistRes.error.message}`,
+        imagesRes.error && `generated_images: ${imagesRes.error.message}`,
+        customRes.error && `custom_characters: ${customRes.error.message}`,
+        chatsRes.error && `chat_messages: ${chatsRes.error.message}`,
+      ].filter(Boolean) as string[];
+      if (telemetryErrors.length) {
+        console.warn("[admin analytics]", telemetryErrors.join(" | "));
+        toast.error("Analytics charts are missing some series (RLS or migration). Check console.");
+      }
 
       const timeline: TrendPoint[] = Array.from({ length: days }, (_, i) => {
         const d = new Date(start);
@@ -387,6 +429,7 @@ function AdminShell() {
     }
     toast.success("Removed from waitlist.");
     setWaitlist((w) => w.filter((x) => x.id !== id));
+    void loadStats();
   };
 
   const exportCsv = (rows: Record<string, string | number | null>[], filename: string) => {
@@ -487,6 +530,7 @@ function AdminShell() {
               stats={stats}
               statsLoading={statsLoading}
               analyticsLoading={analyticsLoading}
+              dataIssuesBanner={overviewDataIssues}
               onRefresh={() => {
                 void loadStats();
                 void loadAnalytics();
@@ -687,6 +731,7 @@ function OverviewSection({
   stats,
   statsLoading,
   analyticsLoading,
+  dataIssuesBanner,
   onRefresh,
   trendData,
   barData,
@@ -698,6 +743,7 @@ function OverviewSection({
   stats: StatsShape;
   statsLoading: boolean;
   analyticsLoading: boolean;
+  dataIssuesBanner: string | null;
   onRefresh: () => void;
   trendData: TrendPoint[];
   barData: { name: string; value: number }[];
@@ -708,11 +754,27 @@ function OverviewSection({
 }) {
   const s = stats;
   const cards = [
-    { label: "Total registered users", value: s.totalUsers, sub: "profiles", color: "text-primary", glow: true },
+    {
+      label: "Total registered users",
+      value: s.totalUsers,
+      sub: "Rows in profiles (requires admin role for full count)",
+      color: "text-primary",
+      glow: true,
+    },
     { label: "Waitlist signups", value: s.waitlistSignups, sub: "waitlist table", color: "text-velvet-purple" },
-    { label: "Images generated", value: s.imagesGenerated, sub: "generated_images", color: "text-accent" },
+    {
+      label: "Images generated",
+      value: s.imagesGenerated,
+      sub: "generated_images (all users when admin)",
+      color: "text-accent",
+    },
     { label: "Stock companions", value: s.totalCompanions, sub: "catalog (companions)", color: "text-primary/80" },
-    { label: "Custom forges", value: s.companionsCreatedCustom, sub: "custom_characters", color: "text-accent/90" },
+    {
+      label: "Custom forges",
+      value: s.companionsCreatedCustom,
+      sub: "custom_characters (all users when admin)",
+      color: "text-accent/90",
+    },
   ];
 
   return (
@@ -732,6 +794,16 @@ function OverviewSection({
           Refresh metrics
         </button>
       </div>
+
+      {dataIssuesBanner ? (
+        <div
+          role="alert"
+          className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/95"
+        >
+          <p className="font-semibold text-amber-200 mb-1">Metrics could not load completely</p>
+          <p className="text-xs leading-relaxed opacity-95">{dataIssuesBanner}</p>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {cards.map((c, i) => (
