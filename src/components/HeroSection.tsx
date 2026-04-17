@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Flame, RefreshCw } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useCompanions } from "@/hooks/useCompanions";
 import { companionImages } from "@/data/companionImages";
 import { companions } from "@/data/companions";
@@ -51,6 +51,7 @@ function fallbackFromAssets(): HeroCard[] {
 }
 
 export default function HeroSection({ onGetStarted }: HeroSectionProps) {
+  const location = useLocation();
   const { data: dbList, isLoading } = useCompanions();
   const [shuffled, setShuffled] = useState<HeroCard[]>([]);
   /** Portrait URLs that failed to load (expired signed links, etc.) — show gradient + initial instead. */
@@ -206,6 +207,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
               >
                 <Link
                   to={`/companions/${comp.id}`}
+                  state={{ from: `${location.pathname}${location.search}` }}
                   className="block h-full rounded-2xl border border-white/[0.08] bg-card/75 backdrop-blur-md overflow-hidden hover:border-primary/45 transition-all duration-300 shadow-lg shadow-black/25 hover:shadow-[0_12px_40px_rgba(255,45,123,0.12)] ring-1 ring-white/[0.04] group touch-manipulation"
                 >
                   <TierHaloPortraitFrame

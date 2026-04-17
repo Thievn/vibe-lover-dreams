@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { Orbit, Sparkles, Heart, Waves, Zap, Lock } from "lucide-react";
@@ -144,6 +144,7 @@ export default function TheNexus({
   onCreditsChanged?: () => void;
   mode?: TheNexusMode;
 }) {
+  const location = useLocation();
   const queryClient = useQueryClient();
   const [picked, setPicked] = useState<string[]>([]);
   const [infuse, setInfuse] = useState(false);
@@ -238,7 +239,16 @@ export default function TheNexus({
         childId: string;
         name: string;
         trait_fusion_summary?: string;
+        portraitGenerated?: boolean;
+        portraitError?: string | null;
       };
+
+      if (payload.portraitGenerated === false && payload.portraitError) {
+        toast.message(
+          `Hybrid saved — portrait did not render (${payload.portraitError.slice(0, 140)}${payload.portraitError.length > 140 ? "…" : ""}). Open them in Character management and generate a portrait.`,
+          { duration: 10_000 },
+        );
+      }
 
       setMeter(100);
       setReveal({
@@ -536,6 +546,7 @@ export default function TheNexus({
             <div className="relative flex flex-col sm:flex-row gap-3 justify-center">
               <Link
                 to={`/companions/${reveal.childId}`}
+                state={{ from: `${location.pathname}${location.search}` }}
                 className="inline-flex items-center justify-center gap-2 rounded-xl px-8 py-3 font-bold text-primary-foreground glow-pink"
                 style={{ backgroundColor: NEON }}
               >

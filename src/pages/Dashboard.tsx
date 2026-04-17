@@ -531,6 +531,7 @@ export default function Dashboard() {
                 companionCount={vaultCompanions.length}
                 nexusBornCount={nexusBornCount}
                 companionsLoading={companionsLoading || vaultLoading}
+                profileLinkFrom={`${location.pathname}${location.search}`}
               />
             )}
             {activeNav === "collection" && (
@@ -710,6 +711,7 @@ function DashboardHome({
   companionCount,
   nexusBornCount,
   companionsLoading,
+  profileLinkFrom,
 }: {
   onCreate: () => void;
   onOpenNexus: () => void;
@@ -719,6 +721,7 @@ function DashboardHome({
   companionCount: number;
   nexusBornCount: number;
   companionsLoading: boolean;
+  profileLinkFrom: string;
 }) {
   return (
     <div className="space-y-10 max-w-6xl mx-auto">
@@ -865,6 +868,7 @@ function DashboardHome({
                 <Link
                   key={c.id}
                   to={`/companions/${c.id}`}
+                  state={{ from: profileLinkFrom }}
                   className="w-full flex items-center gap-3 rounded-xl border border-border/60 bg-black/30 p-2 text-left hover:border-primary/35 transition-colors group"
                 >
                   <div className="h-12 w-10 shrink-0">
@@ -948,6 +952,7 @@ function DashboardHome({
 }
 
 function MiniCompanionCard({ companion: c, index }: { companion: Companion; index: number }) {
+  const location = useLocation();
   const ms = c.mergeStats;
   const rarity = c.rarity ?? "common";
   return (
@@ -958,7 +963,11 @@ function MiniCompanionCard({ companion: c, index }: { companion: Companion; inde
       whileHover={{ y: -4, scale: 1.02 }}
       className="text-left rounded-2xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden group shadow-lg shadow-black/20 hover:border-primary/40 transition-colors ring-0 hover:ring-2 hover:ring-primary/20"
     >
-      <Link to={`/companions/${c.id}`} className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded-2xl">
+      <Link
+        to={`/companions/${c.id}`}
+        state={{ from: `${location.pathname}${location.search}` }}
+        className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded-2xl"
+      >
         <TierHaloPortraitFrame
           variant="card"
           rarity={rarity}

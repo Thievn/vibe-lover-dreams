@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { VAULT_COLLECTION_QUERY_KEY } from "@/hooks/useVaultCollection";
@@ -39,6 +39,7 @@ import { formatNexusCooldownShort, nexusCooldownRemainingMs } from "@/lib/nexusM
 import { splitProseIntoParagraphs } from "@/lib/profileProseSplit";
 import { buildProfileSearchTags } from "@/lib/companionSearchTags";
 import { TcgProfilePanel } from "@/components/tcg/TcgStatDisplay";
+import { PortraitViewLightbox } from "@/components/PortraitViewLightbox";
 
 const RARITY_BADGE: Record<
   CompanionRarity,
@@ -80,6 +81,7 @@ const RARITY_BADGE: Record<
 const CompanionProfile = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { data: dbCompanions, isLoading } = useCompanions();
   const [user, setUser] = useState<any>(null);
@@ -356,7 +358,15 @@ const CompanionProfile = () => {
           animate={{ opacity: 1, x: 0 }}
           whileHover={{ x: -2 }}
           whileTap={{ scale: 0.98 }}
-          onClick={() => navigate(-1)}
+          onClick={() => {
+            const st = location.state as { from?: string } | undefined;
+            if (st?.from) {
+              navigate(st.from);
+              return;
+            }
+            if (location.key !== "default") navigate(-1);
+            else navigate("/dashboard");
+          }}
           className="flex items-center gap-2 text-muted-foreground hover:text-primary text-sm mb-8 transition-colors touch-manipulation"
         >
           <ArrowLeft className="h-4 w-4 shrink-0" />
@@ -377,72 +387,79 @@ const CompanionProfile = () => {
               gradientFrom={companion.gradientFrom}
               gradientTo={companion.gradientTo}
             >
-              <div
-                className={cn(
-                  "relative aspect-[3/4] w-full overflow-hidden rounded-[1.2rem] bg-black/50",
-                  isAbyssal && "ring-1 ring-[#ff2d7b]/25",
-                )}
+              <PortraitViewLightbox
+                alt={companion.name}
+                stillSrc={stillForProfile}
+                animatedSrc={animatedPortrait}
+                triggerClassName="rounded-[1.2rem]"
               >
-                {isAbyssal && <AbyssalProfileParticles />}
                 <div
-                  className="absolute inset-0 z-0"
-                  style={{
-                    background: `linear-gradient(160deg, ${companion.gradientFrom}66, ${companion.gradientTo}55)`,
-                  }}
-                />
-                {animatedPortrait && isVideoPortraitUrl(animatedPortrait) ? (
-                  <video
-                    key={animatedPortrait}
-                    className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
-                    src={animatedPortrait}
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
+                  className={cn(
+                    "relative aspect-[3/4] w-full overflow-hidden rounded-[1.2rem] bg-black/50",
+                    isAbyssal && "ring-1 ring-[#ff2d7b]/25",
+                  )}
+                >
+                  {isAbyssal && <AbyssalProfileParticles />}
+                  <div
+                    className="absolute inset-0 z-0"
+                    style={{
+                      background: `linear-gradient(160deg, ${companion.gradientFrom}66, ${companion.gradientTo}55)`,
+                    }}
                   />
-                ) : animatedPortrait ? (
-                  <img
-                    src={animatedPortrait}
-                    alt=""
-                    className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
+                  {animatedPortrait && isVideoPortraitUrl(animatedPortrait) ? (
+                    <video
+                      key={animatedPortrait}
+                      className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
+                      src={animatedPortrait}
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                    />
+                  ) : animatedPortrait ? (
+                    <img
+                      src={animatedPortrait}
+                      alt=""
+                      className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
+                    />
+                  ) : stillForProfile ? (
+                    <img
+                      src={stillForProfile}
+                      alt=""
+                      className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 z-[1] flex items-center justify-center">
+                      <span className="font-gothic text-7xl font-bold text-white/90">{companion.name.charAt(0)}</span>
+                    </div>
+                  )}
+                  <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-black/90 via-black/15 to-transparent" />
+                  <RarityBorderOverlay
+                    rarity={rarity}
+                    overlayUrl={dbComp?.rarity_border_overlay_url}
+                    abyssal={isAbyssal}
+                    profilePolish
                   />
-                ) : stillForProfile ? (
-                  <img
-                    src={stillForProfile}
-                    alt=""
-                    className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
-                  />
-                ) : (
-                  <div className="absolute inset-0 z-[1] flex items-center justify-center">
-                    <span className="font-gothic text-7xl font-bold text-white/90">{companion.name.charAt(0)}</span>
-                  </div>
-                )}
-                <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-black/90 via-black/15 to-transparent" />
-                <RarityBorderOverlay
-                  rarity={rarity}
-                  overlayUrl={dbComp?.rarity_border_overlay_url}
-                  abyssal={isAbyssal}
-                  profilePolish
-                />
-                <div className="absolute left-3 top-3 z-[4] flex flex-col gap-2">
-                  <span
-                    className={cn(
-                      "inline-flex flex-col gap-0 rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] border backdrop-blur-md",
-                      badge.className,
-                    )}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <RarityBadgeIcon rarity={rarity} className="opacity-95" />
-                      {badge.label}
-                    </span>
-                    {badge.sub ? (
-                      <span className="text-[9px] font-medium normal-case tracking-normal opacity-90 pl-5">
-                        {badge.sub}
+                  <div className="absolute left-3 top-3 z-[4] flex flex-col gap-2">
+                    <span
+                      className={cn(
+                        "inline-flex flex-col gap-0 rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] border backdrop-blur-md",
+                        badge.className,
+                      )}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <RarityBadgeIcon rarity={rarity} className="opacity-95" />
+                        {badge.label}
                       </span>
-                    ) : null}
-                  </span>
+                      {badge.sub ? (
+                        <span className="text-[9px] font-medium normal-case tracking-normal opacity-90 pl-5">
+                          {badge.sub}
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
                 </div>
-              </div>
+              </PortraitViewLightbox>
             </ProfilePortraitTierHalo>
             <p className="mt-4 text-center text-[11px] text-muted-foreground/80 lg:text-left">
               {animatedPortrait && isVideoPortraitUrl(animatedPortrait)
@@ -520,6 +537,7 @@ const CompanionProfile = () => {
                         <li key={p.id}>
                           <Link
                             to={`/companions/${p.id}`}
+                            state={{ from: `${location.pathname}${location.search}` }}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-foreground/90 hover:border-primary/40 hover:text-primary transition-colors"
                           >
                             {p.name}

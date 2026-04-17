@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Filter, Loader2, Search, Sparkles, UserRound, Wand2, X } from "lucide-react";
 import type { Companion } from "@/data/companions";
@@ -50,6 +50,7 @@ const rarityStyle: Record<CompanionRarity, string> = {
 };
 
 export default function DiscoverCompanionsGallery() {
+  const location = useLocation();
   const { data: dbRows, isLoading } = useCompanions();
   const pool = useMemo(() => (dbRows?.length ? rowsFromDb(dbRows) : []), [dbRows]);
 
@@ -334,7 +335,11 @@ export default function DiscoverCompanionsGallery() {
                     whileHover={{ y: -4, scale: 1.02 }}
                     className="text-left rounded-2xl border border-border/80 bg-card/50 backdrop-blur-md overflow-hidden group shadow-lg shadow-black/30 hover:border-primary/45 transition-all hover:shadow-[0_0_28px_rgba(255,45,123,0.15)] ring-0 hover:ring-2 hover:ring-primary/15"
                   >
-                    <Link to={`/companions/${c.id}`} className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl">
+                    <Link
+                      to={`/companions/${c.id}`}
+                      state={{ from: `${location.pathname}${location.search}` }}
+                      className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl"
+                    >
                     <TierHaloPortraitFrame
                       variant="card"
                       rarity={c.rarity}

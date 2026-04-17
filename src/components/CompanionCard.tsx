@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { UserRound } from "lucide-react";
 import type { Companion } from "@/data/companions";
 import { getStaticRarityForCatalog } from "@/lib/companionRarity";
@@ -14,6 +14,7 @@ interface CompanionCardProps {
 }
 
 export default function CompanionCard({ companion, index, imageOverride, galleryCredit }: CompanionCardProps) {
+  const location = useLocation();
   const img = imageOverride;
   const isCommunity = companion.id.startsWith("cc-");
   const to = `/companions/${companion.id}`;
@@ -28,7 +29,10 @@ export default function CompanionCard({ companion, index, imageOverride, gallery
     >
       <Link
         to={to}
-        state={isCommunity ? { fromGallery: true } : undefined}
+        state={{
+          from: `${location.pathname}${location.search}`,
+          ...(isCommunity ? { fromGallery: true as const } : {}),
+        }}
         className="block rounded-2xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden hover:border-primary/50 transition-colors group h-full touch-manipulation"
       >
         <motion.div whileHover={{ y: -3, transition: { type: "spring", stiffness: 400, damping: 18 } }} whileTap={{ scale: 0.98 }} className="h-full">

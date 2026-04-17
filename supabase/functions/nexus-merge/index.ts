@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { renderPortraitToStorage } from "../_shared/renderCompanionPortrait.ts";
 import { requireAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { mergeTcgForNexusChild } from "../_shared/tcgStatsGenerate.ts";
 
@@ -501,6 +502,54 @@ Output ONLY via the nexus_merge_companion tool call.`;
       });
     }
 
+    const childUuid = inserted.id as string;
+    let portraitOk = false;
+    let portraitError: string | null = null;
+    const imagePromptRaw = String(fields.image_prompt || "").trim();
+    const imagePromptForPortrait =
+      imagePromptRaw ||
+      `SFW vertical portrait of ${String(fields.name || "companion").slice(0, 80)}. ${String(fields.appearance || "").slice(0, 1800)}`.trim();
+
+    if (imagePromptForPortrait && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        const portraitKey = resolveXaiApiKey((name) => Deno.env.get(name));
+        if (portraitKey) {
+          const characterData: Record<string, unknown> = { ...insertRow, id: childUuid };
+          const { publicUrl } = await renderPortraitToStorage({
+            adminClient: supabase,
+            apiKey: portraitKey,
+            imagePrompt: imagePromptForPortrait,
+            characterData,
+            target: { kind: "forge", uuid: childUuid },
+          });
+          const { error: portraitUpdErr } = await supabase
+            .from("custom_characters")
+            .update({
+              image_url: publicUrl,
+              avatar_url: publicUrl,
+              static_image_url: publicUrl,
+              image_prompt: imagePromptForPortrait,
+            })
+            .eq("id", childUuid);
+          if (portraitUpdErr) {
+            console.error("nexus-merge portrait db update", portraitUpdErr);
+            portraitError = portraitUpdErr.message;
+          } else {
+            portraitOk = true;
+          }
+        } else {
+          portraitError = "missing_xai_key";
+          console.warn("nexus-merge: skip portrait — set GROK_API_KEY or XAI_API_KEY on Edge Functions");
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        portraitError = msg;
+        console.error("nexus-merge portrait generation failed", e);
+      }
+    } else {
+      portraitError = "no_prompt";
+    }
+
     if (!adminMerge) {
       const { error: coolErr } = await supabase
         .from("custom_characters")
@@ -521,6 +570,8 @@ Output ONLY via the nexus_merge_companion tool call.`;
         trait_fusion_summary: String(fields.trait_fusion_summary || ""),
         creditsCharged: totalCost,
         adminMerge,
+        portraitGenerated: portraitOk,
+        portraitError: portraitError && !portraitOk ? portraitError : null,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

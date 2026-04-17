@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
-import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
+import { galleryStaticPortraitUrl, profileAnimatedPortraitUrl } from "@/lib/companionMedia";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { isPlatformAdmin } from "@/config/auth";
@@ -32,6 +32,7 @@ import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
 import { inferForgeBodyTypeFromTags, inferStylizedArtFromTags } from "@/lib/forgeBodyTypes";
 import { normalizeCompanionRarity } from "@/lib/companionRarity";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
+import { PortraitViewLightbox } from "@/components/PortraitViewLightbox";
 
 const TOKEN_COST = 15;
 const IMAGE_TOKEN_COST = 75;
@@ -61,6 +62,7 @@ const Chat = () => {
   );
   const companion = dbComp ? dbToCompanion(dbComp) : null;
   const imageUrl = galleryStaticPortraitUrl(dbComp, id);
+  const headerAnimated = profileAnimatedPortraitUrl(dbComp);
 
     const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -941,32 +943,39 @@ const Chat = () => {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div className="shrink-0 w-10 h-10">
-          <TierHaloPortraitFrame
-            variant="avatar"
-            rarity={normalizeCompanionRarity(companion.rarity)}
-            gradientFrom={companion.gradientFrom}
-            gradientTo={companion.gradientTo}
-            overlayUrl={dbComp?.rarity_border_overlay_url ?? null}
-            aspectClassName="aspect-square w-full h-full"
+          <PortraitViewLightbox
+            alt={companion.name}
+            stillSrc={imageUrl}
+            animatedSrc={headerAnimated}
+            triggerClassName="h-full w-full rounded-[inherit]"
           >
-            <div
-              className="absolute inset-0 z-0"
-              style={{
-                background: `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
-              }}
-            />
-            {imageUrl ? (
-              <img
-                src={imageUrl}
-                alt={companion.name}
-                className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
+            <TierHaloPortraitFrame
+              variant="avatar"
+              rarity={normalizeCompanionRarity(companion.rarity)}
+              gradientFrom={companion.gradientFrom}
+              gradientTo={companion.gradientTo}
+              overlayUrl={dbComp?.rarity_border_overlay_url ?? null}
+              aspectClassName="aspect-square w-full h-full"
+            >
+              <div
+                className="absolute inset-0 z-0"
+                style={{
+                  background: `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
+                }}
               />
-            ) : (
-              <span className="absolute inset-0 z-[2] flex items-center justify-center text-lg font-gothic font-bold text-white/90">
-                {companion.name.charAt(0)}
-              </span>
-            )}
-          </TierHaloPortraitFrame>
+              {imageUrl ? (
+                <img
+                  src={imageUrl}
+                  alt={companion.name}
+                  className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
+                />
+              ) : (
+                <span className="absolute inset-0 z-[2] flex items-center justify-center text-lg font-gothic font-bold text-white/90">
+                  {companion.name.charAt(0)}
+                </span>
+              )}
+            </TierHaloPortraitFrame>
+          </PortraitViewLightbox>
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="font-bold text-foreground text-sm truncate">{companion.name}</h2>

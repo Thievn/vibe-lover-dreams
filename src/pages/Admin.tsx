@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -62,6 +62,24 @@ type AdminSection =
   | "waitlist"
   | "analytics"
   | "settings";
+
+const ADMIN_SECTION_IDS = new Set<AdminSection>([
+  "overview",
+  "creator",
+  "nexus",
+  "characters",
+  "xmarketing",
+  "users",
+  "waitlist",
+  "analytics",
+  "settings",
+]);
+
+function parseAdminSectionParam(raw: string | null): AdminSection | null {
+  if (!raw) return null;
+  const s = raw as AdminSection;
+  return ADMIN_SECTION_IDS.has(s) ? s : null;
+}
 
 const NAV: { id: AdminSection; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -129,8 +147,9 @@ function labelFromDayKey(k: string): string {
 
 function AdminShell() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [authLoading, setAuthLoading] = useState(true);
-  const [section, setSection] = useState<AdminSection>("overview");
+  const [section, setSection] = useState<AdminSection>(() => parseAdminSectionParam(searchParams.get("section")) ?? "overview");
   const [stats, setStats] = useState({
     totalUsers: 0,
     waitlistSignups: 0,
@@ -369,6 +388,20 @@ function AdminShell() {
   }, [authLoading, loadStats, loadAnalytics, loadWaitlist]);
 
   useEffect(() => {
+    const parsed = parseAdminSectionParam(searchParams.get("section"));
+    setSection(parsed ?? "overview");
+  }, [searchParams]);
+
+  const goSection = useCallback(
+    (next: AdminSection) => {
+      setSection(next);
+      if (next === "overview") setSearchParams({}, { replace: true });
+      else setSearchParams({ section: next }, { replace: true });
+    },
+    [setSearchParams],
+  );
+
+  useEffect(() => {
     if (authLoading) return;
     if (section === "users") void loadProfiles();
     if (section === "waitlist") void loadWaitlist();
@@ -488,7 +521,7 @@ function AdminShell() {
             <button
               key={id}
               type="button"
-              onClick={() => setSection(id)}
+              onClick={() => goSection(id)}
               className={cn(
                 "w-full flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition-all border",
                 section === id
@@ -513,7 +546,7 @@ function AdminShell() {
             <button
               key={id}
               type="button"
-              onClick={() => setSection(id)}
+              onClick={() => goSection(id)}
               className={cn(
                 "shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap",
                 section === id ? "bg-primary/20 text-primary" : "text-muted-foreground",
@@ -541,7 +574,7 @@ function AdminShell() {
               waitlistPreview={waitlist}
               waitlistLoading={waitlistLoading}
               waitlistError={waitlistError}
-              onOpenWaitlist={() => setSection("waitlist")}
+              onOpenWaitlist={() => goSection("waitlist")}
             />
           )}
           {section === "creator" && (
@@ -551,7 +584,7 @@ function AdminShell() {
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setSection("characters")}
+                    onClick={() => goSection("characters")}
                     className="text-xs font-medium px-3 py-1.5 rounded-lg border border-border/80 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
                   >
                     Character management
@@ -560,7 +593,7 @@ function AdminShell() {
                 </div>
               </div>
               <div className="p-4 md:p-6 min-h-0 max-h-[min(92dvh,1100px)] overflow-y-auto">
-                <CompanionCreator mode="admin" embedded onForged={() => setSection("characters")} />
+                <CompanionCreator mode="admin" embedded onForged={() => goSection("characters")} />
               </div>
             </div>
           )}
@@ -571,7 +604,7 @@ function AdminShell() {
                 <h2 className="font-gothic text-2xl gradient-vice-text">Character management</h2>
                 <button
                   type="button"
-                  onClick={() => setSection("creator")}
+                  onClick={() => goSection("creator")}
                   className="shrink-0 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold border border-primary/40 text-primary hover:bg-primary/10 transition-colors"
                 >
                   Open Companion Forge

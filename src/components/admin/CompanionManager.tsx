@@ -1443,6 +1443,7 @@ const CompanionManager = () => {
                     </span>
                     <Link
                       to={`/companions/cc-${row.id}`}
+                      state={{ from: "/admin?section=characters" }}
                       className="text-primary hover:underline text-[10px] font-medium"
                     >
                       Open profile
