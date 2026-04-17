@@ -56,7 +56,7 @@ function coerceStockRow(row: Record<string, unknown>): DbCompanion {
   };
 }
 
-function customRowToDbCompanion(row: Record<string, unknown>): DbCompanion {
+export function mapSupabaseCustomCharacterRow(row: Record<string, unknown>): DbCompanion {
   const startersRaw = row.fantasy_starters;
   const starters = Array.isArray(startersRaw)
     ? (startersRaw as Record<string, unknown>[])
@@ -165,7 +165,7 @@ async function fetchPublicCustomCharacters(): Promise<DbCompanion[]> {
     console.error("Error fetching public custom characters:", error);
     return [];
   }
-  return (data || []).map((row) => customRowToDbCompanion(row as Record<string, unknown>));
+  return (data || []).map((row) => mapSupabaseCustomCharacterRow(row as Record<string, unknown>));
 }
 
 /** Current user's forged companions (private vault + drafts), not only public gallery rows */
@@ -183,7 +183,7 @@ async function fetchMyCustomCharacters(userId: string): Promise<DbCompanion[]> {
   }
   const raw = (data || []) as Record<string, unknown>[];
   await attachLatestGeneratedPortraits(raw, userId);
-  return raw.map((row) => customRowToDbCompanion(row));
+  return raw.map((row) => mapSupabaseCustomCharacterRow(row));
 }
 
 function staticListToDb(): DbCompanion[] {

@@ -45,7 +45,7 @@ export function buildTraitFusionPreview(a: DbCompanion, b: DbCompanion): string 
       : "Distinct visual identities will braid rather than blend evenly — expect sharp contrast in silhouette.";
   const kinkBit =
     sharedKinks.length > 0
-      ? ` Overlapping appetites: ${sharedKinks.slice(0, 3).join(", ")} may dominate the newborn’s instinct palette.`
+      ? ` Overlapping appetites: ${sharedKinks.slice(0, 3).join(", ")} may dominate the ascendant’s instinct palette.`
       : " Divergent desires will negotiate inside the new persona — tension becomes texture.";
   return `${tagBit}${kinkBit}`;
 }

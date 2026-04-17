@@ -19,7 +19,9 @@ import {
 } from "@/lib/nexusMerge";
 import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
 
-type Phase = "select" | "merging" | "incubate" | "born";
+export type TheNexusMode = "user" | "admin";
+
+type Phase = "select" | "merging" | "synthesis" | "revealed";
 
 const NEON = "#FF2D7B";
 
@@ -27,31 +29,36 @@ function portraitFor(db: DbCompanion): string | null {
   return galleryStaticPortraitUrl(db, db.id);
 }
 
-function NexusParentTile({
+function NexusCard({
   db,
-  selected,
-  onPick,
-  disabled,
+  orderMark,
+  onToggle,
+  mode,
+  operatorUserId,
 }: {
   db: DbCompanion;
-  selected: boolean;
-  onPick: () => void;
-  disabled: boolean;
+  orderMark: 0 | 1 | 2;
+  onToggle: () => void;
+  mode: TheNexusMode;
+  operatorUserId: string;
 }) {
   const url = portraitFor(db);
-  const coolMs = nexusCooldownRemainingMs(db.nexus_cooldown_until ?? null);
-  const locked = coolMs > 0 || disabled;
+  const coolMs = mode === "user" ? nexusCooldownRemainingMs(db.nexus_cooldown_until ?? null) : 0;
+  const locked = coolMs > 0;
+  const isOperatorForge = Boolean(db.user_id && db.user_id === operatorUserId);
   return (
     <button
       type="button"
       disabled={locked}
-      onClick={onPick}
+      onClick={onToggle}
       className={cn(
-        "relative rounded-2xl border overflow-hidden text-left transition-all aspect-[3/4] w-full max-w-[180px]",
-        selected
-          ? "border-primary ring-2 ring-primary/40 shadow-[0_0_28px_rgba(255,45,123,0.35)]"
-          : "border-white/10 hover:border-primary/35",
-        locked && "opacity-45 cursor-not-allowed",
+        "group relative rounded-2xl border overflow-hidden text-left transition-all aspect-[3/4] w-full",
+        orderMark === 1 &&
+          "border-primary ring-2 ring-primary/50 shadow-[0_0_32px_rgba(255,45,123,0.38)] z-[1] scale-[1.02]",
+        orderMark === 2 &&
+          "border-accent ring-2 ring-accent/45 shadow-[0_0_28px_rgba(45,212,191,0.22)] z-[1] scale-[1.02]",
+        orderMark === 0 && "border-white/[0.08] hover:border-primary/35 hover:shadow-lg hover:shadow-black/40",
+        locked && "opacity-40 cursor-not-allowed scale-100",
       )}
       style={{
         background: url ? undefined : `linear-gradient(160deg, ${db.gradient_from}, ${db.gradient_to})`,
@@ -60,57 +67,91 @@ function NexusParentTile({
       {url ? (
         <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover object-top" loading="lazy" />
       ) : null}
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
-      {coolMs > 0 ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/65 text-[10px] uppercase tracking-widest text-white/90 px-2 text-center">
+      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/25 to-transparent" />
+      {orderMark > 0 ? (
+        <div
+          className={cn(
+            "absolute top-2 left-2 h-8 w-8 rounded-full flex items-center justify-center text-xs font-black border backdrop-blur-md",
+            orderMark === 1
+              ? "border-primary/60 bg-primary/25 text-primary-foreground"
+              : "border-accent/50 bg-accent/20 text-accent",
+          )}
+        >
+          {orderMark === 1 ? "I" : "II"}
+        </div>
+      ) : null}
+      {mode === "admin" && isOperatorForge ? (
+        <span className="absolute top-2 right-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/60 border border-white/10 text-white/80">
+          Yours
+        </span>
+      ) : mode === "admin" ? (
+        <span className="absolute top-2 right-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/60 border border-emerald-500/30 text-emerald-200/90">
+          Gallery
+        </span>
+      ) : null}
+      {locked ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/70 text-[10px] uppercase tracking-widest text-white/90 px-2 text-center">
           <Lock className="h-5 w-5" />
           <span>Cooldown {formatNexusCooldownShort(coolMs)}</span>
         </div>
       ) : null}
-      <div className="absolute inset-x-0 bottom-0 p-2.5">
-        <p className="text-xs font-bold text-white truncate">{db.name}</p>
+      <div className="absolute inset-x-0 bottom-0 p-2.5 pt-8">
+        <p className="text-xs font-bold text-white truncate drop-shadow-md">{db.name}</p>
+        <p className="text-[10px] text-white/65 truncate">{db.tagline || db.role}</p>
       </div>
     </button>
   );
 }
 
+function togglePickOrder(prev: string[], id: string): string[] {
+  const i = prev.indexOf(id);
+  if (i >= 0) return prev.filter((x) => x !== id);
+  if (prev.length < 2) return [...prev, id];
+  return [prev[0]!, id];
+}
+
 export default function TheNexus({
   userId,
   forgeParents,
-  tokensBalance,
+  tokensBalance = 0,
   onCreditsChanged,
+  mode = "user",
 }: {
   userId: string;
   forgeParents: DbCompanion[];
-  tokensBalance: number;
+  tokensBalance?: number;
   onCreditsChanged?: () => void;
+  mode?: TheNexusMode;
 }) {
   const queryClient = useQueryClient();
-  const [alphaId, setAlphaId] = useState<string | null>(null);
-  const [omegaId, setOmegaId] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
   const [infuse, setInfuse] = useState(false);
   const [favorParent, setFavorParent] = useState<"first" | "second" | "balanced">("balanced");
   const [phase, setPhase] = useState<Phase>("select");
   const [meter, setMeter] = useState(0);
-  const [born, setBorn] = useState<{ childId: string; name: string; summary: string } | null>(null);
+  const [reveal, setReveal] = useState<{ childId: string; name: string; summary: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const byId = useMemo(() => new Map(forgeParents.map((c) => [c.id, c])), [forgeParents]);
+  const alphaId = picked[0] ?? null;
+  const omegaId = picked[1] ?? null;
   const alpha = alphaId ? byId.get(alphaId) : undefined;
   const omega = omegaId ? byId.get(omegaId) : undefined;
 
   const compatibility = alpha && omega ? computeNexusCompatibility(alpha, omega) : null;
   const fusionPreview = alpha && omega ? buildTraitFusionPreview(alpha, omega) : "";
 
-  const totalCost = NEXUS_MERGE_BASE_COST + (infuse ? NEXUS_INFUSE_EXTRA_COST : 0);
-  const canAfford = tokensBalance >= totalCost;
+  const isAdmin = mode === "admin";
+  const totalCost = isAdmin ? 0 : NEXUS_MERGE_BASE_COST + (infuse ? NEXUS_INFUSE_EXTRA_COST : 0);
+  const canAfford = isAdmin || tokensBalance >= totalCost;
   const canMerge =
     alpha &&
     omega &&
     alpha.id !== omega.id &&
     canAfford &&
-    nexusCooldownRemainingMs(alpha.nexus_cooldown_until ?? null) <= 0 &&
-    nexusCooldownRemainingMs(omega.nexus_cooldown_until ?? null) <= 0;
+    (isAdmin ||
+      (nexusCooldownRemainingMs(alpha.nexus_cooldown_until ?? null) <= 0 &&
+        nexusCooldownRemainingMs(omega.nexus_cooldown_until ?? null) <= 0));
 
   useEffect(() => {
     if (phase !== "merging") return;
@@ -123,8 +164,9 @@ export default function TheNexus({
   const resetFlow = useCallback(() => {
     setPhase("select");
     setMeter(0);
-    setBorn(null);
+    setReveal(null);
     setBusy(false);
+    setPicked([]);
   }, []);
 
   const runMerge = async () => {
@@ -158,6 +200,7 @@ export default function TheNexus({
           parentBId: omega.id,
           infuse,
           favorParent: favor,
+          adminMerge: isAdmin,
         },
       });
 
@@ -177,18 +220,24 @@ export default function TheNexus({
       };
 
       setMeter(100);
-      setBorn({
+      setReveal({
         childId: payload.childId,
         name: payload.name,
-        summary: payload.trait_fusion_summary?.trim() || "A new signature awakens in your vault.",
+        summary:
+          payload.trait_fusion_summary?.trim() ||
+          "A third ascendant steps forward — adult, deliberate, and entirely their own.",
       });
-      setPhase("incubate");
+      setPhase("synthesis");
       await new Promise((r) => setTimeout(r, 2600));
-      setPhase("born");
+      setPhase("revealed");
       void queryClient.invalidateQueries({ queryKey: ["companions"] });
       void queryClient.invalidateQueries({ queryKey: [...VAULT_COLLECTION_QUERY_KEY, userId] });
       onCreditsChanged?.();
-      toast.success("The Nexus has bound a new companion to your vault.");
+      toast.success(
+        isAdmin
+          ? "Admin Nexus sealed the ascendant in your vault."
+          : "The Nexus has sealed a new ascendant in your vault.",
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Merge failed.");
       setPhase("select");
@@ -198,57 +247,78 @@ export default function TheNexus({
     }
   };
 
+  const orderForId = (id: string): 0 | 1 | 2 => {
+    if (picked[0] === id) return 1;
+    if (picked[1] === id) return 2;
+    return 0;
+  };
+
   if (forgeParents.length < 2) {
     return (
       <div className="max-w-2xl mx-auto py-10 px-4 text-center space-y-6">
         <Orbit className="h-14 w-14 mx-auto text-primary opacity-90" style={{ color: NEON }} />
         <h2 className="font-gothic text-3xl gradient-vice-text">The Nexus</h2>
         <p className="text-muted-foreground text-sm leading-relaxed max-w-md mx-auto">
-          You need at least two forged companions in your vault to open a merge. Create another in Companion Forge, then
-          return — the ritual waits.
+          {isAdmin
+            ? "You need at least two eligible cards (your forges and/or approved gallery) in the pool."
+            : "You need at least two forged companions in your vault. Create another in Companion Forge, then return — the veil waits."}
         </p>
-        <Link
-          to="/create-companion"
-          className="inline-flex items-center gap-2 rounded-xl px-8 py-3 font-bold text-primary-foreground glow-pink"
-          style={{ backgroundColor: NEON }}
-        >
-          <Sparkles className="h-5 w-5" />
-          Companion Forge
-        </Link>
+        {!isAdmin ? (
+          <Link
+            to="/create-companion"
+            className="inline-flex items-center gap-2 rounded-xl px-8 py-3 font-bold text-primary-foreground glow-pink"
+            style={{ backgroundColor: NEON }}
+          >
+            <Sparkles className="h-5 w-5" />
+            Companion Forge
+          </Link>
+        ) : null}
       </div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto pb-16 px-4 sm:px-6 space-y-10">
-      <div className="relative overflow-hidden rounded-[2rem] border border-primary/25 bg-black/40 backdrop-blur-2xl p-8 sm:p-12">
+    <div className="max-w-6xl mx-auto pb-16 px-4 sm:px-6 space-y-10">
+      <div className="relative overflow-hidden rounded-[2rem] border border-primary/25 bg-gradient-to-br from-black/60 via-card/40 to-black/50 backdrop-blur-2xl p-8 sm:p-12 shadow-[0_0_80px_rgba(0,0,0,0.45)]">
         <div
-          className="pointer-events-none absolute inset-0 opacity-40"
+          className="pointer-events-none absolute inset-0 opacity-45"
           style={{
-            background: `radial-gradient(ellipse 80% 60% at 50% 0%, ${NEON}44, transparent 55%), radial-gradient(circle at 100% 100%, hsl(170 100% 45% / 0.12), transparent 45%)`,
+            background: `radial-gradient(ellipse 90% 70% at 50% -10%, ${NEON}38, transparent 55%), radial-gradient(circle at 100% 100%, hsl(170 100% 42% / 0.1), transparent 42%)`,
           }}
         />
-        <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground mb-2">Premium merge</p>
+        <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8">
+          <div className="max-w-xl">
+            <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground mb-2">
+              {isAdmin ? "Admin lab · no charge" : "Premium merge"}
+            </p>
             <h2 className="font-gothic text-3xl sm:text-4xl flex items-center gap-3">
               <Orbit className="h-9 w-9 shrink-0" style={{ color: NEON }} />
               <span className="gradient-vice-text">The Nexus</span>
             </h2>
-            <p className="mt-3 text-sm text-muted-foreground max-w-lg leading-relaxed">
-              Select two of your forged selves. Compatibility hums in the dark; conception charges the veil; a hybrid
-              walks out carrying both lineages — and a twenty-four hour rest claims each parent afterward.
+            <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+              {isAdmin
+                ? "Tap two ascendants in the grid — order is I then II. Fused output is an adult hybrid bound to your vault for QA. Gallery picks are public-approved only."
+                : "Tap two of your forged cards below. First tap is the primary thread (I), second is the counter-thread (II). Compatibility reads the weave; fusion writes a third consenting adult — parents rest twenty-four hours after."}
             </p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-black/50 px-5 py-4 text-right shrink-0">
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Forge credits</p>
-            <p className="font-gothic text-3xl tabular-nums" style={{ color: NEON }}>
-              {tokensBalance}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              This merge: {totalCost}{infuse ? ` (${NEXUS_MERGE_BASE_COST} + ${NEXUS_INFUSE_EXTRA_COST} infuse)` : ""}
-            </p>
-          </div>
+          {!isAdmin ? (
+            <div className="rounded-2xl border border-white/10 bg-black/55 px-6 py-4 text-right shrink-0 backdrop-blur-md">
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Forge credits</p>
+              <p className="font-gothic text-3xl tabular-nums" style={{ color: NEON }}>
+                {tokensBalance}
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                This merge: {totalCost}
+                {infuse ? ` (${NEXUS_MERGE_BASE_COST} + ${NEXUS_INFUSE_EXTRA_COST} infuse)` : ""}
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-accent/30 bg-accent/10 px-6 py-4 text-right shrink-0">
+              <p className="text-[10px] uppercase tracking-widest text-accent">Admin</p>
+              <p className="font-gothic text-2xl text-accent">Unlimited</p>
+              <p className="text-[11px] text-muted-foreground mt-1">No credits · no cooldown</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -259,54 +329,56 @@ export default function TheNexus({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="grid lg:grid-cols-[1fr_320px] gap-10"
+            className="grid xl:grid-cols-[1fr_340px] gap-10 items-start"
           >
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-widest text-primary/90 mb-3">
-                  First essence
-                </h3>
-                <div className="flex flex-wrap gap-3">
-                  {forgeParents.map((c) => (
-                    <NexusParentTile
-                      key={`a-${c.id}`}
-                      db={c}
-                      selected={alphaId === c.id}
-                      disabled={omegaId === c.id}
-                      onPick={() => {
-                        setAlphaId(c.id);
-                        if (omegaId === c.id) setOmegaId(null);
-                      }}
-                    />
-                  ))}
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-widest text-primary/90">Your collection</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Multi-select: choose <span className="text-primary font-medium">I</span> then{" "}
+                    <span className="text-accent font-medium">II</span>. Tap again to clear a slot.
+                  </p>
                 </div>
+                {picked.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setPicked([])}
+                    className="text-xs uppercase tracking-wider text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    Clear selection
+                  </button>
+                ) : null}
               </div>
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-widest text-accent mb-3">Second essence</h3>
-                <div className="flex flex-wrap gap-3">
+              <div className="rounded-[1.5rem] border border-white/[0.07] bg-black/25 p-4 sm:p-6 backdrop-blur-sm">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-5">
                   {forgeParents.map((c) => (
-                    <NexusParentTile
-                      key={`b-${c.id}`}
+                    <NexusCard
+                      key={c.id}
                       db={c}
-                      selected={omegaId === c.id}
-                      disabled={alphaId === c.id}
-                      onPick={() => {
-                        setOmegaId(c.id);
-                        if (alphaId === c.id) setAlphaId(null);
-                      }}
+                      orderMark={orderForId(c.id)}
+                      mode={mode}
+                      operatorUserId={userId}
+                      onToggle={() => setPicked((p) => togglePickOrder(p, c.id))}
                     />
                   ))}
                 </div>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/[0.08] bg-card/30 backdrop-blur-xl p-6 space-y-5 h-fit lg:sticky lg:top-24">
+            <div className="rounded-2xl border border-white/[0.1] bg-gradient-to-b from-card/40 to-black/40 backdrop-blur-xl p-6 space-y-5 h-fit xl:sticky xl:top-24 shadow-xl shadow-black/30">
               {alpha && omega ? (
                 <>
+                  <div className="rounded-xl border border-white/5 bg-black/30 p-3 space-y-2">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">First thread · I</p>
+                    <p className="text-sm font-semibold text-foreground truncate">{alpha.name}</p>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground pt-2">Second thread · II</p>
+                    <p className="text-sm font-semibold text-foreground truncate">{omega.name}</p>
+                  </div>
                   <div className="text-center space-y-1">
                     <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Compatibility</p>
                     <p className="font-gothic text-5xl tabular-nums gradient-vice-text">{compatibility}%</p>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{fusionPreview}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed text-left">{fusionPreview}</p>
                   </div>
                   <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-white/10 bg-black/30 p-4 hover:border-primary/30 transition-colors">
                     <input
@@ -316,9 +388,13 @@ export default function TheNexus({
                       onChange={(e) => setInfuse(e.target.checked)}
                     />
                     <span>
-                      <span className="text-sm font-semibold text-foreground">Infuse (+{NEXUS_INFUSE_EXTRA_COST})</span>
+                      <span className="text-sm font-semibold text-foreground">
+                        Infuse{isAdmin ? "" : ` (+${NEXUS_INFUSE_EXTRA_COST})`}
+                      </span>
                       <span className="block text-xs text-muted-foreground mt-1">
-                        Spend extra credits to bias which parent&apos;s traits dominate the fusion.
+                        {isAdmin
+                          ? "Bias which parent’s silhouette and voice dominate the fusion (no charge)."
+                          : "Spend extra credits to bias which parent’s traits dominate the fusion."}
                       </span>
                     </span>
                   </label>
@@ -359,28 +435,30 @@ export default function TheNexus({
                     )}
                     style={{ background: `linear-gradient(135deg, ${NEON}, hsl(280 45% 38%))` }}
                   >
-                    Awaken in The Nexus — {totalCost} credits
+                    {isAdmin
+                      ? "Run admin fusion"
+                      : `Awaken in The Nexus — ${totalCost} credits`}
                   </motion.button>
-                  {!canAfford ? (
+                  {!canAfford && !isAdmin ? (
                     <p className="text-center text-xs text-destructive">Insufficient forge credits for this merge.</p>
                   ) : null}
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Choose two different companions to read the weave.
+                <p className="text-sm text-muted-foreground text-center py-10 leading-relaxed">
+                  Select two cards from the grid — first choice anchors the weave, second completes the pair.
                 </p>
               )}
             </div>
           </motion.div>
         )}
 
-        {(phase === "merging" || phase === "incubate") && (
+        {(phase === "merging" || phase === "synthesis") && (
           <motion.div
             key="ritual"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="rounded-[2rem] border border-primary/30 bg-black/60 backdrop-blur-2xl p-10 sm:p-16 text-center space-y-8 relative overflow-hidden"
+            className="rounded-[2rem] border border-primary/30 bg-black/60 backdrop-blur-2xl p-10 sm:p-16 text-center space-y-8 relative overflow-hidden min-h-[320px]"
           >
             <motion.div
               className="absolute inset-0 pointer-events-none opacity-50"
@@ -393,12 +471,14 @@ export default function TheNexus({
             <Orbit className="h-16 w-16 mx-auto relative animate-pulse" style={{ color: NEON }} />
             <div className="relative space-y-2">
               <h3 className="font-gothic text-2xl sm:text-3xl gradient-vice-text">
-                {phase === "merging" ? "Conception surges" : "Incubation veil"}
+                {phase === "merging" ? "Fusion pulse" : "The veil thins"}
               </h3>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
                 {phase === "merging"
-                  ? "Credits lock, essences entwine, and the model writes your hybrid into being."
-                  : "Shaping voice, silhouette, and appetite beneath velvet static…"}
+                  ? isAdmin
+                    ? "Essences entwine while the model writes your hybrid ascendant."
+                    : "Credits lock, essences entwine, and the model writes your third ascendant."
+                  : "Carving voice, silhouette, and appetite into a new adult signature beneath velvet static…"}
               </p>
             </div>
             <div className="relative max-w-md mx-auto space-y-2">
@@ -411,9 +491,9 @@ export default function TheNexus({
           </motion.div>
         )}
 
-        {phase === "born" && born && (
+        {phase === "revealed" && reveal && (
           <motion.div
-            key="born"
+            key="revealed"
             initial={{ opacity: 0, scale: 0.94 }}
             animate={{ opacity: 1, scale: 1 }}
             className="rounded-[2rem] border border-accent/35 bg-gradient-to-b from-card/80 to-black/60 backdrop-blur-2xl p-10 sm:p-14 text-center space-y-6 relative overflow-hidden"
@@ -426,13 +506,15 @@ export default function TheNexus({
             />
             <Sparkles className="h-12 w-12 mx-auto text-accent relative" />
             <div className="relative">
-              <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground mb-2">Born from The Nexus</p>
-              <h3 className="font-gothic text-3xl sm:text-4xl gradient-vice-text">{born.name}</h3>
-              <p className="mt-4 text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">{born.summary}</p>
+              <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground mb-2">
+                Emerges from The Nexus
+              </p>
+              <h3 className="font-gothic text-3xl sm:text-4xl gradient-vice-text">{reveal.name}</h3>
+              <p className="mt-4 text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">{reveal.summary}</p>
             </div>
             <div className="relative flex flex-col sm:flex-row gap-3 justify-center">
               <Link
-                to={`/companions/${born.childId}`}
+                to={`/companions/${reveal.childId}`}
                 className="inline-flex items-center justify-center gap-2 rounded-xl px-8 py-3 font-bold text-primary-foreground glow-pink"
                 style={{ backgroundColor: NEON }}
               >

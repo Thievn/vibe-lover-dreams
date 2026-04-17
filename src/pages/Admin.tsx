@@ -32,6 +32,7 @@ import {
   Coins,
   RefreshCw,
   ChevronRight,
+  Orbit,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,6 +40,7 @@ import ParticleBackground from "@/components/ParticleBackground";
 import CompanionCreator from "@/components/CompanionCreator";
 import CompanionManager from "@/components/admin/CompanionManager";
 import AdminForgeAssistant from "@/components/admin/AdminForgeAssistant";
+import AdminTheNexus from "@/components/AdminTheNexus";
 import { getGaMeasurementId } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { isPlatformAdmin, platformAdminEmailDisplay } from "@/config/auth";
@@ -51,6 +53,7 @@ const adminQueryClient = new QueryClient({
 type AdminSection =
   | "overview"
   | "creator"
+  | "nexus"
   | "characters"
   | "users"
   | "waitlist"
@@ -60,6 +63,7 @@ type AdminSection =
 const NAV: { id: AdminSection; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "creator", label: "Companion Forge", icon: Sparkles },
+  { id: "nexus", label: "The Nexus", icon: Orbit },
   { id: "characters", label: "Character Management", icon: Palette },
   { id: "users", label: "User Management", icon: Users },
   { id: "waitlist", label: "Waitlist", icon: ScrollText },
@@ -512,6 +516,7 @@ function AdminShell() {
               </div>
             </div>
           )}
+          {section === "nexus" && <AdminTheNexus />}
           {section === "characters" && (
             <div className="rounded-[1.75rem] border border-border/80 bg-card/40 backdrop-blur-md p-4 md:p-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">

@@ -548,7 +548,9 @@ const CompanionProfile = () => {
                     </div>
                   </div>
                 ) : companion.isNexusHybrid ? (
-                  <p className="text-sm text-muted-foreground">Born from The Nexus — merge metrics will appear here.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Emerged from The Nexus — merge metrics will appear here.
+                  </p>
                 ) : null}
               </section>
             )}

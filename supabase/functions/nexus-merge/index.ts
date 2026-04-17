@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
-import { requireSessionUser } from "../_shared/requireSessionUser.ts";
+import { requireAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -62,15 +62,42 @@ function normalizeMergeStats(raw: unknown): {
   };
 }
 
+function parentAllowedForMerge(
+  row: Record<string, unknown>,
+  operatorUserId: string,
+  adminMerge: boolean,
+): boolean {
+  if (row.user_id === operatorUserId) return true;
+  if (adminMerge && row.is_public === true && row.approved === true) return true;
+  return false;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const sessionGate = await requireSessionUser(req);
-  if ("response" in sessionGate) return sessionGate.response;
+  let body: {
+    parentAId?: string;
+    parentBId?: string;
+    infuse?: boolean;
+    favorParent?: "first" | "second" | null;
+    adminMerge?: boolean;
+  };
+  try {
+    body = await req.json();
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
-  const userId = sessionGate.user.id;
+  const adminMerge = Boolean(body.adminMerge);
+  const authGate = adminMerge ? await requireAdminUser(req) : await requireSessionUser(req);
+  if ("response" in authGate) return authGate.response;
+
+  const userId = authGate.user.id;
   let charged = 0;
 
   try {
@@ -81,17 +108,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const body = await req.json() as {
-      parentAId?: string;
-      parentBId?: string;
-      infuse?: boolean;
-      favorParent?: "first" | "second" | null;
-    };
-
     const idA = typeof body.parentAId === "string" ? stripCc(body.parentAId) : null;
     const idB = typeof body.parentBId === "string" ? stripCc(body.parentBId) : null;
     if (!idA || !idB || idA === idB) {
-      return new Response(JSON.stringify({ error: "Select two distinct forged companions." }), {
+      return new Response(JSON.stringify({ error: "Select two distinct companions to merge." }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -99,7 +119,7 @@ Deno.serve(async (req) => {
 
     const infuse = Boolean(body.infuse);
     const favor = body.favorParent === "first" || body.favorParent === "second" ? body.favorParent : null;
-    const totalCost = NEXUS_BASE + (infuse ? NEXUS_INFUSE : 0);
+    const totalCost = adminMerge ? 0 : NEXUS_BASE + (infuse ? NEXUS_INFUSE : 0);
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -117,64 +137,80 @@ Deno.serve(async (req) => {
 
     const pa = rows.find((r) => r.id === idA);
     const pb = rows.find((r) => r.id === idB);
-    if (!pa || !pb || pa.user_id !== userId || pb.user_id !== userId) {
-      return new Response(JSON.stringify({ error: "You can only merge companions you forged." }), {
-        status: 403,
+    if (!pa || !pb) {
+      return new Response(JSON.stringify({ error: "Could not load both parents." }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const now = Date.now();
-    for (const p of [pa, pb]) {
-      const until = p.nexus_cooldown_until ? new Date(p.nexus_cooldown_until as string).getTime() : 0;
-      if (until > now) {
-        return new Response(
-          JSON.stringify({
-            error: "One companion is still recovering from a recent Nexus merge. Try again after cooldown.",
-            code: "NEXUS_COOLDOWN",
-            cooldownUntil: p.nexus_cooldown_until,
-          }),
-          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
-    }
-
-    const { data: prof, error: profErr } = await supabase
-      .from("profiles")
-      .select("tokens_balance")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (profErr || prof == null) {
-      return new Response(JSON.stringify({ error: "Could not read forge credits balance." }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (prof.tokens_balance < totalCost) {
+    if (
+      !parentAllowedForMerge(pa as Record<string, unknown>, userId, adminMerge) ||
+      !parentAllowedForMerge(pb as Record<string, unknown>, userId, adminMerge)
+    ) {
       return new Response(
         JSON.stringify({
-          error: `Not enough forge credits (${totalCost} required for this merge).`,
-          code: "INSUFFICIENT_TOKENS",
+          error: adminMerge
+            ? "Admin Nexus: each parent must be your own forge OR an approved public gallery card (never another user’s private vault)."
+            : "You can only merge companions you forged.",
         }),
-        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    const { error: deductErr } = await supabase
-      .from("profiles")
-      .update({ tokens_balance: prof.tokens_balance - totalCost })
-      .eq("user_id", userId);
-    if (deductErr) {
-      return new Response(JSON.stringify({ error: deductErr.message || "Could not reserve credits." }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!adminMerge) {
+      const now = Date.now();
+      for (const p of [pa, pb]) {
+        const until = p.nexus_cooldown_until ? new Date(p.nexus_cooldown_until as string).getTime() : 0;
+        if (until > now) {
+          return new Response(
+            JSON.stringify({
+              error: "One companion is still recovering from a recent Nexus merge. Try again after cooldown.",
+              code: "NEXUS_COOLDOWN",
+              cooldownUntil: p.nexus_cooldown_until,
+            }),
+            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+      }
+
+      const { data: prof, error: profErr } = await supabase
+        .from("profiles")
+        .select("tokens_balance")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (profErr || prof == null) {
+        return new Response(JSON.stringify({ error: "Could not read forge credits balance." }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (prof.tokens_balance < totalCost) {
+        return new Response(
+          JSON.stringify({
+            error: `Not enough forge credits (${totalCost} required for this merge).`,
+            code: "INSUFFICIENT_TOKENS",
+          }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const { error: deductErr } = await supabase
+        .from("profiles")
+        .update({ tokens_balance: prof.tokens_balance - totalCost })
+        .eq("user_id", userId);
+      if (deductErr) {
+        return new Response(JSON.stringify({ error: deductErr.message || "Could not reserve credits." }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      charged = totalCost;
     }
-    charged = totalCost;
 
     const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
     if (!apiKey) {
-      await refundTokens(supabase, userId, charged);
+      if (charged > 0) await refundTokens(supabase, userId, charged);
       charged = 0;
       return new Response(
         JSON.stringify({
@@ -220,7 +256,18 @@ Deno.serve(async (req) => {
 
     let infuseLine = "";
     if (infuse) {
-      if (favor === "first") {
+      if (adminMerge) {
+        if (favor === "first") {
+          infuseLine =
+            " ADMIN INFUSION (no charge): bias inheritance toward Parent A (first) for silhouette, wardrobe vibe, and dominant speech — still weave Parent B’s kinks subtly.";
+        } else if (favor === "second") {
+          infuseLine =
+            " ADMIN INFUSION (no charge): bias inheritance toward Parent B (second) for silhouette, wardrobe vibe, and dominant speech — still weave Parent A’s kinks subtly.";
+        } else {
+          infuseLine =
+            " ADMIN INFUSION (no charge): amplify overlapping rare tags/kinks between both parents in the output.";
+        }
+      } else if (favor === "first") {
         infuseLine =
           " The user paid for INFUSION: bias inheritance toward Parent A (first) for appearance silhouette, wardrobe vibe, and dominant speech patterns — still mix Parent B’s kinks subtly.";
       } else if (favor === "second") {
@@ -232,9 +279,13 @@ Deno.serve(async (req) => {
       }
     }
 
+    const sourceContext = adminMerge
+      ? "Two adult companion source profiles (JSON) are provided — they may be the operator’s private forges and/or approved public gallery originals. Never assume minors; every output is a consenting adult persona."
+      : "Two user-owned forged parent profiles (JSON) will be provided.";
+
     const system = `You are the fusion intelligence for "The Nexus", a premium dark-romance AI companion forge.
 
-Two USER-OWNED parent profiles (JSON) will be provided. Invent ONE new wholly original hybrid adult companion that believably mixes:
+${sourceContext} Invent ONE new wholly original hybrid adult companion that believably mixes:
 - physical presence and wardrobe cues from both
 - personality voice and flirtation rhythm as a synthesis (not a bland average)
 - tags and kinks: merge intelligently (overlap strengthens; contrast becomes tasteful friction)
@@ -361,7 +412,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
     if (!grokRes.ok) {
       const errText = await grokRes.text();
       console.error("nexus-merge Grok error:", errText);
-      await refundTokens(supabase, userId, charged);
+      if (charged > 0) await refundTokens(supabase, userId, charged);
       charged = 0;
       return new Response(JSON.stringify({ error: "AI fusion service error" }), {
         status: 502,
@@ -372,7 +423,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
     const grokData = await grokRes.json();
     const toolCall = grokData.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall || toolCall.function?.name !== "nexus_merge_companion") {
-      await refundTokens(supabase, userId, charged);
+      if (charged > 0) await refundTokens(supabase, userId, charged);
       charged = 0;
       return new Response(JSON.stringify({ error: "Fusion model returned no structured profile." }), {
         status: 500,
@@ -384,7 +435,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
     try {
       fields = JSON.parse(toolCall.function.arguments);
     } catch {
-      await refundTokens(supabase, userId, charged);
+      if (charged > 0) await refundTokens(supabase, userId, charged);
       charged = 0;
       return new Response(JSON.stringify({ error: "Could not parse fusion output." }), {
         status: 500,
@@ -433,7 +484,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
 
     if (insErr || !inserted?.id) {
       console.error("nexus-merge insert", insErr);
-      await refundTokens(supabase, userId, charged);
+      if (charged > 0) await refundTokens(supabase, userId, charged);
       charged = 0;
       return new Response(JSON.stringify({ error: insErr?.message || "Could not save merged companion." }), {
         status: 500,
@@ -441,13 +492,15 @@ Output ONLY via the nexus_merge_companion tool call.`;
       });
     }
 
-    const { error: coolErr } = await supabase
-      .from("custom_characters")
-      .update({ nexus_cooldown_until: coolUntil })
-      .in("id", [idA, idB]);
+    if (!adminMerge) {
+      const { error: coolErr } = await supabase
+        .from("custom_characters")
+        .update({ nexus_cooldown_until: coolUntil })
+        .in("id", [idA, idB]);
 
-    if (coolErr) {
-      console.error("nexus-merge cooldown update", coolErr);
+      if (coolErr) {
+        console.error("nexus-merge cooldown update", coolErr);
+      }
     }
 
     return new Response(
@@ -458,6 +511,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
         merge_stats,
         trait_fusion_summary: String(fields.trait_fusion_summary || ""),
         creditsCharged: totalCost,
+        adminMerge,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
