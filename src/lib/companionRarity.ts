@@ -74,3 +74,47 @@ export function rarityProfileBloomFilter(rarity: CompanionRarity): string {
       return "blur(12px) brightness(1.15)";
   }
 }
+
+/**
+ * Two CSS `filter` strings for profile-only glitch clones (RGB-ish split per tier).
+ * Paired with `rarity-border-glitch-a` / `rarity-border-glitch-b` transforms in index.css.
+ */
+export function rarityGlitchLayerFilters(rarity: CompanionRarity): readonly [string, string] {
+  switch (rarity) {
+    case "common":
+      return [
+        "hue-rotate(-8deg) saturate(1.25) brightness(1.06) contrast(1.03)",
+        "hue-rotate(22deg) saturate(1.2) brightness(1.04)",
+      ];
+    case "rare":
+      return [
+        "hue-rotate(-28deg) saturate(1.5) brightness(1.1) contrast(1.04)",
+        "hue-rotate(18deg) saturate(1.4) brightness(1.06)",
+      ];
+    case "epic":
+      return [
+        "hue-rotate(-35deg) saturate(1.45) brightness(1.08)",
+        "hue-rotate(25deg) saturate(1.5) brightness(1.07)",
+      ];
+    case "legendary":
+      return [
+        "hue-rotate(-18deg) saturate(1.5) brightness(1.12)",
+        "hue-rotate(12deg) saturate(1.35) brightness(1.08)",
+      ];
+    case "mythic":
+      return [
+        "hue-rotate(-22deg) saturate(1.55) brightness(1.09)",
+        "hue-rotate(20deg) saturate(1.45) brightness(1.07)",
+      ];
+    case "abyssal":
+      return [
+        "hue-rotate(-15deg) saturate(1.4) brightness(1.1)",
+        "hue-rotate(35deg) saturate(1.35) brightness(1.06)",
+      ];
+    default:
+      return [
+        "hue-rotate(-10deg) saturate(1.2) brightness(1.05)",
+        "hue-rotate(15deg) saturate(1.15) brightness(1.04)",
+      ];
+  }
+}

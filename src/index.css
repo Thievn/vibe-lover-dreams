@@ -140,6 +140,62 @@
   }
 }
 
+/* Profile border — chromatic glitch offsets (paired layers; disabled under prefers-reduced-motion in TSX) */
+@keyframes rarity-border-glitch-a {
+  0%,
+  88%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  9% {
+    transform: translate3d(2px, -1px, 0);
+  }
+  20% {
+    transform: translate3d(-2px, 1px, 0);
+  }
+  32% {
+    transform: translate3d(1px, 2px, 0);
+  }
+  44% {
+    transform: translate3d(-1px, -1px, 0);
+  }
+  56% {
+    transform: translate3d(0, 0, 0);
+  }
+  68% {
+    transform: translate3d(2px, 1px, 0);
+  }
+  78% {
+    transform: translate3d(-1px, 1px, 0);
+  }
+}
+
+@keyframes rarity-border-glitch-b {
+  0%,
+  90%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  11% {
+    transform: translate3d(-2px, 1px, 0);
+  }
+  24% {
+    transform: translate3d(2px, -2px, 0);
+  }
+  38% {
+    transform: translate3d(-1px, -1px, 0);
+  }
+  52% {
+    transform: translate3d(1px, 1px, 0);
+  }
+  64% {
+    transform: translate3d(-2px, 0, 0);
+  }
+  76% {
+    transform: translate3d(1px, -1px, 0);
+  }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;

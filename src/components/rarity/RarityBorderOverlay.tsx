@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 import type { CompanionRarity } from "@/lib/companionRarity";
 import {
   defaultRarityBorderPath,
+  rarityGlitchLayerFilters,
   rarityProfileBloomFilter,
   rarityProfileVectorGlowFilter,
 } from "@/lib/companionRarity";
@@ -30,6 +31,8 @@ export function RarityBorderOverlay({
 }: Props) {
   const src = (overlayUrl && overlayUrl.trim()) || defaultRarityBorderPath(rarity);
   const clean = frameStyle === "clean";
+  const [glitchFilterA, glitchFilterB] = rarityGlitchLayerFilters(rarity);
+  const softGlitch = rarity === "abyssal";
 
   return (
     <div
@@ -41,22 +44,47 @@ export function RarityBorderOverlay({
       aria-hidden
     >
       {profilePolish ? (
+        <>
+          <img
+            src={src}
+            alt=""
+            className="absolute inset-0 z-0 h-full w-full scale-[1.05] object-fill mix-blend-screen motion-reduce:opacity-25 opacity-[0.36] motion-reduce:animate-none animate-[profile-frame-bloom-breathe_3s_ease-in-out_infinite]"
+            style={{ filter: rarityProfileBloomFilter(rarity) }}
+          />
+          <div className="absolute inset-0 z-[1] motion-reduce:hidden" aria-hidden>
+            <img
+              src={src}
+              alt=""
+              className={cn(
+                "absolute inset-0 h-full w-full object-fill mix-blend-screen animate-[rarity-border-glitch-a_3.4s_steps(8,end)_infinite]",
+                softGlitch ? "opacity-[0.34]" : "opacity-[0.44]",
+              )}
+              style={{ filter: glitchFilterA }}
+            />
+            <img
+              src={src}
+              alt=""
+              className={cn(
+                "absolute inset-0 h-full w-full object-fill mix-blend-screen animate-[rarity-border-glitch-b_3.65s_steps(8,end)_infinite]",
+                softGlitch ? "opacity-[0.3]" : "opacity-[0.4]",
+              )}
+              style={{ filter: glitchFilterB }}
+            />
+          </div>
+          <img
+            src={src}
+            alt=""
+            className="absolute inset-0 z-[3] h-full w-full object-fill opacity-[0.98]"
+            style={{ filter: rarityProfileVectorGlowFilter(rarity) }}
+          />
+        </>
+      ) : (
         <img
           src={src}
           alt=""
-          className="absolute inset-0 z-0 h-full w-full scale-[1.05] object-fill mix-blend-screen motion-reduce:opacity-25 opacity-[0.36] motion-reduce:animate-none animate-[profile-frame-bloom-breathe_3s_ease-in-out_infinite]"
-          style={{ filter: rarityProfileBloomFilter(rarity) }}
+          className={cn("absolute inset-0 z-[1] h-full w-full object-fill", clean ? "opacity-[0.93]" : "opacity-[0.92]")}
         />
-      ) : null}
-      <img
-        src={src}
-        alt=""
-        className={cn(
-          "absolute inset-0 z-[1] h-full w-full object-fill",
-          clean ? "opacity-[0.93]" : profilePolish ? "opacity-[0.98]" : "opacity-[0.92]",
-        )}
-        style={profilePolish ? { filter: rarityProfileVectorGlowFilter(rarity) } : undefined}
-      />
+      )}
     </div>
   );
 }
