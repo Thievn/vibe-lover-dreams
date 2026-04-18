@@ -1,5 +1,6 @@
 -- Operator queue: companions with thin backstories pending admin regen (optional tracking).
 -- Populate with scripts/thin-backstories/02_queue_for_regen.sql after deploy.
+-- Version matches remote (applied via MCP); keep in sync with supabase migration history.
 
 CREATE TABLE IF NOT EXISTS public.backstory_regen_queue (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

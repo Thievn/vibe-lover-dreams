@@ -1,5 +1,5 @@
 -- One-time (or repeat): refill the queue from current DB rows with thin backstories.
--- Requires migration: supabase/migrations/20260429130000_backstory_regen_queue.sql (or `supabase db push`).
+-- Requires migration: supabase/migrations/20260418054915_backstory_regen_queue.sql (or `supabase db push`).
 
 TRUNCATE public.backstory_regen_queue;
 
