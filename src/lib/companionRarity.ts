@@ -33,3 +33,44 @@ export function getStaticRarityForCatalog(id: string): CompanionRarity {
 export function defaultRarityBorderPath(rarity: CompanionRarity): string {
   return `/rarity-borders/${rarity}.svg`;
 }
+
+/**
+ * CSS `filter` for the sharp rarity SVG on profile — colored rim glow (not a second stroke).
+ * Keeps the vector as the single intentional edge; glow follows tier hue.
+ */
+export function rarityProfileVectorGlowFilter(rarity: CompanionRarity): string {
+  switch (rarity) {
+    case "common":
+      return "brightness(1.06) contrast(1.02) drop-shadow(0 0 1px rgba(226,232,240,0.75)) drop-shadow(0 0 8px rgba(148,163,184,0.45)) drop-shadow(0 0 20px rgba(71,85,105,0.22))";
+    case "rare":
+      return "brightness(1.08) saturate(1.08) drop-shadow(0 0 1.5px rgba(34,211,238,0.95)) drop-shadow(0 0 12px rgba(56,189,248,0.6)) drop-shadow(0 0 28px rgba(14,165,233,0.35))";
+    case "epic":
+      return "brightness(1.08) saturate(1.1) drop-shadow(0 0 1.5px rgba(192,132,252,0.9)) drop-shadow(0 0 12px rgba(168,85,247,0.55)) drop-shadow(0 0 26px rgba(217,70,239,0.3))";
+    case "legendary":
+      return "brightness(1.1) saturate(1.12) drop-shadow(0 0 1.5px rgba(251,191,36,0.95)) drop-shadow(0 0 12px rgba(245,158,11,0.55)) drop-shadow(0 0 26px rgba(252,211,77,0.28))";
+    case "mythic":
+      return "brightness(1.08) saturate(1.12) drop-shadow(0 0 1.5px rgba(251,113,133,0.95)) drop-shadow(0 0 12px rgba(244,63,94,0.5)) drop-shadow(0 0 26px rgba(236,72,153,0.32))";
+    case "abyssal":
+      return "brightness(1.1) saturate(1.15) drop-shadow(0 0 2px rgba(255,45,123,0.95)) drop-shadow(0 0 14px rgba(192,132,252,0.65)) drop-shadow(0 0 22px rgba(0,255,212,0.35)) drop-shadow(0 0 36px rgba(168,85,247,0.35))";
+    default:
+      return "brightness(1.05) drop-shadow(0 0 8px rgba(148,163,184,0.4))";
+  }
+}
+
+/** Softer under-glow layer (blurred duplicate) — tint only, no competing stroke. */
+export function rarityProfileBloomFilter(rarity: CompanionRarity): string {
+  switch (rarity) {
+    case "rare":
+      return "blur(14px) brightness(1.25) saturate(1.2) hue-rotate(-5deg)";
+    case "epic":
+      return "blur(14px) brightness(1.2) saturate(1.15)";
+    case "legendary":
+      return "blur(14px) brightness(1.25) saturate(1.1)";
+    case "mythic":
+      return "blur(14px) brightness(1.2) saturate(1.2)";
+    case "abyssal":
+      return "blur(16px) brightness(1.3) saturate(1.25)";
+    default:
+      return "blur(12px) brightness(1.15)";
+  }
+}

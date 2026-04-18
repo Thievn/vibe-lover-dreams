@@ -380,14 +380,9 @@ const CompanionProfile = () => {
                 alt={companion.name}
                 stillSrc={stillForProfile}
                 animatedSrc={animatedPortrait}
-                triggerClassName="rounded-[1.2rem]"
+                triggerClassName="rounded-[1.35rem]"
               >
-                <div
-                  className={cn(
-                    "relative aspect-[3/4] w-full overflow-hidden rounded-[1.2rem] bg-black/50",
-                    isAbyssal && "ring-1 ring-[#ff2d7b]/25",
-                  )}
-                >
+                <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[1.35rem] bg-black/50">
                   {isAbyssal && <AbyssalProfileParticles />}
                   <div
                     className="absolute inset-0 z-0"

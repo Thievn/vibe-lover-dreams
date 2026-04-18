@@ -14,12 +14,13 @@ export type ProfileTierHaloRadius = {
 };
 
 export const PROFILE_TIER_HALO_RADIUS: Record<ProfilePortraitTierHaloVariant, ProfileTierHaloRadius> = {
+  /** Single radius with the portrait — vector frame provides the colored edge (no inner black ring). */
   profile: {
     outer: "rounded-[1.35rem]",
     mask: "rounded-[1.35rem]",
-    inner: "rounded-[1.2rem]",
-    gutter: "m-[3px]",
-    ring: "border-[3px]",
+    inner: "rounded-[1.35rem]",
+    gutter: "",
+    ring: "",
   },
   card: {
     outer: "rounded-2xl",

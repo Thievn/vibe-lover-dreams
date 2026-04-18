@@ -1,6 +1,10 @@
 import { cn } from "@/lib/utils";
 import type { CompanionRarity } from "@/lib/companionRarity";
-import { defaultRarityBorderPath } from "@/lib/companionRarity";
+import {
+  defaultRarityBorderPath,
+  rarityProfileBloomFilter,
+  rarityProfileVectorGlowFilter,
+} from "@/lib/companionRarity";
 import type { ProfilePortraitFrameStyle } from "@/lib/profilePortraitTierHalo";
 
 type Props = {
@@ -31,7 +35,7 @@ export function RarityBorderOverlay({
     <div
       className={cn(
         "pointer-events-none absolute inset-0 z-[2] rounded-[inherit]",
-        abyssal && !clean && "animate-[abyssal-pulse_3.2s_ease-in-out_infinite]",
+        abyssal && !clean && !profilePolish && "animate-[abyssal-pulse_3.2s_ease-in-out_infinite]",
         className,
       )}
       aria-hidden
@@ -40,16 +44,18 @@ export function RarityBorderOverlay({
         <img
           src={src}
           alt=""
-          className="absolute inset-0 h-full w-full scale-[1.03] object-fill blur-md mix-blend-screen motion-reduce:opacity-0 animate-[profile-border-glow_4s_ease-in-out_infinite]"
+          className="absolute inset-0 z-0 h-full w-full scale-[1.05] object-fill mix-blend-screen motion-reduce:opacity-25 opacity-[0.36] motion-reduce:animate-none animate-[profile-frame-bloom-breathe_3s_ease-in-out_infinite]"
+          style={{ filter: rarityProfileBloomFilter(rarity) }}
         />
       ) : null}
       <img
         src={src}
         alt=""
         className={cn(
-          "absolute inset-0 h-full w-full object-fill",
-          clean ? "opacity-[0.93]" : "opacity-[0.92]",
+          "absolute inset-0 z-[1] h-full w-full object-fill",
+          clean ? "opacity-[0.93]" : profilePolish ? "opacity-[0.98]" : "opacity-[0.92]",
         )}
+        style={profilePolish ? { filter: rarityProfileVectorGlowFilter(rarity) } : undefined}
       />
     </div>
   );

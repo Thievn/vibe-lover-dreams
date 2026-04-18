@@ -44,7 +44,7 @@ export function ProfilePortraitTierHalo({
   const r = profileTierHaloRadius(variant, frameStyle);
   const isProfile = variant === "profile";
   const isCleanCard = frameStyle === "clean" && !isProfile;
-  const gradientOpacity = isProfile ? "opacity-70" : isCleanCard ? "opacity-[0.48]" : "opacity-[0.62]";
+  const gradientOpacity = isProfile ? "opacity-[0.52]" : isCleanCard ? "opacity-[0.48]" : "opacity-[0.62]";
 
   return (
     <div
@@ -53,8 +53,8 @@ export function ProfilePortraitTierHalo({
         r.outer,
         isProfile &&
           (isAbyssal
-            ? "motion-reduce:animate-none motion-reduce:shadow-[0_0_60px_rgba(255,45,123,0.4),0_0_100px_rgba(168,85,247,0.26),inset_0_1px_0_rgba(255,255,255,0.09)] animate-[profile-tier-pop_1.15s_cubic-bezier(0.22,1,0.36,1)_both,profile-abyssal-shell-glow_3.2s_ease-in-out_infinite]"
-            : "motion-reduce:animate-none motion-reduce:shadow-[0_0_44px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.06)] animate-[profile-tier-pop_1.15s_cubic-bezier(0.22,1,0.36,1)_both,profile-shell-soft-glow_3.8s_ease-in-out_infinite]"),
+            ? "shadow-[0_6px_28px_rgba(0,0,0,0.65),0_0_36px_rgba(255,45,123,0.22),0_0_52px_rgba(168,85,247,0.14)] motion-reduce:animate-none animate-[profile-tier-pop_1.15s_cubic-bezier(0.22,1,0.36,1)_both]"
+            : "shadow-[0_6px_28px_rgba(0,0,0,0.62),0_0_0_1px_rgba(255,255,255,0.05)] motion-reduce:animate-none animate-[profile-tier-pop_1.15s_cubic-bezier(0.22,1,0.36,1)_both]"),
         !isProfile &&
           (isCleanCard
             ? isAbyssal
@@ -105,7 +105,7 @@ export function ProfilePortraitTierHalo({
               }
         }
       />
-      {!isCleanCard ? (
+      {!isCleanCard && r.ring ? (
         <div
           className={cn(
             "pointer-events-none absolute inset-0 z-[1] border-black/35",
