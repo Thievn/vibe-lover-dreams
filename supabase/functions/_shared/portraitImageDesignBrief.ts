@@ -1,6 +1,8 @@
 /**
  * Prepended to Grok Imagine portrait prompts so generations stay varied, character-forward,
  * and SFW-for-the-image-model while supporting any companion archetype the catalog needs.
+ *
+ * @see ../../../../SFW_POLICY_LINKS.md — index of all repo files that reference SFW policy
  */
 export const PORTRAIT_IMAGE_DESIGN_BRIEF = `Portrait design mandate (apply on every generation):
 • You illustrate roster characters for a premium fantasy / romance companion product. The site is for adults, but THIS IMAGE must stay strictly SFW: no nudity, no visible genitals, no explicit sex acts — seductive pin-up, fashion editorial, or cinematic cover art only.
