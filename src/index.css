@@ -72,6 +72,10 @@
 }
 
 @layer utilities {
+  /** Avoid Tailwind `animate-[...]` with hyphenated @keyframes names (underscores → spaces). */
+  .animate-profile-frame-bloom-breathe {
+    animation: profile-frame-bloom-breathe 3s ease-in-out infinite;
+  }
   .glow-pink {
     box-shadow: 0 0 15px hsl(330 100% 58% / 0.4), 0 0 45px hsl(330 100% 58% / 0.15);
   }
@@ -98,6 +102,12 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-profile-frame-bloom-breathe {
+    animation: none;
   }
 }
 

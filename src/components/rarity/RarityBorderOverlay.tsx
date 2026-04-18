@@ -48,7 +48,7 @@ export function RarityBorderOverlay({
           <img
             src={src}
             alt=""
-            className="absolute inset-0 z-0 h-full w-full scale-[1.05] object-fill mix-blend-screen motion-reduce:opacity-25 opacity-[0.36] motion-reduce:animate-none animate-[profile-frame-bloom-breathe_3s_ease-in-out_infinite]"
+            className="absolute inset-0 z-0 h-full w-full scale-[1.05] object-fill mix-blend-screen motion-reduce:opacity-25 opacity-[0.36] animate-profile-frame-bloom-breathe"
             style={{ filter: rarityProfileBloomFilter(rarity) }}
           />
           <div className="absolute inset-0 z-[1] motion-reduce:hidden" aria-hidden>
@@ -56,19 +56,25 @@ export function RarityBorderOverlay({
               src={src}
               alt=""
               className={cn(
-                "absolute inset-0 h-full w-full object-fill mix-blend-screen animate-[rarity-border-glitch-a_3.4s_steps(8,end)_infinite]",
+                "absolute inset-0 h-full w-full object-fill mix-blend-screen will-change-transform",
                 softGlitch ? "opacity-[0.34]" : "opacity-[0.44]",
               )}
-              style={{ filter: glitchFilterA }}
+              style={{
+                filter: glitchFilterA,
+                animation: "rarity-border-glitch-a 3.4s steps(8, end) infinite",
+              }}
             />
             <img
               src={src}
               alt=""
               className={cn(
-                "absolute inset-0 h-full w-full object-fill mix-blend-screen animate-[rarity-border-glitch-b_3.65s_steps(8,end)_infinite]",
+                "absolute inset-0 h-full w-full object-fill mix-blend-screen will-change-transform",
                 softGlitch ? "opacity-[0.3]" : "opacity-[0.4]",
               )}
-              style={{ filter: glitchFilterB }}
+              style={{
+                filter: glitchFilterB,
+                animation: "rarity-border-glitch-b 3.65s steps(8, end) infinite",
+              }}
             />
           </div>
           <img
