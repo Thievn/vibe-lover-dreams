@@ -1,15 +1,13 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { galleryStaticPortraitUrl, profileAnimatedPortraitUrl } from "@/lib/companionMedia";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { isPlatformAdmin } from "@/config/auth";
-import { motion } from "framer-motion";
-import { ArrowLeft, Send, Loader2, Zap, AlertOctagon, Flame, Image as ImageIcon, Heart, Sparkles } from "lucide-react";
+import { Loader2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { ImageViewer } from "@/components/ImageViewer";
-import { ImageMessage } from "@/components/ImageMessage";
 import { BreedingRitual } from "@/components/BreedingRitual";
 import { useCompanionRelationship } from "@/hooks/useCompanionRelationship";
 import {
@@ -25,31 +23,31 @@ import {
 } from "@/lib/lovense";
 import { buildChatSystemPrompt } from "@/lib/companionSystemPrompts";
 import { useCompanionVibrationPatterns, type CompanionVibrationPatternRow } from "@/hooks/useCompanionVibrationPatterns";
-import { ToyControlPanel } from "@/components/toy/ToyControlPanel";
-import { ToyHubPopover } from "@/components/toy/ToyHubPopover";
 import { payloadToLovenseCommand } from "@/lib/vibrationPatternPayload";
 import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
 import { inferForgeBodyTypeFromTags, inferStylizedArtFromTags } from "@/lib/forgeBodyTypes";
-import { normalizeCompanionRarity } from "@/lib/companionRarity";
-import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
-import { PortraitViewLightbox } from "@/components/PortraitViewLightbox";
+import { ChatPremiumHeader } from "@/components/chat/ChatPremiumHeader";
+import { ChatMessageThread } from "@/components/chat/ChatMessageThread";
+import { ChatComposer } from "@/components/chat/ChatComposer";
+import { ChatQuickActionFab, type FabActionId } from "@/components/chat/ChatQuickActionFab";
+import { ChatSmartReplies } from "@/components/chat/ChatSmartReplies";
+import { ChatDevicesCollapsible } from "@/components/chat/ChatDevicesCollapsible";
+import { FloatingHeartsLayer } from "@/components/chat/FloatingHeartsLayer";
+import { ChatVoiceSettingsSheet } from "@/components/chat/ChatVoiceSettingsSheet";
+import type { ChatMessage } from "@/components/chat/chatTypes";
+import { deriveChatMood } from "@/lib/chatMood";
+import {
+  TTS_UX_LABELS,
+  resolveUxVoiceId,
+  uxVoiceToXaiVoice,
+  type TtsUxVoiceId,
+} from "@/lib/ttsVoicePresets";
+import { ToyHubPopover } from "@/components/toy/ToyHubPopover";
 
 const TOKEN_COST = 15;
 const IMAGE_TOKEN_COST = 75;
 
-interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  lovenseCommand?: any;
-  timestamp: Date;
-  imageUrl?: string;
-  imageId?: string;
-  imagePrompt?: string;
-  generatedImageId?: string;
-  savedToCompanionGallery?: boolean;
-  savedToPersonalGallery?: boolean;
-}
+const SMART_FALLBACK = ["Tell me more…", "I want you closer.", "Surprise me."];
 
 const Chat = () => {
   const { id } = useParams<{ id: string }>();
@@ -75,6 +73,17 @@ const Chat = () => {
   const [toysPanelLoading, setToysPanelLoading] = useState(false);
   const [viewingImage, setViewingImage] = useState<ChatMessage | null>(null);
   const [showBreedingRitual, setShowBreedingRitual] = useState(false);
+  const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
+  const [voicePresetSaving, setVoicePresetSaving] = useState(false);
+  const [profileTtsGlobal, setProfileTtsGlobal] = useState<string | null>(null);
+  const [smartSuggestions, setSmartSuggestions] = useState<string[]>(SMART_FALLBACK);
+  const [heartBursts, setHeartBursts] = useState<{ id: number; x: string }[]>([]);
+  const heartIdRef = useRef(0);
+  const prevAffectionRef = useRef<number | null>(null);
+  const prevLoadingRef = useRef(false);
+  const [ttsLoadingId, setTtsLoadingId] = useState<string | null>(null);
+  const [ttsPlayingId, setTtsPlayingId] = useState<string | null>(null);
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const [pairingUrl, setPairingUrl] = useState<string | null>(null);
   const [pairingLoading, setPairingLoading] = useState(false);
   const [intensity, setIntensity] = useState<number>(() => parseInt(localStorage.getItem("lustforge-intensity") || "50"));
@@ -92,9 +101,12 @@ const Chat = () => {
 
   const isAdminUser = useMemo(() => isPlatformAdmin(user), [user]);
 
-  useEffect(() => {
-    tokensBalanceRef.current = tokensBalance;
-  }, [tokensBalance]);
+  const lastAssistantText = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "assistant") return messages[i].content;
+    }
+    return "";
+  }, [messages]);
 
   const {
     relationship,
@@ -102,6 +114,37 @@ const Chat = () => {
     loading: relationshipLoading,
     refresh: refreshRelationship,
   } = useCompanionRelationship(companion?.id || "");
+
+  const mood = useMemo(
+    () => deriveChatMood(relationship?.affection_level ?? 0, lastAssistantText),
+    [relationship?.affection_level, lastAssistantText],
+  );
+
+  const effectiveUxVoice = useMemo((): TtsUxVoiceId => {
+    if (profileTtsGlobal) return resolveUxVoiceId(profileTtsGlobal);
+    if (relationship?.tts_voice_preset) return resolveUxVoiceId(relationship.tts_voice_preset);
+    if (dbComp?.tts_voice_preset) return resolveUxVoiceId(dbComp.tts_voice_preset);
+    return "velvet_whisper";
+  }, [profileTtsGlobal, relationship, dbComp]);
+
+  const effectiveVoiceLabel = TTS_UX_LABELS[effectiveUxVoice];
+
+  const userAvatarUrl = useMemo(() => {
+    const m = user?.user_metadata as Record<string, string | undefined> | undefined;
+    return m?.avatar_url?.trim() || null;
+  }, [user]);
+
+  const userInitials = useMemo(() => {
+    const m = user?.user_metadata as Record<string, string | undefined> | undefined;
+    const n = (m?.full_name || m?.name || user?.email?.split("@")[0] || "You").trim();
+    const p = n.split(/\s+/).filter(Boolean);
+    if (p.length >= 2) return (p[0]![0] + p[1]![0]).toUpperCase();
+    return n.slice(0, 2).toUpperCase();
+  }, [user]);
+
+  useEffect(() => {
+    tokensBalanceRef.current = tokensBalance;
+  }, [tokensBalance]);
 
   const activeToys = useMemo(() => connectedToys.filter((t) => t.enabled), [connectedToys]);
   const hasDevice = activeToys.length > 0;
@@ -231,13 +274,15 @@ const Chat = () => {
   const fetchTokens = async (userId: string): Promise<number> => {
     const { data } = await supabase
       .from("profiles")
-      .select("tokens_balance")
+      .select("tokens_balance, tts_voice_global_override")
       .eq("user_id", userId)
       .maybeSingle();
     const bal =
       typeof data?.tokens_balance === "number" && Number.isFinite(data.tokens_balance) ? data.tokens_balance : 0;
     setTokensBalance(bal);
     tokensBalanceRef.current = bal;
+    const g = data?.tts_voice_global_override;
+    setProfileTtsGlobal(typeof g === "string" && g.trim() ? g.trim() : null);
     return bal;
   };
 
@@ -450,6 +495,7 @@ const Chat = () => {
             content: m.content,
             lovenseCommand: m.lovense_command,
             timestamp: new Date(m.created_at),
+            tts_audio_url: m.tts_audio_url ?? undefined,
           })),
         );
       } else {
@@ -605,6 +651,134 @@ const Chat = () => {
     setShowBreedingRitual(true);
   };
 
+  useEffect(() => {
+    const a = relationship?.affection_level;
+    if (a === undefined || a === null) return;
+    const prev = prevAffectionRef.current;
+    prevAffectionRef.current = a;
+    if (prev !== null && a > prev) {
+      heartIdRef.current += 1;
+      const id = heartIdRef.current;
+      const x = `${12 + Math.random() * 76}%`;
+      setHeartBursts((b) => [...b, { id, x }]);
+      window.setTimeout(() => {
+        setHeartBursts((b) => b.filter((h) => h.id !== id));
+      }, 2600);
+    }
+  }, [relationship?.affection_level]);
+
+  useEffect(() => {
+    if (!companion || !user || !historyReady) return;
+    const wasLoading = prevLoadingRef.current;
+    prevLoadingRef.current = loading;
+    if (wasLoading && !loading) {
+      const last = messagesRef.current[messagesRef.current.length - 1];
+      if (last?.role !== "assistant") return;
+      const t = window.setTimeout(() => {
+        void (async () => {
+          const thread = messagesRef.current.slice(-12).map((m) => ({ role: m.role, content: m.content }));
+          try {
+            const { data, error } = await supabase.functions.invoke("chat-smart-replies", {
+              body: { companionId: companion.id, companionName: companion.name, messages: thread },
+            });
+            if (error) throw error;
+            const sug = (data as { suggestions?: string[] })?.suggestions;
+            if (Array.isArray(sug) && sug.length) setSmartSuggestions(sug.slice(0, 3));
+            else setSmartSuggestions(SMART_FALLBACK);
+          } catch {
+            setSmartSuggestions(SMART_FALLBACK);
+          }
+        })();
+      }, 500);
+      return () => clearTimeout(t);
+    }
+  }, [loading, companion, user, historyReady]);
+
+  const saveRelationshipVoice = async (v: TtsUxVoiceId) => {
+    if (!user || !companion) return;
+    setVoicePresetSaving(true);
+    try {
+      const { error } = await supabase.from("companion_relationships").upsert(
+        {
+          user_id: user.id,
+          companion_id: companion.id,
+          affection_level: relationship?.affection_level ?? 0,
+          breeding_progress: relationship?.breeding_progress ?? 0,
+          breeding_stage: relationship?.breeding_stage ?? 0,
+          tts_voice_preset: v,
+          last_interaction: new Date().toISOString(),
+        },
+        { onConflict: "user_id,companion_id" },
+      );
+      if (error) throw error;
+      refreshRelationship();
+      toast.success("Voice updated");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Could not save voice");
+    } finally {
+      setVoicePresetSaving(false);
+    }
+  };
+
+  const handleTts = useCallback(
+    async (msg: ChatMessage) => {
+      if (!user || msg.role !== "assistant" || !msg.content?.trim()) return;
+      if (ttsAudioRef.current) {
+        ttsAudioRef.current.pause();
+        ttsAudioRef.current = null;
+      }
+      if (ttsPlayingId === msg.id) {
+        setTtsPlayingId(null);
+        return;
+      }
+      if (msg.tts_audio_url) {
+        const a = new Audio(msg.tts_audio_url);
+        ttsAudioRef.current = a;
+        setTtsPlayingId(msg.id);
+        a.onended = () => setTtsPlayingId(null);
+        a.onerror = () => {
+          setTtsPlayingId(null);
+          toast.error("Could not play audio");
+        };
+        void a.play().catch(() => toast.error("Could not play audio"));
+        return;
+      }
+      setTtsLoadingId(msg.id);
+      try {
+        const voiceId = uxVoiceToXaiVoice(effectiveUxVoice);
+        const { data, error } = await supabase.functions.invoke("grok-tts", {
+          body: {
+            text: msg.content.slice(0, 3800),
+            voiceId,
+            messageId:
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(msg.id)
+                ? msg.id
+                : undefined,
+          },
+        });
+        if (error) throw new Error(await messageFromFunctionsInvoke(error, data));
+        const url = (data as { audioUrl?: string })?.audioUrl;
+        if (!url) throw new Error("No audio URL");
+        setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, tts_audio_url: url } : m)));
+        const a = new Audio(url);
+        ttsAudioRef.current = a;
+        setTtsPlayingId(msg.id);
+        a.onended = () => setTtsPlayingId(null);
+        a.onerror = () => {
+          setTtsPlayingId(null);
+          toast.error("Could not play audio");
+        };
+        void a.play().catch(() => toast.error("Could not play audio"));
+      } catch (e: unknown) {
+        const raw = e instanceof Error ? e.message : "TTS failed";
+        toast.error(raw.length > 120 ? `${raw.slice(0, 117)}…` : raw);
+      } finally {
+        setTtsLoadingId(null);
+      }
+    },
+    [user, ttsPlayingId, effectiveUxVoice],
+  );
+
   const handleBreedingComplete = (offspring: any) => {
     setShowBreedingRitual(false);
     refreshRelationship();
@@ -636,6 +810,23 @@ const Chat = () => {
       )
     );
     // Note: Backend support for per-toy enable/disable would be needed for full functionality
+  };
+
+  const insertAssistantMessage = async (content: string, command: unknown | null): Promise<string> => {
+    if (!user || !companion) throw new Error("Not ready");
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .insert({
+        user_id: user.id,
+        companion_id: companion.id,
+        role: "assistant",
+        content,
+        lovense_command: command,
+      })
+      .select("id")
+      .single();
+    if (error || !data?.id) throw new Error(error?.message || "Could not save reply");
+    return data.id as string;
   };
 
   const sendMessage = async (overrideText?: string) => {
@@ -759,8 +950,9 @@ const Chat = () => {
               chatPayload?.response || chatPayload?.message || "",
             );
 
+            const asstId = await insertAssistantMessage(cleanText, command);
             const assistantMsg: ChatMessage = {
-              id: (Date.now() + 2).toString(),
+              id: asstId,
               role: "assistant",
               content: cleanText,
               lovenseCommand: command,
@@ -768,14 +960,6 @@ const Chat = () => {
             };
 
             setMessages((prev) => [...prev, assistantMsg]);
-
-            await supabase.from("chat_messages").insert({
-              user_id: user.id,
-              companion_id: companion.id,
-              role: "assistant",
-              content: cleanText,
-              lovense_command: command,
-            });
 
             if (command && hasDevice) {
               executeDeviceCommand(command);
@@ -807,8 +991,9 @@ const Chat = () => {
             chatPayload?.response || chatPayload?.message || "",
           );
 
+          const asstId = await insertAssistantMessage(cleanText, command);
           const assistantMsg: ChatMessage = {
-            id: (Date.now() + 1).toString(),
+            id: asstId,
             role: "assistant",
             content: cleanText,
             lovenseCommand: command,
@@ -816,14 +1001,6 @@ const Chat = () => {
           };
 
           setMessages((prev) => [...prev, assistantMsg]);
-
-          await supabase.from("chat_messages").insert({
-            user_id: user.id,
-            companion_id: companion.id,
-            role: "assistant",
-            content: cleanText,
-            lovense_command: command,
-          });
 
           if (command && hasDevice) {
             executeDeviceCommand(command);
@@ -848,6 +1025,23 @@ const Chat = () => {
   };
 
   sendMessageRef.current = sendMessage;
+
+  const handleFabAction = (fabId: FabActionId) => {
+    if (fabId === "selfie") {
+      setInput("Send me a picture of you, please.");
+      return;
+    }
+    if (fabId === "vibration") {
+      const first = vibrationPatterns[0];
+      if (first) void triggerCompanionVibration(first);
+      else toast.error("No signature patterns for this companion.");
+      return;
+    }
+    if (fabId === "praise") void sendMessage("Praise me. I need to hear I'm good.");
+    if (fabId === "tease") void sendMessage("Tease me until I'm begging.");
+    if (fabId === "rough") void sendMessage("Be rough with me — consensually, no holding back.");
+    if (fabId === "breeding") setShowBreedingRitual(true);
+  };
 
   /** Fantasy starter from profile: first line is the exact scripted USER message; works with new or existing threads. */
   useEffect(() => {
@@ -906,63 +1100,30 @@ const Chat = () => {
   };
 
   return (
-    <div className="h-screen bg-background flex flex-col">
-      {/* Header */}
-      <div className="border-b border-border bg-card/80 backdrop-blur-xl px-4 py-3 flex items-center gap-3 shrink-0">
-        <button
-          type="button"
-          onClick={() => {
-            const backTo = (location.state as { from?: string } | undefined)?.from;
-            if (backTo) navigate(backTo);
-            else if (location.key !== "default") navigate(-1);
-            else navigate(`/companions/${companion.id}`);
-          }}
-          className="text-muted-foreground hover:text-foreground transition-colors"
-          title="Back"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <div className="shrink-0 w-10 h-10">
-          <PortraitViewLightbox
-            alt={companion.name}
-            stillSrc={imageUrl}
-            animatedSrc={headerAnimated}
-            triggerClassName="h-full w-full rounded-[inherit]"
-          >
-            <TierHaloPortraitFrame
-              variant="avatar"
-              rarity={normalizeCompanionRarity(companion.rarity)}
-              gradientFrom={companion.gradientFrom}
-              gradientTo={companion.gradientTo}
-              overlayUrl={dbComp?.rarity_border_overlay_url ?? null}
-              aspectClassName="aspect-square w-full h-full"
-            >
-              <div
-                className="absolute inset-0 z-0"
-                style={{
-                  background: `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
-                }}
-              />
-              {imageUrl ? (
-                <img
-                  src={imageUrl}
-                  alt={companion.name}
-                  className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
-                />
-              ) : (
-                <span className="absolute inset-0 z-[2] flex items-center justify-center text-lg font-gothic font-bold text-white/90">
-                  {companion.name.charAt(0)}
-                </span>
-              )}
-            </TierHaloPortraitFrame>
-          </PortraitViewLightbox>
-        </div>
-        <div className="flex-1 min-w-0">
-          <h2 className="font-bold text-foreground text-sm truncate">{companion.name}</h2>
-          <p className="text-xs text-primary truncate">{companion.tagline}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {user && (
+    <div className="h-screen bg-[hsl(280_30%_5%)] flex flex-col text-foreground">
+      <FloatingHeartsLayer bursts={heartBursts} />
+
+      <ChatPremiumHeader
+        companion={companion}
+        dbComp={dbComp}
+        imageUrl={imageUrl}
+        headerAnimated={headerAnimated}
+        mood={mood}
+        tokensBalance={tokensBalance}
+        isAdminUser={isAdminUser}
+        safeWord={safeWord}
+        onBack={() => {
+          const backTo = (location.state as { from?: string } | undefined)?.from;
+          if (backTo) navigate(backTo);
+          else if (location.key !== "default") navigate(-1);
+          else navigate(`/companions/${companion.id}`);
+        }}
+        onSafeWordInfo={() => {
+          toast.info(`🛑 Safe word: "${safeWord}" — Type it anytime to stop everything.`);
+        }}
+        onCompanionPortraitClick={() => setVoiceSettingsOpen(true)}
+        rightSlot={
+          user ? (
             <ToyHubPopover
               toys={connectedToys}
               loading={toysPanelLoading}
@@ -973,122 +1134,33 @@ const Chat = () => {
               onDisconnectOne={(uid) => void handleDisconnectOneToy(uid)}
               onToggleEnabled={(uid, en) => void handleToggleToyEnabled(uid, en)}
             />
-          )}
-          <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-xs">
-            <Flame className="h-3 w-3 text-primary" />
-            <span
-              className={`font-medium ${!isAdminUser && tokensBalance < 100 ? "text-destructive" : "text-foreground"}`}
-            >
-              {isAdminUser ? "∞" : tokensBalance.toLocaleString()}
-            </span>
-          </div>
-          <button
-            onClick={() => {
-              toast.info(`🛑 Safe word: "${safeWord}" — Type it anytime to stop everything.`);
-            }}
-            className="p-2 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
-            title="Safe Word Info"
-          >
-            <AlertOctagon className="h-5 w-5" />
-          </button>
-        </div>
-      </div>
+          ) : null
+        }
+      />
 
-      <div className="border-b border-border bg-card/80 backdrop-blur-xl px-4 py-4 space-y-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Session</p>
-            <div className="flex flex-wrap gap-2 items-center">
-              <span className="rounded-full bg-muted px-3 py-1 text-xs text-foreground">
-                {connectedToys.length > 0
-                  ? `${connectedToys.length} linked · ${activeToys.length} active`
-                  : "No toy connected"}
-              </span>
-              <span className="rounded-full bg-muted px-3 py-1 text-xs text-foreground">
-                Affection: {relationship?.affection_level ?? 0}%
-              </span>
-              <span className="rounded-full bg-muted px-3 py-1 text-xs text-foreground">
-                Breeding: {relationship?.breeding_stage ?? 0} / 3
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {hasDevice ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void handleTestToy()}
-                  disabled={toyUtilityBusy}
-                  className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-                >
-                  Test Toy
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDisconnectToy()}
-                  disabled={toyUtilityBusy}
-                  className="rounded-xl bg-destructive px-4 py-2 text-xs font-semibold text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50"
-                >
-                  Disconnect
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleStopAll()}
-                  disabled={toyUtilityBusy}
-                  className="rounded-xl bg-destructive/80 px-4 py-2 text-xs font-semibold text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50"
-                >
-                  Stop All
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void handleConnectToy()}
-                disabled={pairingLoading}
-                className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                {pairingLoading ? "Pairing..." : "Connect Toy"}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={handleStartBreedingRitual}
-              className="rounded-xl bg-secondary px-4 py-2 text-xs font-semibold text-foreground hover:bg-secondary/90 transition-colors"
-            >
-              Breeding Ritual
-            </button>
-          </div>
-        </div>
-
-        {hasDevice ? (
-          <ToyControlPanel
-            toys={activeToys}
-            primaryToyId={primaryToyUid}
-            onSelectPrimaryToy={selectPrimaryToy}
-            patterns={vibrationPatterns}
-            patternsLoading={vibrationPatternsLoading}
-            disabled={false}
-            sendingId={sendingVibrationId}
-            onTrigger={(row) => void triggerCompanionVibration(row)}
-          />
-        ) : (
-          <div className="rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-3 text-center text-xs text-muted-foreground">
-            Pair your Lovense toy to unlock <span className="text-primary/90">{companion.name}</span>&apos;s signature
-            vibration patterns in this chat.
-            {pairingUrl ? (
-              <a
-                href={pairingUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="ml-2 text-primary underline font-medium"
-              >
-                Open pairing portal
-              </a>
-            ) : null}
-          </div>
-        )}
-      </div>
+      <ChatDevicesCollapsible
+        companionName={companion.name}
+        connectedCount={connectedToys.length}
+        activeCount={activeToys.length}
+        affectionPct={relationship?.affection_level ?? 0}
+        breedingStage={relationship?.breeding_stage ?? 0}
+        hasDevice={hasDevice}
+        pairingUrl={pairingUrl}
+        toyUtilityBusy={toyUtilityBusy}
+        pairingLoading={pairingLoading}
+        onTestToy={() => void handleTestToy()}
+        onDisconnectToy={() => void handleDisconnectToy()}
+        onStopAll={() => void handleStopAll()}
+        onConnectToy={() => void handleConnectToy()}
+        onBreedingRitual={handleStartBreedingRitual}
+        toys={activeToys}
+        primaryToyId={primaryToyUid}
+        onSelectPrimaryToy={selectPrimaryToy}
+        patterns={vibrationPatterns}
+        patternsLoading={vibrationPatternsLoading}
+        sendingVibrationId={sendingVibrationId}
+        onTriggerPattern={(row) => void triggerCompanionVibration(row)}
+      />
 
       {/* Token warning */}
       {!isAdminUser && tokensBalance < 100 && tokensBalance > 0 && (
@@ -1105,122 +1177,67 @@ const Chat = () => {
         </div>
       )}
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {messages.map((msg) => (
-          <motion.div
-            key={msg.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                msg.role === "user"
-                  ? "bg-primary text-primary-foreground rounded-br-md"
-                  : "bg-card border border-border text-foreground rounded-bl-md"
-              }`}
-            >
-              {/* Image display */}
-              {msg.imageUrl ? (
-                <ImageMessage
-                  imageUrl={msg.imageUrl}
-                  prompt={msg.imagePrompt || "Generated image"}
-                  onImageClick={() => setViewingImage(msg)}
-                  companionName={companion.name}
-                />
-              ) : (
-                <p className="whitespace-pre-wrap">{msg.content}</p>
-              )}
+      <ChatMessageThread
+        messages={messages}
+        companion={companion}
+        companionImageUrl={imageUrl}
+        userAvatarUrl={userAvatarUrl}
+        userInitials={userInitials}
+        loading={loading}
+        isImageRequest={isImageRequest}
+        inputSnapshot={input}
+        hasDevice={hasDevice}
+        onImageClick={setViewingImage}
+        labelForLovenseCmd={labelForLovenseCmd}
+        onTtsClick={handleTts}
+        ttsLoadingId={ttsLoadingId}
+        ttsPlayingId={ttsPlayingId}
+        messagesEndRef={messagesEndRef}
+      />
 
-              {msg.lovenseCommand && (
-                <div className="mt-2 px-3 py-2 rounded-lg bg-accent/10 border border-accent/20 text-accent text-xs flex items-center gap-2">
-                  <Zap className="h-3 w-3" />
-                  {hasDevice ? (
-                    <>
-                      {labelForLovenseCmd(msg.lovenseCommand)}: {String(msg.lovenseCommand.command)} at{" "}
-                      {msg.lovenseCommand.intensity}%
-                      <span className="text-accent ml-1">✓ Sent</span>
-                    </>
-                  ) : (
-                    <>
-                      Device: {String(msg.lovenseCommand.command)} at {msg.lovenseCommand.intensity}%
-                      <span className="text-muted-foreground ml-1">(Connect device to activate)</span>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* Save status for images */}
-              {msg.imageUrl && (msg.savedToCompanionGallery || msg.savedToPersonalGallery) && (
-                <div className="mt-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-green-500 text-xs flex items-center gap-2">
-                  ✓ Saved to {msg.savedToCompanionGallery ? `${companion.name}'s gallery` : "your personal gallery"}
-                </div>
-              )}
-            </div>
-          </motion.div>
-        ))}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-card border border-border rounded-2xl rounded-bl-md px-4 py-3">
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {companion.name} is {isImageRequest(input) ? "creating..." : "typing..."}
-              </div>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input */}
-      <div className="border-t border-border bg-card/80 backdrop-blur-xl px-4 py-3 shrink-0">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            sendMessage();
+      <div className="shrink-0 px-3 pb-1 z-20 bg-gradient-to-t from-black/80 to-transparent">
+        <ChatSmartReplies
+          suggestions={smartSuggestions}
+          disabled={loading || (!isAdminUser && tokensBalance <= 0)}
+          loading={loading}
+          onPick={(s) => {
+            setInput(s);
+            void sendMessage(s);
           }}
-          className="flex gap-2"
-        >
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={
-              !isAdminUser && tokensBalance <= 0
-                ? "Out of tokens — upgrade to continue"
-                : `Message ${companion.name}... (ask for selfies or pics!)`
-            }
-            className="flex-1 px-4 py-3 rounded-xl bg-muted border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
-            disabled={loading || (!isAdminUser && tokensBalance <= 0)}
-          />
-          <button
-            type="submit"
-            disabled={loading || !input.trim() || (!isAdminUser && tokensBalance <= 0)}
-            className="px-4 py-3 rounded-xl bg-primary text-primary-foreground disabled:opacity-30 hover:glow-pink transition-all flex items-center gap-2"
-            title={
-              isAdminUser
-                ? "Admin — no credit cost"
-                : isImageRequest(input)
-                  ? `Generate image (${IMAGE_TOKEN_COST} tokens)`
-                  : `Send message (${TOKEN_COST} tokens)`
-            }
-          >
-            {isImageRequest(input) ? (
-              <>
-                <ImageIcon className="h-5 w-5" />
-              </>
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
-          </button>
-        </form>
-        <p className="text-[10px] text-muted-foreground text-center mt-2">
-          Safe word: <span className="text-destructive font-bold">{safeWord}</span> ·{" "}
-          {isAdminUser ? "Admin session — credits waived · " : `${TOKEN_COST} tokens/message · ${IMAGE_TOKEN_COST} tokens/image · `}
-          18+ only
-        </p>
+        />
       </div>
+
+      <ChatComposer
+        input={input}
+        onChange={setInput}
+        onSubmit={() => void sendMessage()}
+        disabled={!isAdminUser && tokensBalance <= 0}
+        loading={loading}
+        placeholder={
+          !isAdminUser && tokensBalance <= 0
+            ? "Out of tokens — upgrade to continue"
+            : `Message ${companion.name}… (ask for selfies or pics!)`
+        }
+        isImageRequest={isImageRequest}
+        isAdminUser={isAdminUser}
+        tokensBalance={tokensBalance}
+        tokenCost={TOKEN_COST}
+        imageTokenCost={IMAGE_TOKEN_COST}
+        safeWord={safeWord}
+        companionName={companion.name}
+      />
+
+      <ChatQuickActionFab onAction={handleFabAction} />
+
+      <ChatVoiceSettingsSheet
+        open={voiceSettingsOpen}
+        onOpenChange={setVoiceSettingsOpen}
+        companionName={companion.name}
+        effectiveLabel={effectiveVoiceLabel}
+        relationshipPreset={resolveUxVoiceId(relationship?.tts_voice_preset ?? undefined)}
+        onSaveRelationshipPreset={saveRelationshipVoice}
+        saving={voicePresetSaving}
+      />
 
       {/* Image Viewer Modal */}
       {viewingImage && viewingImage.imageUrl && viewingImage.generatedImageId && (

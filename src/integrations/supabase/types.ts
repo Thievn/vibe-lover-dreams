@@ -22,6 +22,7 @@ export type Database = {
           id: string
           lovense_command: Json | null
           role: string
+          tts_audio_url: string | null
           user_id: string
         }
         Insert: {
@@ -31,6 +32,7 @@ export type Database = {
           id?: string
           lovense_command?: Json | null
           role: string
+          tts_audio_url?: string | null
           user_id: string
         }
         Update: {
@@ -40,6 +42,7 @@ export type Database = {
           id?: string
           lovense_command?: Json | null
           role?: string
+          tts_audio_url?: string | null
           user_id?: string
         }
         Relationships: []
@@ -167,6 +170,7 @@ export type Database = {
           tagline: string
           tags: string[]
           tcg_stats: Json | null
+          tts_voice_preset: string | null
           updated_at: string
           user_id: string
           vibe_theme_selections: string[] | null
@@ -206,6 +210,7 @@ export type Database = {
           tagline?: string
           tags?: string[]
           tcg_stats?: Json | null
+          tts_voice_preset?: string | null
           updated_at?: string
           user_id: string
           vibe_theme_selections?: string[] | null
@@ -245,6 +250,7 @@ export type Database = {
           tagline?: string
           tags?: string[]
           tcg_stats?: Json | null
+          tts_voice_preset?: string | null
           updated_at?: string
           user_id?: string
           vibe_theme_selections?: string[] | null
@@ -350,6 +356,7 @@ export type Database = {
           created_at: string
           id: string
           last_interaction: string
+          tts_voice_preset: string
           updated_at: string
           user_id: string
         }
@@ -361,6 +368,7 @@ export type Database = {
           created_at?: string
           id?: string
           last_interaction?: string
+          tts_voice_preset?: string
           updated_at?: string
           user_id: string
         }
@@ -372,6 +380,7 @@ export type Database = {
           created_at?: string
           id?: string
           last_interaction?: string
+          tts_voice_preset?: string
           updated_at?: string
           user_id?: string
         }
@@ -483,6 +492,7 @@ export type Database = {
           tier: string
           tokens_balance: number
           tokens_reset_at: string
+          tts_voice_global_override: string | null
           updated_at: string
           user_id: string
         }
@@ -495,6 +505,7 @@ export type Database = {
           tier?: string
           tokens_balance?: number
           tokens_reset_at?: string
+          tts_voice_global_override?: string | null
           updated_at?: string
           user_id: string
         }
@@ -507,6 +518,7 @@ export type Database = {
           tier?: string
           tokens_balance?: number
           tokens_reset_at?: string
+          tts_voice_global_override?: string | null
           updated_at?: string
           user_id?: string
         }

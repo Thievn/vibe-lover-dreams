@@ -39,6 +39,8 @@ export interface DbCompanion {
   exclude_from_personal_vault?: boolean;
   /** Forge row owner (custom_characters only). */
   user_id?: string | null;
+  /** Default Grok TTS voice preset for forged companions. */
+  tts_voice_preset?: string | null;
   nexus_cooldown_until?: string | null;
   lineage_parent_ids?: string[] | null;
   merge_stats?: Record<string, unknown> | null;
@@ -128,6 +130,7 @@ export function mapSupabaseCustomCharacterRow(row: Record<string, unknown>): DbC
     is_nexus_hybrid: Boolean(row.is_nexus_hybrid),
     tcg_stats:
       row.tcg_stats && typeof row.tcg_stats === "object" ? (row.tcg_stats as Record<string, unknown>) : null,
+    tts_voice_preset: (row.tts_voice_preset as string | null | undefined) ?? null,
   };
 }
 

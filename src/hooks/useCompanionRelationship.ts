@@ -11,6 +11,8 @@ export interface CompanionRelationship {
   last_interaction: string;
   created_at: string;
   updated_at: string;
+  /** UX voice preset id (see `ttsVoicePresets.ts`). */
+  tts_voice_preset?: string | null;
 }
 
 export interface CompanionGift {
