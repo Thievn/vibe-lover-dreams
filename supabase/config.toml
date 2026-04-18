@@ -17,6 +17,10 @@ verify_jwt = false
 [functions.parse-companion-prompt]
 verify_jwt = false
 
+# Same ES256 / Kong issue as other user-invoked Grok functions — no auth gate here; API key is server-side only.
+[functions.chat-with-companion]
+verify_jwt = false
+
 [functions.generate-companion-image]
 verify_jwt = false
 

@@ -47,6 +47,39 @@ export type Database = {
         }
         Relationships: []
       }
+      backstory_regen_queue: {
+        Row: {
+          backstory_chars: number
+          id: string
+          name: string | null
+          notes: string | null
+          processed_at: string | null
+          queued_at: string
+          record_id: string
+          source_table: string
+        }
+        Insert: {
+          backstory_chars: number
+          id?: string
+          name?: string | null
+          notes?: string | null
+          processed_at?: string | null
+          queued_at?: string
+          record_id: string
+          source_table: string
+        }
+        Update: {
+          backstory_chars?: number
+          id?: string
+          name?: string | null
+          notes?: string | null
+          processed_at?: string | null
+          queued_at?: string
+          record_id?: string
+          source_table?: string
+        }
+        Relationships: []
+      }
       companions: {
         Row: {
           animated_image_url: string | null

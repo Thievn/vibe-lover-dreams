@@ -1,46 +1,63 @@
 import type { Companion } from "@/data/companions";
-const MAX_PARAS = 4;
-const MIN_PARAS = 3;
 
 type BackstoryFields = { backstory?: string | null };
 
 /**
- * Prefer DB `backstory` (split on blank lines). Otherwise derive 2–4 paragraphs from `bio`.
+ * Split DB or merged `backstory` into display paragraphs (blank-line separated).
+ * Does not truncate — the full chronicle is shown.
  */
-export function getCompanionBackstoryParagraphs(companion: Companion, db: BackstoryFields | undefined): string[] {
-  const fromDb = db?.backstory?.trim();
-  if (fromDb) {
-    const parts = fromDb
-      .split(/\n\s*\n/)
-      .map((p) => p.trim())
-      .filter(Boolean);
-    if (parts.length > 0) return parts.slice(0, MAX_PARAS);
-  }
-  return paragraphsFromBio(companion.bio);
+function splitBackstoryParagraphs(text: string): string[] {
+  const parts = text
+    .trim()
+    .split(/\n\s*\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length > 0) return parts;
+  const single = text.trim();
+  return single ? [single] : [];
 }
 
-function paragraphsFromBio(bio: string): string[] {
+/**
+ * When there is no saved chronicle, show the bio as readable prose — never chop
+ * a short line into fake "paragraphs" at fixed character indices.
+ */
+function fallbackParagraphsFromBio(bio: string): string[] {
   const text = bio.trim();
   if (!text) return ["Their story is still being written in the forge."];
 
-  const sentences = text.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
-  if (sentences.length === 0) return [text];
+  const byBlank = text
+    .split(/\n\s*\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (byBlank.length > 1) return byBlank;
 
-  const targetParas = Math.min(MAX_PARAS, Math.max(MIN_PARAS, 3));
-  const per = Math.max(1, Math.ceil(sentences.length / targetParas));
-  const out: string[] = [];
-  for (let i = 0; i < sentences.length && out.length < MAX_PARAS; i += per) {
-    out.push(sentences.slice(i, i + per).join(" "));
+  const block = byBlank[0] ?? text;
+  // Long single block: split on sentence boundaries into a few readable chunks only
+  if (block.length > 900) {
+    const sentences = block.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+    if (sentences.length >= 6) {
+      const n = Math.min(6, Math.ceil(sentences.length / 3));
+      const out: string[] = [];
+      const chunk = Math.ceil(sentences.length / n);
+      for (let i = 0; i < sentences.length && out.length < 8; i += chunk) {
+        out.push(sentences.slice(i, i + chunk).join(" "));
+      }
+      return out;
+    }
   }
-  if (out.length === 1) {
-    const s = out[0]!;
-    const t = Math.max(80, Math.floor(s.length / 3));
-    return [s.slice(0, t).trim(), s.slice(t, t * 2).trim(), s.slice(t * 2).trim()].filter(Boolean);
+
+  return [block];
+}
+
+/**
+ * Prefer DB `backstory`, then merged `companion.backstory`. Otherwise derive from `bio`
+ * without mangling short copy.
+ */
+export function getCompanionBackstoryParagraphs(companion: Companion, db: BackstoryFields | undefined): string[] {
+  const raw = (db?.backstory?.trim() || companion.backstory?.trim()) ?? "";
+  if (raw) {
+    const paras = splitBackstoryParagraphs(raw);
+    if (paras.length > 0) return paras;
   }
-  if (out.length === 2) {
-    const [a, b] = out;
-    const mid = Math.max(1, Math.floor(b.length / 2));
-    return [a, b.slice(0, mid).trim(), b.slice(mid).trim()];
-  }
-  return out.slice(0, MAX_PARAS);
+  return fallbackParagraphsFromBio(companion.bio);
 }

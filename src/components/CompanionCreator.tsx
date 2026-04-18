@@ -292,6 +292,44 @@ function padFantasyStartersToFour(
   return out;
 }
 
+/** Minimum chronicle length before we auto-run design-lab to avoid saving one-line stubs. */
+const MIN_CHRONICLE_CHARS = 500;
+
+function buildForgeDesignLabSeedPrompt(o: {
+  gender: string;
+  personalitySelections: string[];
+  vibeThemeSelections: string[];
+  artStyle: string;
+  sceneAtmosphere: string;
+  bodyType: string;
+  orientation: string;
+  traits: string[];
+}): string {
+  const pers = o.personalitySelections.length ? o.personalitySelections : [PERSONALITIES[0]!];
+  const vibes = o.vibeThemeSelections.length ? o.vibeThemeSelections : [VIBES[0]!];
+  return `FORGE — treat the lines below as creative SEEDS only. Interpret into a cohesive original character. Do NOT paste the seed list into "appearance" or "backstory".
+
+Seeds:
+- gender leaning: ${o.gender}
+- personality archetypes (fuse ALL into one voice): ${pers.join(" · ")}
+- vibe / theme fusion: ${vibes.join(" · ")}
+- art style: ${o.artStyle}
+- scene anchor: ${o.sceneAtmosphere}
+- body type: ${o.bodyType}
+- orientation: ${o.orientation}
+- notable traits: ${o.traits.length ? o.traits.join(", ") : "(none)"}
+
+Hard requirements:
+1) name: highly unique, species- and setting-themed (vary etymology every time — no recycled "Velvet / Storm / Night / Vale" spam). Epithets, court titles, monastery vow-names, relic codenames, or 2–4 word constructions. NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs.
+2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps.
+3) backstory: 3–4 paragraphs of premium dark-romance storytelling that weaves every archetype and vibe/theme into one coherent history — not a bullet recap of tags.
+4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
+5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences).
+6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
+7) image_prompt: one dense SFW paragraph for a vertical portrait card; must visually align with art style "${o.artStyle}" and environment "${o.sceneAtmosphere}" (lighting, wardrobe, and set pieces coherent with both).
+8) system_prompt: full chat charter for this persona.`;
+}
+
 export default function CompanionCreator({ mode = "user", embedded = false, onForged }: CompanionCreatorProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -729,10 +767,11 @@ Hard requirements:
     setTraits((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
   };
 
-  const buildPortraitGeneratePayload = useCallback((): Record<string, unknown> | null => {
+  const buildPortraitGeneratePayload = useCallback((narrativeOverride?: string): Record<string, unknown> | null => {
     if (!userId) return null;
-    const baseDesc = narrativeAppearance.trim()
-      ? narrativeAppearance.trim().slice(0, 900)
+    const nar = (narrativeOverride ?? narrativeAppearance).trim();
+    const baseDesc = nar
+      ? nar.slice(0, 900)
       : `an original seductive character, ${gender}, ${bodyType}, ${traits.join(", ") || "clean aesthetic"}`;
     return {
       prompt: packshotPrompt.trim() || grokPrompt,
@@ -904,12 +943,92 @@ Hard requirements:
         return;
       }
 
+      let effectiveChronicle = chronicleBackstory.trim();
+      let effectiveHook = hookBio.trim();
+      let effectiveNarrative = narrativeAppearance.trim();
+      let effectivePackshot = packshotPrompt.trim();
+      let effectiveCharter = charterSystemPrompt.trim();
+      let effectiveStartersVault = fantasyStartersVault;
+      let effectiveRosterTags = rosterTags;
+
+      if (effectiveChronicle.length < MIN_CHRONICLE_CHARS) {
+        toast.info("Writing full chronicle & profile copy…");
+        const seedPrompt = buildForgeDesignLabSeedPrompt({
+          gender,
+          personalitySelections,
+          vibeThemeSelections,
+          artStyle,
+          sceneAtmosphere,
+          bodyType,
+          orientation,
+          traits,
+        });
+        const { data: labData, error: labErr } = await supabase.functions.invoke("parse-companion-prompt", {
+          body: { mode: "companion_design_lab", prompt: seedPrompt },
+        });
+        if (labErr) throw new Error(await getEdgeFunctionInvokeMessage(labErr, labData));
+        if (labData?.error) throw new Error(String(labData.error));
+        const fields = labData?.fields as Record<string, unknown> | undefined;
+        const bs = typeof fields?.backstory === "string" ? fields.backstory.trim() : "";
+        if (!bs) {
+          throw new Error(
+            "Could not generate a full chronicle. Use Forge Roulette to fill the profile, or paste a longer Chronicle, then try again.",
+          );
+        }
+        effectiveChronicle = bs.slice(0, 24000);
+        setChronicleBackstory(effectiveChronicle);
+        if (typeof fields?.bio === "string" && fields.bio.trim() && (!effectiveHook || effectiveHook.length < 80)) {
+          effectiveHook = fields.bio.trim().slice(0, 12000);
+          setHookBio(effectiveHook);
+        }
+        if (typeof fields?.appearance === "string" && fields.appearance.trim() && !effectiveNarrative) {
+          effectiveNarrative = fields.appearance.trim().slice(0, 12000);
+          setNarrativeAppearance(effectiveNarrative);
+        }
+        if (typeof fields?.system_prompt === "string" && fields.system_prompt.trim() && !effectiveCharter) {
+          effectiveCharter = fields.system_prompt.trim().slice(0, 32000);
+          setCharterSystemPrompt(effectiveCharter);
+        }
+        if (typeof fields?.image_prompt === "string" && fields.image_prompt.trim() && !effectivePackshot) {
+          effectivePackshot = fields.image_prompt.trim().slice(0, 8000);
+          setPackshotPrompt(effectivePackshot);
+        }
+        if (Array.isArray(fields?.tags) && fields.tags.length && effectiveRosterTags.length < 4) {
+          effectiveRosterTags = (fields.tags as string[]).map(String).slice(0, 24);
+          setRosterTags(effectiveRosterTags);
+        }
+        if (Array.isArray(fields?.fantasy_starters)) {
+          const normalized = normalizeFantasyStartersFromFields(fields.fantasy_starters);
+          if (normalized.length && effectiveStartersVault.filter((s) => s.title.trim() && s.description.trim()).length < 2) {
+            effectiveStartersVault = padFantasyStartersToFour(normalized, forgeName);
+            setFantasyStartersVault(effectiveStartersVault);
+          }
+        }
+      }
+
+      const portraitAppearanceForRow = effectiveNarrative || appearanceBlurb;
+      const rowGrokPrompt = composeForgePortraitPrompt({
+        name: name.trim() || "an original companion",
+        portraitAppearanceText: portraitAppearanceForRow,
+        personalityLabel,
+        vibeThemeLabel,
+        artStyle,
+        sceneAtmosphere,
+        extraNotes,
+        referenceNotes,
+      });
+      const rowImagePrompt = name.trim() ? rowGrokPrompt : rowGrokPrompt.replace("an original companion", forgeName);
+
       const previewRaw = previewCanonicalUrl || previewUrl;
       let portraitUrl: string | null = stablePortraitDisplayUrl(previewRaw) ?? previewRaw;
       if (!portraitUrl) {
-        const payload = buildPortraitGeneratePayload();
+        const payload = buildPortraitGeneratePayload(effectiveNarrative || undefined);
         if (payload) {
-          const { data: genData, error: genErr } = await invokeGenerateImage(payload);
+          const portraitBody = {
+            ...payload,
+            prompt: effectivePackshot || rowImagePrompt,
+          };
+          const { data: genData, error: genErr } = await invokeGenerateImage(portraitBody);
           if (genErr) {
             toast.error(`Portrait: ${genErr.message}`);
           } else if (genData?.success && genData.imageUrl) {
@@ -923,13 +1042,12 @@ Hard requirements:
         portraitUrl = stablePortraitDisplayUrl(portraitUrl) ?? portraitUrl;
       }
 
-      const rowImagePrompt = name.trim() ? grokPrompt : grokPrompt.replace("an original companion", forgeName);
       const defaultBio = `${forgeName} is a ${gender.toLowerCase()} presence blending ${personalityLabel.toLowerCase()} energy with ${vibeThemeLabel.toLowerCase()} aesthetics, often imagined in ${sceneAtmosphere.toLowerCase()} light. ${tagline ? tagline + "." : ""} They move through the world with ${orientation.toLowerCase()} magnetism.`;
-      const bioOut = hookBio.trim() || defaultBio;
-      const backstoryOut = chronicleBackstory.trim() || hookBio.trim() || bioOut;
-      const appearanceOut = portraitAppearanceText;
-      const tagsOutRaw = rosterTags.length
-        ? rosterTags.slice(0, 12)
+      const bioOut = effectiveHook || defaultBio;
+      const backstoryOut = effectiveChronicle || effectiveHook || bioOut;
+      const appearanceOut = portraitAppearanceForRow;
+      const tagsOutRaw = effectiveRosterTags.length
+        ? effectiveRosterTags.slice(0, 12)
         : [...personalitySelections, ...vibeThemeSelections, artStyle, sceneAtmosphere, bodyType, ...traits]
             .filter(Boolean)
             .slice(0, 12);
@@ -941,16 +1059,16 @@ Hard requirements:
         ),
       ].slice(0, 14);
       const kinksOut = rosterKinks.length ? rosterKinks.slice(0, 16) : [];
-      const imagePromptOut = packshotPrompt.trim() || rowImagePrompt;
+      const imagePromptOut = effectivePackshot || rowImagePrompt;
 
       const rows = [];
       for (let i = 0; i < batchCount; i++) {
         const suffix = batchCount > 1 ? ` ${i + 1}` : "";
         const displayName = namePrefix.trim() ? `${namePrefix.trim()} ${forgeName}${suffix}`.trim() : `${forgeName}${suffix}`;
         const basePrompt = buildSystemPromptFor(displayName);
-        const charter = charterSystemPrompt.trim() ? charterSystemPrompt.trim() : basePrompt;
+        const charter = effectiveCharter || basePrompt;
         const goPublic = saveVisibility === "public" && !isAdmin;
-        const startersForRow = padFantasyStartersToFour(fantasyStartersVault, displayName);
+        const startersForRow = padFantasyStartersToFour(effectiveStartersVault, displayName);
         const adminTier = adminAbyssalForge
           ? "abyssal"
           : normalizeCompanionRarity(adminForgeRarity);
