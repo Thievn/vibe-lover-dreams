@@ -244,9 +244,8 @@ export default function TheNexus({
       };
 
       if (payload.portraitGenerated === false && payload.portraitError) {
-        toast.message(
-          `Hybrid saved — portrait did not render (${payload.portraitError.slice(0, 140)}${payload.portraitError.length > 140 ? "…" : ""}). Open them in Character management and generate a portrait.`,
-          { duration: 10_000 },
+        toast.error(
+          `Portrait did not render: ${payload.portraitError.slice(0, 120)}${payload.portraitError.length > 120 ? "…" : ""}`,
         );
       }
 
@@ -264,11 +263,6 @@ export default function TheNexus({
       void queryClient.invalidateQueries({ queryKey: ["companions"] });
       void queryClient.invalidateQueries({ queryKey: [...VAULT_COLLECTION_QUERY_KEY, userId] });
       onCreditsChanged?.();
-      toast.success(
-        isAdmin
-          ? "Admin Nexus sealed the ascendant in your vault."
-          : "The Nexus has sealed a new ascendant in your vault.",
-      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Merge failed.");
       setPhase("select");

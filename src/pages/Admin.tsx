@@ -441,7 +441,6 @@ function AdminShell() {
         .update({ tokens_balance: next })
         .eq("user_id", selectedUser.user_id);
       if (error) throw error;
-      toast.success(`Granted ${n} tokens.`);
       setSelectedUser({ ...selectedUser, tokens_balance: next });
       setProfiles((prev) =>
         prev.map((r) => (r.user_id === selectedUser.user_id ? { ...r, tokens_balance: next } : r)),
@@ -460,7 +459,6 @@ function AdminShell() {
       toast.error(error.message);
       return;
     }
-    toast.success("Removed from waitlist.");
     setWaitlist((w) => w.filter((x) => x.id !== id));
     void loadStats();
   };
@@ -479,7 +477,6 @@ function AdminShell() {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(a.href);
-    toast.success("Export started.");
   };
 
   if (authLoading) {

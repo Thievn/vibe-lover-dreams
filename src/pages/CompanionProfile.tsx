@@ -164,12 +164,7 @@ const CompanionProfile = () => {
       navigate("/auth", { state: { from: `/companions/${companion?.id}` } });
       return;
     }
-    if (!hasLovenseToy) {
-      toast.message("Pair a Lovense toy in Settings to feel these patterns.", {
-        action: { label: "Settings", onClick: () => navigate("/settings") },
-      });
-      return;
-    }
+    if (!hasLovenseToy) return;
     const cmd = payloadToLovenseCommand(row.vibration_pattern_pool?.payload);
     if (!cmd) {
       toast.error("Invalid pattern.");
@@ -185,9 +180,7 @@ const CompanionProfile = () => {
     setSendingVibrationId(row.id);
     try {
       const ok = await sendCommand(user.id, { ...cmd, toyId: target });
-      const tn = activeToys.find((t) => t.id === target)?.name ?? "device";
-      if (ok) toast.success(`${row.display_name} sent to ${tn}.`);
-      else toast.error("Could not reach your toy.");
+      if (!ok) toast.error("Could not reach your toy.");
     } finally {
       setSendingVibrationId(null);
     }
@@ -241,7 +234,6 @@ const CompanionProfile = () => {
           .eq("companion_id", id);
         if (error) throw error;
         setMyVote(null);
-        toast.message("Vote cleared.");
       } else {
         const { error } = await supabase.from("companion_discovery_votes").upsert(
           { user_id: user.id, companion_id: id, vote: next },
@@ -249,7 +241,6 @@ const CompanionProfile = () => {
         );
         if (error) throw error;
         setMyVote(next);
-        toast.success(next === 1 ? "Marked as like." : "Marked as meh.");
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Could not save vote.");
@@ -274,7 +265,6 @@ const CompanionProfile = () => {
           .eq("companion_id", id);
         if (error) throw error;
         setPinned(false);
-        toast.message("Removed from your collection.");
       } else {
         const { error } = await supabase.from("user_discover_pins").insert({
           user_id: user.id,
@@ -282,7 +272,6 @@ const CompanionProfile = () => {
         });
         if (error) throw error;
         setPinned(true);
-        toast.success("Saved to My Collection.");
       }
       void queryClient.invalidateQueries({ queryKey: VAULT_COLLECTION_QUERY_KEY });
     } catch (e: unknown) {

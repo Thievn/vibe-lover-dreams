@@ -46,7 +46,6 @@ const EmergencyStop = () => {
     setStopping(true);
     try {
       await stopAllUserToys(userId, connectedToys);
-      toast.success("🛑 All devices stopped");
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       console.error("Emergency stop error:", error);

@@ -10,6 +10,7 @@ import {
   Hash,
   History,
   Image as ImageIcon,
+  ImagePlus,
   Loader2,
   Megaphone,
   MessageSquare,
@@ -17,8 +18,10 @@ import {
   Send,
   Sparkles,
   Trash2,
+  UserCircle2,
   Zap,
 } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminCompanions, type DbCompanion } from "@/hooks/useCompanions";
@@ -33,8 +36,12 @@ import {
   type MergedMarketableSurface,
 } from "@/lib/marketingSurfacesMerge";
 import { buildSmartAngles } from "@/lib/xMarketingSiteRegistry";
+import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
+import { inferForgeBodyTypeFromTags, inferStylizedArtFromTags } from "@/lib/forgeBodyTypes";
+import { isPlatformAdmin } from "@/config/auth";
 
 const NEON = "#FF2D7B";
+const MARKETING_IMAGE_TOKEN_COST = 75;
 const HISTORY_KEY = "lustforge-x-marketing-history-v2";
 
 export type TweetVariation = { text: string; hashtags: string[] };
@@ -78,6 +85,23 @@ const QUICK_ACTIONS: { id: string; label: string; kind: string }[] = [
   { id: "q4", label: "Tease post (safe)", kind: "sexual_tease" },
   { id: "q5", label: "Community / replies", kind: "community" },
   { id: "q6", label: "Rarity / TCG flex", kind: "rarity_drop" },
+];
+
+/** Grok: preferred post shape (in addition to tone). */
+const POST_STYLES: { id: string; label: string; hint: string }[] = [
+  { id: "punchy", label: "Punchy one-liner", hint: "Single sharp hook + CTA energy." },
+  { id: "thread", label: "Thread opener", hint: "First tweet of a thread; invites scroll." },
+  { id: "quote", label: "Quote-bait", hint: "Screenshot-worthy standalone line." },
+  { id: "lore", label: "Lore tease", hint: "Mystery, backstory crumbs, no spoilers." },
+  { id: "drop", label: "Drop / FOMO", hint: "Scarcity, event, or build hype." },
+];
+
+const SCENE_PRESETS: { label: string; text: string }[] = [
+  { label: "Spotlight", text: "Dramatic stage spotlight, velvet darkness, eyes to camera, premium promo still." },
+  { label: "Neon street", text: "Rain-slick cyberpunk alley, neon rim light, confident stride, editorial X promo." },
+  { label: "TCG flex", text: "Collectible card energy — heroic pose, subtle frame hints, mythic rare vibe, SFW." },
+  { label: "Silhouette", text: "Backlit silhouette, mystery, slow-burn desire, tasteful adult brand." },
+  { label: "Boudoir soft", text: "Soft window light, intimate but SFW, luxurious textures, romantic tension." },
 ];
 
 function loadHistory(): XMarketingHistoryEntry[] {
@@ -130,7 +154,6 @@ async function captureScreenToDataUrl(): Promise<string | null> {
   try {
     stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
   } catch {
-    toast.message("Capture cancelled.");
     return null;
   }
   const video = document.createElement("video");
@@ -202,6 +225,16 @@ export default function XMarketingHub() {
   const [screenshotDataUrl, setScreenshotDataUrl] = useState<string | null>(null);
   const [captureBusy, setCaptureBusy] = useState(false);
 
+  const [sessionUser, setSessionUser] = useState<User | null>(null);
+  const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
+  const [marketingRenders, setMarketingRenders] = useState<{ id: string; url: string }[]>([]);
+  const [heroSource, setHeroSource] = useState<
+    { type: "portrait" } | { type: "capture" } | { type: "render"; id: string }
+  >({ type: "portrait" });
+  const [marketingScene, setMarketingScene] = useState("");
+  const [marketingGenBusy, setMarketingGenBusy] = useState(false);
+  const [tweetPostStyle, setTweetPostStyle] = useState<string>(POST_STYLES[0]!.label);
+
   const [history, setHistory] = useState<XMarketingHistoryEntry[]>(() => loadHistory());
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -223,7 +256,6 @@ export default function XMarketingHub() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setStatsError(msg);
-      toast.error(msg);
     } finally {
       setStatsLoading(false);
     }
@@ -232,6 +264,56 @@ export default function XMarketingHub() {
   useEffect(() => {
     void loadStats();
   }, [loadStats]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (cancelled) return;
+      const u = session?.user ?? null;
+      setSessionUser(u);
+      if (u?.id) {
+        const { data: prof } = await supabase.from("profiles").select("display_name").eq("user_id", u.id).maybeSingle();
+        if (!cancelled) setProfileDisplayName(prof?.display_name ?? null);
+      } else {
+        setProfileDisplayName(null);
+      }
+    })();
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setSessionUser(session?.user ?? null);
+      void (async () => {
+        const uid = session?.user?.id;
+        if (!uid) {
+          setProfileDisplayName(null);
+          return;
+        }
+        const { data: prof } = await supabase.from("profiles").select("display_name").eq("user_id", uid).maybeSingle();
+        setProfileDisplayName(prof?.display_name ?? null);
+      })();
+    });
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  const isAdminSession = useMemo(
+    () => isPlatformAdmin(sessionUser, { profileDisplayName }),
+    [sessionUser, profileDisplayName],
+  );
+
+  useEffect(() => {
+    setMarketingRenders([]);
+    setHeroSource({ type: "portrait" });
+  }, [selected?.id]);
+
+  useEffect(() => {
+    if (heroSource.type === "capture" && !screenshotDataUrl) {
+      setHeroSource({ type: "portrait" });
+    }
+  }, [heroSource.type, screenshotDataUrl]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -296,7 +378,7 @@ export default function XMarketingHub() {
 
   const contextBlockForChat = useMemo(() => {
     const parts: string[] = [];
-    parts.push(`Tone preset: ${tone}`);
+    parts.push(`Tone: ${tone}. Post shape: ${tweetPostStyle}.`);
     if (selected) {
       parts.push(
         `Companion: ${selected.name} (${selected.id}) — ${selected.tagline}. Rarity ${normalizeCompanionRarity(selected.rarity)}. Tags: ${(selected.tags || []).join(", ")}.`,
@@ -314,27 +396,19 @@ export default function XMarketingHub() {
     }
     parts.push(`Product atlas:\n${productAtlas}`);
     return parts.join("\n\n");
-  }, [tone, selected, selectedSurface, quickKind, customPrompt, variations, productAtlas]);
+  }, [tone, tweetPostStyle, selected, selectedSurface, quickKind, customPrompt, variations, productAtlas]);
 
-  const applyAngle = (prompt: string, label: string) => {
+  const applyAngle = (prompt: string) => {
     setCustomPrompt((prev) => (prev.trim() ? `${prev.trim()}\n\n${prompt}` : prompt));
-    toast.message(`Angle: ${label}`);
   };
 
   const useInTweet = (c: DbCompanion) => {
     setSelected(c);
     workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    toast.success(`${c.name} — loaded in workspace`);
   };
 
   const pickSurface = (s: MergedMarketableSurface) => {
-    setSelectedSurface((prev) => {
-      const next = prev?.id === s.id ? null : s;
-      queueMicrotask(() => {
-        toast.message(next ? `${s.label} — angles updated` : "Surface cleared");
-      });
-      return next;
-    });
+    setSelectedSurface((prev) => (prev?.id === s.id ? null : s));
     workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
@@ -352,6 +426,9 @@ export default function XMarketingHub() {
             gender: selected.gender,
             tags: selected.tags,
             kinks: selected.kinks,
+            personality: selected.personality.slice(0, 800),
+            bio: selected.bio.slice(0, 900),
+            appearance: selected.appearance.slice(0, 1200),
           }
         : null;
       const siteSurface = selectedSurface
@@ -368,6 +445,7 @@ export default function XMarketingHub() {
         body: {
           mode: "generate",
           tone,
+          tweetStyle: tweetPostStyle,
           customPrompt,
           quickKind: quickKind || undefined,
           companion: companionPayload,
@@ -393,7 +471,6 @@ export default function XMarketingHub() {
       const next = [entry, ...history].slice(0, 40);
       setHistory(next);
       saveHistory(next);
-      toast.success("5 variations ready.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     } finally {
@@ -430,10 +507,9 @@ export default function XMarketingHub() {
     }
   };
 
-  const copyText = async (text: string, label: string) => {
+  const copyText = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success(`${label} copied`);
     } catch {
       toast.error("Clipboard blocked");
     }
@@ -450,9 +526,8 @@ export default function XMarketingHub() {
       const blob = await res.blob();
       const type = blob.type.startsWith("image/") ? blob.type : "image/png";
       await navigator.clipboard.write([new ClipboardItem({ [type]: blob })]);
-      toast.success("Image copied — paste into X.");
     } catch {
-      await copyText(url, "Portrait URL");
+      await copyText(url);
     }
   };
 
@@ -462,13 +537,91 @@ export default function XMarketingHub() {
       const res = await fetch(screenshotDataUrl);
       const blob = await res.blob();
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-      toast.success("Screenshot copied.");
     } catch {
-      await copyText(screenshotDataUrl, "Screenshot (data URL)");
+      await copyText(screenshotDataUrl);
     }
   };
 
-  const heroVisual = screenshotDataUrl || (selected ? galleryStaticPortraitUrl(selected, selected.id) : null);
+  const heroVisual = useMemo(() => {
+    if (heroSource.type === "capture" && screenshotDataUrl) return screenshotDataUrl;
+    if (heroSource.type === "render") {
+      const row = marketingRenders.find((r) => r.id === heroSource.id);
+      if (row?.url) return row.url;
+      if (selected) return galleryStaticPortraitUrl(selected, selected.id) ?? null;
+      return screenshotDataUrl ?? null;
+    }
+    if (selected) return galleryStaticPortraitUrl(selected, selected.id) ?? null;
+    return screenshotDataUrl ?? null;
+  }, [heroSource, screenshotDataUrl, marketingRenders, selected]);
+
+  const generateMarketingStill = async () => {
+    if (!selected) {
+      toast.error("Select a companion first (Use in Tweet on a card).");
+      return;
+    }
+    const uid = sessionUser?.id;
+    if (!uid) {
+      toast.error("Sign in to generate images.");
+      return;
+    }
+    setMarketingGenBusy(true);
+    try {
+      const scene =
+        marketingScene.trim() ||
+        "Premium editorial marketing still for X — cinematic lighting, alluring confident expression, SFW, on-brand.";
+      const prompt =
+        `${scene}\n\n(Character: ${selected.name}, ${selected.gender}. ${selected.appearance})`.slice(0, 8000);
+      const { data, error } = await invokeGenerateImage({
+        prompt,
+        userId: uid,
+        isPortrait: false,
+        tokenCost: isAdminSession ? 0 : MARKETING_IMAGE_TOKEN_COST,
+        name: selected.name,
+        subtitle: selected.tagline,
+        characterData: {
+          companionId: selected.id,
+          style: "x-marketing",
+          artStyleLabel: inferStylizedArtFromTags(selected.tags ?? []) ?? "Cinematic",
+          bodyType: inferForgeBodyTypeFromTags(selected.tags ?? []) ?? "Average",
+          tags: selected.tags ?? [],
+          baseDescription: `promotional portrait of ${selected.name}, ${selected.gender}; ${selected.appearance}`,
+          vibe: selected.personality,
+          clothing: selected.role ? `styled for ${selected.role} energy` : undefined,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success || !data.imageUrl) throw new Error(data?.error || "Image generation failed");
+      const id = `mkt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      setMarketingRenders((prev) => [...prev, { id, url: data.imageUrl! }]);
+      setHeroSource({ type: "render", id });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMarketingGenBusy(false);
+    }
+  };
+
+  const copyHeroImage = async () => {
+    if (!heroVisual) {
+      toast.error("Nothing to copy yet.");
+      return;
+    }
+    try {
+      if (heroVisual.startsWith("data:")) {
+        const res = await fetch(heroVisual);
+        const blob = await res.blob();
+        const t = blob.type.startsWith("image/") ? blob.type : "image/png";
+        await navigator.clipboard.write([new ClipboardItem({ [t]: blob })]);
+        return;
+      }
+      const res = await fetch(heroVisual);
+      const blob = await res.blob();
+      const type = blob.type.startsWith("image/") ? blob.type : "image/png";
+      await navigator.clipboard.write([new ClipboardItem({ [type]: blob })]);
+    } catch {
+      await copyText(heroVisual);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -485,9 +638,10 @@ export default function XMarketingHub() {
               <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-primary/90 mb-1">Social command</p>
               <h2 className="font-gothic text-2xl md:text-3xl gradient-vice-text leading-tight">X Marketing Hub</h2>
               <p className="text-sm text-muted-foreground mt-2 max-w-3xl leading-relaxed">
-                One workspace: roster pulse, <strong className="text-foreground/90">living product atlas</strong> (add
-                surfaces in code as you ship), smart angles, screen capture for assets, Grok tweet generation, and a
-                sidecar chat to refine copy — same noir forge energy as Command.
+                One workspace: roster pulse, <strong className="text-foreground/90">living product atlas</strong>, smart
+                angles, <strong className="text-foreground/90">companion-themed posts</strong> (tone + post shape), optional
+                marketing stills per character, screen capture, Grok tweet generation, and sidecar chat — same noir forge
+                energy as Command.
               </p>
             </div>
           </div>
@@ -796,7 +950,7 @@ export default function XMarketingHub() {
                                 <button
                                   type="button"
                                   className="px-2 py-1 rounded-lg border border-border text-[10px] font-semibold hover:border-primary/40"
-                                  onClick={() => h.variations[0] && void copyText(fullTweetText(h.variations[0]), "Tweet")}
+                                  onClick={() => h.variations[0] && void copyText(fullTweetText(h.variations[0]))}
                                 >
                                   Copy
                                 </button>
@@ -835,71 +989,182 @@ export default function XMarketingHub() {
               className="xl:sticky xl:top-4 space-y-4 rounded-2xl border border-primary/20 bg-gradient-to-b from-black/55 to-black/80 p-4 md:p-5 max-h-[calc(100dvh-8rem)] overflow-y-auto shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
             >
               <div className="rounded-2xl border border-white/[0.08] bg-black/50 overflow-hidden">
+                <div className="px-3 pt-3 flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Post hero image</p>
+                  {heroVisual ? (
+                    <button
+                      type="button"
+                      onClick={() => void copyHeroImage()}
+                      className="text-[10px] font-semibold text-primary hover:underline"
+                    >
+                      Copy hero
+                    </button>
+                  ) : null}
+                </div>
                 <div className="aspect-[16/10] max-h-52 w-full bg-black/70 relative flex items-center justify-center">
                   {heroVisual ? (
                     <img src={heroVisual} alt="" className="absolute inset-0 h-full w-full object-contain object-top bg-black" />
                   ) : (
                     <div className="text-center px-6 py-10">
                       <ImageIcon className="h-10 w-10 mx-auto text-muted-foreground mb-2 opacity-60" />
-                      <p className="text-xs text-muted-foreground">Select a companion or capture a screen for the hero slot.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Pick a companion (Use in Tweet), choose their portrait below, or capture / generate a marketing still.
+                      </p>
                     </div>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-2 p-3 border-t border-white/[0.06]">
-                  <button
-                    type="button"
-                    disabled={captureBusy}
-                    onClick={() => {
-                      void (async () => {
-                        setCaptureBusy(true);
-                        try {
-                          const url = await captureScreenToDataUrl();
-                          if (url) {
-                            setScreenshotDataUrl(url);
-                            toast.success("Screenshot captured — appears above.");
-                          }
-                        } finally {
-                          setCaptureBusy(false);
-                        }
-                      })();
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2 text-xs font-semibold text-accent hover:bg-accent/20 disabled:opacity-50"
-                  >
-                    {captureBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-                    Capture screen / tab
-                  </button>
-                  {screenshotDataUrl ? (
-                    <>
+
+                <div className="p-3 border-t border-white/[0.06] space-y-3">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Which image goes with the post</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selected ? (
                       <button
                         type="button"
-                        onClick={() => void copyScreenshot()}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary"
+                        onClick={() => setHeroSource({ type: "portrait" })}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[10px] font-semibold transition-colors",
+                          heroSource.type === "portrait"
+                            ? "border-primary/50 bg-primary/15 text-primary"
+                            : "border-border/60 bg-black/40 text-muted-foreground hover:border-primary/30",
+                        )}
                       >
-                        <Copy className="h-3.5 w-3.5" />
-                        Copy screenshot
+                        <UserCircle2 className="h-3.5 w-3.5" />
+                        Profile portrait
                       </button>
+                    ) : null}
+                    {screenshotDataUrl ? (
                       <button
                         type="button"
-                        onClick={() => {
-                          setScreenshotDataUrl(null);
-                          toast.message("Screenshot cleared");
-                        }}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-xs font-semibold text-muted-foreground"
+                        onClick={() => setHeroSource({ type: "capture" })}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[10px] font-semibold transition-colors",
+                          heroSource.type === "capture"
+                            ? "border-accent/50 bg-accent/15 text-accent"
+                            : "border-border/60 bg-black/40 text-muted-foreground hover:border-accent/30",
+                        )}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Clear capture
+                        <Camera className="h-3.5 w-3.5" />
+                        Screen capture
                       </button>
-                    </>
-                  ) : null}
-                  {selected ? (
+                    ) : null}
+                    {marketingRenders.map((r, idx) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => setHeroSource({ type: "render", id: r.id })}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[10px] font-semibold transition-colors",
+                          heroSource.type === "render" && heroSource.id === r.id
+                            ? "border-velvet-purple/50 bg-velvet-purple/15 text-accent"
+                            : "border-border/60 bg-black/40 text-muted-foreground hover:border-primary/30",
+                        )}
+                      >
+                        <ImagePlus className="h-3.5 w-3.5" />
+                        Render {idx + 1}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => void copyImage(selected)}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 px-3 py-2 text-xs font-semibold text-foreground"
+                      disabled={captureBusy}
+                      onClick={() => {
+                        void (async () => {
+                          setCaptureBusy(true);
+                          try {
+                            const url = await captureScreenToDataUrl();
+                            if (url) {
+                              setScreenshotDataUrl(url);
+                              setHeroSource({ type: "capture" });
+                            }
+                          } finally {
+                            setCaptureBusy(false);
+                          }
+                        })();
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2 text-xs font-semibold text-accent hover:bg-accent/20 disabled:opacity-50"
                     >
-                      <ImageIcon className="h-3.5 w-3.5" />
-                      Copy portrait
+                      {captureBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                      Capture screen / tab
                     </button>
+                    {screenshotDataUrl ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void copyScreenshot()}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Copy capture
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setScreenshotDataUrl(null);
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-xs font-semibold text-muted-foreground"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Clear capture
+                        </button>
+                      </>
+                    ) : null}
+                    {selected ? (
+                      <button
+                        type="button"
+                        onClick={() => void copyImage(selected)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 px-3 py-2 text-xs font-semibold text-foreground"
+                      >
+                        <ImageIcon className="h-3.5 w-3.5" />
+                        Copy catalog portrait
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {selected ? (
+                    <div className="rounded-xl border border-primary/20 bg-primary/[0.06] p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <p className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                          <Sparkles className="h-3.5 w-3.5 text-primary" />
+                          New marketing still — {selected.name}
+                        </p>
+                        <span className="text-[10px] text-muted-foreground">
+                          {isAdminSession ? "Admin · credits waived" : `${MARKETING_IMAGE_TOKEN_COST} credits each`}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground leading-snug">
+                        Generates a fresh SFW promo image themed to this companion (same pipeline as chat images). Describe a scene or tap a preset, then generate. Latest render is selected as hero automatically.
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {SCENE_PRESETS.map((p) => (
+                          <button
+                            key={p.label}
+                            type="button"
+                            onClick={() => setMarketingScene(p.text)}
+                            className="text-[9px] px-2 py-0.5 rounded-lg border border-border/60 bg-black/40 text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                      <textarea
+                        value={marketingScene}
+                        onChange={(e) => setMarketingScene(e.target.value)}
+                        rows={2}
+                        placeholder="Optional scene: lighting, setting, mood — or use a preset above."
+                        className="w-full rounded-lg bg-black/50 border border-border/70 px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground resize-y min-h-[52px]"
+                      />
+                      <button
+                        type="button"
+                        disabled={marketingGenBusy}
+                        onClick={() => void generateMarketingStill()}
+                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-primary/40 bg-gradient-to-r from-primary/20 to-purple-900/30 py-2.5 text-xs font-bold text-primary disabled:opacity-50"
+                      >
+                        {marketingGenBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                        Generate marketing still
+                      </button>
+                    </div>
                   ) : null}
                 </div>
               </div>
@@ -919,7 +1184,17 @@ export default function XMarketingHub() {
                 ) : (
                   <span className="rounded-full border border-border px-3 py-1 text-muted-foreground">No surface focus</span>
                 )}
-                <button type="button" className="text-primary hover:underline ml-auto" onClick={() => { setSelected(null); setSelectedSurface(null); }}>
+                <button
+                  type="button"
+                  className="text-primary hover:underline ml-auto"
+                  onClick={() => {
+                    setSelected(null);
+                    setSelectedSurface(null);
+                    setScreenshotDataUrl(null);
+                    setMarketingRenders([]);
+                    setHeroSource({ type: "portrait" });
+                  }}
+                >
                   Reset focus
                 </button>
               </div>
@@ -931,7 +1206,7 @@ export default function XMarketingHub() {
                     <button
                       key={a.id}
                       type="button"
-                      onClick={() => applyAngle(a.prompt, a.label)}
+                      onClick={() => applyAngle(a.prompt)}
                       className="text-left text-[11px] px-2.5 py-1.5 rounded-xl border border-border/70 bg-white/[0.03] hover:border-primary/40 text-foreground/90 max-w-[18rem]"
                       title={a.prompt}
                     >
@@ -942,7 +1217,7 @@ export default function XMarketingHub() {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
                   <label className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Tone</label>
                   <select
@@ -958,6 +1233,24 @@ export default function XMarketingHub() {
                   </select>
                 </div>
                 <div>
+                  <label className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Post shape</label>
+                  <select
+                    value={tweetPostStyle}
+                    onChange={(e) => setTweetPostStyle(e.target.value)}
+                    title={POST_STYLES.find((p) => p.label === tweetPostStyle)?.hint}
+                    className="mt-1 w-full rounded-xl bg-black/60 border border-border px-3 py-2 text-sm text-foreground"
+                  >
+                    {POST_STYLES.map((p) => (
+                      <option key={p.id} value={p.label}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[9px] text-muted-foreground mt-1 leading-tight">
+                    {POST_STYLES.find((p) => p.label === tweetPostStyle)?.hint}
+                  </p>
+                </div>
+                <div className="sm:col-span-2 lg:col-span-1">
                   <label className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Quick campaigns</label>
                   <div className="mt-1 flex flex-wrap gap-1">
                     {QUICK_ACTIONS.map((q) => (
@@ -966,7 +1259,6 @@ export default function XMarketingHub() {
                         type="button"
                         onClick={() => {
                           setQuickKind(q.kind);
-                          toast.message(q.label);
                         }}
                         className={cn(
                           "text-[10px] font-semibold px-2 py-1 rounded-lg border",
@@ -1037,7 +1329,7 @@ export default function XMarketingHub() {
                           </p>
                           <button
                             type="button"
-                            onClick={() => void copyText(full, "Tweet")}
+                            onClick={() => void copyText(full)}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary"
                           >
                             <Copy className="h-3.5 w-3.5" />
@@ -1104,7 +1396,6 @@ export default function XMarketingHub() {
                   type="button"
                   onClick={() => {
                     setChatMessages([]);
-                    toast.message("Chat cleared");
                   }}
                   className="text-[10px] text-muted-foreground hover:text-white underline"
                 >

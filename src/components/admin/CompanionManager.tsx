@@ -174,7 +174,6 @@ function AdminToyPatternsSection({ companionId }: { companionId: string }) {
         p_companion_id: companionId,
       });
       if (error) throw error;
-      toast.success("Toy patterns rebuilt from current rarity.");
       invalidate();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Reload failed");
@@ -188,7 +187,6 @@ function AdminToyPatternsSection({ companionId }: { companionId: string }) {
     try {
       const { error } = await supabase.from("companion_vibration_patterns").delete().eq("id", rowId);
       if (error) throw error;
-      toast.success("Pattern removed from this character.");
       invalidate();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Delete failed");
@@ -219,7 +217,6 @@ function AdminToyPatternsSection({ companionId }: { companionId: string }) {
         is_abyssal_signature: slot.pool_index === 50,
       });
       if (error) throw error;
-      toast.success("Pattern added.");
       invalidate();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Add failed");
@@ -411,7 +408,6 @@ const CompanionManager = () => {
   const saveCompanion = async (companion: DbCompanion) => {
     const changes = getEdit(companion.id);
     if (Object.keys(changes).length === 0) {
-      toast.info("No changes to save.");
       return;
     }
     setSaving((prev) => ({ ...prev, [companion.id]: true }));
@@ -424,19 +420,16 @@ const CompanionManager = () => {
           if (CUSTOM_CHARACTER_UPDATE_KEYS.has(k)) patch[k] = v;
         }
         if (Object.keys(patch).length === 0) {
-          toast.info("No forge-safe fields to save.");
           return;
         }
         const { error } = await supabase.from("custom_characters").update(patch as any).eq("id", uuid);
         if (error) throw error;
-        toast.success(`${companion.name} (forge) updated!`);
       } else {
         const { error } = await supabase
           .from("companions")
           .update(changes as any)
           .eq("id", companion.id);
         if (error) throw error;
-        toast.success(`${companion.name} updated!`);
         if ("rarity" in changes || "name" in changes) {
           void queryClient.invalidateQueries({ queryKey: ["companion-vibration-patterns", companion.id] });
           void queryClient.invalidateQueries({ queryKey: ["admin-vib-rows", companion.id] });
@@ -483,7 +476,6 @@ const CompanionManager = () => {
           },
         }));
       }
-      toast.success(section === "portrait" ? "Portrait regenerated." : `Regenerated ${section.replace(/_/g, " ")}.`);
       void queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
       void queryClient.invalidateQueries({ queryKey: ["companions"] });
       void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
@@ -503,8 +495,6 @@ const CompanionManager = () => {
     try {
       const { data, error } = await supabase.rpc("admin_backfill_missing_vibration_patterns");
       if (error) throw error;
-      const n = typeof data === "number" ? data : 0;
-      toast.success(`Repaired ${n} companion(s) that had no toy pattern rows.`);
       void queryClient.invalidateQueries({ queryKey: ["admin-vib-rows"] });
       void queryClient.invalidateQueries({ queryKey: ["companion-vibration-patterns"] });
     } catch (e: unknown) {
@@ -521,7 +511,6 @@ const CompanionManager = () => {
         p_companion_id: `cc-${customUuid}`,
       });
       if (error) throw error;
-      toast.success("Toy patterns rebuilt for this forge save.");
       void queryClient.invalidateQueries({ queryKey: ["admin-vib-rows", `cc-${customUuid}`] });
       void queryClient.invalidateQueries({ queryKey: ["companion-vibration-patterns", `cc-${customUuid}`] });
     } catch (e: unknown) {
@@ -539,7 +528,6 @@ const CompanionManager = () => {
     try {
       const { error } = await supabase.from("custom_characters").update(patch).eq("id", id);
       if (error) throw error;
-      toast.success("Community forge row updated.");
       void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
       void queryClient.invalidateQueries({ queryKey: ["companions"] });
     } catch (err: unknown) {
@@ -587,7 +575,6 @@ const CompanionManager = () => {
           ...(Array.isArray(fields.kinks) ? { kinks: (fields.kinks as string[]).map(String).slice(0, 16) } : {}),
         },
       }));
-      toast.success("Grok drafted richer lore — review fields, then Save.");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Lore refresh failed");
     } finally {
@@ -614,7 +601,6 @@ const CompanionManager = () => {
       });
       if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
       if (data?.error) throw new Error(data.error);
-      toast.success("Portrait generated!");
       if (typeof data?.publicImageUrl === "string") {
         setEditData((prev) => ({
           ...prev,
@@ -644,7 +630,6 @@ const CompanionManager = () => {
     if (error) {
       toast.error("Toggle failed");
     } else {
-      toast.success(newVal ? "Activated" : "Deactivated");
       queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
     }
   };
@@ -720,7 +705,6 @@ const CompanionManager = () => {
         image_url: createData.image_url,
       } as any);
       if (error) throw error;
-      toast.success("Companion created!");
       queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
       backToList();
     } catch (err: any) {
@@ -796,8 +780,6 @@ const CompanionManager = () => {
         animated_image_url: null,
         rarity_border_overlay_url: null,
       });
-
-      toast.success("Rolled a new catalog companion — review, tweak rarity/portrait, then create.");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Design roll failed");
     } finally {
@@ -849,8 +831,6 @@ const CompanionManager = () => {
         }
         return updated;
       });
-
-      toast.success("Fields auto-filled from prompt!");
     } catch (err: any) {
       toast.error("Auto-fill failed: " + err.message);
     } finally {

@@ -29,7 +29,6 @@ export const ImageViewer = ({
     setIsSavingCompanion(true);
     try {
       await onSaveToCompanionGallery(imageId);
-      toast.success(`✨ Saved to ${companionName}'s gallery!`);
     } catch (err) {
       toast.error("Failed to save to companion gallery");
     } finally {
@@ -41,7 +40,6 @@ export const ImageViewer = ({
     setIsSavingPersonal(true);
     try {
       await onSaveToPersonalGallery(imageId);
-      toast.success("💾 Saved to your personal gallery!");
     } catch (err) {
       toast.error("Failed to save to personal gallery");
     } finally {
@@ -57,15 +55,13 @@ export const ImageViewer = ({
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      toast.success("📥 Image downloaded!");
     } catch (err) {
       toast.error("Failed to download image");
     }
   };
 
   const handleCopyUrl = () => {
-    navigator.clipboard.writeText(imageUrl);
-    toast.success("📋 URL copied to clipboard!");
+    void navigator.clipboard.writeText(imageUrl);
   };
 
   return (

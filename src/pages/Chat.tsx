@@ -144,12 +144,7 @@ const Chat = () => {
         return;
       }
       const ok = await sendCommand(user.id, { ...cmd, toyId: target });
-      if (ok) {
-        const tn = activeToys.find((t) => t.id === target)?.name ?? "toy";
-        toast.success(`${row.display_name} → ${tn}`, { duration: 2200 });
-      } else {
-        toast.error("Could not send to device.");
-      }
+      if (!ok) toast.error("Could not send to device.");
     } finally {
       setSendingVibrationId(null);
     }
@@ -228,7 +223,6 @@ const Chat = () => {
     const ok = await disconnectToy(user.id, deviceUid);
     if (ok) {
       await checkDevice(user.id);
-      toast.success("Toy unlinked.");
     } else {
       toast.error("Failed to unlink toy.");
     }
@@ -543,9 +537,7 @@ const Chat = () => {
 
     try {
       const success = await sendCommand(user.id, lovenseCommand);
-      if (success) {
-        toast.success("⚡ Command sent to device", { duration: 2000 });
-      } else {
+      if (!success) {
         toast.error("Failed to send command to device");
       }
     } catch (err: any) {
@@ -560,9 +552,7 @@ const Chat = () => {
     const url = await generatePairingQR(user.id);
     setPairingUrl(url);
     setPairingLoading(false);
-    if (url) {
-      toast.success("Pairing link is ready. Open it in a new tab to connect your device.");
-    } else {
+    if (!url) {
       toast.error("Failed to create pairing link.");
     }
   };
@@ -577,7 +567,6 @@ const Chat = () => {
     const success = await disconnectToy(user.id, uid);
     if (success) {
       await checkDevice(user.id);
-      toast.success("Toy disconnected.");
     } else {
       toast.error("Failed to disconnect toy.");
     }
@@ -591,9 +580,7 @@ const Chat = () => {
     setToyUtilityBusy(true);
     const success = await stopAllUserToys(user.id, connectedToys);
     setToyUtilityBusy(false);
-    if (success) {
-      toast.success("Stopped patterns on all active toys.");
-    } else {
+    if (!success) {
       toast.error("Failed to stop patterns.");
     }
   };
@@ -609,9 +596,7 @@ const Chat = () => {
       return;
     }
     const success = await testToy(user.id, uid);
-    if (success) {
-      toast.success("Toy test successful.");
-    } else {
+    if (!success) {
       toast.error("Toy test failed.");
     }
   };
@@ -638,8 +623,7 @@ const Chat = () => {
     if (!user) return;
     try {
       const ok = await stopAllUserToys(user.id, connectedToys);
-      if (ok) toast.success("🛑 All devices stopped");
-      else toast.error("Failed to stop device");
+      if (!ok) toast.error("Failed to stop device");
     } catch {
       toast.error("Failed to stop device");
     }
@@ -751,10 +735,6 @@ const Chat = () => {
 
             setMessages((prev) => [...prev, imageMsg]);
 
-            toast.success(
-              isAdminUser ? "✨ Image generated (admin — no credits charged)." : `✨ Image generated! (${IMAGE_TOKEN_COST} forge credits)`,
-              { duration: 3000 },
-            );
             clearOpeningStarterContext();
           } else {
             const { data, error } = await supabase.functions.invoke("chat-with-companion", {

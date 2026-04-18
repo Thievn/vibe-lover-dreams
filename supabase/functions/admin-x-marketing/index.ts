@@ -234,6 +234,7 @@ Deno.serve(async (req) => {
     }
 
     const tone = typeof body.tone === "string" ? body.tone : "Professional";
+    const tweetStyle = typeof body.tweetStyle === "string" ? body.tweetStyle.trim().slice(0, 160) : "";
     const customPrompt = typeof body.customPrompt === "string" ? body.customPrompt.trim() : "";
     const quickKind = typeof body.quickKind === "string" ? body.quickKind : "";
     const companion = body.companion && typeof body.companion === "object" ? body.companion as Record<string, unknown> : null;
@@ -247,8 +248,14 @@ Deno.serve(async (req) => {
     const rarity = companion && typeof companion.rarity === "string" ? companion.rarity : "common";
     const role = companion && typeof companion.role === "string" ? companion.role : "";
     const gender = companion && typeof companion.gender === "string" ? companion.gender : "";
+    const personality =
+      companion && typeof companion.personality === "string" ? (companion.personality as string).trim().slice(0, 600) : "";
+    const bio = companion && typeof companion.bio === "string" ? (companion.bio as string).trim().slice(0, 700) : "";
+    const appearance =
+      companion && typeof companion.appearance === "string" ? (companion.appearance as string).trim().slice(0, 900) : "";
 
     const quickLine = quickKind && QUICK_GUIDE[quickKind] ? `\nCampaign angle: ${QUICK_GUIDE[quickKind]}` : "";
+    const styleLine = tweetStyle ? `\nPost shape / format preference: ${tweetStyle}\n` : "";
 
     let surfaceBlock = "";
     if (siteSurface) {
@@ -276,8 +283,12 @@ Deno.serve(async (req) => {
       (productAtlas ? `\nProduct module atlas (stay fact-consistent):\n${productAtlas}\n` : "") +
       surfaceBlock +
       (companion
-        ? `Companion focus:\n- Name: ${name}\n- Tagline: ${tagline}\n- Rarity: ${rarity}\n- Role: ${role}\n- Gender: ${gender}\n- Tags: ${tags}\n- Interests/kinks labels: ${kinks}\n`
+        ? `Companion focus:\n- Name: ${name}\n- Tagline: ${tagline}\n- Rarity: ${rarity}\n- Role: ${role}\n- Gender: ${gender}\n- Tags: ${tags}\n- Interests/kinks labels: ${kinks}\n` +
+          (personality ? `- Personality / voice: ${personality}\n` : "") +
+          (bio ? `- Bio / hook lines: ${bio}\n` : "") +
+          (appearance ? `- Look & aesthetic (for language and vibe, not explicit): ${appearance}\n` : "")
         : `No specific companion selected — write brand-level X posts that still feel premium and seductive.\n`) +
+      styleLine +
       (customPrompt ? `Operator instructions: ${customPrompt}\n` : "") +
       quickLine +
       `\nWrite 5 distinct angles (hook, CTA, question, lore tease, urgency) so the operator can pick one.`;

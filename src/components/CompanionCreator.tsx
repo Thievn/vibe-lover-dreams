@@ -235,13 +235,11 @@ function toggleLimited(
   if (prev.includes(opt)) {
     const next = prev.filter((x) => x !== opt);
     if (next.length < opts.min) {
-      toast.message(`Keep at least ${opts.min} ${opts.noun}.`);
       return prev;
     }
     return next;
   }
   if (prev.length >= opts.max) {
-    toast.message(`You can pick up to ${opts.max} ${opts.noun}.`);
     return prev;
   }
   return [...prev, opt];
@@ -456,7 +454,6 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
           /* ignore */
         }
       }
-      if (!opts?.silent) toast.message("Preview cleared — generate a new one when you're ready.");
     },
     [userId, isAdmin],
   );
@@ -570,7 +567,6 @@ User flavor notes: ${extraNotes || "none"}`;
         if (prev) URL.revokeObjectURL(prev);
         return URL.createObjectURL(file);
       });
-      toast.success("Reference linked — palette steers previews (no raw upload to the model).");
     } catch {
       toast.error("Could not read that image.");
     }
@@ -722,8 +718,6 @@ Hard requirements:
       setRosterTags(Array.isArray(fields.tags) ? (fields.tags as string[]).map(String).slice(0, 24) : []);
       setRosterKinks(Array.isArray(fields.kinks) ? (fields.kinks as string[]).map(String).slice(0, 24) : []);
       setFantasyStartersVault(normalizeFantasyStartersFromFields(fields.fantasy_starters));
-
-      toast.success("Roulette — Grok drafted a full premium character. Tweak, preview, forge.");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Roulette failed");
     } finally {
@@ -819,7 +813,6 @@ Hard requirements:
           if (row) setTokens(row.tokens_balance);
         }
       }
-      toast.success(isAdmin ? "Preview forged (admin)." : `Preview saved · −${PREVIEW_COST} tokens`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Preview failed";
       toast.error(msg);
@@ -873,8 +866,6 @@ Hard requirements:
       if (Array.isArray(fields.kinks)) setRosterKinks((fields.kinks as string[]).map(String).slice(0, 24));
       const st = normalizeFantasyStartersFromFields(fields.fantasy_starters);
       if (st.length) setFantasyStartersVault(st);
-
-      toast.success("Parody profile loaded — tweak, preview, then forge.");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Parody lab failed");
     } finally {
@@ -1047,15 +1038,6 @@ Hard requirements:
           }
         }
       }
-      toast.success(
-        batchCount === 1
-          ? saveVisibility === "public" && !isAdmin
-            ? "Companion forged — live on the public gallery."
-            : isAdmin
-              ? "Companion published to Discover — pin from the profile to add to your vault."
-              : "Companion bound to your vault."
-          : `${batchCount} companions forged.`,
-      );
       void queryClient.invalidateQueries({ queryKey: ["companions"] });
       void queryClient.invalidateQueries({ queryKey: ["vault-collection"] });
       void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
@@ -2003,7 +1985,6 @@ Hard requirements:
                             referenceNotes: referenceNotes.trim() || undefined,
                           };
                           void navigator.clipboard.writeText(JSON.stringify(bundle, null, 2));
-                          toast.success("Forge JSON copied");
                         }}
                         className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(170_100%_55%)] hover:text-[hsl(170_100%_75%)]"
                       >

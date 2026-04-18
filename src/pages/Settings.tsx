@@ -96,7 +96,6 @@ const Settings = () => {
         setDeviceUid(data.device_uid);
         stopPolling();
         setQrCodeUrl(null);
-        toast.success("🎉 Device connected successfully!");
       }
     }, 3000);
   };
@@ -114,7 +113,6 @@ const Settings = () => {
     const ok = await disconnectToy(user.id);
     if (ok) {
       setDeviceUid("");
-      toast.success("All devices disconnected");
     } else {
       toast.error("Failed to disconnect devices");
     }
@@ -126,7 +124,6 @@ const Settings = () => {
     localStorage.setItem("lustforge-intensity", intensityLimit.toString());
     setTimeout(() => {
       setSaving(false);
-      toast.success("Settings saved!");
     }, 300);
   };
 
@@ -141,14 +138,11 @@ const Settings = () => {
 
     if (error) {
       toast.error("Failed to clear history");
-    } else {
-      toast.success("Chat history cleared");
     }
   };
 
   const handleResetAgeGate = () => {
     localStorage.removeItem("lustforge-age-verified");
-    toast.success("Age gate reset. You'll be asked to verify again.");
     navigate("/");
   };
 
