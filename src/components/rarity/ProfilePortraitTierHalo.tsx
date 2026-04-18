@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import type { CompanionRarity } from "@/lib/companionRarity";
 import {
   profileTierSheenGradient,
-  PROFILE_TIER_HALO_RADIUS,
+  profileTierHaloRadius,
+  type ProfilePortraitFrameStyle,
   type ProfilePortraitTierHaloVariant,
 } from "@/lib/profilePortraitTierHalo";
 
@@ -21,6 +22,8 @@ type Props = {
    * `compact` — static sheen, tighter radius (Forge live preview).
    */
   variant?: ProfilePortraitTierHaloVariant;
+  /** List/grid cards: one rarity border + soft glow (ignored for `variant="profile"`). */
+  frameStyle?: ProfilePortraitFrameStyle;
   className?: string;
 };
 
@@ -34,26 +37,32 @@ export function ProfilePortraitTierHalo({
   gradientTo,
   children,
   variant = "profile",
+  frameStyle = "full",
   className,
 }: Props) {
   const sheen = profileTierSheenGradient(rarity);
-  const r = PROFILE_TIER_HALO_RADIUS[variant];
+  const r = profileTierHaloRadius(variant, frameStyle);
   const isProfile = variant === "profile";
-  const gradientOpacity = isProfile ? "opacity-70" : "opacity-[0.62]";
+  const isCleanCard = frameStyle === "clean" && !isProfile;
+  const gradientOpacity = isProfile ? "opacity-70" : isCleanCard ? "opacity-[0.48]" : "opacity-[0.62]";
 
   return (
     <div
       className={cn(
         "relative overflow-hidden isolate",
         r.outer,
-        isProfile && "animate-[profile-tier-pop_1.15s_cubic-bezier(0.22,1,0.36,1)_both]",
-        isAbyssal
-          ? isProfile
-            ? "shadow-[0_0_60px_rgba(255,45,123,0.35),0_0_100px_rgba(168,85,247,0.2),inset_0_1px_0_rgba(255,255,255,0.08)]"
-            : "shadow-[0_0_28px_rgba(255,45,123,0.22),0_0_48px_rgba(168,85,247,0.12),inset_0_1px_0_rgba(255,255,255,0.06)]"
-          : isProfile
-            ? "shadow-[0_0_40px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.05)]"
-            : "shadow-[0_12px_32px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.04)]",
+        isProfile &&
+          (isAbyssal
+            ? "motion-reduce:animate-none motion-reduce:shadow-[0_0_60px_rgba(255,45,123,0.4),0_0_100px_rgba(168,85,247,0.26),inset_0_1px_0_rgba(255,255,255,0.09)] animate-[profile-tier-pop_1.15s_cubic-bezier(0.22,1,0.36,1)_both,profile-abyssal-shell-glow_3.2s_ease-in-out_infinite]"
+            : "motion-reduce:animate-none motion-reduce:shadow-[0_0_44px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.06)] animate-[profile-tier-pop_1.15s_cubic-bezier(0.22,1,0.36,1)_both,profile-shell-soft-glow_3.8s_ease-in-out_infinite]"),
+        !isProfile &&
+          (isCleanCard
+            ? isAbyssal
+              ? "shadow-[0_0_24px_rgba(255,45,123,0.22),0_0_44px_rgba(168,85,247,0.12),inset_0_1px_0_rgba(255,255,255,0.05)]"
+              : "shadow-[0_10px_32px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.04)]"
+            : isAbyssal
+              ? "shadow-[0_0_28px_rgba(255,45,123,0.22),0_0_48px_rgba(168,85,247,0.12),inset_0_1px_0_rgba(255,255,255,0.06)]"
+              : "shadow-[0_12px_32px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.04)]"),
         className,
       )}
     >
@@ -96,14 +105,16 @@ export function ProfilePortraitTierHalo({
               }
         }
       />
-      <div
-        className={cn(
-          "pointer-events-none absolute inset-0 z-[1] border-black/35",
-          r.mask,
-          r.ring,
-        )}
-        aria-hidden
-      />
+      {!isCleanCard ? (
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0 z-[1] border-black/35",
+            r.mask,
+            r.ring,
+          )}
+          aria-hidden
+        />
+      ) : null}
       <div className={cn("relative z-[2] min-h-0 overflow-hidden", r.gutter, r.inner)}>{children}</div>
     </div>
   );

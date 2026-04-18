@@ -450,13 +450,6 @@ const CompanionProfile = () => {
                 </div>
               </PortraitViewLightbox>
             </ProfilePortraitTierHalo>
-            <p className="mt-4 text-center text-[11px] text-muted-foreground/80 lg:text-left">
-              {animatedPortrait && isVideoPortraitUrl(animatedPortrait)
-                ? "Live portrait — motion plays here only, never on gallery cards."
-                : animatedPortrait
-                  ? "Portrait art is shown here only — gallery cards stay still."
-                  : "Your tier halo animates on this sheet. Add a looped portrait in Admin anytime for full motion here only."}
-            </p>
           </motion.div>
 
           {/* Copy + actions */}

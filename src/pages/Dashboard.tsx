@@ -30,7 +30,6 @@ import { cn } from "@/lib/utils";
 import ParticleBackground from "@/components/ParticleBackground";
 import DiscoverCompanionsGallery from "@/components/DiscoverCompanionsGallery";
 import TheNexus from "@/components/TheNexus";
-import { TcgMicroStrip } from "@/components/tcg/TcgStatDisplay";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { normalizeCompanionRarity } from "@/lib/companionRarity";
 import { Progress } from "@/components/ui/progress";
@@ -990,7 +989,7 @@ function MiniCompanionCard({ companion: c, index }: { companion: Companion; inde
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04 }}
       whileHover={{ y: -4, scale: 1.02 }}
-      className="text-left rounded-2xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden group shadow-lg shadow-black/20 hover:border-primary/40 transition-colors ring-0 hover:ring-2 hover:ring-primary/20"
+      className="text-left rounded-2xl border border-transparent bg-card/60 backdrop-blur-sm overflow-hidden group shadow-lg shadow-black/20 transition-colors"
     >
       <Link
         to={`/companions/${c.id}`}
@@ -999,6 +998,7 @@ function MiniCompanionCard({ companion: c, index }: { companion: Companion; inde
       >
         <TierHaloPortraitFrame
           variant="card"
+          frameStyle="clean"
           rarity={rarity}
           gradientFrom={c.gradientFrom}
           gradientTo={c.gradientTo}
@@ -1041,7 +1041,6 @@ function MiniCompanionCard({ companion: c, index }: { companion: Companion; inde
             <p className="text-xs font-bold text-white truncate leading-tight">{c.name}</p>
             <p className="text-[10px] text-white/70 truncate">{c.tagline}</p>
           </div>
-          <TcgMicroStrip stats={c.tcgStats} />
           <div className="absolute inset-0 z-[3] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none" />
         </TierHaloPortraitFrame>
         <div className="px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/40">

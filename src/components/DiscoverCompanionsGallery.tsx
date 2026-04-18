@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import type { CompanionRarity } from "@/lib/companionRarity";
 import { COMPANION_RARITIES, normalizeCompanionRarity } from "@/lib/companionRarity";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
-import { TcgMicroStrip } from "@/components/tcg/TcgStatDisplay";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 
 const NEON_PINK = "#FF2D7B";
@@ -333,7 +332,7 @@ export default function DiscoverCompanionsGallery() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: Math.min(i * 0.03, 0.35), type: "spring", stiffness: 380, damping: 28 }}
                     whileHover={{ y: -4, scale: 1.02 }}
-                    className="text-left rounded-2xl border border-border/80 bg-card/50 backdrop-blur-md overflow-hidden group shadow-lg shadow-black/30 hover:border-primary/45 transition-all hover:shadow-[0_0_28px_rgba(255,45,123,0.15)] ring-0 hover:ring-2 hover:ring-primary/15"
+                    className="text-left rounded-2xl border border-transparent bg-card/50 backdrop-blur-md overflow-hidden group shadow-lg shadow-black/30 transition-all hover:shadow-[0_0_28px_rgba(255,45,123,0.15)]"
                   >
                     <Link
                       to={`/companions/${c.id}`}
@@ -342,6 +341,7 @@ export default function DiscoverCompanionsGallery() {
                     >
                     <TierHaloPortraitFrame
                       variant="card"
+                      frameStyle="clean"
                       rarity={c.rarity}
                       gradientFrom={c.gradientFrom}
                       gradientTo={c.gradientTo}
@@ -391,7 +391,6 @@ export default function DiscoverCompanionsGallery() {
                           </p>
                         ) : null}
                       </div>
-                      <TcgMicroStrip stats={c.tcgStats} />
                       <div className="absolute inset-0 z-[3] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/[0.07] to-primary/10 pointer-events-none" />
                     </TierHaloPortraitFrame>
                     <div className="px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/50">

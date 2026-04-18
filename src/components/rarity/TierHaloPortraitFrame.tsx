@@ -4,12 +4,14 @@ import type { CompanionRarity } from "@/lib/companionRarity";
 import { ProfilePortraitTierHalo } from "@/components/rarity/ProfilePortraitTierHalo";
 import {
   profileTierHaloInnerRoundClass,
+  type ProfilePortraitFrameStyle,
   type ProfilePortraitTierHaloVariant,
 } from "@/lib/profilePortraitTierHalo";
 import { RarityBorderOverlay } from "@/components/rarity/RarityBorderOverlay";
 
 type Props = {
   variant: Extract<ProfilePortraitTierHaloVariant, "card" | "compact" | "avatar">;
+  frameStyle?: ProfilePortraitFrameStyle;
   rarity: CompanionRarity;
   gradientFrom: string;
   gradientTo: string;
@@ -25,6 +27,7 @@ type Props = {
  */
 export function TierHaloPortraitFrame({
   variant,
+  frameStyle = "full",
   rarity,
   gradientFrom,
   gradientTo,
@@ -34,11 +37,12 @@ export function TierHaloPortraitFrame({
   children,
 }: Props) {
   const isAbyssal = rarity === "abyssal";
-  const innerRound = profileTierHaloInnerRoundClass(variant);
+  const innerRound = profileTierHaloInnerRoundClass(variant, frameStyle);
 
   return (
     <ProfilePortraitTierHalo
       variant={variant}
+      frameStyle={frameStyle}
       rarity={rarity}
       isAbyssal={isAbyssal}
       gradientFrom={gradientFrom}
@@ -51,6 +55,7 @@ export function TierHaloPortraitFrame({
           rarity={rarity}
           overlayUrl={overlayUrl}
           abyssal={isAbyssal}
+          frameStyle={frameStyle}
           className={innerRound}
         />
       </div>

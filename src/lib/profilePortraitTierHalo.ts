@@ -2,10 +2,18 @@ import type { CompanionRarity } from "@/lib/companionRarity";
 
 export type ProfilePortraitTierHaloVariant = "profile" | "card" | "compact" | "avatar";
 
-export const PROFILE_TIER_HALO_RADIUS: Record<
-  ProfilePortraitTierHaloVariant,
-  { outer: string; mask: string; inner: string; gutter: string; ring: string }
-> = {
+/** Grid / list cards: one vector edge + soft glow; `full` keeps the legacy stacked ring + SVG. */
+export type ProfilePortraitFrameStyle = "full" | "clean";
+
+export type ProfileTierHaloRadius = {
+  outer: string;
+  mask: string;
+  inner: string;
+  gutter: string;
+  ring: string;
+};
+
+export const PROFILE_TIER_HALO_RADIUS: Record<ProfilePortraitTierHaloVariant, ProfileTierHaloRadius> = {
   profile: {
     outer: "rounded-[1.35rem]",
     mask: "rounded-[1.35rem]",
@@ -37,9 +45,50 @@ export const PROFILE_TIER_HALO_RADIUS: Record<
   },
 };
 
+/** Single-pass frame: no inner mask ring; content flush to outer radius (SVG defines the colored edge). */
+export const PROFILE_TIER_HALO_CLEAN: Record<
+  Extract<ProfilePortraitTierHaloVariant, "card" | "compact" | "avatar">,
+  ProfileTierHaloRadius
+> = {
+  card: {
+    outer: "rounded-2xl",
+    mask: "rounded-2xl",
+    inner: "rounded-2xl",
+    gutter: "",
+    ring: "",
+  },
+  compact: {
+    outer: "rounded-xl",
+    mask: "rounded-xl",
+    inner: "rounded-xl",
+    gutter: "",
+    ring: "",
+  },
+  avatar: {
+    outer: "rounded-full",
+    mask: "rounded-full",
+    inner: "rounded-full",
+    gutter: "",
+    ring: "",
+  },
+};
+
+export function profileTierHaloRadius(
+  variant: ProfilePortraitTierHaloVariant,
+  frameStyle: ProfilePortraitFrameStyle,
+): ProfileTierHaloRadius {
+  if (frameStyle === "clean" && variant !== "profile") {
+    return PROFILE_TIER_HALO_CLEAN[variant];
+  }
+  return PROFILE_TIER_HALO_RADIUS[variant];
+}
+
 /** Match `RarityBorderOverlay` rounding to the halo inner shell. */
-export function profileTierHaloInnerRoundClass(variant: ProfilePortraitTierHaloVariant): string {
-  return PROFILE_TIER_HALO_RADIUS[variant].inner;
+export function profileTierHaloInnerRoundClass(
+  variant: ProfilePortraitTierHaloVariant,
+  frameStyle: ProfilePortraitFrameStyle = "full",
+): string {
+  return profileTierHaloRadius(variant, frameStyle).inner;
 }
 
 /** Conic gradient for the profile-only rotating sheen behind the portrait ring. */

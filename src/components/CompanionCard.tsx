@@ -33,11 +33,12 @@ export default function CompanionCard({ companion, index, imageOverride, gallery
           from: `${location.pathname}${location.search}`,
           ...(isCommunity ? { fromGallery: true as const } : {}),
         }}
-        className="block rounded-2xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden hover:border-primary/50 transition-colors group h-full touch-manipulation"
+        className="block rounded-2xl border border-transparent bg-card/60 backdrop-blur-sm overflow-hidden transition-colors group h-full touch-manipulation"
       >
         <motion.div whileHover={{ y: -3, transition: { type: "spring", stiffness: 400, damping: 18 } }} whileTap={{ scale: 0.98 }} className="h-full">
         <TierHaloPortraitFrame
           variant="card"
+          frameStyle="clean"
           rarity={rarity}
           gradientFrom={companion.gradientFrom}
           gradientTo={companion.gradientTo}
