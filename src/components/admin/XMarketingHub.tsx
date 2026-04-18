@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -24,7 +25,7 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAdminCompanions, type DbCompanion } from "@/hooks/useCompanions";
+import { mapSupabaseCustomCharacterRow, useAdminCompanions, type DbCompanion } from "@/hooks/useCompanions";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { normalizeCompanionRarity, type CompanionRarity, COMPANION_RARITIES } from "@/lib/companionRarity";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
@@ -192,6 +193,26 @@ async function captureScreenToDataUrl(): Promise<string | null> {
 
 export default function XMarketingHub() {
   const { data: companions = [], isLoading: companionsLoading } = useAdminCompanions();
+  const { data: forgeCompanions = [], isLoading: forgeLoading } = useQuery({
+    queryKey: ["admin-x-marketing-forge-roster"],
+    queryFn: async (): Promise<DbCompanion[]> => {
+      const { data, error } = await supabase
+        .from("custom_characters")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(250);
+      if (error) throw error;
+      return (data ?? []).map((row) => mapSupabaseCustomCharacterRow(row as Record<string, unknown>));
+    },
+  });
+  /** Catalog stock + forged personas (Forge Studio) for “Use in Tweet”. */
+  const roster = useMemo(() => {
+    const merged = [...companions, ...forgeCompanions];
+    merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return merged;
+  }, [companions, forgeCompanions]);
+  const rosterLoading = companionsLoading || forgeLoading;
+  const companionPickRef = useRef<HTMLDivElement | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
 
   const siteOrigin = useMemo(() => {
@@ -323,25 +344,25 @@ export default function XMarketingHub() {
 
   const allTags = useMemo(() => {
     const s = new Set<string>();
-    for (const c of companions) {
+    for (const c of roster) {
       for (const t of c.tags || []) s.add(t);
     }
     return [...s].sort((a, b) => a.localeCompare(b));
-  }, [companions]);
+  }, [roster]);
 
   const allKinks = useMemo(() => {
     const s = new Set<string>();
-    for (const c of companions) {
+    for (const c of roster) {
       for (const k of c.kinks || []) s.add(k);
     }
     return [...s].sort((a, b) => a.localeCompare(b));
-  }, [companions]);
+  }, [roster]);
 
   const filteredCompanions = useMemo(() => {
     const q = search.trim().toLowerCase();
     const tf = tagFilter.trim().toLowerCase();
     const kf = kinkFilter.trim().toLowerCase();
-    let list = [...companions];
+    let list = [...roster];
     if (rarityFilter !== "all") {
       list = list.filter((c) => normalizeCompanionRarity(c.rarity) === rarityFilter);
     }
@@ -367,7 +388,7 @@ export default function XMarketingHub() {
       list.sort((a, b) => (pinCounts[b.id] || 0) - (pinCounts[a.id] || 0));
     }
     return list;
-  }, [companions, rarityFilter, search, tagFilter, kinkFilter, sortBy, pinCounts]);
+  }, [roster, rarityFilter, search, tagFilter, kinkFilter, sortBy, pinCounts]);
 
   const smartAngles = useMemo(
     () => buildSmartAngles(selectedSurface, selected),
@@ -771,7 +792,24 @@ export default function XMarketingHub() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-border/70 bg-black/40 p-4 space-y-4">
+              <div
+                ref={companionPickRef}
+                id="x-marketing-companion-pick"
+                className="rounded-2xl border border-border/70 bg-black/40 p-4 space-y-4 scroll-mt-6"
+              >
+                <div>
+                  <h3 className="text-[10px] font-bold uppercase tracking-[0.28em] text-muted-foreground flex items-center gap-2">
+                    <UserCircle2 className="h-4 w-4 text-primary" style={{ color: NEON }} aria-hidden />
+                    Who is this post about?
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed max-w-3xl">
+                    Selection is this grid (not a menu on the right): use filters, then click{" "}
+                    <strong className="text-foreground/90">Use in Tweet</strong> on a card. Includes{" "}
+                    <strong className="text-foreground/90">catalog stock</strong> and{" "}
+                    <strong className="text-foreground/90">Forge</strong> personas — scroll here from the top of the page if
+                    the right panel told you to pick someone first.
+                  </p>
+                </div>
                 <div className="flex flex-col xl:flex-row gap-3 flex-wrap xl:items-end">
                   <div className="flex flex-col gap-1 min-w-[8rem]">
                     <label className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Rarity</label>
@@ -839,10 +877,15 @@ export default function XMarketingHub() {
                   ))}
                 </datalist>
 
-                {companionsLoading ? (
+                {rosterLoading ? (
                   <div className="flex justify-center py-16 text-muted-foreground gap-2">
-                    <Loader2 className="h-6 w-6 animate-spin" /> Loading companions…
+                    <Loader2 className="h-6 w-6 animate-spin" /> Loading roster…
                   </div>
+                ) : filteredCompanions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-14 px-4 rounded-xl border border-dashed border-border/60 bg-black/30">
+                    No companions match these filters. Clear search, tags, or kinks — or widen rarity — to see cards with{" "}
+                    <strong className="text-foreground/90">Use in Tweet</strong>.
+                  </p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                     {filteredCompanions.map((c, idx) => {
@@ -881,8 +924,15 @@ export default function XMarketingHub() {
                                   {c.name.charAt(0)}
                                 </span>
                               )}
-                              <div className="absolute left-2 top-2 z-[4] rounded-md bg-black/65 border border-white/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white/90">
-                                {rarity}
+                              <div className="absolute left-2 top-2 z-[4] flex flex-wrap gap-1">
+                                <span className="rounded-md bg-black/65 border border-white/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white/90">
+                                  {rarity}
+                                </span>
+                                {c.id.startsWith("cc-") ? (
+                                  <span className="rounded-md bg-black/65 border border-[#FF2D7B]/40 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#ffb8d9]">
+                                    Forge
+                                  </span>
+                                ) : null}
                               </div>
                               {saves > 0 ? (
                                 <div className="absolute right-2 top-2 z-[4] rounded-md bg-black/65 border border-primary/30 px-2 py-0.5 text-[9px] font-bold text-primary">
@@ -964,7 +1014,7 @@ export default function XMarketingHub() {
                                     const surf = mergedSurfaces.find((x) => x.id === h.surfaceId);
                                     setSelectedSurface(surf ?? null);
                                     if (h.companionId) {
-                                      const row = companions.find((c) => c.id === h.companionId);
+                                      const row = roster.find((c) => c.id === h.companionId);
                                       setSelected(row ?? null);
                                     } else setSelected(null);
                                     workspaceRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1007,9 +1057,19 @@ export default function XMarketingHub() {
                   ) : (
                     <div className="text-center px-6 py-10">
                       <ImageIcon className="h-10 w-10 mx-auto text-muted-foreground mb-2 opacity-60" />
-                      <p className="text-xs text-muted-foreground">
-                        Pick a companion (Use in Tweet), choose their portrait below, or capture / generate a marketing still.
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        In the <strong className="text-foreground/85">left column</strong>, scroll to{" "}
+                        <strong className="text-foreground/85">Who is this post about?</strong> and click{" "}
+                        <strong className="text-foreground/85">Use in Tweet</strong> on a card. Then choose portrait / capture /
+                        marketing still here.
                       </p>
+                      <button
+                        type="button"
+                        onClick={() => companionPickRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                        className="mt-4 text-[11px] font-semibold text-primary hover:underline"
+                      >
+                        Jump to companion picker
+                      </button>
                     </div>
                   )}
                 </div>
