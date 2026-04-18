@@ -17,14 +17,12 @@ export type CommunityGalleryRow = Companion & {
   vibe: string;
   imageUrl: string | null;
   galleryCredit: string | null;
-  isForged: boolean;
   rarityBorderOverlayUrl: string | null;
 };
 
 function rowsFromDb(dbList: DbCompanion[]): CommunityGalleryRow[] {
   return dbList.map((db) => {
     const c = dbToCompanion(db);
-    const isForged = c.id.startsWith("cc-");
     const imageUrl = galleryStaticPortraitUrl(db, db.id) ?? null;
     return {
       ...c,
@@ -32,21 +30,10 @@ function rowsFromDb(dbList: DbCompanion[]): CommunityGalleryRow[] {
       vibe: c.tags[0] ?? c.role,
       imageUrl,
       galleryCredit: db.gallery_credit_name ?? null,
-      isForged,
       rarityBorderOverlayUrl: db.rarity_border_overlay_url ?? null,
     };
   });
 }
-
-const rarityStyle: Record<CompanionRarity, string> = {
-  common: "border-white/25 bg-white/10 text-white/90 shadow-[0_0_10px_rgba(255,255,255,0.08)]",
-  rare: "border-sky-400/45 bg-sky-500/15 text-sky-100 shadow-[0_0_14px_rgba(56,189,248,0.25)]",
-  epic: "border-accent/50 bg-accent/15 text-accent shadow-[0_0_14px_hsl(170_100%_50%/0.22)]",
-  legendary: "border-amber-400/50 bg-amber-500/20 text-amber-100 shadow-[0_0_14px_rgba(251,191,36,0.2)]",
-  mythic: "border-[#FF2D7B]/55 bg-[#FF2D7B]/22 text-[#ffb8d9] shadow-[0_0_16px_rgba(255,45,123,0.32)]",
-  abyssal:
-    "border-fuchsia-400/60 bg-gradient-to-r from-[#ff2d7b]/25 to-fuchsia-600/25 text-white shadow-[0_0_22px_rgba(255,45,123,0.45)]",
-};
 
 export default function DiscoverCompanionsGallery() {
   const location = useLocation();
@@ -332,12 +319,12 @@ export default function DiscoverCompanionsGallery() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: Math.min(i * 0.03, 0.35), type: "spring", stiffness: 380, damping: 28 }}
                     whileHover={{ y: -4, scale: 1.02 }}
-                    className="text-left rounded-2xl border border-transparent bg-card/50 backdrop-blur-md overflow-hidden group shadow-lg shadow-black/30 transition-all hover:shadow-[0_0_28px_rgba(255,45,123,0.15)]"
+                    className="text-left rounded-2xl border border-transparent bg-card/50 backdrop-blur-md overflow-visible group shadow-lg shadow-black/30 transition-all hover:shadow-[0_0_28px_rgba(255,45,123,0.15)] p-1.5 max-md:p-1"
                   >
                     <Link
                       to={`/companions/${c.id}`}
                       state={{ from: `${location.pathname}${location.search}` }}
-                      className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl"
+                      className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl overflow-visible"
                     >
                     <TierHaloPortraitFrame
                       variant="card"
@@ -362,24 +349,6 @@ export default function DiscoverCompanionsGallery() {
                         />
                       ) : null}
                       <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/95 via-black/25 to-transparent pointer-events-none" />
-                      <div
-                        className={cn(
-                          "absolute top-2 left-2 z-[3] px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider border backdrop-blur-md capitalize",
-                          rarityStyle[c.rarity],
-                        )}
-                      >
-                        {c.rarity}
-                      </div>
-                      <div
-                        className={cn(
-                          "absolute top-2 right-2 z-[3] px-2 py-0.5 rounded-md bg-black/55 border text-[9px] font-semibold uppercase tracking-wider",
-                          c.isForged
-                            ? "border-[#FF2D7B]/40 text-[#ffb8d9]"
-                            : "border-teal-500/30 text-accent/95",
-                        )}
-                      >
-                        {c.isForged ? "Forged" : "Catalog"}
-                      </div>
                       <div className="absolute inset-x-0 bottom-0 z-[3] p-3 space-y-0.5">
                         <p className="text-xs font-bold text-white truncate leading-tight font-gothic">{c.name}</p>
                         <p className="text-[10px] text-white/75 truncate">{c.tagline}</p>

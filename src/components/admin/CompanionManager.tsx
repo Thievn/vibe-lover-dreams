@@ -920,9 +920,10 @@ const CompanionManager = () => {
                 <ImageIcon className="h-4 w-4 text-primary" />
                 <h4 className="text-sm font-bold text-foreground">Portrait & Appearance</h4>
               </div>
-              <div className="w-24 h-24 shrink-0">
+              <div className="w-24 h-24 shrink-0 overflow-visible p-0.5">
                 <TierHaloPortraitFrame
                   variant="compact"
+                  frameStyle="clean"
                   rarity={normalizeCompanionRarity(createData.rarity)}
                   gradientFrom={createData.gradient_from}
                   gradientTo={createData.gradient_to}
@@ -1063,9 +1064,10 @@ const CompanionManager = () => {
 
               {/* Portrait Preview */}
               <div className="flex items-start gap-4">
-                <div className="w-32 h-32 shrink-0">
+                <div className="w-32 h-32 shrink-0 overflow-visible p-0.5">
                   <TierHaloPortraitFrame
                     variant="compact"
+                    frameStyle="clean"
                     rarity={normalizeCompanionRarity(String(val("rarity")))}
                     gradientFrom={String(val("gradient_from"))}
                     gradientTo={String(val("gradient_to"))}
@@ -1384,9 +1386,10 @@ const CompanionManager = () => {
                 key={String(fr.id)}
                 className="flex items-stretch gap-3 text-xs border border-border/60 rounded-xl p-3 bg-gradient-to-br from-black/40 to-muted/20"
               >
-                <div className="w-14 h-20 shrink-0">
+                <div className="w-14 h-20 shrink-0 overflow-visible p-0.5">
                   <TierHaloPortraitFrame
                     variant="compact"
+                    frameStyle="clean"
                     rarity={frRarity}
                     gradientFrom={frGf}
                     gradientTo={frGt}
@@ -1525,9 +1528,10 @@ const CompanionManager = () => {
           onClick={() => openEdit(companion.id)}
         >
           <div className="flex items-center gap-3 p-4">
-            <div className="w-12 h-12 shrink-0">
+            <div className="w-12 h-12 shrink-0 overflow-visible p-0.5">
               <TierHaloPortraitFrame
                 variant="compact"
+                frameStyle="clean"
                 rarity={normalizeCompanionRarity(companion.rarity)}
                 gradientFrom={companion.gradient_from}
                 gradientTo={companion.gradient_to}

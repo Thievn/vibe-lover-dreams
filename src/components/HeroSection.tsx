@@ -203,15 +203,16 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.06, type: "spring", stiffness: 420, damping: 22 }}
                 whileHover={{ y: -4, transition: { type: "spring", stiffness: 500, damping: 12 } }}
-                className="h-full"
+                className="h-full p-1 max-sm:p-0.5"
               >
                 <Link
                   to={`/companions/${comp.id}`}
                   state={{ from: `${location.pathname}${location.search}` }}
-                  className="block h-full rounded-2xl border border-white/[0.08] bg-card/75 backdrop-blur-md overflow-hidden hover:border-primary/45 transition-all duration-300 shadow-lg shadow-black/25 hover:shadow-[0_12px_40px_rgba(255,45,123,0.12)] ring-1 ring-white/[0.04] group touch-manipulation"
+                  className="block h-full rounded-2xl border border-white/[0.08] bg-card/75 backdrop-blur-md overflow-visible hover:border-primary/45 transition-all duration-300 shadow-lg shadow-black/25 hover:shadow-[0_12px_40px_rgba(255,45,123,0.12)] ring-1 ring-white/[0.04] group touch-manipulation"
                 >
                   <TierHaloPortraitFrame
                     variant="card"
+                    frameStyle="clean"
                     rarity={comp.rarity}
                     gradientFrom={comp.gradientFrom}
                     gradientTo={comp.gradientTo}

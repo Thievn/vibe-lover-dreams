@@ -61,9 +61,10 @@ export function ChatMessageThread({
           className={cn("flex gap-2", msg.role === "user" ? "justify-end" : "justify-start")}
         >
           {msg.role === "assistant" ? (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-black/40">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-visible rounded-full border border-white/10 bg-black/40 p-0.5">
               <TierHaloPortraitFrame
                 variant="avatar"
+                frameStyle="clean"
                 rarity={rarity}
                 gradientFrom={companion.gradientFrom}
                 gradientTo={companion.gradientTo}

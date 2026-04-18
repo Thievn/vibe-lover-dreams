@@ -26,6 +26,7 @@ export default function CompanionCard({ companion, index, imageOverride, gallery
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay: Math.min(index * 0.04, 0.4), type: "spring", stiffness: 380, damping: 26 }}
+      className="p-1.5 max-md:p-1"
     >
       <Link
         to={to}
@@ -33,9 +34,9 @@ export default function CompanionCard({ companion, index, imageOverride, gallery
           from: `${location.pathname}${location.search}`,
           ...(isCommunity ? { fromGallery: true as const } : {}),
         }}
-        className="block rounded-2xl border border-transparent bg-card/60 backdrop-blur-sm overflow-hidden transition-colors group h-full touch-manipulation"
+        className="block rounded-2xl border border-transparent bg-card/60 backdrop-blur-sm overflow-visible transition-colors group h-full touch-manipulation"
       >
-        <motion.div whileHover={{ y: -3, transition: { type: "spring", stiffness: 400, damping: 18 } }} whileTap={{ scale: 0.98 }} className="h-full">
+        <motion.div whileHover={{ y: -3, transition: { type: "spring", stiffness: 400, damping: 18 } }} whileTap={{ scale: 0.98 }} className="h-full rounded-2xl">
         <TierHaloPortraitFrame
           variant="card"
           frameStyle="clean"

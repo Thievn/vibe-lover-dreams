@@ -871,9 +871,10 @@ function DashboardHome({
                   state={{ from: profileLinkFrom }}
                   className="w-full flex items-center gap-3 rounded-xl border border-border/60 bg-black/30 p-2 text-left hover:border-primary/35 transition-colors group"
                 >
-                  <div className="h-12 w-10 shrink-0">
+                  <div className="h-12 w-10 shrink-0 overflow-visible p-0.5">
                     <TierHaloPortraitFrame
                       variant="compact"
+                      frameStyle="clean"
                       rarity={normalizeCompanionRarity(c.rarity)}
                       gradientFrom={c.gradientFrom}
                       gradientTo={c.gradientTo}
@@ -961,12 +962,12 @@ function MiniCompanionCard({ companion: c, index }: { companion: Companion; inde
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04 }}
       whileHover={{ y: -4, scale: 1.02 }}
-      className="text-left rounded-2xl border border-transparent bg-card/60 backdrop-blur-sm overflow-hidden group shadow-lg shadow-black/20 transition-colors"
+      className="text-left rounded-2xl border border-transparent bg-card/60 backdrop-blur-sm overflow-visible group shadow-lg shadow-black/20 transition-colors p-1.5 max-md:p-1"
     >
       <Link
         to={`/companions/${c.id}`}
         state={{ from: `${location.pathname}${location.search}` }}
-        className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded-2xl"
+        className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded-2xl overflow-visible"
       >
         <TierHaloPortraitFrame
           variant="card"

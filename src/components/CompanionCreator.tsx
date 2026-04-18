@@ -1936,9 +1936,10 @@ Hard requirements:
                 )}
               </div>
               <div className="p-4 sm:p-5">
-                <div className="w-full max-w-[252px] mx-auto lg:mx-0">
+                <div className="w-full max-w-[252px] mx-auto lg:mx-0 overflow-visible p-1.5 max-sm:p-1">
                   <TierHaloPortraitFrame
                     variant="compact"
+                    frameStyle="clean"
                     rarity={forgePreviewTier}
                     gradientFrom="#7B2D8E"
                     gradientTo={NEON}

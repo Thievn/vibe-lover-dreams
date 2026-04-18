@@ -55,7 +55,7 @@ function NexusCard({
       disabled={locked}
       onClick={onToggle}
       className={cn(
-        "group relative rounded-2xl border overflow-hidden text-left transition-all aspect-[3/4] w-full p-0",
+        "group relative rounded-2xl border overflow-visible text-left transition-all aspect-[3/4] w-full p-0 m-0.5 max-sm:m-0",
         orderMark === 1 &&
           "border-primary ring-2 ring-primary/50 shadow-[0_0_32px_rgba(255,45,123,0.38)] z-[1] scale-[1.02]",
         orderMark === 2 &&
@@ -67,6 +67,7 @@ function NexusCard({
       <TierHaloPortraitFrame
         className="absolute inset-0 h-full w-full"
         variant="card"
+        frameStyle="clean"
         rarity={rarity}
         gradientFrom={db.gradient_from}
         gradientTo={db.gradient_to}

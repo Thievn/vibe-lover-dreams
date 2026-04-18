@@ -899,13 +899,14 @@ export default function XMarketingHub() {
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: Math.min(idx * 0.015, 0.25) }}
                           className={cn(
-                            "rounded-2xl border overflow-hidden flex flex-col bg-black/50 backdrop-blur-md",
+                            "rounded-2xl border overflow-visible flex flex-col bg-black/50 backdrop-blur-md p-1.5 max-md:p-1",
                             selected?.id === c.id ? "border-primary/60 ring-2 ring-primary/20" : "border-border/60 hover:border-primary/30",
                           )}
                         >
                           <div className="relative aspect-[3/4] w-full">
                             <TierHaloPortraitFrame
                               variant="card"
+                              frameStyle="clean"
                               rarity={rarity}
                               gradientFrom={c.gradient_from}
                               gradientTo={c.gradient_to}

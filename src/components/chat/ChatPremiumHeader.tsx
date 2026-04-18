@@ -59,7 +59,7 @@ export function ChatPremiumHeader({
         </button>
 
         <div className="flex flex-col items-center flex-1 min-w-0 gap-2">
-          <div className="relative shrink-0 w-[5.5rem] h-[5.5rem] md:w-28 md:h-28">
+          <div className="relative shrink-0 w-[5.5rem] h-[5.5rem] md:w-28 md:h-28 overflow-visible p-1">
             <PortraitViewLightbox
               alt={companion.name}
               stillSrc={imageUrl}
@@ -68,6 +68,7 @@ export function ChatPremiumHeader({
             >
               <TierHaloPortraitFrame
                 variant="avatar"
+                frameStyle="clean"
                 rarity={rarity}
                 gradientFrom={companion.gradientFrom}
                 gradientTo={companion.gradientTo}

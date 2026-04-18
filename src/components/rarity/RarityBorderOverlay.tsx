@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 import type { CompanionRarity } from "@/lib/companionRarity";
 import {
   defaultRarityBorderPath,
+  rarityCardOverlayGlowFilter,
   rarityGlitchLayerFilters,
   rarityProfileBloomFilter,
   rarityProfileVectorGlowFilter,
@@ -89,6 +90,7 @@ export function RarityBorderOverlay({
           src={src}
           alt=""
           className={cn("absolute inset-0 z-[1] h-full w-full object-fill", clean ? "opacity-[0.93]" : "opacity-[0.92]")}
+          style={{ filter: rarityCardOverlayGlowFilter(rarity) }}
         />
       )}
     </div>

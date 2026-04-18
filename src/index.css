@@ -86,7 +86,13 @@
 
   /** Avoid Tailwind `animate-[...]` with hyphenated @keyframes names (underscores → spaces). */
   .animate-profile-frame-bloom-breathe {
-    animation: profile-frame-bloom-breathe 3s ease-in-out infinite;
+    animation: profile-frame-bloom-breathe 4s ease-in-out infinite;
+  }
+  .animate-rarity-neon-outer-breathe {
+    animation: rarity-neon-outer-breathe 4s ease-in-out infinite alternate;
+  }
+  .animate-rarity-neon-inner-breathe {
+    animation: rarity-neon-inner-breathe 4s ease-in-out infinite alternate;
   }
   .glow-pink {
     box-shadow: 0 0 15px hsl(330 100% 58% / 0.4), 0 0 45px hsl(330 100% 58% / 0.15);
@@ -119,6 +125,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .animate-profile-frame-bloom-breathe {
+    animation: none;
+  }
+  .animate-rarity-neon-outer-breathe,
+  .animate-rarity-neon-inner-breathe {
     animation: none;
   }
 }
@@ -155,10 +165,31 @@
 @keyframes profile-frame-bloom-breathe {
   0%,
   100% {
-    opacity: 0.3;
+    opacity: 0.28;
   }
   50% {
-    opacity: 0.42;
+    opacity: 0.44;
+  }
+}
+
+/* Profile + grid — CSS neon underlay breathe (paired with RarityNeonGlowLayers on profile) */
+@keyframes rarity-neon-outer-breathe {
+  0%,
+  100% {
+    opacity: 0.88;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes rarity-neon-inner-breathe {
+  0%,
+  100% {
+    opacity: 0.52;
+  }
+  50% {
+    opacity: 0.95;
   }
 }
 

@@ -9,6 +9,16 @@ export const COMPANION_RARITIES = [
 
 export type CompanionRarity = (typeof COMPANION_RARITIES)[number];
 
+/** Canonical neon palette for companion frames (CSS + overlays). */
+export const RARITY_NEON = {
+  common: { core: "#E5E5E5", outline: "#FFFFFF" },
+  rare: { from: "#A020F0", to: "#00D4FF" },
+  epic: { from: "#00F7FF", to: "#00FF9F" },
+  legendary: { from: "#FFD700", to: "#FF8C00" },
+  mythic: { from: "#FF00FF", to: "#FF1493" },
+  abyssal: { from: "#6B00B3", to: "#FF0033" },
+} as const;
+
 const STATIC_RARITY: Partial<Record<string, CompanionRarity>> = {
   "lilith-vesper": "abyssal",
   "raven-nox": "mythic",
@@ -39,21 +49,43 @@ export function defaultRarityBorderPath(rarity: CompanionRarity): string {
  * Keeps the vector as the single intentional edge; glow follows tier hue.
  */
 export function rarityProfileVectorGlowFilter(rarity: CompanionRarity): string {
+  const { common, rare, epic, legendary, mythic, abyssal } = RARITY_NEON;
   switch (rarity) {
     case "common":
-      return "brightness(1.06) contrast(1.02) drop-shadow(0 0 1px rgba(226,232,240,0.75)) drop-shadow(0 0 8px rgba(148,163,184,0.45)) drop-shadow(0 0 20px rgba(71,85,105,0.22))";
+      return `brightness(1.06) contrast(1.02) drop-shadow(0 0 1px ${common.outline}cc) drop-shadow(0 0 10px ${common.core}99) drop-shadow(0 0 24px ${common.core}44)`;
     case "rare":
-      return "brightness(1.08) saturate(1.08) drop-shadow(0 0 1.5px rgba(34,211,238,0.95)) drop-shadow(0 0 12px rgba(56,189,248,0.6)) drop-shadow(0 0 28px rgba(14,165,233,0.35))";
+      return `brightness(1.08) saturate(1.12) drop-shadow(0 0 1.5px ${rare.to}) drop-shadow(0 0 12px ${rare.from}cc) drop-shadow(0 0 28px ${rare.to}66)`;
     case "epic":
-      return "brightness(1.08) saturate(1.1) drop-shadow(0 0 1.5px rgba(192,132,252,0.9)) drop-shadow(0 0 12px rgba(168,85,247,0.55)) drop-shadow(0 0 26px rgba(217,70,239,0.3))";
+      return `brightness(1.09) saturate(1.12) drop-shadow(0 0 1.5px ${epic.from}) drop-shadow(0 0 12px ${epic.to}aa) drop-shadow(0 0 26px ${epic.from}55)`;
     case "legendary":
-      return "brightness(1.1) saturate(1.12) drop-shadow(0 0 1.5px rgba(251,191,36,0.95)) drop-shadow(0 0 12px rgba(245,158,11,0.55)) drop-shadow(0 0 26px rgba(252,211,77,0.28))";
+      return `brightness(1.12) saturate(1.14) drop-shadow(0 0 1.5px ${legendary.from}) drop-shadow(0 0 14px ${legendary.to}cc) drop-shadow(0 0 32px ${legendary.from}55) drop-shadow(0 0 2px rgba(255,255,255,0.35))`;
     case "mythic":
-      return "brightness(1.08) saturate(1.12) drop-shadow(0 0 1.5px rgba(251,113,133,0.95)) drop-shadow(0 0 12px rgba(244,63,94,0.5)) drop-shadow(0 0 26px rgba(236,72,153,0.32))";
+      return `brightness(1.09) saturate(1.15) drop-shadow(0 0 1.5px ${mythic.from}) drop-shadow(0 0 12px ${mythic.to}bb) drop-shadow(0 0 28px ${mythic.from}66)`;
     case "abyssal":
-      return "brightness(1.1) saturate(1.15) drop-shadow(0 0 2px rgba(255,45,123,0.95)) drop-shadow(0 0 14px rgba(192,132,252,0.65)) drop-shadow(0 0 22px rgba(0,255,212,0.35)) drop-shadow(0 0 36px rgba(168,85,247,0.35))";
+      return `brightness(1.12) saturate(1.18) drop-shadow(0 0 2px ${abyssal.to}) drop-shadow(0 0 14px ${abyssal.from}dd) drop-shadow(0 0 28px ${abyssal.to}88) drop-shadow(0 0 40px ${abyssal.from}55)`;
     default:
-      return "brightness(1.05) drop-shadow(0 0 8px rgba(148,163,184,0.4))";
+      return `brightness(1.05) drop-shadow(0 0 8px ${common.core}66)`;
+  }
+}
+
+/** Vector frame on grid / list cards (static — pairs with RarityNeonGlowLayers). */
+export function rarityCardOverlayGlowFilter(rarity: CompanionRarity): string {
+  const { common, rare, epic, legendary, mythic, abyssal } = RARITY_NEON;
+  switch (rarity) {
+    case "common":
+      return `brightness(1.04) drop-shadow(0 0 1px ${common.outline}aa) drop-shadow(0 0 8px ${common.core}77)`;
+    case "rare":
+      return `brightness(1.06) saturate(1.1) drop-shadow(0 0 1px ${rare.to}) drop-shadow(0 0 10px ${rare.from}aa)`;
+    case "epic":
+      return `brightness(1.07) saturate(1.1) drop-shadow(0 0 1px ${epic.from}) drop-shadow(0 0 10px ${epic.to}99)`;
+    case "legendary":
+      return `brightness(1.1) saturate(1.12) drop-shadow(0 0 1.5px ${legendary.from}) drop-shadow(0 0 12px ${legendary.to}aa) drop-shadow(0 0 1px rgba(255,255,255,0.25))`;
+    case "mythic":
+      return `brightness(1.08) saturate(1.12) drop-shadow(0 0 1px ${mythic.from}) drop-shadow(0 0 10px ${mythic.to}aa)`;
+    case "abyssal":
+      return `brightness(1.1) saturate(1.15) drop-shadow(0 0 2px ${abyssal.to}) drop-shadow(0 0 12px ${abyssal.from}cc)`;
+    default:
+      return `brightness(1.04) drop-shadow(0 0 8px ${common.core}55)`;
   }
 }
 
@@ -61,17 +93,17 @@ export function rarityProfileVectorGlowFilter(rarity: CompanionRarity): string {
 export function rarityProfileBloomFilter(rarity: CompanionRarity): string {
   switch (rarity) {
     case "rare":
-      return "blur(14px) brightness(1.25) saturate(1.2) hue-rotate(-5deg)";
+      return "blur(14px) brightness(1.28) saturate(1.25) hue-rotate(-8deg)";
     case "epic":
-      return "blur(14px) brightness(1.2) saturate(1.15)";
+      return "blur(14px) brightness(1.22) saturate(1.2) hue-rotate(12deg)";
     case "legendary":
-      return "blur(14px) brightness(1.25) saturate(1.1)";
+      return "blur(14px) brightness(1.3) saturate(1.15) hue-rotate(-6deg)";
     case "mythic":
-      return "blur(14px) brightness(1.2) saturate(1.2)";
+      return "blur(14px) brightness(1.24) saturate(1.22) hue-rotate(8deg)";
     case "abyssal":
-      return "blur(16px) brightness(1.3) saturate(1.25)";
+      return "blur(16px) brightness(1.32) saturate(1.28) hue-rotate(-4deg)";
     default:
-      return "blur(12px) brightness(1.15)";
+      return "blur(12px) brightness(1.18) saturate(1.05)";
   }
 }
 

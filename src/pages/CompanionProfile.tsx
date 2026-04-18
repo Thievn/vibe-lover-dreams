@@ -453,24 +453,6 @@ const CompanionProfile = () => {
                     abyssal={isAbyssal}
                     profilePolish
                   />
-                  <div className="absolute left-3 top-3 z-[4] flex flex-col gap-2">
-                    <span
-                      className={cn(
-                        "inline-flex flex-col gap-0 rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] border backdrop-blur-md",
-                        badge.className,
-                      )}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <RarityBadgeIcon rarity={rarity} className="opacity-95" />
-                        {badge.label}
-                      </span>
-                      {badge.sub ? (
-                        <span className="text-[9px] font-medium normal-case tracking-normal opacity-90 pl-5">
-                          {badge.sub}
-                        </span>
-                      ) : null}
-                    </span>
-                  </div>
                 </div>
               </PortraitViewLightbox>
             </ProfilePortraitTierHalo>
@@ -499,6 +481,27 @@ const CompanionProfile = () => {
                   {companion.role}
                 </span>
               </div>
+              <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground/80">
+                <span className="inline-flex items-center gap-1.5">
+                  <RarityBadgeIcon rarity={rarity} className="h-3.5 w-3.5 opacity-80 shrink-0" />
+                  <span className="text-foreground/75">{badge.label}</span>
+                </span>
+                {badge.sub ? (
+                  <>
+                    <span className="text-muted-foreground/35" aria-hidden>
+                      ·
+                    </span>
+                    <span className="text-muted-foreground/70">{badge.sub}</span>
+                  </>
+                ) : null}
+                <span className="text-muted-foreground/35" aria-hidden>
+                  ·
+                </span>
+                <span className="text-muted-foreground/70">
+                  {companion.id.startsWith("cc-") ? "Forge creation" : "Catalog"}
+                  {companion.isNexusHybrid ? " · Nexus hybrid" : ""}
+                </span>
+              </p>
             </div>
 
             <div className="flex flex-wrap gap-3">

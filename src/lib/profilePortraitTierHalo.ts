@@ -1,4 +1,4 @@
-import type { CompanionRarity } from "@/lib/companionRarity";
+import { RARITY_NEON, type CompanionRarity } from "@/lib/companionRarity";
 
 export type ProfilePortraitTierHaloVariant = "profile" | "card" | "compact" | "avatar";
 
@@ -94,20 +94,21 @@ export function profileTierHaloInnerRoundClass(
 
 /** Conic gradient for the profile-only rotating sheen behind the portrait ring. */
 export function profileTierSheenGradient(rarity: CompanionRarity): string {
+  const { common, rare, epic, legendary, mythic, abyssal } = RARITY_NEON;
   switch (rarity) {
     case "common":
-      return "conic-gradient(from 0deg, hsl(220 12% 38%), hsl(240 8% 62%), hsl(220 10% 48%), hsl(240 6% 28%), hsl(220 12% 38%))";
+      return `conic-gradient(from 0deg, ${common.core}99, ${common.outline}55, #b8b8c8cc, ${common.core}aa, ${common.core}99)`;
     case "rare":
-      return "conic-gradient(from 0deg, hsl(199 90% 48%), hsl(186 92% 42%), hsl(210 100% 58%), hsl(188 85% 52%), hsl(199 90% 48%))";
+      return `conic-gradient(from 0deg, ${rare.from}, ${rare.to}, #c040f0, ${rare.from}, ${rare.to})`;
     case "epic":
-      return "conic-gradient(from 0deg, hsl(280 75% 55%), hsl(310 85% 58%), hsl(265 80% 48%), hsl(330 70% 58%), hsl(280 75% 55%))";
+      return `conic-gradient(from 0deg, ${epic.from}, ${epic.to}, #00c8dd, ${epic.from}, ${epic.to})`;
     case "legendary":
-      return "conic-gradient(from 0deg, hsl(43 96% 56%), hsl(28 92% 52%), hsl(48 100% 62%), hsl(20 88% 48%), hsl(43 96% 56%))";
+      return `conic-gradient(from 0deg, ${legendary.from}, ${legendary.to}, #ffe566, ${legendary.from}, ${legendary.to})`;
     case "mythic":
-      return "conic-gradient(from 0deg, hsl(350 82% 52%), hsl(320 78% 48%), hsl(12 90% 55%), hsl(285 70% 50%), hsl(350 82% 52%))";
+      return `conic-gradient(from 0deg, ${mythic.from}, ${mythic.to}, #ff66cc, ${mythic.from}, ${mythic.to})`;
     case "abyssal":
-      return "conic-gradient(from 0deg, hsl(330 100% 58%), hsl(280 75% 52%), hsl(170 100% 48%), hsl(300 85% 55%), hsl(330 100% 58%))";
+      return `conic-gradient(from 0deg, ${abyssal.from}, ${abyssal.to}, #c400ff, ${abyssal.from}, ${abyssal.to})`;
     default:
-      return "conic-gradient(from 0deg, hsl(220 12% 38%), hsl(240 8% 55%), hsl(220 12% 38%))";
+      return `conic-gradient(from 0deg, ${common.core}aa, ${common.outline}44, ${common.core}99)`;
   }
 }
