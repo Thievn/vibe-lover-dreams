@@ -8,6 +8,8 @@ interface ImageViewerProps {
   imageId: string;
   companionName: string;
   prompt: string;
+  /** Chat images are auto-saved to the companion gallery — hide redundant save. */
+  companionGalleryAutoSaved?: boolean;
   onSaveToCompanionGallery: (imageId: string) => Promise<void>;
   onSaveToPersonalGallery: (imageId: string) => Promise<void>;
   onClose: () => void;
@@ -18,6 +20,7 @@ export const ImageViewer = ({
   imageId,
   companionName,
   prompt,
+  companionGalleryAutoSaved,
   onSaveToCompanionGallery,
   onSaveToPersonalGallery,
   onClose,
@@ -126,11 +129,11 @@ export const ImageViewer = ({
 
                 <button
                   onClick={handleSaveCompanion}
-                  disabled={isSavingCompanion}
+                  disabled={isSavingCompanion || companionGalleryAutoSaved}
                   className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-secondary/10 hover:bg-secondary/20 text-secondary disabled:opacity-50 transition-colors text-sm font-medium"
                 >
                   <Save className="h-4 w-4" />
-                  <span className="hidden sm:inline">Companion</span>
+                  <span className="hidden sm:inline">{companionGalleryAutoSaved ? "In gallery" : "Companion"}</span>
                 </button>
 
                 <button
@@ -145,7 +148,9 @@ export const ImageViewer = ({
 
               {/* Info Text */}
               <p className="text-xs text-muted-foreground text-center">
-                💡 Companions and your personal galleries preserve your favorite moments
+                {companionGalleryAutoSaved
+                  ? "This shot is already in the companion gallery. Save to your personal vault for an extra backup."
+                  : "Save to the companion gallery or your personal vault — or download anytime."}
               </p>
             </div>
           </div>

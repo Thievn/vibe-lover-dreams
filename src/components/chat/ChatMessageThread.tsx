@@ -26,6 +26,8 @@ type Props = {
   ttsLoadingId?: string | null;
   ttsPlayingId?: string | null;
   messagesEndRef: RefObject<HTMLDivElement | null>;
+  onSaveImageBackup?: (generatedImageId: string) => void;
+  savingBackupImageId?: string | null;
 };
 
 export function ChatMessageThread({
@@ -44,6 +46,8 @@ export function ChatMessageThread({
   ttsLoadingId,
   ttsPlayingId,
   messagesEndRef,
+  onSaveImageBackup,
+  savingBackupImageId,
 }: Props) {
   const rarity = normalizeCompanionRarity(companion.rarity);
 
@@ -103,6 +107,13 @@ export function ChatMessageThread({
                 prompt={msg.imagePrompt || "Generated image"}
                 onImageClick={() => onImageClick(msg)}
                 companionName={companion.name}
+                onSaveBackup={
+                  msg.generatedImageId && onSaveImageBackup
+                    ? () => onSaveImageBackup(msg.generatedImageId!)
+                    : undefined
+                }
+                backupSaved={msg.savedToPersonalGallery}
+                backupBusy={Boolean(msg.generatedImageId && savingBackupImageId === msg.generatedImageId)}
               />
             ) : (
               <div className="flex items-start gap-2">
@@ -148,11 +159,18 @@ export function ChatMessageThread({
               </div>
             )}
 
-            {msg.imageUrl && (msg.savedToCompanionGallery || msg.savedToPersonalGallery) && (
-              <div className="mt-2 px-3 py-2 rounded-xl bg-green-500/10 border border-green-500/20 text-green-500 text-xs flex items-center gap-2">
-                ✓ Saved to {msg.savedToCompanionGallery ? `${companion.name}'s gallery` : "your personal gallery"}
+            {msg.imageUrl && msg.generatedImageId ? (
+              <div className="mt-2 space-y-1">
+                <div className="px-3 py-2 rounded-xl bg-primary/10 border border-primary/25 text-primary text-xs">
+                  ✓ In {companion.name}&apos;s gallery
+                </div>
+                {msg.savedToPersonalGallery ? (
+                  <div className="px-3 py-1.5 rounded-xl bg-accent/10 border border-accent/20 text-accent text-[11px]">
+                    ✓ Also saved to your personal vault
+                  </div>
+                ) : null}
               </div>
-            )}
+            ) : null}
           </div>
 
           {msg.role === "user" ? (

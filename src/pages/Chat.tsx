@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
+import { usePortraitOverrideUrl } from "@/hooks/usePortraitOverride";
+import { useCompanionGeneratedImages } from "@/hooks/useCompanionGeneratedImages";
 import { galleryStaticPortraitUrl, profileAnimatedPortraitUrl } from "@/lib/companionMedia";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
@@ -43,6 +46,8 @@ import {
   type TtsUxVoiceId,
 } from "@/lib/ttsVoicePresets";
 import { ToyHubPopover } from "@/components/toy/ToyHubPopover";
+import { ChatGallerySheet } from "@/components/chat/ChatGallerySheet";
+import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFromGallery";
 
 const TOKEN_COST = 15;
 const IMAGE_TOKEN_COST = 75;
@@ -59,7 +64,7 @@ const Chat = () => {
     [dbCompanions, id]
   );
   const companion = dbComp ? dbToCompanion(dbComp) : null;
-  const imageUrl = galleryStaticPortraitUrl(dbComp, id);
+  const basePortraitUrl = useMemo(() => galleryStaticPortraitUrl(dbComp, id), [dbComp, id]);
   const headerAnimated = profileAnimatedPortraitUrl(dbComp);
 
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -90,6 +95,8 @@ const Chat = () => {
   const [sendingVibrationId, setSendingVibrationId] = useState<string | null>(null);
   const [toyUtilityBusy, setToyUtilityBusy] = useState(false);
   const [historyReady, setHistoryReady] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [savingBackupImageId, setSavingBackupImageId] = useState<string | null>(null);
   const starterSentRef = useRef(false);
   /** Keeps token checks in sync with async `fetchTokens` before React state flushes (fantasy starters). */
   const tokensBalanceRef = useRef(0);
@@ -98,6 +105,14 @@ const Chat = () => {
   const openingFantasyStarterTitleRef = useRef<string | null>(null);
   const location = useLocation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
+  const { data: portraitOverrideUrl } = usePortraitOverrideUrl(id, user?.id);
+  const portraitStillUrl = useMemo(() => {
+    if (!id) return basePortraitUrl ?? null;
+    if (id.startsWith("cc-")) return basePortraitUrl ?? null;
+    return portraitOverrideUrl ?? basePortraitUrl ?? null;
+  }, [id, portraitOverrideUrl, basePortraitUrl]);
+  const { data: galleryImages = [], isLoading: galleryImagesLoading } = useCompanionGeneratedImages(id, user?.id);
 
   const isAdminUser = useMemo(() => isPlatformAdmin(user), [user]);
 
@@ -462,6 +477,30 @@ const Chat = () => {
       console.error("Failed to save to personal gallery:", err);
       throw err;
     }
+  };
+
+  const handleSaveImageBackup = async (generatedImageId: string) => {
+    setSavingBackupImageId(generatedImageId);
+    try {
+      await saveImageToPersonalGallery(generatedImageId);
+      toast.success("Saved to your personal vault");
+    } catch {
+      toast.error("Could not save backup");
+    } finally {
+      setSavingBackupImageId(null);
+    }
+  };
+
+  const handlePortraitFromGallery = async (imageUrl: string) => {
+    if (!user?.id || !id) return;
+    await setCompanionPortraitFromGalleryUrl({
+      userId: user.id,
+      companionId: id,
+      imageUrl,
+    });
+    await queryClient.invalidateQueries({ queryKey: ["companions"] });
+    await queryClient.invalidateQueries({ queryKey: ["portrait-override", user.id, id] });
+    await queryClient.invalidateQueries({ queryKey: ["companion-generated-images", user.id, id] });
   };
 
   const getGreeting = () => {
@@ -920,11 +959,15 @@ const Chat = () => {
               generatedImageId: imageResult.imageId,
               imagePrompt: userMsg.content,
               timestamp: new Date(),
-              savedToCompanionGallery: false,
+              savedToCompanionGallery: true,
               savedToPersonalGallery: false,
             };
 
             setMessages((prev) => [...prev, imageMsg]);
+
+            void queryClient.invalidateQueries({
+              queryKey: ["companion-generated-images", user.id, companion.id],
+            });
 
             clearOpeningStarterContext();
           } else {
@@ -1027,6 +1070,10 @@ const Chat = () => {
   sendMessageRef.current = sendMessage;
 
   const handleFabAction = (fabId: FabActionId) => {
+    if (fabId === "gallery") {
+      setGalleryOpen(true);
+      return;
+    }
     if (fabId === "selfie") {
       setInput("Send me a picture of you, please.");
       return;
@@ -1106,7 +1153,7 @@ const Chat = () => {
       <ChatPremiumHeader
         companion={companion}
         dbComp={dbComp}
-        imageUrl={imageUrl}
+        imageUrl={portraitStillUrl}
         headerAnimated={headerAnimated}
         mood={mood}
         tokensBalance={tokensBalance}
@@ -1122,6 +1169,7 @@ const Chat = () => {
           toast.info(`🛑 Safe word: "${safeWord}" — Type it anytime to stop everything.`);
         }}
         onCompanionPortraitClick={() => setVoiceSettingsOpen(true)}
+        onOpenGallery={user ? () => setGalleryOpen(true) : undefined}
         rightSlot={
           user ? (
             <ToyHubPopover
@@ -1180,7 +1228,7 @@ const Chat = () => {
       <ChatMessageThread
         messages={messages}
         companion={companion}
-        companionImageUrl={imageUrl}
+        companionImageUrl={portraitStillUrl}
         userAvatarUrl={userAvatarUrl}
         userInitials={userInitials}
         loading={loading}
@@ -1193,6 +1241,8 @@ const Chat = () => {
         ttsLoadingId={ttsLoadingId}
         ttsPlayingId={ttsPlayingId}
         messagesEndRef={messagesEndRef}
+        onSaveImageBackup={user ? handleSaveImageBackup : undefined}
+        savingBackupImageId={savingBackupImageId}
       />
 
       <div className="shrink-0 px-3 pb-1 z-20 bg-gradient-to-t from-black/80 to-transparent">
@@ -1246,11 +1296,24 @@ const Chat = () => {
           imageId={viewingImage.generatedImageId}
           companionName={companion.name}
           prompt={viewingImage.imagePrompt || "Generated image"}
+          companionGalleryAutoSaved={viewingImage.savedToCompanionGallery !== false}
           onSaveToCompanionGallery={saveImageToCompanionGallery}
           onSaveToPersonalGallery={saveImageToPersonalGallery}
           onClose={() => setViewingImage(null)}
         />
       )}
+
+      {user ? (
+        <ChatGallerySheet
+          open={galleryOpen}
+          onOpenChange={setGalleryOpen}
+          companionName={companion.name}
+          images={galleryImages}
+          loading={galleryImagesLoading}
+          currentPortraitUrl={portraitStillUrl}
+          onSetAsPortrait={handlePortraitFromGallery}
+        />
+      ) : null}
 
       {showBreedingRitual && companion && (
         <BreedingRitual

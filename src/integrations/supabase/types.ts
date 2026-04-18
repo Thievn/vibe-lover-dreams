@@ -491,6 +491,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_companion_portrait_overrides: {
+        Row: {
+          companion_id: string
+          portrait_url: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          companion_id: string
+          portrait_url: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          companion_id?: string
+          portrait_url?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       lovense_pairings: {
         Row: {
           created_at: string

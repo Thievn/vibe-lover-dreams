@@ -1,11 +1,15 @@
 import { motion } from "framer-motion";
-import { Expand } from "lucide-react";
+import { Bookmark, Expand, Loader2 } from "lucide-react";
 
 interface ImageMessageProps {
   imageUrl: string;
   prompt: string;
   onImageClick: () => void;
   companionName: string;
+  /** Optional: save to personal gallery backup (manual). */
+  onSaveBackup?: () => void;
+  backupSaved?: boolean;
+  backupBusy?: boolean;
 }
 
 export const ImageMessage = ({
@@ -13,6 +17,9 @@ export const ImageMessage = ({
   prompt,
   onImageClick,
   companionName,
+  onSaveBackup,
+  backupSaved,
+  backupBusy,
 }: ImageMessageProps) => {
   return (
     <motion.div
@@ -55,10 +62,29 @@ export const ImageMessage = ({
         ✨ Generated: "{prompt}"
       </p>
 
-      {/* Hint */}
-      <p className="text-xs text-foreground/60">
-        Click image to view, download, or save to galleries →
-      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        {onSaveBackup ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSaveBackup();
+            }}
+            disabled={backupSaved || backupBusy}
+            className="inline-flex h-11 min-w-[44px] items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 text-xs font-semibold text-foreground/95 hover:bg-white/[0.1] disabled:opacity-50 touch-manipulation"
+          >
+            {backupBusy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Bookmark className="h-4 w-4 shrink-0 text-primary" />
+            )}
+            {backupSaved ? "Saved to your vault" : "Save image"}
+          </button>
+        ) : null}
+        <p className="text-xs text-foreground/55">
+          Tap image for fullscreen — auto-saved to {companionName}&apos;s gallery
+        </p>
+      </div>
     </motion.div>
   );
 };

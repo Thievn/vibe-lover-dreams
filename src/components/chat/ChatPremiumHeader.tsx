@@ -1,4 +1,4 @@
-import { ArrowLeft, AlertOctagon, Flame, Volume2 } from "lucide-react";
+import { ArrowLeft, AlertOctagon, Flame, Images, Volume2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PortraitViewLightbox } from "@/components/PortraitViewLightbox";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
@@ -20,6 +20,8 @@ type Props = {
   onSafeWordInfo: () => void;
   /** Optional: tap companion portrait (voice settings). */
   onCompanionPortraitClick?: () => void;
+  /** Opens in-chat companion gallery (generated images). */
+  onOpenGallery?: () => void;
   rightSlot?: ReactNode;
 };
 
@@ -35,6 +37,7 @@ export function ChatPremiumHeader({
   onBack,
   onSafeWordInfo,
   onCompanionPortraitClick,
+  onOpenGallery,
   rightSlot,
 }: Props) {
   const rarity = normalizeCompanionRarity(companion.rarity);
@@ -132,12 +135,24 @@ export function ChatPremiumHeader({
           </button>
         </div>
       </div>
-      <p className="text-[10px] text-center text-muted-foreground/80 pb-2 px-4">
-        {onCompanionPortraitClick ? "Voice button on portrait · " : null}
-        <Link to={`/companions/${companion.id}`} className="text-primary/90 hover:underline">
-          Profile
-        </Link>
-      </p>
+      <div className="flex items-center justify-center gap-3 pb-2 px-4 flex-wrap">
+        <p className="text-[10px] text-center text-muted-foreground/80">
+          {onCompanionPortraitClick ? "Voice on portrait · " : null}
+          <Link to={`/companions/${companion.id}`} className="text-primary/90 hover:underline">
+            Profile
+          </Link>
+        </p>
+        {onOpenGallery ? (
+          <button
+            type="button"
+            onClick={onOpenGallery}
+            className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary hover:bg-primary/15 transition-colors touch-manipulation"
+          >
+            <Images className="h-3.5 w-3.5" />
+            Gallery
+          </button>
+        ) : null}
+      </div>
     </header>
   );
 }

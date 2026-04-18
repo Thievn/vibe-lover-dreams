@@ -9,6 +9,7 @@ import {
   Baby,
   Plus,
   X,
+  Images,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -20,11 +21,13 @@ export type FabActionId =
   | "tease"
   | "rough"
   | "voice"
-  | "breeding";
+  | "breeding"
+  | "gallery";
 
 type Item = { id: FabActionId; label: string; icon: typeof Heart; disabled?: boolean };
 
 const ITEMS: Item[] = [
+  { id: "gallery", label: "Open companion gallery", icon: Images },
   { id: "selfie", label: "Generate Selfie / Lewd Image", icon: Camera },
   { id: "vibration", label: "Trigger Signature Vibration Pattern", icon: Zap },
   { id: "praise", label: "Praise Me", icon: Heart },

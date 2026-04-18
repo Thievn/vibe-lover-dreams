@@ -1,5 +1,7 @@
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { usePortraitOverrideUrl } from "@/hooks/usePortraitOverride";
+import { useCompanionGeneratedImages } from "@/hooks/useCompanionGeneratedImages";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { VAULT_COLLECTION_QUERY_KEY } from "@/hooks/useVaultCollection";
 import Navbar from "@/components/Navbar";
@@ -10,6 +12,7 @@ import {
   Bookmark,
   GitBranch,
   Heart,
+  Images,
   MessageCircle,
   Sparkles,
   Loader2,
@@ -25,6 +28,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useMemo } from "react";
 import { getCompanionBackstoryParagraphs } from "@/lib/companionBackstory";
 import { profileAnimatedPortraitUrl, profileStillPortraitUrl, isVideoPortraitUrl } from "@/lib/companionMedia";
+import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFromGallery";
+import { CompanionGalleryGrid } from "@/components/companion/CompanionGalleryGrid";
 import type { CompanionRarity } from "@/lib/companionRarity";
 import { RarityBorderOverlay } from "@/components/rarity/RarityBorderOverlay";
 import { ProfilePortraitTierHalo } from "@/components/rarity/ProfilePortraitTierHalo";
@@ -91,6 +96,7 @@ const CompanionProfile = () => {
   const [pinBusy, setPinBusy] = useState(false);
   const [connectedToys, setConnectedToys] = useState<LovenseToy[]>([]);
   const [sendingVibrationId, setSendingVibrationId] = useState<string | null>(null);
+  const [profileTab, setProfileTab] = useState<"profile" | "gallery">("profile");
 
   const { data: vibrationPatterns = [], isLoading: vibrationPatternsLoading } = useCompanionVibrationPatterns(id);
 
@@ -101,7 +107,13 @@ const CompanionProfile = () => {
   const companion = dbComp ? dbToCompanion(dbComp) : null;
   const rarity: CompanionRarity = companion?.rarity ?? "common";
   const animatedPortrait = profileAnimatedPortraitUrl(dbComp);
-  const stillForProfile = profileStillPortraitUrl(dbComp, id);
+  const { data: portraitOverrideUrl } = usePortraitOverrideUrl(id, user?.id);
+  const { data: galleryImages = [], isLoading: galleryImagesLoading } = useCompanionGeneratedImages(id, user?.id);
+  const stillForProfile = useMemo(() => {
+    const base = profileStillPortraitUrl(dbComp, id);
+    if (id?.startsWith("cc-")) return base;
+    return portraitOverrideUrl ?? base;
+  }, [dbComp, id, portraitOverrideUrl]);
   const backstoryParagraphs = companion
     ? getCompanionBackstoryParagraphs(companion, dbComp)
     : [];
@@ -321,6 +333,18 @@ const CompanionProfile = () => {
     });
   };
 
+  const handlePortraitFromGallery = async (imageUrl: string) => {
+    if (!user?.id || !id) return;
+    await setCompanionPortraitFromGalleryUrl({
+      userId: user.id,
+      companionId: id,
+      imageUrl,
+    });
+    await queryClient.invalidateQueries({ queryKey: ["companions"] });
+    await queryClient.invalidateQueries({ queryKey: ["portrait-override", user.id, id] });
+    await queryClient.invalidateQueries({ queryKey: ["companion-generated-images", user.id, id] });
+  };
+
   const badge = RARITY_BADGE[rarity];
 
   return (
@@ -497,6 +521,62 @@ const CompanionProfile = () => {
               </Link>
             </div>
 
+            <div className="flex rounded-2xl border border-white/[0.08] bg-black/45 p-1 gap-1 max-w-md">
+              <button
+                type="button"
+                onClick={() => setProfileTab("profile")}
+                className={cn(
+                  "flex-1 rounded-xl py-2.5 text-sm font-semibold transition-colors touch-manipulation",
+                  profileTab === "profile"
+                    ? "bg-primary/20 text-primary border border-primary/30"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Profile
+              </button>
+              <button
+                type="button"
+                onClick={() => setProfileTab("gallery")}
+                className={cn(
+                  "flex-1 inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-colors touch-manipulation",
+                  profileTab === "gallery"
+                    ? "bg-primary/20 text-primary border border-primary/30"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Images className="h-4 w-4 shrink-0" />
+                Gallery
+              </button>
+            </div>
+
+            {profileTab === "gallery" ? (
+              <section className="rounded-2xl border border-white/[0.08] bg-black/40 backdrop-blur-xl p-5 sm:p-6">
+                <h2 className="text-xs font-bold uppercase tracking-[0.25em] text-primary mb-1">Saved from chat</h2>
+                <p className="text-sm text-muted-foreground mb-6 max-w-xl">
+                  Generated selfies and scenes are stored here. Pick one as {companion.name}&apos;s portrait — it updates
+                  chat and this profile.
+                </p>
+                {user ? (
+                  <CompanionGalleryGrid
+                    companionName={companion.name}
+                    images={galleryImages}
+                    loading={galleryImagesLoading}
+                    currentPortraitUrl={stillForProfile}
+                    onSetAsPortrait={handlePortraitFromGallery}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground py-8 text-center border border-dashed border-white/15 rounded-xl">
+                    <Link to="/auth" state={{ from: `/companions/${companion.id}` }} className="text-primary font-semibold hover:underline">
+                      Sign in
+                    </Link>{" "}
+                    to view and manage your gallery.
+                  </p>
+                )}
+              </section>
+            ) : null}
+
+            {profileTab === "profile" ? (
+              <>
             {nexusCooldownMs > 0 ? (
               <p className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-100/95 leading-relaxed">
                 Nexus recovery: this companion rests{" "}
@@ -738,9 +818,13 @@ const CompanionProfile = () => {
                 )}
               </div>
             ) : null}
+              </>
+            ) : null}
           </motion.div>
         </div>
 
+        {profileTab === "profile" ? (
+        <>
         {/* Backstory */}
         <motion.section
           initial={{ opacity: 0, y: 12 }}
@@ -823,6 +907,8 @@ const CompanionProfile = () => {
             </span>
           ))}
         </div>
+        </>
+        ) : null}
       </main>
     </div>
   );

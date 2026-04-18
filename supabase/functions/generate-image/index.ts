@@ -356,7 +356,9 @@ ${safeRewritten}
 
       if (!isPortrait) {
         insertData.original_prompt = String(prompt);
-        insertData.companion_id = characterData.companionId || "forge-preview";
+        const cid = characterData.companionId || "forge-preview";
+        insertData.companion_id = cid;
+        insertData.saved_to_companion_gallery = cid !== "forge-preview";
       }
 
       if (isPortrait) {
