@@ -151,7 +151,7 @@ const Settings = () => {
       <ParticleBackground />
       <Navbar />
 
-      <div className="max-w-2xl mx-auto px-4 py-8 relative z-10">
+      <div className="max-w-2xl mx-auto px-4 py-8 pb-mobile-nav relative z-10">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="font-gothic text-3xl font-bold text-foreground mb-8">Settings</h1>
 

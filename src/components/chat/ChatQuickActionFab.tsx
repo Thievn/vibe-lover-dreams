@@ -56,10 +56,10 @@ export function ChatQuickActionFab({ onAction }: Props) {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="p-1 rounded-lg hover:bg-white/10 text-muted-foreground"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg hover:bg-white/10 text-muted-foreground touch-manipulation"
                 aria-label="Close menu"
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5" />
               </button>
             </div>
             <ul className="max-h-[min(60vh,22rem)] overflow-y-auto py-1">
@@ -73,7 +73,7 @@ export function ChatQuickActionFab({ onAction }: Props) {
                       setOpen(false);
                     }}
                     className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground/95 hover:bg-white/[0.06] transition-colors disabled:opacity-40 disabled:pointer-events-none",
+                      "w-full min-h-12 flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground/95 hover:bg-white/[0.06] transition-colors disabled:opacity-40 disabled:pointer-events-none touch-manipulation active:bg-white/[0.04]",
                     )}
                   >
                     <item.icon className="h-4 w-4 shrink-0 text-primary" />

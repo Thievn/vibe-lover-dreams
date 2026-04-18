@@ -93,7 +93,7 @@ export default function DiscoverCompanionsGallery() {
   const showDataEmpty = !isLoading && pool.length === 0;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-8">
+    <div className="mx-auto w-full min-w-0 max-w-7xl space-y-8 overflow-x-hidden pb-8">
       <div className="relative overflow-hidden rounded-[1.75rem] border border-white/[0.08] bg-black/40 backdrop-blur-2xl px-5 py-6 sm:px-8 sm:py-8 shadow-[0_0_60px_rgba(255,45,123,0.08),inset_0_1px_0_rgba(255,255,255,0.06)]">
         <div
           className="pointer-events-none absolute -top-24 right-0 h-48 w-48 rounded-full blur-[100px] opacity-50"

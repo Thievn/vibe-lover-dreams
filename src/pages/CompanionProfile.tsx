@@ -340,7 +340,12 @@ const CompanionProfile = () => {
       />
       <Navbar />
 
-      <main className="relative z-10 flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 pt-[max(5.25rem,calc(3.25rem+env(safe-area-inset-top,0px)))] sm:pt-[max(5.5rem,calc(3.5rem+env(safe-area-inset-top,0px)))] pb-16 sm:pb-20">
+      <main
+        className={cn(
+          "relative z-10 flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 pt-[max(5.25rem,calc(3.25rem+env(safe-area-inset-top,0px)))] sm:pt-[max(5.5rem,calc(3.5rem+env(safe-area-inset-top,0px)))]",
+          user ? "pb-mobile-nav md:pb-20" : "pb-16 sm:pb-20",
+        )}
+      >
         <motion.button
           type="button"
           initial={{ opacity: 0, x: -8 }}

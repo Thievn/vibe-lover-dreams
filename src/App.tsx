@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect, Component, ReactNode } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
-import { Toaster } from "sonner";
+import { MobileNavGate } from "@/components/mobile/MobileNavGate";
+import { MobileToaster } from "@/components/mobile/MobileToaster";
 import { supabase } from "@/integrations/supabase/client";
 import { initAnalytics, trackPageView } from "@/lib/analytics";
 import AgeGate from "./components/AgeGate";
@@ -251,7 +252,8 @@ function App() {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
-          <Toaster position="top-right" richColors closeButton />
+          <MobileToaster />
+          <MobileNavGate />
           {ageConfirmed ? <InstallPrompt /> : null}
         </div>
       </ErrorBoundary>

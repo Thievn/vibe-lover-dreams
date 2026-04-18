@@ -280,7 +280,7 @@ export default function TheNexus({
 
   if (forgeParents.length < 2) {
     return (
-      <div className="max-w-2xl mx-auto py-10 px-4 text-center space-y-6">
+      <div className="mx-auto w-full min-w-0 max-w-2xl overflow-x-hidden px-4 py-10 text-center space-y-6">
         <Orbit className="h-14 w-14 mx-auto text-primary opacity-90" style={{ color: NEON }} />
         <h2 className="font-gothic text-3xl gradient-vice-text">The Nexus</h2>
         <p className="text-muted-foreground text-sm leading-relaxed max-w-md mx-auto">
@@ -303,7 +303,7 @@ export default function TheNexus({
   }
 
   return (
-    <div className="max-w-6xl mx-auto pb-16 px-4 sm:px-6 space-y-10">
+    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-10 overflow-x-hidden px-4 pb-16 sm:px-6">
       <div className="relative overflow-hidden rounded-[2rem] border border-primary/25 bg-gradient-to-br from-black/60 via-card/40 to-black/50 backdrop-blur-2xl p-8 sm:p-12 shadow-[0_0_80px_rgba(0,0,0,0.45)]">
         <div
           className="pointer-events-none absolute inset-0 opacity-45"

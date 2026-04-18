@@ -118,7 +118,7 @@ export default function Account() {
       />
       <div className="pointer-events-none absolute bottom-0 right-0 h-[320px] w-[320px] rounded-full bg-[hsl(170_80%_35%)]/15 blur-[100px]" />
 
-      <div className="relative z-10 mx-auto max-w-lg px-4 py-10 md:py-14">
+      <div className="relative z-10 mx-auto max-w-lg px-4 py-10 md:py-14 pb-mobile-nav">
         <Link
           to="/dashboard"
           className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-[#FF2D7B]"

@@ -1232,7 +1232,7 @@ Hard requirements:
         />
       )}
 
-      <div className={cn("relative z-10", embedded ? "px-0 py-0" : "px-4 md:px-10 py-10")}>
+      <div className={cn("relative z-10", embedded ? "px-0 py-0" : "px-4 md:px-10 py-10 pb-mobile-nav")}>
         {!embedded && (
           <button
             type="button"

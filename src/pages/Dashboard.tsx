@@ -322,7 +322,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans relative overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground font-sans relative overflow-x-hidden overflow-y-auto">
       <ParticleBackground />
       <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.07] via-transparent to-background pointer-events-none" />
       <div
@@ -408,7 +408,7 @@ export default function Dashboard() {
         </aside>
 
         {/* Main column */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {/* Top bar */}
           <header className="shrink-0 border-b border-border/80 bg-black/40 backdrop-blur-xl px-4 sm:px-8 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -518,35 +518,7 @@ export default function Dashboard() {
             </div>
           </header>
 
-          {/* Mobile nav strip */}
-          <div className="md:hidden flex gap-1 overflow-x-auto border-b border-border/60 bg-black/30 px-2 py-2 scrollbar-thin">
-            {DASHBOARD_NAV_ITEMS.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => handleNav(id)}
-                className={cn(
-                  "shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium whitespace-nowrap",
-                  activeNav === id && !settingsOpen ? "bg-primary/15 text-primary" : "text-muted-foreground",
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={handleSettingsNav}
-              className={cn(
-                "shrink-0 rounded-lg px-3 py-2 text-xs font-medium whitespace-nowrap",
-                settingsOpen ? "bg-accent/15 text-accent" : "text-muted-foreground",
-              )}
-            >
-              Settings
-            </button>
-          </div>
-
-          <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 pb-24">
+          <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 sm:px-8 py-8 pb-mobile-nav md:pb-8">
             {activeNav === "dashboard" && (
               <DashboardHome
                 onCreate={() => navigate("/create-companion")}

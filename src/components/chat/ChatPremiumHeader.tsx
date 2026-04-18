@@ -40,13 +40,17 @@ export function ChatPremiumHeader({
   const rarity = normalizeCompanionRarity(companion.rarity);
 
   return (
-    <header className="shrink-0 border-b border-white/[0.08] bg-gradient-to-b from-black/80 to-black/40 backdrop-blur-2xl">
+    <header
+      className="shrink-0 border-b border-white/[0.08] bg-gradient-to-b from-black/80 to-black/40 backdrop-blur-2xl"
+      style={{ paddingTop: "max(0.35rem, env(safe-area-inset-top))" }}
+    >
       <div className="flex items-start gap-3 px-3 pt-3 pb-2 md:px-5 md:pt-4">
         <button
           type="button"
           onClick={onBack}
-          className="mt-1 p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors shrink-0"
+          className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors shrink-0 touch-manipulation active:scale-[0.98]"
           title="Back"
+          aria-label="Back"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
@@ -91,7 +95,7 @@ export function ChatPremiumHeader({
               <button
                 type="button"
                 onClick={onCompanionPortraitClick}
-                className="absolute -bottom-1 -right-1 z-[8] flex h-9 w-9 items-center justify-center rounded-full border border-primary/40 bg-black/80 text-primary shadow-lg hover:bg-primary/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                className="absolute -bottom-1 -right-1 z-[8] flex h-11 w-11 items-center justify-center rounded-full border border-primary/40 bg-black/80 text-primary shadow-lg hover:bg-primary/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 touch-manipulation"
                 title="Voice settings"
                 aria-label="Voice settings"
               >

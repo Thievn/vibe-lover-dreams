@@ -9,6 +9,11 @@
     scroll-padding-top: max(5rem, calc(3.5rem + env(safe-area-inset-top, 0px)));
   }
 
+  #root {
+    min-height: 100dvh;
+    overflow-x: clip;
+  }
+
   :root {
     --background: 240 20% 3.5%;
     --foreground: 0 0% 93%;
@@ -63,8 +68,10 @@
     @apply bg-background text-foreground font-sans;
     font-family: 'Inter', sans-serif;
     overflow-x: hidden;
+    overscroll-behavior-x: none;
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Cinzel Decorative', cursive;
@@ -72,6 +79,11 @@
 }
 
 @layer utilities {
+  /** Extra bottom padding under fixed mobile tab bar only (< md). */
+  .pb-mobile-nav {
+    @apply max-md:pb-[max(5.75rem,calc(4.75rem+env(safe-area-inset-bottom,0px)))];
+  }
+
   /** Avoid Tailwind `animate-[...]` with hyphenated @keyframes names (underscores → spaces). */
   .animate-profile-frame-bloom-breathe {
     animation: profile-frame-bloom-breathe 3s ease-in-out infinite;

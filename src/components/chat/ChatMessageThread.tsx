@@ -19,7 +19,6 @@ type Props = {
   isImageRequest: (text: string) => boolean;
   inputSnapshot: string;
   hasDevice: boolean;
-  connectedToyLabel: string;
   onImageClick: (msg: ChatMessage) => void;
   labelForLovenseCmd: (cmd: Record<string, unknown> | null | undefined) => string;
   /** Speaker control for assistant text (no image) messages. */
@@ -49,7 +48,7 @@ export function ChatMessageThread({
   const rarity = normalizeCompanionRarity(companion.rarity);
 
   return (
-    <div className="flex-1 overflow-y-auto px-3 py-3 md:px-5 md:py-4 space-y-3 scroll-pb-28">
+    <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 md:px-5 md:py-4 space-y-3 scroll-pb-28 [-webkit-overflow-scrolling:touch]">
       {messages.map((msg) => (
         <motion.div
           key={msg.id}
@@ -113,7 +112,7 @@ export function ChatMessageThread({
                     type="button"
                     onClick={() => onTtsClick(msg)}
                     className={cn(
-                      "shrink-0 mt-0.5 p-1.5 rounded-xl border border-white/10 bg-white/[0.06] text-primary hover:bg-white/[0.1] transition-colors",
+                      "shrink-0 mt-0.5 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-primary hover:bg-white/[0.1] transition-colors touch-manipulation",
                       ttsPlayingId === msg.id && "ring-1 ring-primary/50",
                     )}
                     title="Play voice"

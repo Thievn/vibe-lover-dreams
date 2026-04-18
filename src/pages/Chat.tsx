@@ -1100,7 +1100,7 @@ const Chat = () => {
   };
 
   return (
-    <div className="h-screen bg-[hsl(280_30%_5%)] flex flex-col text-foreground">
+    <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-[hsl(280_30%_5%)] text-foreground">
       <FloatingHeartsLayer bursts={heartBursts} />
 
       <ChatPremiumHeader
