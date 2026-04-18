@@ -123,6 +123,22 @@ const QUICK_GUIDE: Record<string, string> = {
   rarity_drop: "Tease rarity tiers / Abyssal or epic drops — collector / TCG energy.",
 };
 
+type ChatMsg = { role: "system" | "user" | "assistant"; content: string };
+
+function normalizeChatMessages(raw: unknown): ChatMsg[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ChatMsg[] = [];
+  for (const m of raw.slice(-24)) {
+    if (!m || typeof m !== "object") continue;
+    const o = m as Record<string, unknown>;
+    const role = o.role === "assistant" ? "assistant" : o.role === "system" ? "system" : "user";
+    const content = typeof o.content === "string" ? o.content.trim() : "";
+    if (!content) continue;
+    out.push({ role, content: content.slice(0, 8000) });
+  }
+  return out;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -142,18 +158,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (mode !== "generate") {
-      return new Response(JSON.stringify({ error: "Invalid mode" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const tone = typeof body.tone === "string" ? body.tone : "Professional";
-    const customPrompt = typeof body.customPrompt === "string" ? body.customPrompt.trim() : "";
-    const quickKind = typeof body.quickKind === "string" ? body.quickKind : "";
-    const companion = body.companion && typeof body.companion === "object" ? body.companion as Record<string, unknown> : null;
-
     const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
     if (!apiKey) {
       return new Response(
@@ -165,6 +169,77 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (mode === "chat") {
+      const history = normalizeChatMessages(body.messages);
+      if (history.length === 0) {
+        return new Response(JSON.stringify({ error: "messages[] required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const contextBlock = typeof body.contextBlock === "string" ? body.contextBlock.slice(0, 14_000) : "";
+      const system =
+        `You are Grok, embedded in the LustForge AI **X Marketing Hub** for an adult (18+) AI companion product.\n` +
+        `Help the operator refine tweets, threads, CTAs, hooks, tone shifts, and platform-safe innuendo.\n` +
+        `Reply in **plain text** (no JSON) unless they explicitly ask for JSON.\n` +
+        `Be concise but sharp. Never sexualize minors or non-consent. No slurs.\n` +
+        (contextBlock ? `\n---\nContext dump (operator):\n${contextBlock}\n---\n` : "");
+
+      const grokMessages: { role: string; content: string }[] = [
+        { role: "system", content: system },
+        ...history.map((m) => ({ role: m.role, content: m.content })),
+      ];
+
+      const response = await fetch("https://api.x.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "grok-3",
+          messages: grokMessages,
+          temperature: 0.85,
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("admin-x-marketing chat:", errText);
+        return new Response(JSON.stringify({ error: "AI chat service error" }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const data = await response.json();
+      const reply = data.choices?.[0]?.message?.content;
+      if (!reply || typeof reply !== "string") {
+        return new Response(JSON.stringify({ error: "Empty AI reply" }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ reply: reply.trim() }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (mode !== "generate") {
+      return new Response(JSON.stringify({ error: "Invalid mode" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const tone = typeof body.tone === "string" ? body.tone : "Professional";
+    const customPrompt = typeof body.customPrompt === "string" ? body.customPrompt.trim() : "";
+    const quickKind = typeof body.quickKind === "string" ? body.quickKind : "";
+    const companion = body.companion && typeof body.companion === "object" ? body.companion as Record<string, unknown> : null;
+    const productAtlas = typeof body.productAtlas === "string" ? body.productAtlas.slice(0, 8000) : "";
+    const siteSurface = body.siteSurface && typeof body.siteSurface === "object" ? body.siteSurface as Record<string, unknown> : null;
+
     const tags = companion && Array.isArray(companion.tags) ? (companion.tags as string[]).join(", ") : "";
     const kinks = companion && Array.isArray(companion.kinks) ? (companion.kinks as string[]).join(", ") : "";
     const name = companion && typeof companion.name === "string" ? companion.name : "LustForge";
@@ -174,6 +249,16 @@ Deno.serve(async (req) => {
     const gender = companion && typeof companion.gender === "string" ? companion.gender : "";
 
     const quickLine = quickKind && QUICK_GUIDE[quickKind] ? `\nCampaign angle: ${QUICK_GUIDE[quickKind]}` : "";
+
+    let surfaceBlock = "";
+    if (siteSurface) {
+      const sid = typeof siteSurface.id === "string" ? siteSurface.id : "feature";
+      const slabel = typeof siteSurface.label === "string" ? siteSurface.label : sid;
+      const spitch = typeof siteSurface.pitch === "string" ? siteSurface.pitch : "";
+      surfaceBlock =
+        `\n**Primary site surface to weave into copy:** ${slabel} (id: ${sid})\n${spitch}\n` +
+        `Mention this module naturally when it fits — do not invent features that contradict the atlas below.\n`;
+    }
 
     const system =
       `You are the lead social strategist for LustForge AI, an adults-only AI companion product. ` +
@@ -187,7 +272,9 @@ Deno.serve(async (req) => {
       `Hashtags can include LustForge, AI, 18Plus, NSFW as appropriate.`;
 
     const userBlock =
-      `Product: LustForge AI — premium AI companions with chat, forge, and Nexus hybrid merges.\n` +
+      `Product: LustForge AI — premium AI companions with chat, forge, Nexus hybrid merges, Lovense haptics, Discover gallery, and TCG-style stat flavor.\n` +
+      (productAtlas ? `\nProduct module atlas (stay fact-consistent):\n${productAtlas}\n` : "") +
+      surfaceBlock +
       (companion
         ? `Companion focus:\n- Name: ${name}\n- Tagline: ${tagline}\n- Rarity: ${rarity}\n- Role: ${role}\n- Gender: ${gender}\n- Tags: ${tags}\n- Interests/kinks labels: ${kinks}\n`
         : `No specific companion selected — write brand-level X posts that still feel premium and seductive.\n`) +

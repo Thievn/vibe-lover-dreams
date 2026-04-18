@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import type { User } from "@supabase/supabase-js";
 import {
@@ -10,7 +10,6 @@ import {
   Gamepad2,
   Heart,
   ImagePlus,
-  LayoutDashboard,
   Layers,
   LogOut,
   MessageSquare,
@@ -18,7 +17,6 @@ import {
   Settings,
   Shield,
   Sparkles,
-  Telescope,
   TrendingUp,
   UserRound,
   Wand2,
@@ -40,19 +38,15 @@ import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { useVaultCollection } from "@/hooks/useVaultCollection";
 import { companions, type Companion } from "@/data/companions";
 import { isPlatformAdmin } from "@/config/auth";
+import {
+  DASHBOARD_NAV_ITEMS,
+  DASHBOARD_NAV_QUERY,
+  parseDashboardNavParam,
+  type DashboardNavId,
+  type NavId,
+} from "@/lib/dashboardNav";
 
 const NEON_PINK = "#FF2D7B";
-
-type NavId = "dashboard" | "collection" | "discover" | "nexus" | "toy" | "history";
-
-const NAV_ITEMS: { id: NavId; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "collection", label: "My Collection", icon: Layers },
-  { id: "discover", label: "Discover", icon: Telescope },
-  { id: "nexus", label: "The Nexus", icon: Orbit },
-  { id: "toy", label: "Toy Control", icon: Gamepad2 },
-  { id: "history", label: "Chat History", icon: MessageSquare },
-];
 
 const DASHBOARD_STATS = [
   { key: "companions", label: "Companions", value: "12", accent: "text-primary" },
@@ -107,12 +101,15 @@ function initialsFromGreeting(name: string): string {
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: dbCompanions = [], isLoading: companionsLoading } = useCompanions();
   const allCompanions = useMemo(() => dbCompanions.map(dbToCompanion), [dbCompanions]);
 
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [activeNav, setActiveNav] = useState<NavId>("dashboard");
+  const [activeNav, setActiveNav] = useState<DashboardNavId>(
+    () => parseDashboardNavParam(searchParams.get(DASHBOARD_NAV_QUERY)) ?? "dashboard",
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [toyConnected, setToyConnected] = useState(false);
@@ -228,10 +225,26 @@ export default function Dashboard() {
     const st = location.state as { activeNav?: NavId | "breeding" } | null | undefined;
     const nav = st?.activeNav;
     if (nav) {
-      setActiveNav(nav === "breeding" ? "nexus" : nav);
+      const next = (nav === "breeding" ? "nexus" : nav) as DashboardNavId;
+      setActiveNav(next);
+      setSearchParams(
+        (prev) => {
+          const p = new URLSearchParams(prev);
+          p.set(DASHBOARD_NAV_QUERY, next);
+          return p;
+        },
+        { replace: true },
+      );
       navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location.state, location.pathname, navigate]);
+  }, [location.state, location.pathname, navigate, setSearchParams]);
+
+  useEffect(() => {
+    const fromUrl = parseDashboardNavParam(searchParams.get(DASHBOARD_NAV_QUERY));
+    if (fromUrl && fromUrl !== activeNav) {
+      setActiveNav(fromUrl);
+    }
+  }, [searchParams, activeNav]);
 
   useEffect(() => {
     if (!profileOpen) return;
@@ -257,11 +270,27 @@ export default function Dashboard() {
   const handleNav = (id: NavId) => {
     setActiveNav(id);
     if (id !== "history") setSettingsOpen(false);
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        p.set(DASHBOARD_NAV_QUERY, id);
+        return p;
+      },
+      { replace: true },
+    );
   };
 
   const handleSettingsNav = () => {
     setActiveNav("dashboard");
     setSettingsOpen(true);
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        p.set(DASHBOARD_NAV_QUERY, "dashboard");
+        return p;
+      },
+      { replace: true },
+    );
   };
 
   const quickImageGen = () => {
@@ -328,7 +357,7 @@ export default function Dashboard() {
           </div>
 
           <nav className="flex flex-col gap-1.5 flex-1">
-            {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+            {DASHBOARD_NAV_ITEMS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 type="button"
@@ -492,7 +521,7 @@ export default function Dashboard() {
 
           {/* Mobile nav strip */}
           <div className="md:hidden flex gap-1 overflow-x-auto border-b border-border/60 bg-black/30 px-2 py-2 scrollbar-thin">
-            {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+            {DASHBOARD_NAV_ITEMS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 type="button"

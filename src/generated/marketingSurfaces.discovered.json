@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "generatedAt": "2026-04-18T00:59:39.910Z",
+  "items": [
+    {
+      "id": "dashboard",
+      "kind": "dashboard-tab",
+      "label": "Dashboard",
+      "path": "/dashboard?nav=dashboard"
+    },
+    {
+      "id": "collection",
+      "kind": "dashboard-tab",
+      "label": "My Collection",
+      "path": "/dashboard?nav=collection"
+    },
+    {
+      "id": "discover",
+      "kind": "dashboard-tab",
+      "label": "Discover",
+      "path": "/dashboard?nav=discover"
+    },
+    {
+      "id": "nexus",
+      "kind": "dashboard-tab",
+      "label": "The Nexus",
+      "path": "/dashboard?nav=nexus"
+    },
+    {
+      "id": "toy",
+      "kind": "dashboard-tab",
+      "label": "Toy Control",
+      "path": "/dashboard?nav=toy"
+    },
+    {
+      "id": "history",
+      "kind": "dashboard-tab",
+      "label": "Chat History",
+      "path": "/dashboard?nav=history"
+    },
+    {
+      "id": "account",
+      "kind": "route",
+      "label": "Account",
+      "path": "/account"
+    },
+    {
+      "id": "chat",
+      "kind": "route",
+      "label": "Chat",
+      "path": "/chat"
+    },
+    {
+      "id": "companion-profile",
+      "kind": "route",
+      "label": "Companion profiles",
+      "path": "/dashboard?nav=discover"
+    },
+    {
+      "id": "create-companion",
+      "kind": "route",
+      "label": "Companion Forge",
+      "path": "/create-companion"
+    },
+    {
+      "id": "settings",
+      "kind": "route",
+      "label": "Settings",
+      "path": "/settings"
+    },
+    {
+      "id": "admin",
+      "kind": "route",
+      "label": "Admin",
+      "path": "/admin"
+    }
+  ]
+}

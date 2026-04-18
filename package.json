@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/sync-marketing-surfaces.mjs",
+    "sync-marketing": "node scripts/sync-marketing-surfaces.mjs",
     "build": "vite build",
-    "build:dev": "vite build --mode development",
+    "build:dev": "npm run sync-marketing && vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
