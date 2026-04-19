@@ -18,8 +18,8 @@ function glowIntensity(scale: NeonTierScale): { spread: number; blur: number; ou
     case "compact":
       return { spread: 0.85, blur: 0.8, outer: 0.75 };
     case "profile":
-      /** Slightly stronger rim + halo on profile hero — pairs with wider vector border overlay. */
-      return { spread: 1.22, blur: 1.12, outer: 1.15 };
+      /** Profile hero: ~2× rim vs card — thick tier glow + vector frame (see `rarityProfileVectorGlowFilter`). */
+      return { spread: 2.35, blur: 2.2, outer: 2.25 };
     default:
       return { spread: 1, blur: 1, outer: 1 };
   }

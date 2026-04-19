@@ -498,13 +498,13 @@ const CompanionProfile = () => {
           Back
         </motion.button>
 
-        <div className="grid lg:grid-cols-[minmax(0,380px)_1fr] gap-10 lg:gap-14 items-start">
-          {/* Portrait column */}
+        <div className="grid lg:grid-cols-[minmax(0,460px)_1fr] gap-10 lg:gap-14 items-start">
+          {/* Portrait column — wider shell so 9:16 loop video reads less “narrow strip” on desktop */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ type: "spring", stiffness: 280, damping: 26 }}
-            className="mx-auto w-full max-w-[min(100%,380px)] lg:mx-0 lg:max-w-none"
+            className="mx-auto w-full max-w-[min(100%,460px)] lg:mx-0 lg:max-w-none"
           >
             <ProfilePortraitTierHalo
               rarity={rarity}
