@@ -32,6 +32,33 @@ async function zernioFetch(path: string, init: RequestInit & { json?: unknown } 
   return fetch(`${ZERNIO_API}${path}`, { ...init, headers, body });
 }
 
+/** Best-effort parse of Zernio POST /posts JSON — HTTP can be 2xx while a platform is still pending or failed. */
+function zernioTwitterSignals(parsed: unknown): {
+  rootError?: string;
+  platformPostUrl?: string;
+  platformStatus?: string;
+} {
+  if (parsed == null || typeof parsed !== "object") return {};
+  const o = parsed as Record<string, unknown>;
+  if (typeof o.error === "string" && o.error.trim()) {
+    return { rootError: o.error.trim() };
+  }
+  const post = o.post;
+  if (!post || typeof post !== "object") return {};
+  const p = post as Record<string, unknown>;
+  const platforms = p.platforms;
+  if (!Array.isArray(platforms)) return {};
+  for (const pl of platforms) {
+    if (!pl || typeof pl !== "object") continue;
+    const plat = pl as Record<string, unknown>;
+    if (plat.platform !== "twitter" && plat.platform !== "x") continue;
+    const url = typeof plat.platformPostUrl === "string" ? plat.platformPostUrl : undefined;
+    const st = typeof plat.status === "string" ? plat.status : undefined;
+    return { platformPostUrl: url, platformStatus: st };
+  }
+  return {};
+}
+
 async function loadSettings(svc: ReturnType<typeof createClient>) {
   const { data, error } = await svc.from("marketing_social_settings").select("*").eq("id", 1).maybeSingle();
   if (error) throw error;
@@ -186,6 +213,32 @@ Deno.serve(async (req) => {
         });
       }
 
+      const signals = zernioTwitterSignals(parsed);
+      if (signals.rootError) {
+        return new Response(JSON.stringify({ error: signals.rootError, detail: parsed }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!scheduledFor && publishNow && signals.platformStatus === "failed") {
+        return new Response(
+          JSON.stringify({
+            error: "X post did not publish (Zernio reports platform status: failed). Check Zernio logs and X account connection.",
+            detail: parsed,
+            platformStatus: signals.platformStatus,
+          }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      let publishWarning: string | undefined;
+      if (!scheduledFor && publishNow && !signals.platformPostUrl) {
+        publishWarning =
+          signals.platformStatus === "pending"
+            ? "Zernio accepted the post; X URL not ready yet (pending). Check Zernio → Posts or your timeline in a minute."
+            : "Zernio accepted the request but no X post URL was returned — confirm in Zernio and that the Twitter account id matches @handle you expect.";
+      }
+
       await svc.from("social_post_jobs").insert({
         created_by: adminGate.user.id,
         kind: "manual",
@@ -194,9 +247,16 @@ Deno.serve(async (req) => {
         zernio_response: parsed as Record<string, unknown>,
       });
 
-      return new Response(JSON.stringify({ success: true, result: parsed }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          result: parsed,
+          platformPostUrl: signals.platformPostUrl,
+          platformStatus: signals.platformStatus,
+          publishWarning,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     if (mode === "enqueue_auto_forge") {

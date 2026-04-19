@@ -167,13 +167,23 @@ export function MarketingHubZernioPanels({
         if (mediaUrlsForZernio.length) {
           body.mediaUrls = mediaUrlsForZernio.slice(0, 4);
         }
-        const { error } = await invokeZernioSocial(body);
+        const { data, error } = await invokeZernioSocial(body);
         if (error) throw error;
-        toast.success(
-          scheduledFor
-            ? `Scheduled on Zernio${mediaUrlsForZernio.length ? " (with media)" : ""}`
-            : `Posted via Zernio${mediaUrlsForZernio.length ? " (with media)" : ""}`,
-        );
+        const z = data as {
+          platformPostUrl?: string;
+          publishWarning?: string;
+          platformStatus?: string;
+        };
+        const title = scheduledFor
+          ? `Scheduled on Zernio${mediaUrlsForZernio.length ? " (with media)" : ""}`
+          : z.platformPostUrl
+            ? `Posted to X${mediaUrlsForZernio.length ? " (with media)" : ""}`
+            : `Zernio accepted${mediaUrlsForZernio.length ? " (with media)" : ""}`;
+        const desc =
+          z.platformPostUrl ||
+          z.publishWarning ||
+          (z.platformStatus ? `X status from Zernio: ${z.platformStatus}` : undefined);
+        toast.success(title, desc ? { description: desc, duration: z.publishWarning ? 12_000 : 6_000 } : undefined);
         void queryClient.invalidateQueries({ queryKey: ["social-post-jobs"] });
       } catch (e: unknown) {
         toast.error(e instanceof Error ? e.message : "Post failed");

@@ -423,7 +423,7 @@ export default function Dashboard() {
             <div>
               <h1 className="font-gothic text-2xl sm:text-3xl font-bold tracking-tight">
                 <span className="text-foreground">Welcome back, </span>
-                <span className="gradient-vice-text normal-case font-sans">{greetingName}</span>
+                <span className="gradient-vice-text normal-case">{greetingName}</span>
               </h1>
               <p className="text-sm text-muted-foreground mt-1 italic">
                 Your forge is live — every pulse, every whisper, yours to command.
