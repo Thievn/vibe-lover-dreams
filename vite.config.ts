@@ -3,9 +3,23 @@ import react from "@vitejs/plugin-react-swc";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 
+/**
+ * Open Graph / Twitter cards need absolute URLs matching the site users share.
+ * Order: explicit env → Vercel production URL → Vercel preview URL → legacy default.
+ */
 function ogSiteOrigin(): string {
-  const raw = process.env.VITE_SITE_ORIGIN || "https://lustforge.app";
-  return raw.replace(/\/$/, "");
+  const explicit = process.env.VITE_SITE_ORIGIN?.trim();
+  if (explicit) return explicit.replace(/\/$/, "");
+
+  const vercelProd = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  const vercelDeploy = process.env.VERCEL_URL?.trim();
+  const host = vercelProd || vercelDeploy;
+  if (host) {
+    const u = host.startsWith("http") ? host : `https://${host}`;
+    return u.replace(/\/$/, "");
+  }
+
+  return "https://lustforge.app";
 }
 
 export default defineConfig({

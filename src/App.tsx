@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, Component, ReactNode } from "react";
+import { lazy, Suspense, useState, useEffect, useCallback, Component, ReactNode } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { MobileNavGate } from "@/components/mobile/MobileNavGate";
 import { MobileToaster } from "@/components/mobile/MobileToaster";
@@ -169,14 +169,13 @@ function App() {
     return false;
   });
 
-  const handleAgeConfirm = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('ageConfirmed', 'true');
+  /** No full-page reload — that caused font/layout flashes and duplicate mounts. */
+  const handleAgeConfirm = useCallback(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ageConfirmed", "true");
     }
     setAgeConfirmed(true);
-    // Use window.location for reliable redirect (no hook needed, no context issue)
-    window.location.href = '/';
-  };
+  }, []);
 
   return (
     <Router>
