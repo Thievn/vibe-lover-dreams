@@ -237,6 +237,8 @@ Deno.serve(async (req) => {
     const tweetStyle = typeof body.tweetStyle === "string" ? body.tweetStyle.trim().slice(0, 160) : "";
     const customPrompt = typeof body.customPrompt === "string" ? body.customPrompt.trim() : "";
     const quickKind = typeof body.quickKind === "string" ? body.quickKind : "";
+    const portraitTierRaw = typeof body.portraitTier === "string" ? body.portraitTier.trim().toLowerCase().slice(0, 16) : "selfie";
+    const portraitTier = portraitTierRaw === "lewd" || portraitTierRaw === "nude" ? portraitTierRaw : "selfie";
     const companion = body.companion && typeof body.companion === "object" ? body.companion as Record<string, unknown> : null;
     const productAtlas = typeof body.productAtlas === "string" ? body.productAtlas.slice(0, 8000) : "";
     const siteSurface = body.siteSurface && typeof body.siteSurface === "object" ? body.siteSurface as Record<string, unknown> : null;
@@ -256,6 +258,13 @@ Deno.serve(async (req) => {
 
     const quickLine = quickKind && QUICK_GUIDE[quickKind] ? `\nCampaign angle: ${QUICK_GUIDE[quickKind]}` : "";
     const styleLine = tweetStyle ? `\nPost shape / format preference: ${tweetStyle}\n` : "";
+
+    const portraitHeatLine =
+      portraitTier === "nude"
+        ? `\nHero visual tier: NUDE / explicit-aligned. Match tweet heat to spicy implication and CTA; do not describe genitals or explicit sex acts in tweet text. Platform-safe wording only.\n`
+        : portraitTier === "lewd"
+          ? `\nHero visual tier: LEWD / suggestive (lingerie, tease). Copy can be hotter than SFW; still avoid graphic explicit anatomy in the tweet body.\n`
+          : `\nHero visual tier: SELFIE / SFW catalog portrait. Keep language flirty but broadly platform-safe.\n`;
 
     let surfaceBlock = "";
     if (siteSurface) {
@@ -289,6 +298,7 @@ Deno.serve(async (req) => {
           (appearance ? `- Look & aesthetic (for language and vibe, not explicit): ${appearance}\n` : "")
         : `No specific companion selected — write brand-level X posts that still feel premium and seductive.\n`) +
       styleLine +
+      portraitHeatLine +
       (customPrompt ? `Operator instructions: ${customPrompt}\n` : "") +
       quickLine +
       `\nWrite 5 distinct angles (hook, CTA, question, lore tease, urgency) so the operator can pick one.`;

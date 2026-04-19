@@ -23,6 +23,11 @@ type Props = {
   variations: TweetVariationLite[] | null;
   fullTweetText: (v: TweetVariationLite) => string;
   selected: DbCompanion | null;
+  /** Synced with X preview — which variation to post */
+  composePickVar: number;
+  onComposePickVarChange: (index: number) => void;
+  /** Public https URLs only — edge function sends to Zernio as mediaItems */
+  mediaUrlsForZernio: string[];
 };
 
 export function MarketingHubTabStrip({ hubTab, onHubTab }: { hubTab: ZernioHubTab; onHubTab: (t: ZernioHubTab) => void }) {
@@ -47,12 +52,20 @@ export function MarketingHubTabStrip({ hubTab, onHubTab }: { hubTab: ZernioHubTa
   );
 }
 
-export function MarketingHubZernioPanels({ hubTab, onHubTab, variations, fullTweetText, selected }: Props) {
+export function MarketingHubZernioPanels({
+  hubTab,
+  onHubTab,
+  variations,
+  fullTweetText,
+  selected,
+  composePickVar,
+  onComposePickVarChange,
+  mediaUrlsForZernio,
+}: Props) {
   const queryClient = useQueryClient();
   const [zernioAccountDraft, setZernioAccountDraft] = useState("");
   const [autoProcessQueue, setAutoProcessQueue] = useState(false);
   const [scheduleLocal, setScheduleLocal] = useState("");
-  const [pickVar, setPickVar] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
 
   const { data: settingsRow } = useQuery({
@@ -145,15 +158,22 @@ export function MarketingHubZernioPanels({ hubTab, onHubTab, variations, fullTwe
         toast.error("Generate tweets first.");
         return;
       }
-      const v = vs[Math.min(pickVar, vs.length - 1)]!;
+      const v = vs[Math.min(composePickVar, vs.length - 1)]!;
       const content = fullTweetText(v);
       setBusy("post");
       try {
         const body: Record<string, unknown> = { mode: "post", content, publishNow: !scheduledFor };
         if (scheduledFor) body.scheduledFor = scheduledFor;
+        if (mediaUrlsForZernio.length) {
+          body.mediaUrls = mediaUrlsForZernio.slice(0, 4);
+        }
         const { error } = await invokeZernioSocial(body);
         if (error) throw error;
-        toast.success(scheduledFor ? "Scheduled on Zernio" : "Posted via Zernio");
+        toast.success(
+          scheduledFor
+            ? `Scheduled on Zernio${mediaUrlsForZernio.length ? " (with media)" : ""}`
+            : `Posted via Zernio${mediaUrlsForZernio.length ? " (with media)" : ""}`,
+        );
         void queryClient.invalidateQueries({ queryKey: ["social-post-jobs"] });
       } catch (e: unknown) {
         toast.error(e instanceof Error ? e.message : "Post failed");
@@ -161,7 +181,7 @@ export function MarketingHubZernioPanels({ hubTab, onHubTab, variations, fullTwe
         setBusy(null);
       }
     },
-    [fullTweetText, pickVar, queryClient, variations],
+    [composePickVar, fullTweetText, mediaUrlsForZernio, queryClient, variations],
   );
 
   const enqueueForge = useCallback(async () => {
@@ -363,8 +383,13 @@ export function MarketingHubZernioPanels({ hubTab, onHubTab, variations, fullTwe
 
   /* compose tab: send bar */
   return (
-    <div className="rounded-2xl border border-primary/25 bg-black/45 p-3 sm:p-4 space-y-3">
-      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Post to X via Zernio</p>
+    <div className="rounded-2xl border border-primary/25 bg-black/45 p-3 sm:p-4 space-y-4">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Post to X via Zernio</p>
+        <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
+          Media uses public image URLs (portrait, marketing still, or generated art). Screen captures stay local unless you upload or use a still.
+        </p>
+      </div>
 
       {!xAccountSaved ? (
         <div className="flex gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-xs text-foreground/95 leading-snug">
@@ -387,34 +412,38 @@ export function MarketingHubZernioPanels({ hubTab, onHubTab, variations, fullTwe
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="text-xs text-muted-foreground">Variation</label>
-        <select
-          value={pickVar}
-          onChange={(e) => setPickVar(Number(e.target.value))}
-          className="rounded-lg bg-black/60 border border-border px-2 py-1.5 text-sm"
-        >
-          {(variations ?? []).map((_, i) => (
-            <option key={i} value={i}>
-              #{i + 1}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          disabled={busy !== null || !variations?.length || !xAccountSaved}
-          title={!xAccountSaved ? "Save X account id under the Zernio tab first" : undefined}
-          onClick={() => void postNow()}
-          className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-primary-foreground border border-primary/40 disabled:opacity-40"
-          style={{ background: `linear-gradient(135deg, ${NEON}, hsl(280 40% 36%))` }}
-        >
-          {busy === "post" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          Post now
-        </button>
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3">
+        <div className="flex flex-col gap-1 min-w-[8rem]">
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Which copy to post</label>
+          <select
+            value={composePickVar}
+            onChange={(e) => onComposePickVarChange(Number(e.target.value))}
+            className="rounded-xl bg-black/60 border border-border px-3 py-2 text-sm"
+          >
+            {(variations ?? []).map((_, i) => (
+              <option key={i} value={i}>
+                Variation #{i + 1}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-wrap gap-2 sm:ml-auto">
+          <button
+            type="button"
+            disabled={busy !== null || !variations?.length || !xAccountSaved}
+            title={!xAccountSaved ? "Save X account id under the Zernio tab first" : undefined}
+            onClick={() => void postNow()}
+            className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-primary-foreground border border-primary/40 disabled:opacity-40"
+            style={{ background: `linear-gradient(135deg, ${NEON}, hsl(280 40% 36%))` }}
+          >
+            {busy === "post" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Post now
+          </button>
+        </div>
       </div>
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] uppercase text-muted-foreground">Schedule (local)</label>
+      <div className="flex flex-col xs:flex-row flex-wrap items-stretch sm:items-end gap-3">
+        <div className="flex flex-col gap-1 flex-1 min-w-[12rem]">
+          <label className="text-[10px] uppercase text-muted-foreground">Schedule (local time)</label>
           <input
             type="datetime-local"
             value={scheduleLocal}
@@ -434,10 +463,10 @@ export function MarketingHubZernioPanels({ hubTab, onHubTab, variations, fullTwe
             }
             void postNow(d.toISOString());
           }}
-          className="inline-flex items-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2 text-sm font-semibold text-accent disabled:opacity-40"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-5 py-2.5 text-sm font-semibold text-accent disabled:opacity-40"
         >
           <Calendar className="h-4 w-4" />
-          Schedule
+          Schedule on Zernio
         </button>
       </div>
       {xAccountSaved ? (

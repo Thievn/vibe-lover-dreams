@@ -41,7 +41,16 @@ import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { inferForgeBodyTypeFromTags, inferStylizedArtFromTags } from "@/lib/forgeBodyTypes";
 import { isPlatformAdmin } from "@/config/auth";
 import { MarketingHubTabStrip, MarketingHubZernioPanels } from "@/components/admin/xmarketing/MarketingHubZernio";
+import { MarketingTweetPreview } from "@/components/admin/xmarketing/MarketingTweetPreview";
 import type { ZernioHubTab } from "@/lib/zernioSocial";
+import {
+  X_MARKETING_PORTRAIT_TIERS,
+  resolvePortraitHeroUrlForX,
+  portraitTierForGrokLine,
+  loadPortraitTierForCompanion,
+  savePortraitTierForCompanion,
+  type XMarketingPortraitTier,
+} from "@/lib/xMarketingPortraitTier";
 
 const NEON = "#FF2D7B";
 const MARKETING_IMAGE_TOKEN_COST = 75;
@@ -262,6 +271,10 @@ export default function XMarketingHub() {
   const [history, setHistory] = useState<XMarketingHistoryEntry[]>(() => loadHistory());
   const [historyOpen, setHistoryOpen] = useState(false);
   const [hubTab, setHubTab] = useState<ZernioHubTab>("compose");
+  /** Which generated variation is shown in the X preview and sent via Zernio */
+  const [composePickVar, setComposePickVar] = useState(0);
+  /** Selfie = catalog portrait; lewd/nude pick best match from generated_images for this companion */
+  const [portraitTierForX, setPortraitTierForX] = useState<XMarketingPortraitTier>("selfie");
 
   const [chatMessages, setChatMessages] = useState<ChatTurn[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -329,9 +342,30 @@ export default function XMarketingHub() {
     [sessionUser, profileDisplayName],
   );
 
+  /** For lewd/nude hero: scan generated_images (admin can read all) to pick best prompt match */
+  const { data: generatedImagesForTier = [] } = useQuery({
+    queryKey: ["x-marketing-generated-images", selected?.id, portraitTierForX],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("generated_images")
+        .select("image_url, prompt, created_at")
+        .eq("companion_id", selected!.id)
+        .order("created_at", { ascending: false })
+        .limit(120);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: Boolean(selected?.id) && portraitTierForX !== "selfie",
+  });
+
   useEffect(() => {
     setMarketingRenders([]);
     setHeroSource({ type: "portrait" });
+  }, [selected?.id]);
+
+  useEffect(() => {
+    if (!selected?.id) return;
+    setPortraitTierForX(loadPortraitTierForCompanion(selected.id));
   }, [selected?.id]);
 
   useEffect(() => {
@@ -407,6 +441,7 @@ export default function XMarketingHub() {
   const contextBlockForChat = useMemo(() => {
     const parts: string[] = [];
     parts.push(`Tone: ${tone}. Post shape: ${tweetPostStyle}.`);
+    parts.push(portraitTierForGrokLine(portraitTierForX));
     if (selected) {
       parts.push(
         `Companion: ${selected.name} (${selected.id}) — ${selected.tagline}. Rarity ${normalizeCompanionRarity(selected.rarity)}. Tags: ${(selected.tags || []).join(", ")}.`,
@@ -424,7 +459,7 @@ export default function XMarketingHub() {
     }
     parts.push(`Product atlas:\n${productAtlas}`);
     return parts.join("\n\n");
-  }, [tone, tweetPostStyle, selected, selectedSurface, quickKind, customPrompt, variations, productAtlas]);
+  }, [tone, tweetPostStyle, portraitTierForX, selected, selectedSurface, quickKind, customPrompt, variations, productAtlas]);
 
   const applyAngle = (prompt: string) => {
     setCustomPrompt((prev) => (prev.trim() ? `${prev.trim()}\n\n${prompt}` : prompt));
@@ -479,6 +514,7 @@ export default function XMarketingHub() {
           companion: companionPayload,
           productAtlas,
           siteSurface,
+          portraitTier: portraitTierForX,
         },
       });
       if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
@@ -570,17 +606,59 @@ export default function XMarketingHub() {
     }
   };
 
+  const portraitHeroFromTier = useMemo(() => {
+    if (!selected) return { url: null as string | null, usedFallback: false };
+    const rows = portraitTierForX === "selfie" ? undefined : generatedImagesForTier;
+    return resolvePortraitHeroUrlForX(selected, portraitTierForX, rows);
+  }, [selected, portraitTierForX, generatedImagesForTier]);
+
   const heroVisual = useMemo(() => {
     if (heroSource.type === "capture" && screenshotDataUrl) return screenshotDataUrl;
     if (heroSource.type === "render") {
       const row = marketingRenders.find((r) => r.id === heroSource.id);
       if (row?.url) return row.url;
-      if (selected) return galleryStaticPortraitUrl(selected, selected.id) ?? null;
+      if (selected) return portraitHeroFromTier.url ?? galleryStaticPortraitUrl(selected, selected.id) ?? null;
       return screenshotDataUrl ?? null;
     }
-    if (selected) return galleryStaticPortraitUrl(selected, selected.id) ?? null;
+    if (selected) return portraitHeroFromTier.url ?? galleryStaticPortraitUrl(selected, selected.id) ?? null;
     return screenshotDataUrl ?? null;
-  }, [heroSource, screenshotDataUrl, marketingRenders, selected]);
+  }, [heroSource, screenshotDataUrl, marketingRenders, selected, portraitHeroFromTier]);
+
+  /** Zernio can only fetch public http(s) URLs — not data: or blob: captures. */
+  const { mediaUrlsForZernio, zernioMediaBlockedReason } = useMemo(() => {
+    if (!heroVisual) {
+      return { mediaUrlsForZernio: [] as string[], zernioMediaBlockedReason: null as string | null };
+    }
+    if (heroVisual.startsWith("data:")) {
+      return {
+        mediaUrlsForZernio: [],
+        zernioMediaBlockedReason:
+          "Screen capture can’t be sent to X automatically (not a public URL). Use Profile portrait or Generate marketing still, or paste the image manually on X.",
+      };
+    }
+    if (heroVisual.startsWith("blob:")) {
+      return {
+        mediaUrlsForZernio: [],
+        zernioMediaBlockedReason: "This image can’t be attached via API. Use a portrait or generated still.",
+      };
+    }
+    if (/^https?:\/\//i.test(heroVisual)) {
+      return { mediaUrlsForZernio: [heroVisual.split("?")[0]], zernioMediaBlockedReason: null };
+    }
+    if (heroVisual.startsWith("/")) {
+      const origin = siteOrigin || (typeof window !== "undefined" ? window.location.origin : "");
+      if (origin) return { mediaUrlsForZernio: [`${origin}${heroVisual}`], zernioMediaBlockedReason: null };
+    }
+    return { mediaUrlsForZernio: [], zernioMediaBlockedReason: null };
+  }, [heroVisual, siteOrigin]);
+
+  useEffect(() => {
+    if (!variations?.length) return;
+    setComposePickVar((i) => Math.min(i, variations.length - 1));
+  }, [variations]);
+
+  const composePreviewFull = variations?.[composePickVar] ? fullTweetText(variations[composePickVar]!) : "";
+  const composePreviewChars = composePreviewFull.length;
 
   const generateMarketingStill = async () => {
     if (!selected) {
@@ -594,9 +672,13 @@ export default function XMarketingHub() {
     }
     setMarketingGenBusy(true);
     try {
-      const scene =
-        marketingScene.trim() ||
-        "Premium editorial marketing still for X — cinematic lighting, alluring confident expression, SFW, on-brand.";
+      const defaultByTier =
+        portraitTierForX === "lewd"
+          ? "Lewd teasing marketing still — lingerie / sheer / seductive pose, editorial spice, alluring but brand-safe framing."
+          : portraitTierForX === "nude"
+            ? "Explicit 18+ marketing still — fully nude or highly implied adult art, cinematic erotic lighting, character-accurate anatomy."
+            : "Premium editorial marketing still for X — cinematic lighting, alluring confident expression, SFW, on-brand.";
+      const scene = marketingScene.trim() || defaultByTier;
       const prompt =
         `${scene}\n\n(Character: ${selected.name}, ${selected.gender}. ${selected.appearance})`.slice(0, 8000);
       const { data, error } = await invokeGenerateImage({
@@ -700,6 +782,9 @@ export default function XMarketingHub() {
               variations={variations}
               fullTweetText={fullTweetText}
               selected={selected}
+              composePickVar={composePickVar}
+              onComposePickVarChange={setComposePickVar}
+              mediaUrlsForZernio={mediaUrlsForZernio}
             />
           ) : null}
 
@@ -1155,6 +1240,42 @@ export default function XMarketingHub() {
                     ))}
                   </div>
 
+                  {selected ? (
+                    <div className="space-y-1.5 rounded-xl border border-white/[0.06] bg-black/35 px-3 py-2.5">
+                      <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                        Portrait heat (X hero when Profile portrait is selected)
+                      </label>
+                      <select
+                        value={portraitTierForX}
+                        onChange={(e) => {
+                          const v = e.target.value as XMarketingPortraitTier;
+                          setPortraitTierForX(v);
+                          savePortraitTierForCompanion(selected.id, v);
+                        }}
+                        className="w-full max-w-md rounded-xl bg-black/60 border border-border px-3 py-2 text-sm text-foreground"
+                      >
+                        {X_MARKETING_PORTRAIT_TIERS.map((t) => (
+                          <option key={t.id} value={t.id} title={t.hint}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[9px] text-muted-foreground leading-snug">
+                        {X_MARKETING_PORTRAIT_TIERS.find((x) => x.id === portraitTierForX)?.hint}
+                      </p>
+                      {heroSource.type !== "portrait" ? (
+                        <p className="text-[9px] text-amber-200/85 border border-amber-500/25 rounded-lg px-2 py-1 bg-amber-500/5">
+                          Tier affects the catalog/generated portrait when you switch back to <strong className="text-foreground/90">Profile portrait</strong>. Generate & Grok use this tier now.
+                        </p>
+                      ) : null}
+                      {portraitHeroFromTier.usedFallback && portraitTierForX !== "selfie" && heroSource.type === "portrait" ? (
+                        <p className="text-[9px] text-amber-200/90 border border-amber-500/30 rounded-lg px-2 py-1.5 bg-amber-500/10">
+                          No generated image matched this tier’s keywords yet — showing catalog portrait. Add chat gens or marketing stills for this companion, or pick Lewd/Nude after prompts contain those themes.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -1400,9 +1521,31 @@ export default function XMarketingHub() {
                       const full = fullTweetText(v);
                       const count = full.length;
                       return (
-                        <div key={i} className="rounded-xl border border-border/60 bg-black/45 p-3 space-y-2">
+                        <div
+                          key={i}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setComposePickVar(i)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setComposePickVar(i);
+                            }
+                          }}
+                          className={cn(
+                            "rounded-xl border bg-black/45 p-3 space-y-2 text-left w-full cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+                            composePickVar === i
+                              ? "border-primary/55 ring-1 ring-primary/20"
+                              : "border-border/60 hover:border-border",
+                          )}
+                        >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-[10px] uppercase tracking-widest text-primary font-bold">#{i + 1}</span>
+                            <span className="text-[10px] uppercase tracking-widest text-primary font-bold">
+                              #{i + 1}
+                              {composePickVar === i ? (
+                                <span className="ml-2 text-[9px] font-semibold text-accent normal-case">· for X</span>
+                              ) : null}
+                            </span>
                             <span
                               className={cn(
                                 "text-xs font-mono font-bold",
@@ -1419,7 +1562,10 @@ export default function XMarketingHub() {
                           </p>
                           <button
                             type="button"
-                            onClick={() => void copyText(full)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void copyText(full);
+                            }}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary"
                           >
                             <Copy className="h-3.5 w-3.5" />
@@ -1493,12 +1639,25 @@ export default function XMarketingHub() {
                 </button>
               </div>
 
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">X preview</p>
+                <MarketingTweetPreview
+                  fullText={composePreviewFull}
+                  imageUrl={heroVisual}
+                  charCount={composePreviewChars}
+                  mediaBlockedReason={zernioMediaBlockedReason}
+                />
+              </div>
+
               <MarketingHubZernioPanels
                 hubTab="compose"
                 onHubTab={setHubTab}
                 variations={variations}
                 fullTweetText={fullTweetText}
                 selected={selected}
+                composePickVar={composePickVar}
+                onComposePickVarChange={setComposePickVar}
+                mediaUrlsForZernio={mediaUrlsForZernio}
               />
             </div>
           </div>
