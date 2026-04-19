@@ -41,6 +41,28 @@ export function incrementFreeNsfwImagesUsed(userId: string, companionId: string)
   }
 }
 
+/**
+ * + menu selfie actions: short immersive line shown in chat; full brief goes to generate-image only.
+ * Keeps roleplay natural — the model never sees the long technical string as a user message.
+ */
+export const FAB_SELFIE = {
+  sfw: {
+    display: "I'd love a cute selfie from you. 📸",
+    imagePrompt:
+      "SFW casual selfie — fully clothed, cute pose, flattering lighting, looking at camera. No nudity, no lingerie.",
+  },
+  lewd: {
+    display: "Send me something hot — surprise me. 🔥",
+    imagePrompt:
+      "Lewd selfie — lingerie or partial nude, explicit teasing, seductive eye contact, camera-aware, adult.",
+  },
+  nude: {
+    display: "I want to see all of you — don't hold back.",
+    imagePrompt:
+      "Fully nude NSFW selfie — explicit, uncensored, consensual adult; full body or intimate framing as fits.",
+  },
+} as const;
+
 /** Rough NSFW / explicit image request — qualifies for free-tier counter when under cap. */
 export function isExplicitImageRequest(text: string): boolean {
   const t = text.toLowerCase().normalize("NFKC");

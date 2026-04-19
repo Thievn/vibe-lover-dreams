@@ -50,6 +50,7 @@ import { ToyHubPopover } from "@/components/toy/ToyHubPopover";
 import { ChatGallerySheet } from "@/components/chat/ChatGallerySheet";
 import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFromGallery";
 import {
+  FAB_SELFIE,
   FREE_NSFW_CHAT_IMAGES,
   getChatAutoSpendImages,
   getFreeNsfwImagesUsed,
@@ -59,6 +60,12 @@ import {
 } from "@/lib/chatImageSettings";
 
 const TOKEN_COST = 15;
+
+/** Optional second arg for `sendMessage`: internal image brief (not shown in chat) + skip confirm for + menu. */
+type SendMessageOptions = {
+  imageGenerationPrompt?: string;
+  bypassImageConfirmation?: boolean;
+};
 const IMAGE_TOKEN_COST = 75;
 
 const SMART_FALLBACK = ["Tell me more…", "I want you closer.", "Surprise me."];
@@ -113,7 +120,7 @@ const Chat = () => {
   /** Keeps token checks in sync with async `fetchTokens` before React state flushes (fantasy starters). */
   const tokensBalanceRef = useRef(0);
   const messagesRef = useRef<ChatMessage[]>([]);
-  const sendMessageRef = useRef<(text?: string) => Promise<void>>(async () => {});
+  const sendMessageRef = useRef<(text?: string, opts?: SendMessageOptions) => Promise<void>>(async () => {});
   const openingFantasyStarterTitleRef = useRef<string | null>(null);
   const location = useLocation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -384,6 +391,9 @@ const Chat = () => {
       "another selfie",
       "take a selfie for",
       "selfie for me",
+      "send me a selfie",
+      "a selfie from you",
+      "selfie from you",
     ];
 
     if (phrases.some((p) => t.includes(p))) return true;
@@ -1001,7 +1011,7 @@ const Chat = () => {
     }
   };
 
-  const sendMessage = async (overrideText?: string) => {
+  const sendMessage = async (overrideText?: string, options?: SendMessageOptions) => {
     const messageText = overrideText?.trim() ?? input.trim();
     if (!messageText || loading || !user || !companion) return;
 
@@ -1011,10 +1021,15 @@ const Chat = () => {
 
     setImageGenPending(null);
 
-    const requestingImage = isImageRequest(messageText);
+    const promptForImage = options?.imageGenerationPrompt?.trim() || messageText;
+    const requestingImage =
+      Boolean(options?.imageGenerationPrompt?.trim()) ||
+      isImageRequest(messageText) ||
+      isImageRequest(promptForImage);
     const autoSpendImages = getChatAutoSpendImages(companion.id);
-    const holdForImageButton = requestingImage && !autoSpendImages;
-    const explicitReq = isExplicitImageRequest(messageText);
+    const holdForImageButton =
+      requestingImage && !autoSpendImages && !options?.bypassImageConfirmation;
+    const explicitReq = isExplicitImageRequest(promptForImage);
     const freeUsed = getFreeNsfwImagesUsed(user.id, companion.id);
     const imageCharge = isAdminUser ? 0 : explicitReq && freeUsed < FREE_NSFW_CHAT_IMAGES ? 0 : IMAGE_TOKEN_COST;
     const requiredTokens = holdForImageButton ? 0 : requestingImage ? imageCharge : TOKEN_COST;
@@ -1088,20 +1103,20 @@ const Chat = () => {
       setMessages((prev) => [...prev, userMsg!]);
 
       if (holdForImageButton) {
-        setImageGenPending({ userMessageId: savedUserMessageId, prompt: messageText });
+        setImageGenPending({ userMessageId: savedUserMessageId, prompt: promptForImage });
         return;
       }
 
       setLoading(true);
 
       if (requestingImage) {
-        const imageResult = await generateImage(messageText, user.id);
+        const imageResult = await generateImage(promptForImage, user.id);
 
         if (imageResult) {
           const rowId = await insertAssistantImageMessage({
             content: `*creates a captivating image just for you*`,
             imageUrl: imageResult.imageUrl,
-            imagePrompt: messageText,
+            imagePrompt: promptForImage,
             generatedImageId: imageResult.imageId,
           });
           const imageMsg: ChatMessage = {
@@ -1111,7 +1126,7 @@ const Chat = () => {
             imageUrl: imageResult.imageUrl,
             imageId: imageResult.imageId,
             generatedImageId: imageResult.imageId,
-            imagePrompt: messageText,
+            imagePrompt: promptForImage,
             timestamp: new Date(),
             savedToCompanionGallery: true,
             savedToPersonalGallery: false,
@@ -1125,44 +1140,17 @@ const Chat = () => {
 
           clearOpeningStarterContext();
         } else {
-          const { data, error } = await supabase.functions.invoke("chat-with-companion", {
-            body: {
-              companionId: companion.id,
-              messages: threadForModel,
-              systemPrompt: composeGrokSystemPrompt(),
-              companionName: companion.name,
-              connectedToys: connectedToys,
-            },
-          });
-
-          if (error) {
-            throw new Error(await messageFromFunctionsInvoke(error, data));
-          }
-          const chatPayload = data as { response?: string; message?: string; error?: string } | undefined;
-          if (chatPayload?.error && !chatPayload?.response && !chatPayload?.message) {
-            throw new Error(chatPayload.error);
-          }
-
-          const { cleanText, command } = parseLovenseCommand(
-            chatPayload?.response || chatPayload?.message || "",
-          );
-
-          const asstId = await insertAssistantMessage(cleanText, command);
+          /** Image pipeline failed (toast already from `generateImage`). Do NOT call chat with the raw image brief — Grok often refuses and breaks immersion. */
+          const fallback =
+            "*The picture didn't come through — try the + menu again, or ask in your own words.*";
+          const asstId = await insertAssistantMessage(fallback, null);
           const assistantMsg: ChatMessage = {
             id: asstId,
             role: "assistant",
-            content: cleanText,
-            lovenseCommand: command,
+            content: fallback,
             timestamp: new Date(),
           };
-
           setMessages((prev) => [...prev, assistantMsg]);
-
-          if (command && hasDevice) {
-            executeDeviceCommand(command);
-          }
-
-          await deductTokens(user.id);
           clearOpeningStarterContext();
         }
       } else {
@@ -1232,21 +1220,24 @@ const Chat = () => {
       return;
     }
     if (fabId === "selfie_sfw") {
-      setInput(
-        "Send me a casual SFW selfie — fully clothed, cute pose, good lighting. No nudity.",
-      );
+      void sendMessage(FAB_SELFIE.sfw.display, {
+        imageGenerationPrompt: FAB_SELFIE.sfw.imagePrompt,
+        bypassImageConfirmation: true,
+      });
       return;
     }
     if (fabId === "selfie_lewd") {
-      setInput(
-        "Send me a lewd selfie — lingerie or partial nude, explicit teasing, looking at the camera.",
-      );
+      void sendMessage(FAB_SELFIE.lewd.display, {
+        imageGenerationPrompt: FAB_SELFIE.lewd.imagePrompt,
+        bypassImageConfirmation: true,
+      });
       return;
     }
     if (fabId === "selfie_nude") {
-      setInput(
-        "Send me a fully nude NSFW selfie — explicit, uncensored, full body or close-up as fits the scene.",
-      );
+      void sendMessage(FAB_SELFIE.nude.display, {
+        imageGenerationPrompt: FAB_SELFIE.nude.imagePrompt,
+        bypassImageConfirmation: true,
+      });
       return;
     }
     if (fabId === "vibration") {
