@@ -2,9 +2,13 @@ function messageFromJsonBody(o: Record<string, unknown>): string | null {
   const err = o.error;
   const msg = o.message;
   const details = o.details;
+  const detail = o.detail;
   if (typeof err === "string" && err.trim()) {
     if (typeof details === "string" && details.trim()) {
       return `${err.trim()}: ${details.trim()}`;
+    }
+    if (typeof detail === "string" && detail.trim()) {
+      return `${err.trim()}: ${detail.trim().slice(0, 600)}`;
     }
     return err.trim();
   }

@@ -2,8 +2,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { requireAdminUser } from "../_shared/requireSessionUser.ts";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import {
+  buildMinimalProfileLoopVideoPrompt,
   buildProfileLoopVideoPrompt,
   PROFILE_LOOP_VIDEO_DURATION_SECONDS,
+  PROFILE_LOOP_VIDEO_FALLBACK_DURATION_SECONDS,
+  sanitizePromptForVideoApi,
 } from "../_shared/profileLoopVideoPrompt.ts";
 
 const corsHeaders = {
@@ -34,16 +37,26 @@ function jsonResponse(obj: Record<string, unknown>, status = 200) {
   });
 }
 
+function tryParseJsonRecord(text: string): Record<string, unknown> | null {
+  const t = text.trim();
+  if (!t) return null;
+  try {
+    return JSON.parse(t) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 async function postVideoGeneration(
   apiKey: string,
   imageUrl: string,
-  row: Record<string, unknown>,
+  prompt: string,
+  durationSeconds: number,
 ): Promise<Response> {
-  const prompt = buildProfileLoopVideoPrompt(row);
   const payload = {
     model: "grok-imagine-video",
-    prompt,
-    duration: PROFILE_LOOP_VIDEO_DURATION_SECONDS,
+    prompt: sanitizePromptForVideoApi(prompt),
+    duration: durationSeconds,
     aspect_ratio: "9:16",
     resolution: "480p",
     image: { url: imageUrl },
@@ -137,13 +150,34 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "No public profile image URL — set a static portrait first." }, 400);
   }
 
-  const startRes = await postVideoGeneration(apiKey, imageUrl, row);
-  const startText = await startRes.text();
-  let startParsed: Record<string, unknown>;
-  try {
-    startParsed = JSON.parse(startText) as Record<string, unknown>;
-  } catch {
-    return jsonResponse({ error: "xAI invalid response", detail: startText.slice(0, 500) }, 502);
+  const fullPrompt = buildProfileLoopVideoPrompt(row);
+  let startRes = await postVideoGeneration(apiKey, imageUrl, fullPrompt, PROFILE_LOOP_VIDEO_DURATION_SECONDS);
+  let startText = await startRes.text();
+  let startParsed = tryParseJsonRecord(startText);
+
+  // Long lore + gateway quirks sometimes return HTML/empty bodies; retry compact prompt + 8s.
+  if (!startParsed) {
+    const minimal = buildMinimalProfileLoopVideoPrompt(row);
+    startRes = await postVideoGeneration(
+      apiKey,
+      imageUrl,
+      minimal,
+      PROFILE_LOOP_VIDEO_FALLBACK_DURATION_SECONDS,
+    );
+    startText = await startRes.text();
+    startParsed = tryParseJsonRecord(startText);
+  }
+
+  if (!startParsed) {
+    return jsonResponse(
+      {
+        error: "xAI returned non-JSON (often empty body, HTML error page, or gateway). Retried with a shorter prompt.",
+        httpStatus: startRes.status,
+        contentType: startRes.headers.get("content-type") ?? "",
+        detail: startText.slice(0, 1500),
+      },
+      502,
+    );
   }
   if (!startRes.ok) {
     return jsonResponse(
