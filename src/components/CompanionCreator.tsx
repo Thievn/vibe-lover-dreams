@@ -36,6 +36,7 @@ import { fallbackForgeDisplayName } from "@/lib/forgeRandomName";
 import { pickOne, pickRandom, randomSelectionCount, randomTraitCount } from "@/lib/forgeRandomSeeds";
 import { cn } from "@/lib/utils";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
+import { AdminLoopingVideoBlock } from "@/components/admin/AdminLoopingVideoBlock";
 import { stablePortraitDisplayUrl } from "@/lib/companionMedia";
 import {
   COMPANION_RARITIES,
@@ -398,6 +399,8 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
   const [previewCanonicalUrl, setPreviewCanonicalUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [finalLoading, setFinalLoading] = useState(false);
+  /** Last forged `cc-…` id in this session (admin) — for looping video tool */
+  const [lastForgedCcId, setLastForgedCcId] = useState<string | null>(null);
 
   const [referenceNotes, setReferenceNotes] = useState("");
   const [referencePalette, setReferencePalette] = useState<string | null>(null);
@@ -1224,6 +1227,9 @@ Hard requirements:
       void queryClient.invalidateQueries({ queryKey: ["companions"] });
       void queryClient.invalidateQueries({ queryKey: ["vault-collection"] });
       void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
+      if (isAdmin && insertedRows?.[0]?.id) {
+        setLastForgedCcId(`cc-${String(insertedRows[0].id)}`);
+      }
       if (!isAdmin) clearForgePreview({ silent: true });
       if (isAdmin && onForged) onForged();
       else if (!embedded && mode === "user") navigate("/dashboard", { state: { activeNav: "collection" } });
@@ -1939,6 +1945,16 @@ Hard requirements:
                   </label>
                 </div>
               </div>
+            )}
+
+            {isAdmin && lastForgedCcId && (
+              <AdminLoopingVideoBlock
+                companionId={lastForgedCcId}
+                onSuccess={() => {
+                  void queryClient.invalidateQueries({ queryKey: ["companions"] });
+                  void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
+                }}
+              />
             )}
 
             {isAdmin && (

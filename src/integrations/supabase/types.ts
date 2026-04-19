@@ -100,6 +100,7 @@ export type Database = {
       companions: {
         Row: {
           animated_image_url: string | null
+          profile_loop_video_enabled: boolean
           appearance: string
           backstory: string
           bio: string
@@ -128,6 +129,7 @@ export type Database = {
         }
         Insert: {
           animated_image_url?: string | null
+          profile_loop_video_enabled?: boolean
           appearance?: string
           backstory?: string
           bio?: string
@@ -156,6 +158,7 @@ export type Database = {
         }
         Update: {
           animated_image_url?: string | null
+          profile_loop_video_enabled?: boolean
           appearance?: string
           backstory?: string
           bio?: string
@@ -187,6 +190,7 @@ export type Database = {
       custom_characters: {
         Row: {
           animated_image_url: string | null
+          profile_loop_video_enabled: boolean
           appearance: string
           approved: boolean
           avatar_url: string | null
@@ -227,6 +231,7 @@ export type Database = {
         }
         Insert: {
           animated_image_url?: string | null
+          profile_loop_video_enabled?: boolean
           appearance?: string
           approved?: boolean
           avatar_url?: string | null
@@ -267,6 +272,7 @@ export type Database = {
         }
         Update: {
           animated_image_url?: string | null
+          profile_loop_video_enabled?: boolean
           appearance?: string
           approved?: boolean
           avatar_url?: string | null
@@ -477,18 +483,21 @@ export type Database = {
           auto_process_forge_queue: boolean
           id: number
           updated_at: string
+          use_looping_video_for_x: boolean
           zernio_twitter_account_id: string | null
         }
         Insert: {
           auto_process_forge_queue?: boolean
           id?: number
           updated_at?: string
+          use_looping_video_for_x?: boolean
           zernio_twitter_account_id?: string | null
         }
         Update: {
           auto_process_forge_queue?: boolean
           id?: number
           updated_at?: string
+          use_looping_video_for_x?: boolean
           zernio_twitter_account_id?: string | null
         }
         Relationships: []

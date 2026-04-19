@@ -26,7 +26,7 @@ import type { User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { mapSupabaseCustomCharacterRow, useAdminCompanions, type DbCompanion } from "@/hooks/useCompanions";
-import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
+import { galleryStaticPortraitUrl, stablePortraitDisplayUrl, isVideoPortraitUrl } from "@/lib/companionMedia";
 import { normalizeCompanionRarity, type CompanionRarity, COMPANION_RARITIES } from "@/lib/companionRarity";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
 import { cn } from "@/lib/utils";
@@ -358,6 +358,19 @@ export default function XMarketingHub() {
     enabled: Boolean(selected?.id) && portraitTierForX !== "selfie",
   });
 
+  const { data: marketingSocialSettings } = useQuery({
+    queryKey: ["marketing-social-settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("marketing_social_settings")
+        .select("use_looping_video_for_x")
+        .eq("id", 1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
   useEffect(() => {
     setMarketingRenders([]);
     setHeroSource({ type: "portrait" });
@@ -642,6 +655,22 @@ export default function XMarketingHub() {
         zernioMediaBlockedReason: "This image can’t be attached via API. Use a portrait or generated still.",
       };
     }
+
+    const preferLoop =
+      marketingSocialSettings?.use_looping_video_for_x &&
+      selected &&
+      heroSource.type === "portrait" &&
+      portraitTierForX === "selfie";
+    if (preferLoop) {
+      const raw = selected.animated_image_url?.trim();
+      if (raw && isVideoPortraitUrl(raw)) {
+        const loopUrl = stablePortraitDisplayUrl(raw)?.split("?")[0];
+        if (loopUrl && /^https?:\/\//i.test(loopUrl)) {
+          return { mediaUrlsForZernio: [loopUrl], zernioMediaBlockedReason: null as string | null };
+        }
+      }
+    }
+
     if (/^https?:\/\//i.test(heroVisual)) {
       return { mediaUrlsForZernio: [heroVisual.split("?")[0]], zernioMediaBlockedReason: null };
     }
@@ -650,7 +679,7 @@ export default function XMarketingHub() {
       if (origin) return { mediaUrlsForZernio: [`${origin}${heroVisual}`], zernioMediaBlockedReason: null };
     }
     return { mediaUrlsForZernio: [], zernioMediaBlockedReason: null };
-  }, [heroVisual, siteOrigin]);
+  }, [heroVisual, siteOrigin, marketingSocialSettings?.use_looping_video_for_x, selected, heroSource.type, portraitTierForX]);
 
   useEffect(() => {
     if (!variations?.length) return;

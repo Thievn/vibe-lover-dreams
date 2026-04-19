@@ -30,6 +30,8 @@ export interface DbCompanion {
   backstory: string;
   static_image_url: string | null;
   animated_image_url: string | null;
+  /** When true and animated_image_url is MP4, profile/chat can show looping video */
+  profile_loop_video_enabled: boolean;
   rarity_border_overlay_url: string | null;
   /** Community forge cards only — creator display name when they opted in */
   gallery_credit_name?: string | null;
@@ -56,6 +58,7 @@ function coerceStockRow(row: Record<string, unknown>): DbCompanion {
     backstory: (row.backstory as string | undefined) ?? "",
     static_image_url: (row.static_image_url as string | null | undefined) ?? null,
     animated_image_url: (row.animated_image_url as string | null | undefined) ?? null,
+    profile_loop_video_enabled: Boolean(row.profile_loop_video_enabled),
     rarity_border_overlay_url: (row.rarity_border_overlay_url as string | null | undefined) ?? null,
     tcg_stats:
       row.tcg_stats && typeof row.tcg_stats === "object" ? (row.tcg_stats as Record<string, unknown>) : null,
@@ -110,6 +113,7 @@ export function mapSupabaseCustomCharacterRow(row: Record<string, unknown>): DbC
     backstory: (row.backstory as string | undefined) ?? "",
     static_image_url: (row.static_image_url as string | null | undefined) ?? null,
     animated_image_url: (row.animated_image_url as string | null | undefined) ?? null,
+    profile_loop_video_enabled: Boolean(row.profile_loop_video_enabled),
     rarity_border_overlay_url: (row.rarity_border_overlay_url as string | null | undefined) ?? null,
     personality_archetypes: Array.isArray(row.personality_archetypes)
       ? (row.personality_archetypes as string[])
@@ -222,6 +226,7 @@ function staticListToDb(): DbCompanion[] {
     backstory: c.backstory ?? "",
     static_image_url: null,
     animated_image_url: null,
+    profile_loop_video_enabled: false,
     rarity_border_overlay_url: null,
     tcg_stats: generateTcgStatBlock(c.id, getStaticRarityForCatalog(c.id)) as unknown as Record<string, unknown>,
   }));

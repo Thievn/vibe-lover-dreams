@@ -20,6 +20,7 @@ import {
 import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
 import { normalizeCompanionRarity } from "@/lib/companionRarity";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
+import { AdminLoopingVideoBlock } from "@/components/admin/AdminLoopingVideoBlock";
 
 export type TheNexusMode = "user" | "admin";
 
@@ -555,6 +556,18 @@ export default function TheNexus({
                 Merge again
               </button>
             </div>
+            {isAdmin ? (
+              <div className="relative max-w-md mx-auto text-left">
+                <AdminLoopingVideoBlock
+                  companionId={reveal.childId}
+                  onSuccess={() => {
+                    void queryClient.invalidateQueries({ queryKey: ["companions"] });
+                    void queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
+                    void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
+                  }}
+                />
+              </div>
+            ) : null}
           </motion.div>
         )}
       </AnimatePresence>

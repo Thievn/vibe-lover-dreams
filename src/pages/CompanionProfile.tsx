@@ -27,7 +27,12 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { getCompanionBackstoryParagraphs } from "@/lib/companionBackstory";
-import { profileAnimatedPortraitUrl, profileStillPortraitUrl, isVideoPortraitUrl } from "@/lib/companionMedia";
+import {
+  profileAnimatedPortraitUrl,
+  profileStillPortraitUrl,
+  isVideoPortraitUrl,
+  shouldShowProfileLoopVideo,
+} from "@/lib/companionMedia";
 import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFromGallery";
 import { CompanionGalleryGrid } from "@/components/companion/CompanionGalleryGrid";
 import type { CompanionRarity } from "@/lib/companionRarity";
@@ -120,6 +125,13 @@ const CompanionProfile = () => {
   const companion = dbComp ? dbToCompanion(dbComp) : null;
   const rarity: CompanionRarity = companion?.rarity ?? "common";
   const animatedPortrait = profileAnimatedPortraitUrl(dbComp);
+  const showLoopVideo = shouldShowProfileLoopVideo(dbComp, dbComp?.profile_loop_video_enabled);
+  const lightboxAnimated =
+    showLoopVideo && animatedPortrait && isVideoPortraitUrl(animatedPortrait)
+      ? animatedPortrait
+      : animatedPortrait && !isVideoPortraitUrl(animatedPortrait)
+        ? animatedPortrait
+        : undefined;
   const { data: portraitOverrideUrl } = usePortraitOverrideUrl(id, user?.id);
   const { data: galleryImages = [], isLoading: galleryImagesLoading } = useCompanionGeneratedImages(id, user?.id);
   const stillForProfile = useMemo(() => {
@@ -491,7 +503,7 @@ const CompanionProfile = () => {
               <PortraitViewLightbox
                 alt={companion.name}
                 stillSrc={stillForProfile}
-                animatedSrc={animatedPortrait}
+                animatedSrc={lightboxAnimated}
                 triggerClassName="rounded-[1.35rem]"
               >
                 <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[1.35rem] bg-black/15">
@@ -502,7 +514,7 @@ const CompanionProfile = () => {
                       background: `linear-gradient(160deg, ${companion.gradientFrom}66, ${companion.gradientTo}55)`,
                     }}
                   />
-                  {animatedPortrait && isVideoPortraitUrl(animatedPortrait) ? (
+                  {showLoopVideo && animatedPortrait && isVideoPortraitUrl(animatedPortrait) ? (
                     <video
                       key={animatedPortrait}
                       className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.08] object-cover object-top"
@@ -512,7 +524,7 @@ const CompanionProfile = () => {
                       loop
                       playsInline
                     />
-                  ) : animatedPortrait ? (
+                  ) : animatedPortrait && !isVideoPortraitUrl(animatedPortrait) ? (
                     <img
                       src={animatedPortrait}
                       alt=""

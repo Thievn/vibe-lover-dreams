@@ -65,6 +65,7 @@ export function MarketingHubZernioPanels({
   const queryClient = useQueryClient();
   const [zernioAccountDraft, setZernioAccountDraft] = useState("");
   const [autoProcessQueue, setAutoProcessQueue] = useState(false);
+  const [useLoopingVideoForX, setUseLoopingVideoForX] = useState(false);
   const [scheduleLocal, setScheduleLocal] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -85,6 +86,9 @@ export function MarketingHubZernioPanels({
     }
     if (typeof settingsRow?.auto_process_forge_queue === "boolean") {
       setAutoProcessQueue(settingsRow.auto_process_forge_queue);
+    }
+    if (typeof settingsRow?.use_looping_video_for_x === "boolean") {
+      setUseLoopingVideoForX(settingsRow.use_looping_video_for_x);
     }
   }, [settingsRow]);
 
@@ -109,6 +113,7 @@ export function MarketingHubZernioPanels({
         mode: "settings_update",
         zernioTwitterAccountId: zernioAccountDraft,
         autoProcessForgeQueue: autoProcessQueue,
+        useLoopingVideoForX,
       });
       if (error) throw error;
       toast.success("Zernio settings saved");
@@ -118,7 +123,7 @@ export function MarketingHubZernioPanels({
     } finally {
       setBusy(null);
     }
-  }, [autoProcessQueue, queryClient, zernioAccountDraft]);
+  }, [autoProcessQueue, queryClient, useLoopingVideoForX, zernioAccountDraft]);
 
   const ping = useCallback(async () => {
     setBusy("ping");
@@ -269,6 +274,15 @@ export function MarketingHubZernioPanels({
             className="rounded border-border"
           />
           Track automation toggle (queue still runs manually from Queue tab)
+        </label>
+        <label className="flex items-center gap-2 text-sm text-foreground/90 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={useLoopingVideoForX}
+            onChange={(e) => setUseLoopingVideoForX(e.target.checked)}
+            className="rounded border-border"
+          />
+          Prefer looping profile video (MP4) for X media when hero is selfie portrait and a public loop URL exists
         </label>
         <div className="flex flex-wrap gap-2">
           <button

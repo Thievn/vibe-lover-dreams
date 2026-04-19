@@ -13,6 +13,7 @@ import {
   Loader2, X, ImageIcon, Palette, ArrowLeft, Sparkles, Trash2, Waves,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AdminLoopingVideoBlock } from "@/components/admin/AdminLoopingVideoBlock";
 
 type ViewMode = "list" | "edit" | "create";
 
@@ -39,6 +40,7 @@ const emptyCompanion: Omit<DbCompanion, "created_at" | "updated_at"> = {
   backstory: "",
   static_image_url: null,
   animated_image_url: null,
+  profile_loop_video_enabled: false,
   rarity_border_overlay_url: null,
 };
 
@@ -64,6 +66,7 @@ const CUSTOM_CHARACTER_UPDATE_KEYS = new Set([
   "avatar_url",
   "static_image_url",
   "animated_image_url",
+  "profile_loop_video_enabled",
   "rarity_border_overlay_url",
   "rarity",
   "gallery_credit_name",
@@ -701,6 +704,7 @@ const CompanionManager = () => {
         backstory: createData.backstory,
         static_image_url: createData.static_image_url,
         animated_image_url: createData.animated_image_url,
+        profile_loop_video_enabled: createData.profile_loop_video_enabled,
         rarity_border_overlay_url: createData.rarity_border_overlay_url,
         image_url: createData.image_url,
       } as any);
@@ -778,6 +782,7 @@ const CompanionManager = () => {
         rarity: "common",
         static_image_url: null,
         animated_image_url: null,
+        profile_loop_video_enabled: false,
         rarity_border_overlay_url: null,
       });
     } catch (err: unknown) {
@@ -994,6 +999,15 @@ const CompanionManager = () => {
             </div>
             <Field label="Static portrait URL" value={createData.static_image_url || ""} onChange={(v) => setCreateData(p => ({ ...p, static_image_url: v || null }))} />
             <Field label="Animated portrait URL (gif/webp/mp4)" value={createData.animated_image_url || ""} onChange={(v) => setCreateData(p => ({ ...p, animated_image_url: v || null }))} />
+            <label className="flex items-center gap-2 text-xs text-foreground/90 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={createData.profile_loop_video_enabled}
+                onChange={(e) => setCreateData((p) => ({ ...p, profile_loop_video_enabled: e.target.checked }))}
+                className="rounded border-border"
+              />
+              Show looping MP4 on public profile (when animated URL is a video)
+            </label>
             <Field label="Custom border overlay URL (optional PNG/SVG)" value={createData.rarity_border_overlay_url || ""} onChange={(v) => setCreateData(p => ({ ...p, rarity_border_overlay_url: v || null }))} />
             <Field label="Legacy image_url (optional)" value={createData.image_url || ""} onChange={(v) => setCreateData(p => ({ ...p, image_url: v || null }))} />
             <TextArea label="Personality" value={createData.personality} onChange={(v) => setCreateData(p => ({ ...p, personality: v }))} rows={3} />
@@ -1247,6 +1261,24 @@ const CompanionManager = () => {
             <AdminToyPatternsSection companionId={companion.id} />
             <Field label="Static portrait URL" value={(val("static_image_url") as string) || ""} onChange={(v) => setField(companion.id, "static_image_url", v || null)} />
             <Field label="Animated portrait URL" value={(val("animated_image_url") as string) || ""} onChange={(v) => setField(companion.id, "animated_image_url", v || null)} />
+            <AdminLoopingVideoBlock
+              companionId={companion.id}
+              onSuccess={() => {
+                void queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
+                void queryClient.invalidateQueries({ queryKey: ["companions"] });
+                void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
+                void queryClient.invalidateQueries({ queryKey: ["admin-vib-rows", companion.id] });
+              }}
+            />
+            <label className="flex items-center gap-2 text-xs text-foreground/90 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={Boolean(val("profile_loop_video_enabled"))}
+                onChange={(e) => setField(companion.id, "profile_loop_video_enabled", e.target.checked)}
+                className="rounded border-border"
+              />
+              Show looping MP4 on public profile (when animated URL is a video)
+            </label>
             <Field label="Border overlay URL (optional)" value={(val("rarity_border_overlay_url") as string) || ""} onChange={(v) => setField(companion.id, "rarity_border_overlay_url", v || null)} />
             <Field label="image_url (legacy)" value={(val("image_url") as string) || ""} onChange={(v) => setField(companion.id, "image_url", v || null)} />
             <LabeledRegenWrap

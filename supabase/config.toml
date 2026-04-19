@@ -52,3 +52,6 @@ verify_jwt = false
 
 [functions.zernio-social]
 verify_jwt = false
+
+[functions.generate-profile-loop-video]
+verify_jwt = false

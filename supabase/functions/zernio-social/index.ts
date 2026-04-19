@@ -66,6 +66,7 @@ async function loadSettings(svc: ReturnType<typeof createClient>) {
     id: number;
     zernio_twitter_account_id: string | null;
     auto_process_forge_queue: boolean;
+    use_looping_video_for_x: boolean;
     updated_at: string;
   } | null;
 }
@@ -115,11 +116,13 @@ Deno.serve(async (req) => {
     if (mode === "settings_update") {
       const zid = typeof body.zernioTwitterAccountId === "string" ? body.zernioTwitterAccountId.trim() : undefined;
       const autoQ = typeof body.autoProcessForgeQueue === "boolean" ? body.autoProcessForgeQueue : undefined;
+      const loopX = typeof body.useLoopingVideoForX === "boolean" ? body.useLoopingVideoForX : undefined;
       const cur = await loadSettings(svc);
       const next = {
         id: 1 as const,
         zernio_twitter_account_id: zid !== undefined ? zid || null : cur?.zernio_twitter_account_id ?? null,
         auto_process_forge_queue: autoQ !== undefined ? autoQ : cur?.auto_process_forge_queue ?? false,
+        use_looping_video_for_x: loopX !== undefined ? loopX : cur?.use_looping_video_for_x ?? false,
         updated_at: new Date().toISOString(),
       };
       const { error } = await svc.from("marketing_social_settings").upsert(next);
@@ -134,7 +137,12 @@ Deno.serve(async (req) => {
       const row = await loadSettings(svc);
       return new Response(
         JSON.stringify({
-          settings: row ?? { id: 1, zernio_twitter_account_id: null, auto_process_forge_queue: false },
+          settings: row ?? {
+            id: 1,
+            zernio_twitter_account_id: null,
+            auto_process_forge_queue: false,
+            use_looping_video_for_x: false,
+          },
           hasZernioKey: Boolean(Deno.env.get("ZERNIO_API_KEY")?.trim()),
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },

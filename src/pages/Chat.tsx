@@ -4,7 +4,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { usePortraitOverrideUrl } from "@/hooks/usePortraitOverride";
 import { useCompanionGeneratedImages } from "@/hooks/useCompanionGeneratedImages";
-import { galleryStaticPortraitUrl, profileAnimatedPortraitUrl } from "@/lib/companionMedia";
+import {
+  galleryStaticPortraitUrl,
+  profileAnimatedPortraitUrl,
+  isVideoPortraitUrl,
+  shouldShowProfileLoopVideo,
+} from "@/lib/companionMedia";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
@@ -92,9 +97,14 @@ const Chat = () => {
   );
   const companion = dbComp ? dbToCompanion(dbComp) : null;
   const basePortraitUrl = useMemo(() => galleryStaticPortraitUrl(dbComp, id), [dbComp, id]);
-  const headerAnimated = profileAnimatedPortraitUrl(dbComp);
+  const headerAnimated = useMemo(() => {
+    const raw = profileAnimatedPortraitUrl(dbComp);
+    if (shouldShowProfileLoopVideo(dbComp, dbComp?.profile_loop_video_enabled)) return raw ?? null;
+    if (raw && !isVideoPortraitUrl(raw)) return raw;
+    return null;
+  }, [dbComp]);
 
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
