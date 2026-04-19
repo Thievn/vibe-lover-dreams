@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
 /**
@@ -13,6 +14,7 @@ function normalizeToyList(callbackData: Record<string, unknown>): Array<Record<s
   const toyList = callbackData.toyList;
   if (Array.isArray(toyList)) return toyList as Array<Record<string, unknown>>;
   const toys = callbackData.toys;
+  if (Array.isArray(toys)) return toys as Array<Record<string, unknown>>;
   if (toys && typeof toys === "object" && !Array.isArray(toys)) {
     return Object.entries(toys as Record<string, Record<string, unknown>>).map(([mapKey, toy]) => {
       const rawId = toy.id ?? toy.uid ?? mapKey;
@@ -50,6 +52,37 @@ function capabilitiesForToyType(toyType: string): string[] {
   return map[t] || map.default;
 }
 
+/** Lovense may send `toys` / `toyList` as JSON strings or use GET query params. */
+function normalizeCallbackPayload(
+  method: string,
+  url: URL,
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const out = { ...raw };
+  if (method === "GET") {
+    for (const [k, v] of url.searchParams.entries()) {
+      if (!(k in out)) out[k] = v;
+    }
+  }
+  const toysVal = out.toys;
+  if (typeof toysVal === "string" && toysVal.trim()) {
+    try {
+      out.toys = JSON.parse(toysVal) as unknown;
+    } catch {
+      /* keep string */
+    }
+  }
+  const toyListVal = out.toyList;
+  if (typeof toyListVal === "string" && toyListVal.trim()) {
+    try {
+      out.toyList = JSON.parse(toyListVal) as unknown;
+    } catch {
+      /* keep */
+    }
+  }
+  return out;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -63,8 +96,11 @@ Deno.serve(async (req) => {
 
     let callbackData: Record<string, unknown>;
     const contentType = req.headers.get("content-type") || "";
+    const url = new URL(req.url);
 
-    if (contentType.includes("application/json")) {
+    if (req.method === "GET") {
+      callbackData = Object.fromEntries(url.searchParams.entries()) as Record<string, unknown>;
+    } else if (contentType.includes("application/json")) {
       callbackData = (await req.json()) as Record<string, unknown>;
     } else {
       const text = await req.text();
@@ -76,11 +112,13 @@ Deno.serve(async (req) => {
       }
     }
 
+    callbackData = normalizeCallbackPayload(req.method, url, callbackData);
+
     console.log("Lovense callback received:", JSON.stringify(callbackData));
 
-    const url = new URL(req.url);
     const pairingToken =
       url.searchParams.get("token") ||
+      url.searchParams.get("utoken") ||
       (typeof callbackData.utoken === "string" ? callbackData.utoken : null) ||
       (typeof callbackData.token === "string" ? callbackData.token : null);
 
