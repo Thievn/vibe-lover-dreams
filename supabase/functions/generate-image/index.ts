@@ -205,18 +205,30 @@ serve(async (req) => {
       );
     }
 
-    const characterDetailsBlock = `
-Character Details:
-- Body type: ${characterData.bodyType || "any body type (slim, curvy, muscular, plus-size, petite, tall, short, etc.)"}
-- Ethnicity / skin tone: ${characterData.ethnicity || "any"}
-- Age range: ${characterData.ageRange || "young adult"}
-- Hair: ${characterData.hair || "any style and color"}
-- Eyes: ${characterData.eyes || "expressive and beautiful"}
-- Clothing / outfit: ${characterData.clothing || "elegant, sexy, provocative clothing with lace, leather, straps, sheer fabrics, corsets, harnesses, or any style the character would wear"}
-- Pose: ${characterData.pose || "seductive and provocative pose"}
-- Expression / mood: ${characterData.expression || "seductive, confident, mysterious, or alluring"}
-- Overall vibe: ${characterData.vibe || "extremely sexy and artistic"}
-`.trim();
+    const forgeBody = String(characterData.bodyType ?? "").trim();
+    const forgeArt = String(characterData.artStyleLabel ?? characterData.art_style_label ?? "").trim();
+    const bodyTypeLine = forgeBody
+      ? `- Body & silhouette (forge): **${forgeBody}** — this is authoritative; render species, scale, hybrid parts, and non-human traits to match it (not a default human silhouette unless the label is clearly humanoid-only).`
+      : `- Body type: any body type (slim, curvy, muscular, plus-size, petite, tall, short, etc.)`;
+    const artStyleLine = forgeArt
+      ? `- Art style (forge): ${forgeArt} — keep rendering discipline consistent with this choice.`
+      : null;
+
+    const characterDetailsBlock = [
+      "Character Details:",
+      bodyTypeLine,
+      artStyleLine,
+      `- Ethnicity / skin tone: ${characterData.ethnicity || "any"}`,
+      `- Age range: ${characterData.ageRange || "young adult"}`,
+      `- Hair: ${characterData.hair || "any style and color"}`,
+      `- Eyes: ${characterData.eyes || "expressive and beautiful"}`,
+      `- Clothing / outfit: ${characterData.clothing || "elegant, sexy, provocative clothing with lace, leather, straps, sheer fabrics, corsets, harnesses, or any style the character would wear"}`,
+      `- Pose: ${characterData.pose || "seductive and provocative pose"}`,
+      `- Expression / mood: ${characterData.expression || "seductive, confident, mysterious, or alluring"}`,
+      `- Overall vibe: ${characterData.vibe || "extremely sexy and artistic"}`,
+    ]
+      .filter((line): line is string => line != null && line !== "")
+      .join("\n");
 
     const refLines = [
       characterData.referencePalette

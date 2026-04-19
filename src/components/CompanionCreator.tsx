@@ -44,7 +44,12 @@ import {
   normalizeCompanionRarity,
 } from "@/lib/companionRarity";
 import { generateTcgStatBlock } from "@/lib/tcgStats";
-import { FORGE_BODY_TYPES, normalizeForgeBodyType } from "@/lib/forgeBodyTypes";
+import {
+  FORGE_BODY_GROUPS,
+  FORGE_BODY_TYPES,
+  forgeBodyCategoryIdForType,
+  normalizeForgeBodyType,
+} from "@/lib/forgeBodyTypes";
 import {
   FORGE_ART_STYLES,
   FORGE_SCENE_ATMOSPHERES,
@@ -322,13 +327,13 @@ Seeds:
 - notable traits: ${o.traits.length ? o.traits.join(", ") : "(none)"}
 
 Hard requirements:
-1) name: Grok invents ONE highly unique display name (species- and setting-themed; vary etymology — no recycled "Velvet / Storm / Night / Vale" spam). Epithets, court titles, monastery vow-names, relic codenames, or 2–4 word constructions. NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs. Do not pick from any fixed name roster — invent fresh. The operator can rename in the profile editor later.
+1) name: Grok invents ONE highly unique display name (species- and setting-themed; vary etymology — no recycled "Velvet / Storm / Night / Vale" spam). Use varied registers: epithets, court titles, monastery vow-names, relic codenames, mundane jobs + odd honorifics, geography, loanwords — not only dark-romance catalog tone. Do not lean on gratuitous "forge / lust / neon vice" phonemes unless seeds clearly ask. NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs. The operator can rename in the profile editor later.
 2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps.
 3) backstory: 3–4 paragraphs of premium dark-romance storytelling that weaves every archetype and vibe/theme into one coherent history — not a bullet recap of tags.
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
 5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences). Bold NSFW when persona fits; never end with meta questions ("Are you ready?", "Want to start?") — close on dialogue or action.
 6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
-7) image_prompt: one dense SFW paragraph for a vertical portrait card; must visually align with art style "${o.artStyle}" and environment "${o.sceneAtmosphere}" (lighting, wardrobe, and set pieces coherent with both).
+7) image_prompt: one dense SFW paragraph for a vertical portrait card; must match body type "${o.bodyType}" for silhouette and species (non-human / hybrid / anthro when selected — do not default to a generic human figure). Align with art style "${o.artStyle}" and environment "${o.sceneAtmosphere}" (lighting, wardrobe, set pieces).
 8) system_prompt: full chat charter for this persona.`;
 }
 
@@ -358,7 +363,9 @@ Seeds (mood only — do not concatenate these words into the name):
 - scene anchor: ${o.sceneAtmosphere}
 - body type: ${o.bodyType}
 - orientation: ${o.orientation}
-- notable traits: ${o.traits.length ? o.traits.join(", ") : "(none)"}`;
+- notable traits: ${o.traits.length ? o.traits.join(", ") : "(none)"}
+
+Name vibe: avoid gratuitous host-product / neon vice clichés unless seeds demand it; vary etymology and cultural register.`;
 }
 
 export default function CompanionCreator({ mode = "user", embedded = false, onForged }: CompanionCreatorProps) {
@@ -437,6 +444,17 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
 
   const personalityLabel = useMemo(() => personalitySelections.join(" · "), [personalitySelections]);
   const vibeThemeLabel = useMemo(() => vibeThemeSelections.join(" · "), [vibeThemeSelections]);
+
+  const bodyCategoryId = forgeBodyCategoryIdForType(bodyType);
+  const bodyTypesInCategory = useMemo(() => {
+    const g = FORGE_BODY_GROUPS.find((x) => x.id === bodyCategoryId);
+    return g ? [...g.types] : [...FORGE_BODY_TYPES];
+  }, [bodyCategoryId]);
+
+  const bodyTypeSelectValue = useMemo(() => {
+    const n = normalizeForgeBodyType(bodyType);
+    return (bodyTypesInCategory as readonly string[]).includes(n) ? n : bodyTypesInCategory[0]!;
+  }, [bodyType, bodyTypesInCategory]);
 
   const forgePreviewTier = useMemo((): CompanionRarity => {
     if (isAdmin) {
@@ -1552,32 +1570,62 @@ Hard requirements:
                     Portrait prompts merge your cinematic description with these choices (lighting, lens, mood, and
                     set dressing). Regenerate preview after changing them.
                   </p>
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                       Body type
                     </p>
-                    <Select
-                      value={bodyType}
-                      onValueChange={(v) => setBodyType(normalizeForgeBodyType(v))}
-                    >
-                      <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
-                        <SelectValue placeholder="Body type" />
-                      </SelectTrigger>
-                      <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
-                        {FORGE_BODY_TYPES.map((opt) => (
-                          <SelectItem
-                            key={opt}
-                            value={opt}
-                            className="focus:bg-white/10 focus:text-white cursor-pointer"
-                          >
-                            {opt}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
-                      Anatomy stays photoreal unless you pick a stylized art style or a listed body type that
-                      intentionally allows respectful variations.
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Category</p>
+                        <Select
+                          value={bodyCategoryId}
+                          onValueChange={(catId) => {
+                            const g = FORGE_BODY_GROUPS.find((x) => x.id === catId);
+                            if (g?.types?.length) setBodyType(normalizeForgeBodyType(g.types[0]!));
+                          }}
+                        >
+                          <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
+                            <SelectValue placeholder="Category" />
+                          </SelectTrigger>
+                          <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
+                            {FORGE_BODY_GROUPS.map((g) => (
+                              <SelectItem
+                                key={g.id}
+                                value={g.id}
+                                className="focus:bg-white/10 focus:text-white cursor-pointer"
+                              >
+                                {g.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Shape</p>
+                        <Select
+                          value={bodyTypeSelectValue}
+                          onValueChange={(v) => setBodyType(normalizeForgeBodyType(v))}
+                        >
+                          <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
+                            <SelectValue placeholder="Pick a body type" />
+                          </SelectTrigger>
+                          <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
+                            {bodyTypesInCategory.map((opt) => (
+                              <SelectItem
+                                key={opt}
+                                value={opt}
+                                className="focus:bg-white/10 focus:text-white cursor-pointer"
+                              >
+                                {opt}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      Portraits follow this body label: humanoid, anthro, hybrid, and non-human silhouettes are all
+                      supported — combine with art style; little-person and mobility options stay respectful and SFW.
                     </p>
                   </div>
                   <div>

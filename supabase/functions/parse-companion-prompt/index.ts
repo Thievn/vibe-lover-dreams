@@ -67,8 +67,9 @@ Always return data via the extract_companion_fields tool call.`;
 Per request, invent exactly ONE wholly original roster character. They may be male, female, non-binary, or any fantasy species or fusion you can justify — humans, elves, vampires, angels, demons, werewolves, aliens, androids, merfolk, dragons, anthro-inspired creatures, cosmic horrors, saints-gone-rogue, mech aces, wasteland poets, etc. Push novelty: combinations of aesthetics, eras, subcultures, and hobbies should never feel "samey".
 
 Naming (critical — players see this first; avoid “AI catalog sameness”):
-- Every character needs a DISTINCT name you could not mistake for another roster entry. Pull from varied etymologies: mythic epithets, invented compound sobriquets, hyphenated court titles, patronymics, celestial navigation jargon, relic codenames, tattoo-studio monikers, undercity aliases, monastery vow-names, hive-caste designations, etc.
+- Every character needs a DISTINCT name you could not mistake for another roster entry. Pull from varied etymologies: mythic epithets, invented compound sobriquets, hyphenated court titles, patronymics, celestial navigation jargon, relic codenames, tattoo-studio monikers, undercity aliases, monastery vow-names, hive-caste designations, mundane professions + odd honorifics, geographic accidents, sports or food idioms, loanwords from unrelated living languages, obsolete job titles, etc. — not only “dark romance” registers.
 - Species / origin must flavor the name (merfolk get brine / tide / reef phonemes; demons get furnace / vowel-heavy infernal cadence; elves get airy multi-syllable constructions; androids get serial-poetic labels; cosmic horrors get unpronounceable-but-evocative spellings).
+- Do NOT default to a “host product” or neon-magenta vice aesthetic in the name unless the operator’s seeds explicitly ask for that vibe. Avoid gratuitous “forge / lust / vice / neon sin-city” phonemes as the sole name flavor.
 - BANNED: overused romance-novel templates repeated across outputs (e.g. endless “Velvet / Raven / Storm / Night / Ash / Vale / Thorne / Cross / Noir” unless heavily subverted with a second unusual token). BANNED: two-word combos that differ only by swapping one stock adjective. BANNED: Forge-, Temp-, CC-, UUIDs, random alphanumeric slugs.
 - Prefer 2–4 word constructions OR a single rare compound (8–28 characters) that sounds like a person/entity, not a username.
 
@@ -82,11 +83,11 @@ Appearance: NEVER output the seed trait list as comma-separated keywords. Write 
 
 Backstory: literary dark-romance energy — scene, wound, want, friction, desire. Do NOT restate tags as a bullet recap; tell a story. Every paragraph must advance plot or emotional history (not a catalog of kinks).
 
-Tags: 8-14 strings — mix species/archetype, visual aesthetic, era, location vibe, and hobbies or obsessions (music, dueling, botany, street racing, relic hunting, tea ceremony, orbital sports, antiquarian books, DJ culture, courtroom drama, forge-craft…).
+Tags: 8-14 strings — mix species/archetype, visual aesthetic, era, location vibe, and hobbies or obsessions (music, dueling, botany, street racing, relic hunting, tea ceremony, orbital sports, antiquarian books, DJ culture, courtroom drama, artisan crafts…). Do not lean on one repeated “brand” theme across every tag unless seeds demand it.
 
 Kinks / interests bucket: 4-10 optional strings for dynamics & story kinks the character gravitates toward (aftercare, praise, rivalry-to-trust, voyeuristic tension, service top, found family, cosmic loneliness, discipline contracts, etc.) — think "what they're into" broadly, not only anatomy lists.
 
-image_prompt: one dense cinematic paragraph optimized for a vertical SFW portrait generator — species cues, silhouette, wardrobe, props echoing hobbies, lighting, lens mood, atmosphere, pose, micro-expression — strictly SFW for imagery (no nudity / no visible genitals / no explicit sex acts in the visual brief). Do NOT mention real apps, storefronts, or product/platform names, and do not describe neon signs, posters, tattoos, or title cards that would spell branding — keep the frame character-forward only.
+image_prompt: one dense cinematic paragraph optimized for a vertical SFW portrait generator — species cues, **body silhouette matching the chosen body type / species** (non-human, hybrid, or anthro when seeds say so — do not collapse to a generic human), wardrobe, props echoing hobbies, lighting, lens mood, atmosphere, pose, micro-expression — strictly SFW for imagery (no nudity / no visible genitals / no explicit sex acts in the visual brief). Do NOT mention real apps, storefronts, or product/platform names, and do not describe neon signs, posters, tattoos, or title cards that would spell branding — keep the frame character-forward only.
 
 system_prompt: full chat charter — voice, attitude, how they flirt, hard limits, safeword behavior, optional Lovense JSON convention when toys exist.
 
@@ -98,7 +99,8 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
       `You invent exactly ONE display name for a premium adult fantasy AI companion. The operator sends high-entropy random seeds — use them only as loose flavor for tone and mythic register; do NOT concatenate seed words into the name.
 
 Rules:
-- 2–4 words OR one rare compound (8–28 characters). Pull from varied etymologies: mythic epithets, invented compounds, hyphenated court titles, relic codenames, undercity aliases, monastery vow-names, hive-caste designations, serial-poetic labels, unpronounceable-but-evocative spellings, etc.
+- 2–4 words OR one rare compound (8–28 characters). Pull from varied etymologies: mythic epithets, invented compounds, hyphenated court titles, relic codenames, undercity aliases, monastery vow-names, hive-caste designations, serial-poetic labels, unpronounceable-but-evocative spellings, mundane professions, geographic accidents, non-English loanwords, etc. — vary the register; not every name should sound like the same dark-romance catalog.
+- Do NOT default to “host product” / neon vice / sin-city clichés in the name unless the seeds clearly ask for that aesthetic.
 - The name must feel distinct from generic romance-catalog entries — weirder and more specific than "Firstname Lastname" clichés.
 - BANNED: Forge-*, Temp-*, CC-*, UUIDs, random alphanumeric slugs, usernames.
 - BANNED: leaning on a single stock token (Velvet, Raven, Storm, Night, Ash, Vale, Thorne, Cross, Noir, Sable, Luna) as the only memorable part unless paired with a highly unusual second token.
