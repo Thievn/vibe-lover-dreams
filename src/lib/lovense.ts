@@ -8,6 +8,18 @@ function logicalErrorFromDeviceInvokeData(data: unknown): string | null {
   const d = data as Record<string, unknown>;
   if (typeof d.error === "string" && d.error.trim()) return d.error.trim();
   if (d.success === false && typeof d.message === "string") return d.message.trim();
+
+  const inner = d.result;
+  if (inner && typeof inner === "object") {
+    const r = inner as Record<string, unknown>;
+    if (r.result === false && typeof r.message === "string" && r.message.trim()) {
+      return r.message.trim();
+    }
+    if (typeof r.code === "number" && r.code >= 400) {
+      if (typeof r.message === "string" && r.message.trim()) return r.message.trim();
+      return `Lovense error (${r.code})`;
+    }
+  }
   return null;
 }
 
@@ -30,7 +42,13 @@ export interface LovenseCommand {
   command: "vibrate" | "thrust" | "pulse" | "rotate" | "stop" | "pattern";
   intensity: number;
   duration?: number;
+  /** Preset name (pulse, wave, …) when patternSubtype is preset. */
   pattern?: string;
+  patternSubtype?: "preset" | "custom";
+  /** Lovense Standard API Pattern command: rule string, e.g. V:1;F:v;S:500# */
+  patternRule?: string;
+  /** Semicolon-separated strength steps 0–20 */
+  patternStrength?: string;
   /** Lovense `device_uid` — which toy to target (required when multiple are linked). */
   toyId?: string;
 }
@@ -101,6 +119,9 @@ export const sendCommand = async (userId: string, command: LovenseCommand): Prom
         intensity: Math.min(100, Math.max(0, command.intensity)),
         duration: command.duration ?? 5000,
         pattern: command.pattern,
+        patternSubtype: command.patternSubtype,
+        patternRule: command.patternRule,
+        patternStrength: command.patternStrength,
         deviceUid: targetUid,
       },
     });

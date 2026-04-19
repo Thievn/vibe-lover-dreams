@@ -233,7 +233,8 @@ export default function XMarketingHub() {
   const [selectedSurface, setSelectedSurface] = useState<MergedMarketableSurface | null>(null);
   const [selected, setSelected] = useState<DbCompanion | null>(null);
 
-  const [rarityFilter, setRarityFilter] = useState<CompanionRarity | "all">("all");
+  /** Start unset so the roster does not dump every companion until you choose a tier or "all". */
+  const [rarityFilter, setRarityFilter] = useState<CompanionRarity | "all" | "unset">("unset");
   const [sortBy, setSortBy] = useState<"newest" | "most_saved" | "name">("newest");
   const [tagFilter, setTagFilter] = useState("");
   const [kinkFilter, setKinkFilter] = useState("");
@@ -362,6 +363,9 @@ export default function XMarketingHub() {
   }, [roster]);
 
   const filteredCompanions = useMemo(() => {
+    if (rarityFilter === "unset") {
+      return [];
+    }
     const q = search.trim().toLowerCase();
     const tf = tagFilter.trim().toLowerCase();
     const kf = kinkFilter.trim().toLowerCase();
@@ -700,7 +704,7 @@ export default function XMarketingHub() {
           ) : null}
 
           {hubTab === "compose" ? (
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_min(440px,100%)] gap-6 xl:gap-8 items-start">
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_min(400px,100%)] gap-4 xl:gap-6 items-start">
             {/* LEFT */}
             <div className="space-y-6 min-w-0">
               <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 md:p-5 space-y-4">
@@ -761,10 +765,10 @@ export default function XMarketingHub() {
               </div>
 
               <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-[0.28em] text-muted-foreground mb-3">
+                <h3 className="text-[10px] font-bold uppercase tracking-[0.28em] text-muted-foreground mb-2">
                   Marketable surfaces · grows with the codebase
                 </h3>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
                   {mergedSurfaces.map((s) => {
                     const active = selectedSurface?.id === s.id;
                     return (
@@ -780,29 +784,29 @@ export default function XMarketingHub() {
                           }
                         }}
                         className={cn(
-                          "text-left rounded-2xl border p-4 transition-all hover:border-primary/35 cursor-pointer",
+                          "text-left rounded-xl border p-3 transition-all hover:border-primary/35 cursor-pointer",
                           active ? "border-primary/55 bg-primary/10 ring-1 ring-primary/25" : "border-border/60 bg-black/45",
                         )}
                       >
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-[9px] uppercase tracking-widest text-muted-foreground">{s.category}</p>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="text-[8px] uppercase tracking-widest text-muted-foreground">{s.category}</p>
                           {!s.reviewed ? (
-                            <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/50 text-amber-200/90 bg-amber-500/10">
+                            <span className="text-[7px] font-bold uppercase tracking-wider px-1 py-0.5 rounded border border-amber-500/50 text-amber-200/90 bg-amber-500/10">
                               Unreviewed
                             </span>
                           ) : null}
                         </div>
-                        <p className="font-gothic text-base text-white mt-1">{s.label}</p>
-                        <p className="text-[11px] text-muted-foreground mt-2 line-clamp-3 leading-snug">{s.pitch}</p>
+                        <p className="font-gothic text-sm text-white mt-0.5 line-clamp-2">{s.label}</p>
+                        <p className="text-[10px] text-muted-foreground mt-1.5 line-clamp-2 leading-snug">{s.pitch}</p>
                         <button
                           type="button"
-                          className="mt-3 inline-flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline"
+                          className="mt-2 inline-flex items-center gap-1 text-[9px] font-semibold text-primary hover:underline"
                           onClick={(e) => {
                             e.stopPropagation();
                             window.open(`${siteOrigin}${s.path}`, "_blank", "noopener,noreferrer");
                           }}
                         >
-                          Open in app <ExternalLink className="h-3 w-3" />
+                          Open <ExternalLink className="h-3 w-3" />
                         </button>
                       </div>
                     );
@@ -813,30 +817,33 @@ export default function XMarketingHub() {
               <div
                 ref={companionPickRef}
                 id="x-marketing-companion-pick"
-                className="rounded-2xl border border-border/70 bg-black/40 p-4 space-y-4 scroll-mt-6"
+                className="rounded-2xl border border-border/70 bg-black/40 p-3 md:p-4 space-y-3 scroll-mt-6"
               >
                 <div>
                   <h3 className="text-[10px] font-bold uppercase tracking-[0.28em] text-muted-foreground flex items-center gap-2">
                     <UserCircle2 className="h-4 w-4 text-primary" style={{ color: NEON }} aria-hidden />
                     Who is this post about?
                   </h3>
-                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed max-w-3xl">
-                    Selection is this grid (not a menu on the right): use filters, then click{" "}
-                    <strong className="text-foreground/90">Use in Tweet</strong> on a card. Includes{" "}
-                    <strong className="text-foreground/90">catalog stock</strong> and{" "}
-                    <strong className="text-foreground/90">Forge</strong> personas — scroll here from the top of the page if
-                    the right panel told you to pick someone first.
+                  <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed max-w-3xl">
+                    Pick a <strong className="text-foreground/90">rarity</strong> (or all) to load cards — then{" "}
+                    <strong className="text-foreground/90">Use in Tweet</strong>. Catalog + Forge personas.
                   </p>
                 </div>
-                <div className="flex flex-col xl:flex-row gap-3 flex-wrap xl:items-end">
-                  <div className="flex flex-col gap-1 min-w-[8rem]">
+                <div className="flex flex-col xl:flex-row gap-2 flex-wrap xl:items-end">
+                  <div className="flex flex-col gap-1 min-w-[10rem]">
                     <label className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Rarity</label>
                     <select
                       value={rarityFilter}
-                      onChange={(e) => setRarityFilter(e.target.value as CompanionRarity | "all")}
-                      className="rounded-xl bg-black/50 border border-border px-2 py-2 text-sm text-foreground"
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === "unset") setRarityFilter("unset");
+                        else if (v === "all") setRarityFilter("all");
+                        else setRarityFilter(v as CompanionRarity);
+                      }}
+                      className="rounded-xl bg-black/50 border border-border px-2 py-1.5 text-sm text-foreground"
                     >
-                      <option value="all">All</option>
+                      <option value="unset">Choose rarity to browse…</option>
+                      <option value="all">All rarities</option>
                       {COMPANION_RARITIES.map((r) => (
                         <option key={r} value={r}>
                           {r}
@@ -849,7 +856,7 @@ export default function XMarketingHub() {
                     <select
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value as "newest" | "most_saved" | "name")}
-                      className="rounded-xl bg-black/50 border border-border px-2 py-2 text-sm text-foreground"
+                      className="rounded-xl bg-black/50 border border-border px-2 py-1.5 text-sm text-foreground"
                     >
                       <option value="newest">Newest</option>
                       <option value="most_saved">Most saved</option>
@@ -862,7 +869,7 @@ export default function XMarketingHub() {
                       value={tagFilter}
                       onChange={(e) => setTagFilter(e.target.value)}
                       list="xhub-tags-v2"
-                      className="rounded-xl bg-black/50 border border-border px-2 py-2 text-sm"
+                      className="rounded-xl bg-black/50 border border-border px-2 py-1.5 text-sm"
                     />
                   </div>
                   <div className="flex flex-col gap-1 flex-1 min-w-[10rem]">
@@ -871,7 +878,7 @@ export default function XMarketingHub() {
                       value={kinkFilter}
                       onChange={(e) => setKinkFilter(e.target.value)}
                       list="xhub-kinks-v2"
-                      className="rounded-xl bg-black/50 border border-border px-2 py-2 text-sm"
+                      className="rounded-xl bg-black/50 border border-border px-2 py-1.5 text-sm"
                     />
                   </div>
                   <div className="flex flex-col gap-1 flex-[2] min-w-[12rem]">
@@ -880,7 +887,7 @@ export default function XMarketingHub() {
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                       placeholder="Name, tagline…"
-                      className="rounded-xl bg-black/50 border border-border px-2 py-2 text-sm"
+                      className="rounded-xl bg-black/50 border border-border px-2 py-1.5 text-sm"
                     />
                   </div>
                 </div>
@@ -896,16 +903,20 @@ export default function XMarketingHub() {
                 </datalist>
 
                 {rosterLoading ? (
-                  <div className="flex justify-center py-16 text-muted-foreground gap-2">
-                    <Loader2 className="h-6 w-6 animate-spin" /> Loading roster…
+                  <div className="flex justify-center py-12 text-muted-foreground gap-2 text-sm">
+                    <Loader2 className="h-5 w-5 animate-spin" /> Loading roster…
                   </div>
+                ) : rarityFilter === "unset" ? (
+                  <p className="text-sm text-muted-foreground text-center py-10 px-4 rounded-xl border border-dashed border-border/60 bg-black/30">
+                    Choose a <strong className="text-foreground/90">rarity</strong> or <strong className="text-foreground/90">All rarities</strong> above to
+                    load cards — keeps this panel scannable.
+                  </p>
                 ) : filteredCompanions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-14 px-4 rounded-xl border border-dashed border-border/60 bg-black/30">
-                    No companions match these filters. Clear search, tags, or kinks — or widen rarity — to see cards with{" "}
-                    <strong className="text-foreground/90">Use in Tweet</strong>.
+                  <p className="text-sm text-muted-foreground text-center py-10 px-4 rounded-xl border border-dashed border-border/60 bg-black/30">
+                    No companions match these filters. Clear search, tags, or kinks — or pick another rarity.
                   </p>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-2.5">
                     {filteredCompanions.map((c, idx) => {
                       const rarity = normalizeCompanionRarity(c.rarity);
                       const img = galleryStaticPortraitUrl(c, c.id);
@@ -915,13 +926,13 @@ export default function XMarketingHub() {
                           key={c.id}
                           initial={{ opacity: 0, y: 8 }}
                           animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: Math.min(idx * 0.015, 0.25) }}
+                          transition={{ delay: Math.min(idx * 0.012, 0.2) }}
                           className={cn(
-                            "rounded-2xl border overflow-visible flex flex-col bg-black/50 backdrop-blur-md p-1.5 max-md:p-1",
-                            selected?.id === c.id ? "border-primary/60 ring-2 ring-primary/20" : "border-border/60 hover:border-primary/30",
+                            "rounded-xl border overflow-visible flex flex-col bg-black/50 backdrop-blur-md p-1 max-md:p-0.5",
+                            selected?.id === c.id ? "border-primary/60 ring-1 ring-primary/25" : "border-border/60 hover:border-primary/30",
                           )}
                         >
-                          <div className="relative aspect-[3/4] w-full">
+                          <div className="relative aspect-[3/4] max-h-[min(52vh,420px)] w-full mx-auto">
                             <TierHaloPortraitFrame
                               variant="card"
                               frameStyle="clean"
@@ -943,35 +954,35 @@ export default function XMarketingHub() {
                                   {c.name.charAt(0)}
                                 </span>
                               )}
-                              <div className="absolute left-2 top-2 z-[4] flex flex-wrap gap-1">
-                                <span className="rounded-md bg-black/65 border border-white/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white/90">
+                              <div className="absolute left-1.5 top-1.5 z-[4] flex flex-wrap gap-0.5">
+                                <span className="rounded bg-black/65 border border-white/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-white/90">
                                   {rarity}
                                 </span>
                                 {c.id.startsWith("cc-") ? (
-                                  <span className="rounded-md bg-black/65 border border-[#FF2D7B]/40 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#ffb8d9]">
+                                  <span className="rounded bg-black/65 border border-[#FF2D7B]/40 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-[#ffb8d9]">
                                     Forge
                                   </span>
                                 ) : null}
                               </div>
                               {saves > 0 ? (
-                                <div className="absolute right-2 top-2 z-[4] rounded-md bg-black/65 border border-primary/30 px-2 py-0.5 text-[9px] font-bold text-primary">
-                                  {saves} saves
+                                <div className="absolute right-1.5 top-1.5 z-[4] rounded bg-black/65 border border-primary/30 px-1.5 py-0.5 text-[8px] font-bold text-primary">
+                                  {saves}
                                 </div>
                               ) : null}
-                              <div className="absolute inset-x-0 bottom-0 z-[4] bg-gradient-to-t from-black via-black/70 to-transparent p-3">
-                                <p className="font-gothic text-sm font-bold text-white line-clamp-2 leading-tight">{c.name}</p>
-                                <p className="text-[11px] text-white/70 line-clamp-2 mt-0.5">{c.tagline}</p>
+                              <div className="absolute inset-x-0 bottom-0 z-[4] bg-gradient-to-t from-black via-black/70 to-transparent p-2">
+                                <p className="font-gothic text-xs font-bold text-white line-clamp-2 leading-tight">{c.name}</p>
+                                <p className="text-[10px] text-white/70 line-clamp-2 mt-0.5">{c.tagline}</p>
                               </div>
                             </TierHaloPortraitFrame>
                           </div>
-                          <div className="p-3 border-t border-white/[0.06]">
+                          <div className="p-2 border-t border-white/[0.06]">
                             <button
                               type="button"
                               onClick={() => useInTweet(c)}
-                              className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-primary-foreground shadow-lg border border-primary/35"
+                              className="w-full flex items-center justify-center gap-1.5 rounded-lg py-2 text-[11px] font-bold text-primary-foreground shadow-md border border-primary/35"
                               style={{ background: `linear-gradient(135deg, ${NEON}, hsl(280 45% 38%))` }}
                             >
-                              <Zap className="h-4 w-4 shrink-0" />
+                              <Zap className="h-3.5 w-3.5 shrink-0" />
                               Use in Tweet
                             </button>
                           </div>

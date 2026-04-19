@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
-import { Calendar, ExternalLink, Loader2, Radio, Send, Share2 } from "lucide-react";
+import { AlertTriangle, Calendar, ExternalLink, Loader2, Radio, Send, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -63,6 +63,8 @@ export function MarketingHubZernioPanels({ hubTab, onHubTab, variations, fullTwe
       return data;
     },
   });
+
+  const xAccountSaved = Boolean(settingsRow?.zernio_twitter_account_id?.trim());
 
   useEffect(() => {
     if (settingsRow?.zernio_twitter_account_id != null) {
@@ -206,7 +208,11 @@ export function MarketingHubZernioPanels({ hubTab, onHubTab, variations, fullTwe
         <p className="text-sm text-muted-foreground leading-relaxed">
           Add{" "}
           <code className="text-primary/90">ZERNIO_API_KEY</code> in Supabase → Edge Functions → <code>zernio-social</code> secrets. Connect your X account in
-          the Zernio dashboard, then paste the Twitter <strong>account id</strong> here.
+          the Zernio dashboard, then paste the Twitter <strong>account id</strong> here and click <strong>Save settings</strong>.
+        </p>
+        <p className="text-xs text-amber-200/90 rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2 leading-relaxed">
+          <strong className="text-amber-100">Test connection</strong> only checks your API key and that Zernio responds.{" "}
+          <strong className="text-amber-100">Post / Schedule</strong> also needs the X account id saved in the field below — the key alone is not enough.
         </p>
         <a
           href="https://docs.zernio.com/posts/create-post"
@@ -270,6 +276,17 @@ export function MarketingHubZernioPanels({ hubTab, onHubTab, variations, fullTwe
   if (hubTab === "queue") {
     return (
       <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 md:p-6 space-y-4">
+        {!xAccountSaved ? (
+          <div className="flex gap-2 rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-xs text-foreground/95">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" aria-hidden />
+            <p>
+              <strong className="text-amber-100">Process pending</strong> posts to X using your saved Zernio Twitter account id.{" "}
+              <button type="button" className="font-bold text-primary hover:underline" onClick={() => onHubTab("integrations")}>
+                Set it in Zernio →
+              </button>
+            </p>
+          </div>
+        ) : null}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <p className="font-gothic text-lg text-white">Automation queue</p>
@@ -287,9 +304,10 @@ export function MarketingHubZernioPanels({ hubTab, onHubTab, variations, fullTwe
             </button>
             <button
               type="button"
-              disabled={busy !== null}
+              disabled={busy !== null || !xAccountSaved}
+              title={!xAccountSaved ? "Save X account id in Zernio tab first" : undefined}
               onClick={() => void processQueue()}
-              className="inline-flex items-center gap-2 rounded-xl border border-primary/40 bg-primary/15 px-4 py-2 text-xs font-bold text-primary"
+              className="inline-flex items-center gap-2 rounded-xl border border-primary/40 bg-primary/15 px-4 py-2 text-xs font-bold text-primary disabled:opacity-40"
             >
               {busy === "process" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               Process pending
@@ -345,8 +363,30 @@ export function MarketingHubZernioPanels({ hubTab, onHubTab, variations, fullTwe
 
   /* compose tab: send bar */
   return (
-    <div className="rounded-2xl border border-primary/25 bg-black/45 p-4 space-y-3">
+    <div className="rounded-2xl border border-primary/25 bg-black/45 p-3 sm:p-4 space-y-3">
       <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Post to X via Zernio</p>
+
+      {!xAccountSaved ? (
+        <div className="flex gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-xs text-foreground/95 leading-snug">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-destructive mt-0.5" aria-hidden />
+          <div>
+            <p className="font-semibold text-destructive">X account id not saved</p>
+            <p className="text-muted-foreground mt-1">
+              Open the <strong className="text-foreground/90">Zernio</strong> tab, paste your Twitter account id from the Zernio dashboard (use{" "}
+              <strong>List profiles</strong> and check the JSON in the console), then <strong>Save settings</strong>.{" "}
+              <strong>Test connection</strong> succeeding does not store this id.
+            </p>
+            <button
+              type="button"
+              onClick={() => onHubTab("integrations")}
+              className="mt-2 text-[11px] font-bold text-primary hover:underline"
+            >
+              Go to Zernio settings →
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2">
         <label className="text-xs text-muted-foreground">Variation</label>
         <select
@@ -362,7 +402,8 @@ export function MarketingHubZernioPanels({ hubTab, onHubTab, variations, fullTwe
         </select>
         <button
           type="button"
-          disabled={busy !== null || !variations?.length}
+          disabled={busy !== null || !variations?.length || !xAccountSaved}
+          title={!xAccountSaved ? "Save X account id under the Zernio tab first" : undefined}
           onClick={() => void postNow()}
           className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-primary-foreground border border-primary/40 disabled:opacity-40"
           style={{ background: `linear-gradient(135deg, ${NEON}, hsl(280 40% 36%))` }}
@@ -383,7 +424,8 @@ export function MarketingHubZernioPanels({ hubTab, onHubTab, variations, fullTwe
         </div>
         <button
           type="button"
-          disabled={busy !== null || !scheduleLocal || !variations?.length}
+          disabled={busy !== null || !scheduleLocal || !variations?.length || !xAccountSaved}
+          title={!xAccountSaved ? "Save X account id under the Zernio tab first" : undefined}
           onClick={() => {
             const d = new Date(scheduleLocal);
             if (Number.isNaN(d.getTime())) {
@@ -398,6 +440,11 @@ export function MarketingHubZernioPanels({ hubTab, onHubTab, variations, fullTwe
           Schedule
         </button>
       </div>
+      {xAccountSaved ? (
+        <p className="text-[10px] text-muted-foreground">
+          Posting as Zernio account id <code className="text-primary/90">{settingsRow?.zernio_twitter_account_id?.trim()}</code>
+        </p>
+      ) : null}
     </div>
   );
 }
