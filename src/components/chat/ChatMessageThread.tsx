@@ -33,6 +33,9 @@ type Props = {
   imageGenPending?: { userMessageId: string; prompt: string } | null;
   onConfirmPendingImage?: () => void;
   pendingImageButtonLabel?: string;
+  /** Companion / pattern is actively driving the toy (sustained session). */
+  toyDriveActive?: boolean;
+  onStopToyDrive?: () => void;
 };
 
 export function ChatMessageThread({
@@ -56,6 +59,8 @@ export function ChatMessageThread({
   imageGenPending = null,
   onConfirmPendingImage,
   pendingImageButtonLabel = "Generate image",
+  toyDriveActive = false,
+  onStopToyDrive,
 }: Props) {
   const rarity = normalizeCompanionRarity(companion.rarity);
 
@@ -180,14 +185,25 @@ export function ChatMessageThread({
             )}
 
             {msg.lovenseCommand && (
-              <div className="mt-2 px-3 py-2 rounded-xl bg-accent/10 border border-accent/20 text-accent text-xs flex items-center gap-2">
+              <div className="mt-2 px-3 py-2 rounded-xl bg-accent/10 border border-accent/20 text-accent text-xs flex flex-wrap items-center gap-2">
                 <Zap className="h-3 w-3 shrink-0" />
                 {hasDevice ? (
                   <>
-                    {labelForLovenseCmd(msg.lovenseCommand as Record<string, unknown>)}:{" "}
-                    {String((msg.lovenseCommand as { command?: unknown }).command)} at{" "}
-                    {(msg.lovenseCommand as { intensity?: number }).intensity}%
-                    <span className="text-accent ml-1">✓ Sent</span>
+                    <span>
+                      {labelForLovenseCmd(msg.lovenseCommand as Record<string, unknown>)}:{" "}
+                      {String((msg.lovenseCommand as { command?: unknown }).command)} at{" "}
+                      {(msg.lovenseCommand as { intensity?: number }).intensity}%
+                      <span className="text-accent ml-1">✓ Active</span>
+                    </span>
+                    {toyDriveActive && onStopToyDrive ? (
+                      <button
+                        type="button"
+                        onClick={() => onStopToyDrive()}
+                        className="ml-auto rounded-lg border border-accent/40 bg-accent/15 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-accent hover:bg-accent/25 touch-manipulation"
+                      >
+                        Stop toy
+                      </button>
+                    ) : null}
                   </>
                 ) : (
                   <>
@@ -198,6 +214,17 @@ export function ChatMessageThread({
                 )}
               </div>
             )}
+
+            {msg.videoUrl ? (
+              <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-black/50">
+                <video
+                  src={msg.videoUrl}
+                  controls
+                  playsInline
+                  className="max-h-[min(70vh,28rem)] w-full object-contain"
+                />
+              </div>
+            ) : null}
 
             {msg.imageUrl && msg.generatedImageId ? (
               <div className="mt-2 space-y-1">

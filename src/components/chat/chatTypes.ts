@@ -12,4 +12,6 @@ export interface ChatMessage {
   savedToPersonalGallery?: boolean;
   /** Persisted replay URL from Grok TTS (assistant text lines). */
   tts_audio_url?: string | null;
+  /** Paid chat video clip (assistant). */
+  videoUrl?: string | null;
 }

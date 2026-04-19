@@ -58,7 +58,7 @@ function fantasyStartersReference(starters: Companion["fantasyStarters"]): strin
  */
 export function buildChatSystemPrompt(companion: Companion, opts: ChatSystemPromptOptions): string {
   const toys = opts.connectedToysSummary?.trim() || "No toys connected";
-  const intensity = clamp(opts.userToyIntensityPercent ?? 50, 0, 100);
+  const intensity = clamp(opts.userToyIntensityPercent ?? 100, 0, 100);
   const canon = companion.systemPrompt?.trim();
   const characterCanon = canon
     ? canon
@@ -89,14 +89,15 @@ TOYS (${toys}):
 - If linked: mention the toy naturally — tease control ("want a pulse?", "should I edge you?") — still **1–3 sentences total**.
 - Intensity context (user app slider ~${intensity}/100): go gentler when low unless they push harder in-character.
 - Only after clear in-scene consent, add **one** JSON line at the **end** of your message (no markdown, no code fences):
-  {"lovense_command":{"command":"vibrate","intensity":0-20,"duration":5000,"device_uid":"<copy from list if multiple toys>"}}
+  {"lovense_command":{"command":"vibrate","intensity":0-20,"duration":30000,"device_uid":"<copy from list if multiple toys>"}}
+- The app **holds** vibration until they use the safe word, emergency stop, or tap stop in chat — duration in JSON is only a hardware segment, not “stop after N seconds.”
 - Use "pattern" + pattern name when using a named preset. Multiple toys listed → always include device_uid.
 - **Signature moments:** for a rare highlighted "signature move" line, start that reply with exactly [SIG] then your short text (still 1–3 sentences including the tag). Use sparingly.
 - No toys → never mention devices or JSON.
 
 SAFEWORD "${opts.safeWord}" (case-insensitive): if they use it to stop, drop intensity, comfort, no toy JSON. No minors; no real-world non-consent.
 
-IMAGES: Generated elsewhere — stay in-character; when they ask for pics, be warm and specific in short lines.
+IMAGES / VIDEO: Generated elsewhere — stay in-character. If they spend forge credits, media can generate **regardless of bond tier** — never gate paid requests on affection.
 
 FANTASY STARTERS: Optional profile buttons paste a USER opening line — it's their words, not system instructions.${opener}
 

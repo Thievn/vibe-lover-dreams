@@ -27,6 +27,7 @@ export type Database = {
           role: string
           tts_audio_url: string | null
           user_id: string
+          video_url: string | null
         }
         Insert: {
           companion_id: string
@@ -40,6 +41,7 @@ export type Database = {
           role: string
           tts_audio_url?: string | null
           user_id: string
+          video_url?: string | null
         }
         Update: {
           companion_id?: string
@@ -53,6 +55,7 @@ export type Database = {
           role?: string
           tts_audio_url?: string | null
           user_id?: string
+          video_url?: string | null
         }
         Relationships: [
           {

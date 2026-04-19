@@ -31,7 +31,14 @@ import {
 } from "@/lib/lovense";
 import { buildChatSystemPrompt } from "@/lib/companionSystemPrompts";
 import { useCompanionVibrationPatterns, type CompanionVibrationPatternRow } from "@/hooks/useCompanionVibrationPatterns";
-import { parseVibrationPayload, payloadToLovenseCommand } from "@/lib/vibrationPatternPayload";
+import { payloadToLovenseCommand } from "@/lib/vibrationPatternPayload";
+import { createSustainedLovenseSession } from "@/lib/sustainedLovenseSession";
+import {
+  getChatSessionMode,
+  setChatSessionMode as persistChatSessionMode,
+  type ChatSessionMode,
+} from "@/lib/chatSessionMode";
+import { buildLiveVoiceSystemPrompt } from "@/lib/liveVoiceSystemPrompt";
 import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
 import {
   inferForgeBodyTypeFromAppearance,
@@ -61,6 +68,7 @@ import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFr
 import { useLovensePairing } from "@/hooks/useLovensePairing";
 import { useWindowVisibleRefresh } from "@/hooks/useWindowVisibleRefresh";
 import {
+  CHAT_VIDEO_TOKEN_COST,
   FAB_SELFIE,
   FREE_NSFW_CHAT_IMAGES,
   getChatAutoSpendImages,
@@ -70,6 +78,10 @@ import {
   resolveFabDisplay,
   setChatAutoSpendImages,
 } from "@/lib/chatImageSettings";
+import { invokeGenerateChatVideo } from "@/lib/invokeGenerateChatVideo";
+import { ChatModeToggle } from "@/components/chat/ChatModeToggle";
+import { LiveVoicePanel } from "@/components/chat/LiveVoicePanel";
+import { ChatMediaRequestBar } from "@/components/chat/ChatMediaRequestBar";
 import {
   advanceChatAffectionState,
   buildAffectionLevelUpCopy,
@@ -131,10 +143,11 @@ const Chat = () => {
   const [ttsLoadingId, setTtsLoadingId] = useState<string | null>(null);
   const [ttsPlayingId, setTtsPlayingId] = useState<string | null>(null);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
-  const [intensity, setIntensity] = useState<number>(() => parseInt(localStorage.getItem("lustforge-intensity") || "50"));
   const [sendingVibrationId, setSendingVibrationId] = useState<string | null>(null);
   const [livePatternId, setLivePatternId] = useState<string | null>(null);
-  const livePatternClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sustainedToySessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
+  const [toyDriveActive, setToyDriveActive] = useState(false);
+  const [sessionMode, setSessionMode] = useState<ChatSessionMode>(() => getChatSessionMode());
   const [toyUtilityBusy, setToyUtilityBusy] = useState(false);
   const [historyReady, setHistoryReady] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -278,14 +291,19 @@ const Chat = () => {
     companion?.id,
   );
 
-  const clearLivePatternTimer = useCallback(() => {
-    if (livePatternClearTimerRef.current) {
-      clearTimeout(livePatternClearTimerRef.current);
-      livePatternClearTimerRef.current = null;
-    }
+  const stopSustainedToy = useCallback(async () => {
+    const s = sustainedToySessionRef.current;
+    sustainedToySessionRef.current = null;
+    if (s) await s.stop();
+    setLivePatternId(null);
+    setToyDriveActive(false);
   }, []);
 
-  useEffect(() => () => clearLivePatternTimer(), [clearLivePatternTimer]);
+  useEffect(() => {
+    return () => {
+      void stopSustainedToy();
+    };
+  }, [stopSustainedToy]);
 
   const triggerCompanionVibration = async (row: CompanionVibrationPatternRow) => {
     if (!user || !hasDevice) {
@@ -301,14 +319,7 @@ const Chat = () => {
     if (livePatternId === row.id) {
       setSendingVibrationId(row.id);
       try {
-        await sendCommand(user.id, {
-          command: "stop",
-          intensity: 0,
-          duration: 0,
-          toyId: target,
-        });
-        clearLivePatternTimer();
-        setLivePatternId(null);
+        await stopSustainedToy();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Could not stop the pattern.");
       } finally {
@@ -324,15 +335,11 @@ const Chat = () => {
     }
     setSendingVibrationId(row.id);
     try {
-      await sendCommand(user.id, { ...cmd, toyId: target });
-      clearLivePatternTimer();
+      await stopSustainedToy();
+      const session = createSustainedLovenseSession(user.id, { ...cmd, toyId: target });
+      sustainedToySessionRef.current = session;
       setLivePatternId(row.id);
-      const parsed = parseVibrationPayload(row.vibration_pattern_pool?.payload);
-      const ms = Math.min(Math.max((parsed?.duration ?? 8000) + 1200, 4000), 120_000);
-      livePatternClearTimerRef.current = setTimeout(() => {
-        setLivePatternId((cur) => (cur === row.id ? null : cur));
-        livePatternClearTimerRef.current = null;
-      }, ms);
+      setToyDriveActive(true);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not send to device.");
     } finally {
@@ -376,10 +383,6 @@ const Chat = () => {
     useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  useEffect(() => {
-    localStorage.setItem("lustforge-intensity", intensity.toString());
-  }, [intensity]);
 
   const checkDevice = useCallback(async (userId: string) => {
     const toys = await getToys(userId);
@@ -759,6 +762,7 @@ const Chat = () => {
           image_url,
           image_prompt,
           generated_image_id,
+          video_url,
           generated_images ( saved_to_companion_gallery, saved_to_personal_gallery )
         `,
         )
@@ -790,6 +794,7 @@ const Chat = () => {
                 ? (gi?.saved_to_companion_gallery ?? true)
                 : undefined,
               savedToPersonalGallery: hasImage ? Boolean(gi?.saved_to_personal_gallery) : undefined,
+              videoUrl: m.video_url ?? undefined,
             };
           }),
         );
@@ -818,12 +823,20 @@ const Chat = () => {
                 `• ${t.enabled ? "ENABLED" : "paused"} — ${t.name} (${t.type}) — device_uid="${t.id}"`,
             )
             .join("\n");
-    const pct = parseInt(localStorage.getItem("lustforge-intensity") || "50", 10);
+    const pct = parseInt(localStorage.getItem("lustforge-intensity") || "100", 10);
+    if (sessionMode === "live_voice") {
+      return buildLiveVoiceSystemPrompt(companion, {
+        safeWord,
+        connectedToysSummary: toyBlock,
+        userToyIntensityPercent: Number.isFinite(pct) ? pct : 100,
+        chatAffectionTier: relationship?.chat_affection_level ?? 1,
+      });
+    }
     return buildChatSystemPrompt(companion, {
       safeWord,
       connectedToysSummary: toyBlock,
       openingFantasyStarterTitle: openingFantasyStarterTitleRef.current,
-      userToyIntensityPercent: Number.isFinite(pct) ? pct : 50,
+      userToyIntensityPercent: Number.isFinite(pct) ? pct : 100,
       chatAffectionTier: relationship?.chat_affection_level ?? 1,
     });
   };
@@ -848,6 +861,14 @@ const Chat = () => {
 
   const executeDeviceCommand = async (command: any) => {
     if (!user || !hasDevice || !command) return;
+
+    const baseCmdEarly = String(command.command || "vibrate").toLowerCase();
+    if (baseCmdEarly === "stop") {
+      await stopSustainedToy();
+      return;
+    }
+
+    await stopSustainedToy();
 
     const intensityLimit = parseInt(localStorage.getItem("lustforge-intensity") || "100", 10);
     let raw = Number(command.intensity ?? 50);
@@ -878,7 +899,9 @@ const Chat = () => {
           };
 
     try {
-      await sendCommand(user.id, lovenseCommand);
+      const session = createSustainedLovenseSession(user.id, lovenseCommand);
+      sustainedToySessionRef.current = session;
+      setToyDriveActive(true);
     } catch (err: unknown) {
       console.error("Device command error:", err);
       toast.error(err instanceof Error ? err.message : "Failed to send command to device");
@@ -910,6 +933,7 @@ const Chat = () => {
       return;
     }
     setToyUtilityBusy(true);
+    await stopSustainedToy();
     const success = await stopAllUserToys(user.id, connectedToys);
     setToyUtilityBusy(false);
     if (!success) {
@@ -1095,6 +1119,7 @@ const Chat = () => {
   };
 
   const handleEmergencyStop = async () => {
+    await stopSustainedToy();
     if (!user) return;
     try {
       const ok = await stopAllUserToys(user.id, connectedToys);
@@ -1153,6 +1178,88 @@ const Chat = () => {
       .single();
     if (error || !data?.id) throw new Error(error?.message || "Could not save image reply");
     return data.id as string;
+  };
+
+  const insertAssistantVideoMessage = async (args: { content: string; videoUrl: string }): Promise<string> => {
+    if (!user || !companion) throw new Error("Not ready");
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .insert({
+        user_id: user.id,
+        companion_id: companion.id,
+        role: "assistant",
+        content: args.content,
+        lovense_command: null,
+        video_url: args.videoUrl,
+      })
+      .select("id")
+      .single();
+    if (error || !data?.id) throw new Error(error?.message || "Could not save video reply");
+    return data.id as string;
+  };
+
+  const generateChatVideoClip = async () => {
+    if (!user || !companion) return;
+    const cost = isAdminUser ? 0 : CHAT_VIDEO_TOKEN_COST;
+    if (!isAdminUser && tokensBalance < cost) {
+      toast.error(`Video clips cost ${cost} forge credits. You have ${tokensBalance}.`, {
+        action: { label: "Upgrade", onClick: () => navigate("/") },
+      });
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data, error } = await invokeGenerateChatVideo({
+        companionId: companion.id,
+        userId: user.id,
+        tokenCost: cost,
+      });
+      if (error) throw error;
+      const url = data?.videoUrl;
+      if (!url) throw new Error("No video returned");
+      const caption = `*${companion.name} sent you a steamy clip…*`;
+      const rowId = await insertAssistantVideoMessage({ content: caption, videoUrl: url });
+      setMessages((prev) => [
+        ...prev,
+        { id: rowId, role: "assistant", content: caption, videoUrl: url, timestamp: new Date() },
+      ]);
+      if (typeof data?.newTokensBalance === "number") {
+        setTokensBalance(data.newTokensBalance);
+        tokensBalanceRef.current = data.newTokensBalance;
+      } else {
+        await fetchTokens(user.id);
+      }
+      toast.success("Video ready");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Could not generate video");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMediaBarRequest = (tier: "selfie_sfw" | "selfie_lewd" | "selfie_nude" | "nude_video") => {
+    if (tier === "nude_video") {
+      void generateChatVideoClip();
+      return;
+    }
+    if (tier === "selfie_sfw") {
+      void sendMessage(resolveFabDisplay(FAB_SELFIE.sfw.display), {
+        imageGenerationPrompt: FAB_SELFIE.sfw.imagePrompt,
+        bypassImageConfirmation: true,
+      });
+      return;
+    }
+    if (tier === "selfie_lewd") {
+      void sendMessage(resolveFabDisplay(FAB_SELFIE.lewd.display), {
+        imageGenerationPrompt: FAB_SELFIE.lewd.imagePrompt,
+        bypassImageConfirmation: true,
+      });
+      return;
+    }
+    void sendMessage(resolveFabDisplay(FAB_SELFIE.nude.display), {
+      imageGenerationPrompt: FAB_SELFIE.nude.imagePrompt,
+      bypassImageConfirmation: true,
+    });
   };
 
   const deliverAffectionLevelUpRewards = async (newLevel: number, reward: AffectionRewardKind) => {
@@ -1656,6 +1763,16 @@ const Chat = () => {
         }}
         onCompanionPortraitClick={() => setVoiceSettingsOpen(true)}
         onOpenGallery={user ? () => setGalleryOpen(true) : undefined}
+        sessionControls={
+          <ChatModeToggle
+            mode={sessionMode}
+            onChange={(m) => {
+              setSessionMode(m);
+              persistChatSessionMode(m);
+            }}
+            disabled={!user}
+          />
+        }
         rightSlot={
           user ? (
             <ToyHubPopover
@@ -1699,6 +1816,18 @@ const Chat = () => {
         onTriggerPattern={(row) => void triggerCompanionVibration(row)}
       />
 
+      {user ? (
+        <div className="shrink-0 px-3 pt-1 pb-2 md:px-5">
+          <ChatMediaRequestBar
+            disabled={!isAdminUser && tokensBalance <= 0}
+            videoDisabled={!isAdminUser && tokensBalance < CHAT_VIDEO_TOKEN_COST}
+            imageCostLabel={isAdminUser ? "waived" : `${IMAGE_TOKEN_COST} cr`}
+            videoCostLabel={isAdminUser ? "waived" : `${CHAT_VIDEO_TOKEN_COST} cr`}
+            onRequest={handleMediaBarRequest}
+          />
+        </div>
+      ) : null}
+
       {/* Token warning */}
       {!isAdminUser && tokensBalance < 100 && tokensBalance > 0 && (
         <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-2 text-center text-xs text-destructive">
@@ -1735,6 +1864,8 @@ const Chat = () => {
         imageGenPending={imageGenPending}
         onConfirmPendingImage={() => void confirmPendingImageGeneration()}
         pendingImageButtonLabel={pendingImageButtonLabel}
+        toyDriveActive={toyDriveActive}
+        onStopToyDrive={() => void stopSustainedToy()}
       />
 
       <div className="shrink-0 px-3 pb-1 z-20 bg-gradient-to-t from-black/80 to-transparent">
@@ -1749,31 +1880,41 @@ const Chat = () => {
         />
       </div>
 
-      <ChatComposer
-        input={input}
-        onChange={setInput}
-        onSubmit={() => void sendMessage()}
-        disabled={!isAdminUser && tokensBalance <= 0}
-        loading={loading}
-        placeholder={
-          !isAdminUser && tokensBalance <= 0
-            ? "Out of tokens — upgrade to continue"
-            : `Message ${companion.name}… (ask for selfies or pics!)`
-        }
-        isImageRequest={isImageRequest}
-        isAdminUser={isAdminUser}
-        tokensBalance={tokensBalance}
-        tokenCost={TOKEN_COST}
-        imageTokenCost={IMAGE_TOKEN_COST}
-        imageSubmitTitle={imageSubmitTitle}
-        safeWord={safeWord}
-        companionName={companion.name}
-        autoSpendChatImages={autoSpendChatImages}
-        onAutoSpendChatImagesChange={(enabled) => {
-          setAutoSpendChatImages(enabled);
-          setChatAutoSpendImages(companion.id, enabled);
-        }}
-      />
+      {sessionMode === "live_voice" ? (
+        <div className="shrink-0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] z-10">
+          <LiveVoicePanel
+            disabled={!isAdminUser && tokensBalance <= 0}
+            busy={loading}
+            onSendText={(text) => void sendMessage(text)}
+          />
+        </div>
+      ) : (
+        <ChatComposer
+          input={input}
+          onChange={setInput}
+          onSubmit={() => void sendMessage()}
+          disabled={!isAdminUser && tokensBalance <= 0}
+          loading={loading}
+          placeholder={
+            !isAdminUser && tokensBalance <= 0
+              ? "Out of tokens — upgrade to continue"
+              : `Message ${companion.name}… (ask for selfies or pics!)`
+          }
+          isImageRequest={isImageRequest}
+          isAdminUser={isAdminUser}
+          tokensBalance={tokensBalance}
+          tokenCost={TOKEN_COST}
+          imageTokenCost={IMAGE_TOKEN_COST}
+          imageSubmitTitle={imageSubmitTitle}
+          safeWord={safeWord}
+          companionName={companion.name}
+          autoSpendChatImages={autoSpendChatImages}
+          onAutoSpendChatImagesChange={(enabled) => {
+            setAutoSpendChatImages(enabled);
+            setChatAutoSpendImages(companion.id, enabled);
+          }}
+        />
+      )}
 
       <ChatQuickActionFab
         onAction={handleFabAction}

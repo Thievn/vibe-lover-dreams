@@ -27,6 +27,8 @@ type Props = {
   affectionProgress?: number;
   affectionProgressMax?: number;
   rightSlot?: ReactNode;
+  /** e.g. Classic / Live Voice toggle */
+  sessionControls?: ReactNode;
 };
 
 export function ChatPremiumHeader({
@@ -46,6 +48,7 @@ export function ChatPremiumHeader({
   affectionProgress = 0,
   affectionProgressMax = 1,
   rightSlot,
+  sessionControls,
 }: Props) {
   const rarity = normalizeCompanionRarity(companion.rarity);
   const tier = Math.min(5, Math.max(1, affectionTier));
@@ -125,6 +128,9 @@ export function ChatPremiumHeader({
             <p className="mt-1 inline-flex items-center justify-center rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
               {mood}
             </p>
+            {sessionControls ? (
+              <div className="mt-2 flex w-full justify-center px-1">{sessionControls}</div>
+            ) : null}
             <div
               className="mt-2 w-full max-w-[14rem] mx-auto flex flex-col gap-1"
               title={tier >= 5 ? "Bond maxed" : `Bond · tier ${tier} of 5`}

@@ -42,10 +42,11 @@ import { ProfilePortraitTierHalo } from "@/components/rarity/ProfilePortraitTier
 import { RarityBadgeIcon } from "@/components/rarity/RarityBadgeIcon";
 import { AbyssalProfileParticles } from "@/components/rarity/AbyssalProfileParticles";
 import { cn } from "@/lib/utils";
-import { getToys, sendCommand, type LovenseToy } from "@/lib/lovense";
+import { getToys, type LovenseToy } from "@/lib/lovense";
 import { useCompanionVibrationPatterns, type CompanionVibrationPatternRow } from "@/hooks/useCompanionVibrationPatterns";
 import { VibrationPatternButtons } from "@/components/toy/VibrationPatternButtons";
-import { parseVibrationPayload, payloadToLovenseCommand } from "@/lib/vibrationPatternPayload";
+import { payloadToLovenseCommand } from "@/lib/vibrationPatternPayload";
+import { createSustainedLovenseSession } from "@/lib/sustainedLovenseSession";
 import { formatNexusCooldownShort, nexusCooldownRemainingMs } from "@/lib/nexusMerge";
 import { splitProseIntoParagraphs } from "@/lib/profileProseSplit";
 import { buildProfileSearchTags } from "@/lib/companionSearchTags";
@@ -113,7 +114,7 @@ const CompanionProfile = () => {
   const [pairDialogOpen, setPairDialogOpen] = useState(false);
   const [sendingVibrationId, setSendingVibrationId] = useState<string | null>(null);
   const [livePatternId, setLivePatternId] = useState<string | null>(null);
-  const livePatternClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sustainedToySessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
   const [profileTab, setProfileTab] = useState<"profile" | "gallery">("profile");
   /** Fade loop MP4 in over the still so we never flash an empty frame while the video buffers */
   const [loopVideoReady, setLoopVideoReady] = useState(false);
@@ -237,14 +238,18 @@ const CompanionProfile = () => {
     setPairErr(null);
   }, [pairErr, setPairErr]);
 
-  const clearLivePatternTimer = useCallback(() => {
-    if (livePatternClearTimerRef.current) {
-      clearTimeout(livePatternClearTimerRef.current);
-      livePatternClearTimerRef.current = null;
-    }
+  const stopSustainedToy = useCallback(async () => {
+    const s = sustainedToySessionRef.current;
+    sustainedToySessionRef.current = null;
+    if (s) await s.stop();
+    setLivePatternId(null);
   }, []);
 
-  useEffect(() => () => clearLivePatternTimer(), [clearLivePatternTimer]);
+  useEffect(() => {
+    return () => {
+      void stopSustainedToy();
+    };
+  }, [stopSustainedToy]);
 
   const triggerProfileVibration = async (row: CompanionVibrationPatternRow) => {
     if (!user) {
@@ -266,14 +271,7 @@ const CompanionProfile = () => {
     if (livePatternId === row.id) {
       setSendingVibrationId(row.id);
       try {
-        await sendCommand(user.id, {
-          command: "stop",
-          intensity: 0,
-          duration: 0,
-          toyId: target,
-        });
-        clearLivePatternTimer();
-        setLivePatternId(null);
+        await stopSustainedToy();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Could not stop the pattern.");
       } finally {
@@ -289,15 +287,10 @@ const CompanionProfile = () => {
     }
     setSendingVibrationId(row.id);
     try {
-      await sendCommand(user.id, { ...cmd, toyId: target });
-      clearLivePatternTimer();
+      await stopSustainedToy();
+      const session = createSustainedLovenseSession(user.id, { ...cmd, toyId: target });
+      sustainedToySessionRef.current = session;
       setLivePatternId(row.id);
-      const parsed = parseVibrationPayload(row.vibration_pattern_pool?.payload);
-      const ms = Math.min(Math.max((parsed?.duration ?? 8000) + 1200, 4000), 120_000);
-      livePatternClearTimerRef.current = setTimeout(() => {
-        setLivePatternId((cur) => (cur === row.id ? null : cur));
-        livePatternClearTimerRef.current = null;
-      }, ms);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not reach your toy.");
     } finally {
