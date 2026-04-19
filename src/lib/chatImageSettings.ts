@@ -41,25 +41,46 @@ export function incrementFreeNsfwImagesUsed(userId: string, companionId: string)
   }
 }
 
-/**
- * + menu selfie actions: short immersive line shown in chat; full brief goes to generate-image only.
- * Keeps roleplay natural — the model never sees the long technical string as a user message.
- */
+/** Quick Action Buttons for image requests in chat */
 export const FAB_SELFIE = {
   sfw: {
-    display: "I'd love a cute selfie from you. 📸",
-    imagePrompt:
-      "SFW casual selfie — fully clothed, cute pose, flattering lighting, looking at camera. No nudity, no lingerie.",
+    display: [
+      "I'd love a cute selfie from you 📸",
+      "Can I see your pretty face right now?",
+      "Send me something sweet and flirty~",
+      "Show me how you look today 💕",
+      "A cute selfie would make my day...",
+    ] ,
+
+    imagePrompt: "Beautiful SFW casual selfie, fully clothed, flattering lighting, natural pose, looking at camera with soft smile or playful expression, high detail portrait, cinematic soft lighting.",
   },
+
   lewd: {
-    display: "Send me something hot — surprise me. 🔥",
-    imagePrompt:
-      "Lewd selfie — lingerie or partial nude, explicit teasing, seductive eye contact, camera-aware, adult.",
+    display: [
+      "Send me something hot — surprise me 🔥",
+      "I want to see you being a little naughty...",
+      "Tease me with something spicy~",
+      "Show me a lewd selfie, I'm ready...",
+      "Don't be shy... let me see more of you 💋",
+    ] ,
+
+    imagePrompt: "Lewd selfie — wearing lingerie, sheer clothing, partially undressed or topless, seductive teasing pose, bedroom eyes, sensual body language, highly detailed, erotic lighting, seductive and playful.",
   },
+
   nude: {
-    display: "I want to see all of you — don't hold back.",
+    display: [
+      "I want to see all of you — don't hold back 💦",
+      "Show me everything... I'm dying to see you nude",
+      "Full nude selfie please, no hiding~",
+      "Be completely bare for me...",
+      "I need to see you fully naked right now 🔥",
+    ] ,
+
     imagePrompt:
-      "Fully nude NSFW selfie — explicit, uncensored, consensual adult; full body or intimate framing as fits.",
+      "Fully nude NSFW selfie — completely naked, explicit and uncensored, highly detailed beautiful anatomy. " +
+      "If female: perfect breasts, detailed pussy, tight anus, flushed skin, aroused expression. " +
+      "If male: muscular chest, detailed cock, balls, tight anus, powerful physique, aroused expression. " +
+      "Sensual pose, cinematic erotic lighting, wetness or precum if appropriate, heavy breathing, extremely sensual and explicit.",
   },
 } as const;
 
