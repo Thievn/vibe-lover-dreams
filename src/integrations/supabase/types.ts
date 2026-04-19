@@ -402,6 +402,8 @@ export type Database = {
           affection_level: number
           breeding_progress: number
           breeding_stage: number
+          chat_affection_level: number
+          chat_affection_progress: number
           companion_id: string
           created_at: string
           id: string
@@ -414,6 +416,8 @@ export type Database = {
           affection_level?: number
           breeding_progress?: number
           breeding_stage?: number
+          chat_affection_level?: number
+          chat_affection_progress?: number
           companion_id: string
           created_at?: string
           id?: string
@@ -426,6 +430,8 @@ export type Database = {
           affection_level?: number
           breeding_progress?: number
           breeding_stage?: number
+          chat_affection_level?: number
+          chat_affection_progress?: number
           companion_id?: string
           created_at?: string
           id?: string

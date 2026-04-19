@@ -11,6 +11,13 @@ export type VibrationPayload = {
 };
 
 export function parseVibrationPayload(raw: unknown): VibrationPayload | null {
+  if (typeof raw === "string") {
+    try {
+      return parseVibrationPayload(JSON.parse(raw) as unknown);
+    } catch {
+      return null;
+    }
+  }
   if (!raw || typeof raw !== "object") return null;
   const p = raw as Record<string, unknown>;
   const cmd = p.command === "pattern" ? "pattern" : "vibrate";

@@ -28,6 +28,7 @@ type Props = {
   patterns: CompanionVibrationPatternRow[];
   patternsLoading: boolean;
   sendingVibrationId: string | null;
+  activePatternId?: string | null;
   onTriggerPattern: (row: CompanionVibrationPatternRow) => void;
 };
 
@@ -53,6 +54,7 @@ export function ChatDevicesCollapsible({
   patterns,
   patternsLoading,
   sendingVibrationId,
+  activePatternId = null,
   onTriggerPattern,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -140,6 +142,7 @@ export function ChatDevicesCollapsible({
                 patternsLoading={patternsLoading}
                 disabled={false}
                 sendingId={sendingVibrationId}
+                activePatternId={activePatternId}
                 onTrigger={(row) => void onTriggerPattern(row)}
               />
             ) : (

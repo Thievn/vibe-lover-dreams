@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { getCompanionBackstoryParagraphs } from "@/lib/companionBackstory";
 import { profileAnimatedPortraitUrl, profileStillPortraitUrl, isVideoPortraitUrl } from "@/lib/companionMedia";
 import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFromGallery";
@@ -40,7 +40,7 @@ import { cn } from "@/lib/utils";
 import { getToys, sendCommand, type LovenseToy } from "@/lib/lovense";
 import { useCompanionVibrationPatterns, type CompanionVibrationPatternRow } from "@/hooks/useCompanionVibrationPatterns";
 import { VibrationPatternButtons } from "@/components/toy/VibrationPatternButtons";
-import { payloadToLovenseCommand } from "@/lib/vibrationPatternPayload";
+import { parseVibrationPayload, payloadToLovenseCommand } from "@/lib/vibrationPatternPayload";
 import { formatNexusCooldownShort, nexusCooldownRemainingMs } from "@/lib/nexusMerge";
 import { splitProseIntoParagraphs } from "@/lib/profileProseSplit";
 import { buildProfileSearchTags } from "@/lib/companionSearchTags";
@@ -107,6 +107,8 @@ const CompanionProfile = () => {
   const [connectedToys, setConnectedToys] = useState<LovenseToy[]>([]);
   const [pairDialogOpen, setPairDialogOpen] = useState(false);
   const [sendingVibrationId, setSendingVibrationId] = useState<string | null>(null);
+  const [livePatternId, setLivePatternId] = useState<string | null>(null);
+  const livePatternClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [profileTab, setProfileTab] = useState<"profile" | "gallery">("profile");
 
   const { data: vibrationPatterns = [], isLoading: vibrationPatternsLoading } = useCompanionVibrationPatterns(id);
@@ -211,15 +213,22 @@ const CompanionProfile = () => {
     setPairErr(null);
   }, [pairErr, setPairErr]);
 
+  const clearLivePatternTimer = useCallback(() => {
+    if (livePatternClearTimerRef.current) {
+      clearTimeout(livePatternClearTimerRef.current);
+      livePatternClearTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => clearLivePatternTimer(), [clearLivePatternTimer]);
+
   const triggerProfileVibration = async (row: CompanionVibrationPatternRow) => {
     if (!user) {
       navigate("/auth", { state: { from: `/companions/${companion?.id}` } });
       return;
     }
-    if (!hasLovenseToy) return;
-    const cmd = payloadToLovenseCommand(row.vibration_pattern_pool?.payload);
-    if (!cmd) {
-      toast.error("Invalid pattern.");
+    if (!hasLovenseToy) {
+      toast.error("Connect a Lovense toy to use these patterns.");
       return;
     }
     const stored = typeof localStorage !== "undefined" ? localStorage.getItem("lustforge-primary-toy-uid") : null;
@@ -229,10 +238,44 @@ const CompanionProfile = () => {
       toast.error("No active toy.");
       return;
     }
+
+    if (livePatternId === row.id) {
+      setSendingVibrationId(row.id);
+      try {
+        await sendCommand(user.id, {
+          command: "stop",
+          intensity: 0,
+          duration: 0,
+          toyId: target,
+        });
+        clearLivePatternTimer();
+        setLivePatternId(null);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Could not stop the pattern.");
+      } finally {
+        setSendingVibrationId(null);
+      }
+      return;
+    }
+
+    const cmd = payloadToLovenseCommand(row.vibration_pattern_pool?.payload);
+    if (!cmd) {
+      toast.error("Invalid pattern.");
+      return;
+    }
     setSendingVibrationId(row.id);
     try {
-      const ok = await sendCommand(user.id, { ...cmd, toyId: target });
-      if (!ok) toast.error("Could not reach your toy.");
+      await sendCommand(user.id, { ...cmd, toyId: target });
+      clearLivePatternTimer();
+      setLivePatternId(row.id);
+      const parsed = parseVibrationPayload(row.vibration_pattern_pool?.payload);
+      const ms = Math.min(Math.max((parsed?.duration ?? 8000) + 1200, 4000), 120_000);
+      livePatternClearTimerRef.current = setTimeout(() => {
+        setLivePatternId((cur) => (cur === row.id ? null : cur));
+        livePatternClearTimerRef.current = null;
+      }, ms);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not reach your toy.");
     } finally {
       setSendingVibrationId(null);
     }
@@ -884,6 +927,7 @@ const CompanionProfile = () => {
                     patterns={vibrationPatterns}
                     disabled={!hasLovenseToy}
                     sendingId={sendingVibrationId}
+                    activePatternId={livePatternId}
                     onTrigger={(row) => void triggerProfileVibration(row)}
                     variant="profile"
                   />

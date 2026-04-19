@@ -25,6 +25,8 @@ type Props = {
   variant?: ProfilePortraitTierHaloVariant;
   /** List/grid cards: one rarity border + soft glow (ignored for `variant="profile"`). */
   frameStyle?: ProfilePortraitFrameStyle;
+  /** Pulsing outer neon (Companion profile hero + optional chat avatar). */
+  neonEdgeBreathing?: boolean;
   className?: string;
 };
 
@@ -39,6 +41,7 @@ export function ProfilePortraitTierHalo({
   children,
   variant = "profile",
   frameStyle = "full",
+  neonEdgeBreathing = false,
   className,
 }: Props) {
   const sheen = profileTierSheenGradient(rarity);
@@ -52,7 +55,7 @@ export function ProfilePortraitTierHalo({
       <RarityNeonGlowLayers
         rarity={rarity}
         variant={variant}
-        profileBreathing={false}
+        profileBreathing={neonEdgeBreathing}
         roundClass={r.outer}
       />
       <div

@@ -18,6 +18,8 @@ type Props = {
   overlayUrl?: string | null;
   /** Defaults to trading-card portrait ratio. */
   aspectClassName?: string;
+  /** Soft pulsing tier neon (e.g. chat header round portrait). */
+  neonEdgeBreathing?: boolean;
   className?: string;
   children: ReactNode;
 };
@@ -33,6 +35,7 @@ export function TierHaloPortraitFrame({
   gradientTo,
   overlayUrl,
   aspectClassName = "aspect-[3/4] w-full",
+  neonEdgeBreathing = false,
   className,
   children,
 }: Props) {
@@ -47,6 +50,7 @@ export function TierHaloPortraitFrame({
       isAbyssal={isAbyssal}
       gradientFrom={gradientFrom}
       gradientTo={gradientTo}
+      neonEdgeBreathing={neonEdgeBreathing}
       className={className}
     >
       <div className={cn("relative", aspectClassName)}>

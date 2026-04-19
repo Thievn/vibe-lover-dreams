@@ -34,7 +34,7 @@ const ITEMS: Item[] = [
   { id: "selfie_sfw", label: "SFW selfie (casual picture)", icon: Camera },
   { id: "selfie_lewd", label: "Lewd selfie (teasing / lingerie)", icon: Aperture },
   { id: "selfie_nude", label: "Nude selfie (explicit)", icon: Sparkles },
-  { id: "vibration", label: "Trigger Signature Vibration Pattern", icon: Zap },
+  { id: "vibration", label: "Signature pattern (tap again to stop)", icon: Zap },
   { id: "praise", label: "Praise Me", icon: Heart },
   { id: "tease", label: "Tease Me", icon: Sparkles },
   { id: "rough", label: "Be Rough", icon: Flame },
@@ -44,9 +44,11 @@ const ITEMS: Item[] = [
 
 type Props = {
   onAction: (id: FabActionId) => void;
+  /** Per-action disable (e.g. no toy connected). */
+  isActionDisabled?: (id: FabActionId) => boolean;
 };
 
-export function ChatQuickActionFab({ onAction }: Props) {
+export function ChatQuickActionFab({ onAction, isActionDisabled }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -71,27 +73,33 @@ export function ChatQuickActionFab({ onAction }: Props) {
               </button>
             </div>
             <ul className="max-h-[min(60vh,22rem)] overflow-y-auto py-1">
-              {ITEMS.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    disabled={item.disabled}
-                    onClick={() => {
-                      onAction(item.id);
-                      setOpen(false);
-                    }}
-                    className={cn(
-                      "w-full min-h-12 flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground/95 hover:bg-white/[0.06] transition-colors disabled:opacity-40 disabled:pointer-events-none touch-manipulation active:bg-white/[0.04]",
-                    )}
-                  >
-                    <item.icon className="h-4 w-4 shrink-0 text-primary" />
-                    <span>{item.label}</span>
-                    {item.disabled ? (
-                      <span className="ml-auto text-[10px] text-muted-foreground">Soon</span>
-                    ) : null}
-                  </button>
-                </li>
-              ))}
+              {ITEMS.map((item) => {
+                const off =
+                  item.disabled || (isActionDisabled ? isActionDisabled(item.id) : false);
+                return (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      disabled={off}
+                      onClick={() => {
+                        onAction(item.id);
+                        setOpen(false);
+                      }}
+                      className={cn(
+                        "w-full min-h-12 flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground/95 hover:bg-white/[0.06] transition-colors disabled:opacity-40 disabled:pointer-events-none touch-manipulation active:bg-white/[0.04]",
+                      )}
+                    >
+                      <item.icon className="h-4 w-4 shrink-0 text-primary" />
+                      <span>{item.label}</span>
+                      {item.disabled ? (
+                        <span className="ml-auto text-[10px] text-muted-foreground">Soon</span>
+                      ) : isActionDisabled?.(item.id) ? (
+                        <span className="ml-auto text-[10px] text-muted-foreground">Unavailable</span>
+                      ) : null}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </motion.div>
         ) : null}

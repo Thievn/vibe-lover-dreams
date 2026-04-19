@@ -1,7 +1,6 @@
-import { ArrowLeft, AlertOctagon, Flame, Images, Volume2 } from "lucide-react";
+import { ArrowLeft, AlertOctagon, Flame, Heart, Images, Volume2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PortraitViewLightbox } from "@/components/PortraitViewLightbox";
-import { ChatHeaderAvatarRing } from "@/components/chat/ChatHeaderAvatarRing";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { normalizeCompanionRarity } from "@/lib/companionRarity";
 import type { Companion } from "@/data/companions";
@@ -23,6 +22,10 @@ type Props = {
   onCompanionPortraitClick?: () => void;
   /** Opens in-chat companion gallery (generated images). */
   onOpenGallery?: () => void;
+  /** Chat bond tier 1–5 (optional). */
+  affectionTier?: number;
+  affectionProgress?: number;
+  affectionProgressMax?: number;
   rightSlot?: ReactNode;
 };
 
@@ -39,9 +42,16 @@ export function ChatPremiumHeader({
   onSafeWordInfo,
   onCompanionPortraitClick,
   onOpenGallery,
+  affectionTier = 1,
+  affectionProgress = 0,
+  affectionProgressMax = 1,
   rightSlot,
 }: Props) {
   const rarity = normalizeCompanionRarity(companion.rarity);
+  const tier = Math.min(5, Math.max(1, affectionTier));
+  const max = Math.max(1, affectionProgressMax);
+  const prog = Math.min(max, Math.max(0, affectionProgress));
+  const pct = tier >= 5 ? 100 : Math.round((prog / max) * 100);
 
   return (
     <header
@@ -67,36 +77,35 @@ export function ChatPremiumHeader({
               animatedSrc={headerAnimated}
               triggerClassName="h-full w-full rounded-full"
             >
-              <ChatHeaderAvatarRing rarity={rarity} className="h-full w-full">
-                <TierHaloPortraitFrame
-                  variant="avatar"
-                  frameStyle="clean"
-                  rarity={rarity}
-                  gradientFrom={companion.gradientFrom}
-                  gradientTo={companion.gradientTo}
-                  overlayUrl={dbComp?.rarity_border_overlay_url ?? null}
-                  aspectClassName="aspect-square h-full w-full"
-                  className="rounded-full"
-                >
-                  <div
-                    className="absolute inset-0 z-0 rounded-full"
-                    style={{
-                      background: imageUrl ? undefined : `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
-                    }}
+              <TierHaloPortraitFrame
+                variant="avatar"
+                frameStyle="clean"
+                rarity={rarity}
+                gradientFrom={companion.gradientFrom}
+                gradientTo={companion.gradientTo}
+                overlayUrl={dbComp?.rarity_border_overlay_url ?? null}
+                aspectClassName="aspect-square h-full w-full"
+                className="rounded-full"
+                neonEdgeBreathing
+              >
+                <div
+                  className="absolute inset-0 z-0 rounded-full"
+                  style={{
+                    background: imageUrl ? undefined : `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
+                  }}
+                />
+                {imageUrl ? (
+                  <img
+                    src={imageUrl}
+                    alt=""
+                    className="absolute inset-0 z-[1] h-full w-full rounded-full object-cover object-top"
                   />
-                  {imageUrl ? (
-                    <img
-                      src={imageUrl}
-                      alt=""
-                      className="absolute inset-0 z-[1] h-full w-full rounded-full object-cover object-top"
-                    />
-                  ) : (
-                    <span className="absolute inset-0 z-[2] flex items-center justify-center rounded-full font-gothic text-2xl font-bold text-white/90">
-                      {companion.name.charAt(0)}
-                    </span>
-                  )}
-                </TierHaloPortraitFrame>
-              </ChatHeaderAvatarRing>
+                ) : (
+                  <span className="absolute inset-0 z-[2] flex items-center justify-center rounded-full font-gothic text-2xl font-bold text-white/90">
+                    {companion.name.charAt(0)}
+                  </span>
+                )}
+              </TierHaloPortraitFrame>
             </PortraitViewLightbox>
             {onCompanionPortraitClick ? (
               <button
@@ -116,6 +125,35 @@ export function ChatPremiumHeader({
             <p className="mt-1 inline-flex items-center justify-center rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
               {mood}
             </p>
+            <div
+              className="mt-2 w-full max-w-[14rem] mx-auto flex flex-col gap-1"
+              title={tier >= 5 ? "Bond maxed" : `Bond · tier ${tier} of 5`}
+            >
+              <div className="flex items-center justify-center gap-0.5">
+                {Array.from({ length: 5 }, (_, i) => (
+                  <Heart
+                    key={i}
+                    className={`h-3.5 w-3.5 shrink-0 ${
+                      i < tier ? "fill-primary text-primary drop-shadow-[0_0_6px_hsl(320_85%_55%_/_0.45)]" : "text-white/15"
+                    }`}
+                    aria-hidden
+                  />
+                ))}
+                <span className="ml-1 text-[9px] font-semibold tabular-nums text-muted-foreground/90">
+                  {tier}/5
+                </span>
+              </div>
+              {tier < 5 ? (
+                <div className="h-1 w-full rounded-full bg-white/[0.06] overflow-hidden border border-white/[0.06]">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-primary/80 to-fuchsia-500/90 transition-[width] duration-500 ease-out"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              ) : (
+                <div className="h-1 w-full rounded-full bg-gradient-to-r from-primary/50 via-fuchsia-500/40 to-primary/50 opacity-90" />
+              )}
+            </div>
           </div>
         </div>
 

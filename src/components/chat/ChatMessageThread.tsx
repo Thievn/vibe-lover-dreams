@@ -8,6 +8,7 @@ import type { Companion } from "@/data/companions";
 import type { ChatMessage } from "@/components/chat/chatTypes";
 import { ChatTypingIndicator } from "@/components/chat/ChatTypingIndicator";
 import { cn } from "@/lib/utils";
+import { parseAssistantDisplayContent } from "@/lib/chatSignatureBeat";
 
 type Props = {
   messages: ChatMessage[];
@@ -60,7 +61,14 @@ export function ChatMessageThread({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 md:px-5 md:py-4 space-y-3 scroll-pb-28 [-webkit-overflow-scrolling:touch]">
-      {messages.map((msg) => (
+      {messages.map((msg) => {
+        const assistantDisplay =
+          msg.role === "assistant" && !msg.imageUrl
+            ? parseAssistantDisplayContent(msg.content)
+            : { displayText: msg.content, signatureBeat: false };
+        const bodyText = assistantDisplay.displayText;
+
+        return (
         <motion.div
           key={msg.id}
           initial={{ opacity: 0, y: 8 }}
@@ -106,7 +114,9 @@ export function ChatMessageThread({
               "max-w-[min(92%,28rem)] rounded-[1.35rem] px-3.5 py-3 text-[15px] leading-relaxed shadow-sm",
               msg.role === "user"
                 ? "bg-gradient-to-br from-primary to-[hsl(320_70%_38%)] text-primary-foreground rounded-br-md"
-                : "border border-white/[0.08] bg-black/45 text-foreground/95 rounded-bl-md backdrop-blur-md",
+                : assistantDisplay.signatureBeat
+                  ? "border border-[#ff2d7b]/40 bg-gradient-to-br from-[#ff2d7b]/[0.14] via-fuchsia-950/30 to-[#00ffd4]/[0.08] text-foreground/95 rounded-bl-md backdrop-blur-md shadow-[0_0_32px_rgba(255,45,123,0.18)] ring-1 ring-[#ff2d7b]/25"
+                  : "border border-white/[0.08] bg-black/45 text-foreground/95 rounded-bl-md backdrop-blur-md",
             )}
           >
             {msg.imageUrl ? (
@@ -132,7 +142,7 @@ export function ChatMessageThread({
                       msg.role === "assistant" && "leading-[1.7] text-foreground/92",
                     )}
                   >
-                    {msg.content}
+                    {bodyText}
                   </p>
                   {msg.role === "assistant" && onTtsClick ? (
                     <button
@@ -213,7 +223,8 @@ export function ChatMessageThread({
             </div>
           ) : null}
         </motion.div>
-      ))}
+        );
+      })}
 
       {loading ? (
         <ChatTypingIndicator companionName={companion.name} isImageRequest={isImageRequest(inputSnapshot)} />

@@ -26,7 +26,7 @@ import {
 } from "@/lib/lovense";
 import { buildChatSystemPrompt } from "@/lib/companionSystemPrompts";
 import { useCompanionVibrationPatterns, type CompanionVibrationPatternRow } from "@/hooks/useCompanionVibrationPatterns";
-import { payloadToLovenseCommand } from "@/lib/vibrationPatternPayload";
+import { parseVibrationPayload, payloadToLovenseCommand } from "@/lib/vibrationPatternPayload";
 import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
 import { inferForgeBodyTypeFromTags, inferStylizedArtFromTags } from "@/lib/forgeBodyTypes";
 import { ChatPremiumHeader } from "@/components/chat/ChatPremiumHeader";
@@ -61,6 +61,14 @@ import {
   resolveFabDisplay,
   setChatAutoSpendImages,
 } from "@/lib/chatImageSettings";
+import {
+  advanceChatAffectionState,
+  buildAffectionLevelUpCopy,
+  messagesNeededForNextLevel,
+  tierToLegacyAffectionPct,
+  type AffectionRewardKind,
+} from "@/lib/chatAffection";
+import { parseAssistantDisplayContent } from "@/lib/chatSignatureBeat";
 
 const TOKEN_COST = 15;
 
@@ -104,13 +112,15 @@ const Chat = () => {
   const [smartSuggestions, setSmartSuggestions] = useState<string[]>(SMART_FALLBACK);
   const [heartBursts, setHeartBursts] = useState<{ id: number; x: string }[]>([]);
   const heartIdRef = useRef(0);
-  const prevAffectionRef = useRef<number | null>(null);
+  const prevChatAffectionTierRef = useRef<number | null>(null);
   const prevLoadingRef = useRef(false);
   const [ttsLoadingId, setTtsLoadingId] = useState<string | null>(null);
   const [ttsPlayingId, setTtsPlayingId] = useState<string | null>(null);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const [intensity, setIntensity] = useState<number>(() => parseInt(localStorage.getItem("lustforge-intensity") || "50"));
   const [sendingVibrationId, setSendingVibrationId] = useState<string | null>(null);
+  const [livePatternId, setLivePatternId] = useState<string | null>(null);
+  const livePatternClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [toyUtilityBusy, setToyUtilityBusy] = useState(false);
   const [historyReady, setHistoryReady] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -152,8 +162,20 @@ const Chat = () => {
   } = useCompanionRelationship(companion?.id || "");
 
   const mood = useMemo(
-    () => deriveChatMood(relationship?.affection_level ?? 0, lastAssistantText),
-    [relationship?.affection_level, lastAssistantText],
+    () =>
+      deriveChatMood(
+        tierToLegacyAffectionPct(relationship?.chat_affection_level ?? 1),
+        lastAssistantText,
+        companion?.personality ?? "",
+      ),
+    [relationship?.chat_affection_level, lastAssistantText, companion?.personality],
+  );
+
+  const affectionTier = relationship?.chat_affection_level ?? 1;
+  const affectionProgress = relationship?.chat_affection_progress ?? 0;
+  const affectionProgressMax = useMemo(
+    () => messagesNeededForNextLevel(affectionTier) || 1,
+    [affectionTier],
   );
 
   const effectiveUxVoice = useMemo((): TtsUxVoiceId => {
@@ -242,11 +264,45 @@ const Chat = () => {
     companion?.id,
   );
 
+  const clearLivePatternTimer = useCallback(() => {
+    if (livePatternClearTimerRef.current) {
+      clearTimeout(livePatternClearTimerRef.current);
+      livePatternClearTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => clearLivePatternTimer(), [clearLivePatternTimer]);
+
   const triggerCompanionVibration = async (row: CompanionVibrationPatternRow) => {
     if (!user || !hasDevice) {
       toast.error("Connect a Lovense toy to use these patterns.");
       return;
     }
+    const target = primaryToyUid ?? activeToys[0]?.id;
+    if (!target) {
+      toast.error("No active toy selected.");
+      return;
+    }
+
+    if (livePatternId === row.id) {
+      setSendingVibrationId(row.id);
+      try {
+        await sendCommand(user.id, {
+          command: "stop",
+          intensity: 0,
+          duration: 0,
+          toyId: target,
+        });
+        clearLivePatternTimer();
+        setLivePatternId(null);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Could not stop the pattern.");
+      } finally {
+        setSendingVibrationId(null);
+      }
+      return;
+    }
+
     const cmd = payloadToLovenseCommand(row.vibration_pattern_pool?.payload);
     if (!cmd) {
       toast.error("Could not read this pattern.");
@@ -254,13 +310,17 @@ const Chat = () => {
     }
     setSendingVibrationId(row.id);
     try {
-      const target = primaryToyUid ?? activeToys[0]?.id;
-      if (!target) {
-        toast.error("No active toy selected.");
-        return;
-      }
-      const ok = await sendCommand(user.id, { ...cmd, toyId: target });
-      if (!ok) toast.error("Could not send to device.");
+      await sendCommand(user.id, { ...cmd, toyId: target });
+      clearLivePatternTimer();
+      setLivePatternId(row.id);
+      const parsed = parseVibrationPayload(row.vibration_pattern_pool?.payload);
+      const ms = Math.min(Math.max((parsed?.duration ?? 8000) + 1200, 4000), 120_000);
+      livePatternClearTimerRef.current = setTimeout(() => {
+        setLivePatternId((cur) => (cur === row.id ? null : cur));
+        livePatternClearTimerRef.current = null;
+      }, ms);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not send to device.");
     } finally {
       setSendingVibrationId(null);
     }
@@ -527,6 +587,56 @@ const Chat = () => {
     }
   };
 
+  /** Free reward image for affection level-up — no forge charge, does not consume free-NSFW slots. */
+  const generateAffectionRewardImage = async (kind: AffectionRewardKind) => {
+    if (!companion || !dbComp || !user) return null;
+    try {
+      const tierPrompt = kind === "lewd" ? FAB_SELFIE.lewd.imagePrompt : FAB_SELFIE.nude.imagePrompt;
+      const prompt = `${tierPrompt}\n\n(Character: ${companion.name}, ${companion.gender}. ${companion.appearance})`.slice(
+        0,
+        8000,
+      );
+
+      const { data, error } = await invokeGenerateImage({
+        prompt,
+        userId: user.id,
+        isPortrait: false,
+        tokenCost: 0,
+        characterData: {
+          companionId: companion.id,
+          style: "chat-session",
+          artStyleLabel: inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic",
+          bodyType: inferForgeBodyTypeFromTags(dbComp.tags ?? []) ?? "Average",
+          tags: dbComp.tags ?? [],
+          baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
+          vibe: companion.personality,
+          clothing: companion.role ? `fits ${companion.role} energy` : undefined,
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Image generation failed");
+      const imageUrl = data.imageUrl;
+      const imageId = data.imageId;
+      if (!imageUrl || !imageId) throw new Error("No image generated");
+
+      if (typeof data.newTokensBalance === "number") {
+        setTokensBalance(data.newTokensBalance);
+      } else {
+        await fetchTokens(user.id);
+      }
+
+      return {
+        imageUrl,
+        imageId,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (err: unknown) {
+      console.error("Affection reward image error:", err);
+      return null;
+    }
+  };
+
   const saveImageToCompanionGallery = async (imageId: string) => {
     if (!user) return;
     try {
@@ -694,6 +804,7 @@ const Chat = () => {
       connectedToysSummary: toyBlock,
       openingFantasyStarterTitle: openingFantasyStarterTitleRef.current,
       userToyIntensityPercent: Number.isFinite(pct) ? pct : 50,
+      chatAffectionTier: relationship?.chat_affection_level ?? 1,
     });
   };
 
@@ -747,13 +858,10 @@ const Chat = () => {
           };
 
     try {
-      const success = await sendCommand(user.id, lovenseCommand);
-      if (!success) {
-        toast.error("Failed to send command to device");
-      }
-    } catch (err: any) {
+      await sendCommand(user.id, lovenseCommand);
+    } catch (err: unknown) {
       console.error("Device command error:", err);
-      toast.error("Failed to send command to device");
+      toast.error(err instanceof Error ? err.message : "Failed to send command to device");
     }
   };
 
@@ -810,11 +918,10 @@ const Chat = () => {
   };
 
   useEffect(() => {
-    const a = relationship?.affection_level;
-    if (a === undefined || a === null) return;
-    const prev = prevAffectionRef.current;
-    prevAffectionRef.current = a;
-    if (prev !== null && a > prev) {
+    const t = relationship?.chat_affection_level ?? 1;
+    const prev = prevChatAffectionTierRef.current;
+    prevChatAffectionTierRef.current = t;
+    if (prev !== null && t > prev) {
       heartIdRef.current += 1;
       const id = heartIdRef.current;
       const x = `${12 + Math.random() * 76}%`;
@@ -823,7 +930,7 @@ const Chat = () => {
         setHeartBursts((b) => b.filter((h) => h.id !== id));
       }, 2600);
     }
-  }, [relationship?.affection_level]);
+  }, [relationship?.chat_affection_level]);
 
   const saveRelationshipVoice = async (v: TtsUxVoiceId) => {
     if (!user || !companion) return;
@@ -834,6 +941,8 @@ const Chat = () => {
           user_id: user.id,
           companion_id: companion.id,
           affection_level: relationship?.affection_level ?? 0,
+          chat_affection_level: relationship?.chat_affection_level ?? 1,
+          chat_affection_progress: relationship?.chat_affection_progress ?? 0,
           breeding_progress: relationship?.breeding_progress ?? 0,
           breeding_stage: relationship?.breeding_stage ?? 0,
           tts_voice_preset: v,
@@ -877,9 +986,10 @@ const Chat = () => {
       setTtsLoadingId(msg.id);
       try {
         const voiceId = uxVoiceToXaiVoice(effectiveUxVoice);
+        const ttsText = parseAssistantDisplayContent(msg.content).displayText;
         const { data, error } = await supabase.functions.invoke("grok-tts", {
           body: {
-            text: msg.content.slice(0, 3800),
+            text: ttsText.slice(0, 3800),
             voiceId,
             messageId:
               /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(msg.id)
@@ -1025,6 +1135,108 @@ const Chat = () => {
     return data.id as string;
   };
 
+  const deliverAffectionLevelUpRewards = async (newLevel: number, reward: AffectionRewardKind) => {
+    if (!user || !companion || !dbComp) return;
+    const { celebration, imageCaption } = buildAffectionLevelUpCopy(companion, newLevel, reward);
+    try {
+      const celebId = await insertAssistantMessage(celebration, null);
+      setMessages((prev) => [
+        ...prev,
+        { id: celebId, role: "assistant", content: celebration, timestamp: new Date() },
+      ]);
+    } catch (e) {
+      console.error(e);
+      return;
+    }
+
+    const imageResult = await generateAffectionRewardImage(reward);
+    if (imageResult?.imageUrl && imageResult.imageId) {
+      try {
+        const imagePromptTag = `[Bond reward · tier ${newLevel} · ${reward}]`;
+        const rowId = await insertAssistantImageMessage({
+          content: imageCaption,
+          imageUrl: imageResult.imageUrl,
+          imagePrompt: imagePromptTag,
+          generatedImageId: imageResult.imageId,
+        });
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: rowId,
+            role: "assistant",
+            content: imageCaption,
+            imageUrl: imageResult.imageUrl,
+            imageId: imageResult.imageId,
+            generatedImageId: imageResult.imageId,
+            imagePrompt: imagePromptTag,
+            timestamp: new Date(),
+            savedToCompanionGallery: true,
+            savedToPersonalGallery: false,
+          },
+        ]);
+        void queryClient.invalidateQueries({
+          queryKey: ["companion-generated-images", user.id, companion.id],
+        });
+      } catch (e) {
+        console.error(e);
+        toast.error("Couldn't attach your reward image — try again in a moment.");
+      }
+    } else {
+      const fallback = "I wanted to show you something… the pic didn't go through. Ask me again in a sec?";
+      try {
+        const fid = await insertAssistantMessage(fallback, null);
+        setMessages((prev) => [...prev, { id: fid, role: "assistant", content: fallback, timestamp: new Date() }]);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    toast.success(`${companion.name} feels even closer…`, { duration: 3500 });
+  };
+
+  const applyChatAffectionAfterExchange = async () => {
+    if (!user || !companion) return;
+    const { data: row, error } = await supabase
+      .from("companion_relationships")
+      .select("chat_affection_level, chat_affection_progress, breeding_progress, breeding_stage, tts_voice_preset")
+      .eq("user_id", user.id)
+      .eq("companion_id", companion.id)
+      .maybeSingle();
+    if (error) {
+      console.error(error);
+      return;
+    }
+    const curLevel = row?.chat_affection_level ?? 1;
+    const curProg = row?.chat_affection_progress ?? 0;
+    const { level, progress, leveledTo, reward } = advanceChatAffectionState({
+      level: curLevel,
+      progress: curProg,
+    });
+    const legacyPct = tierToLegacyAffectionPct(level);
+    const { error: upErr } = await supabase.from("companion_relationships").upsert(
+      {
+        user_id: user.id,
+        companion_id: companion.id,
+        chat_affection_level: level,
+        chat_affection_progress: progress,
+        affection_level: legacyPct,
+        breeding_progress: row?.breeding_progress ?? 0,
+        breeding_stage: row?.breeding_stage ?? 0,
+        tts_voice_preset: row?.tts_voice_preset ?? null,
+        last_interaction: new Date().toISOString(),
+      },
+      { onConflict: "user_id,companion_id" },
+    );
+    if (upErr) {
+      console.error(upErr);
+      return;
+    }
+    refreshRelationship();
+    if (leveledTo && reward) {
+      await deliverAffectionLevelUpRewards(leveledTo, reward);
+    }
+  };
+
   const confirmPendingImageGeneration = async () => {
     if (!imageGenPending || !user || !companion) return;
     const { prompt } = imageGenPending;
@@ -1066,6 +1278,7 @@ const Chat = () => {
           queryKey: ["companion-generated-images", user.id, companion.id],
         });
         clearOpeningStarterContext();
+        await applyChatAffectionAfterExchange();
       }
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : "Could not save image to chat";
@@ -1203,6 +1416,7 @@ const Chat = () => {
           });
 
           clearOpeningStarterContext();
+          await applyChatAffectionAfterExchange();
         } else {
           /** Image pipeline failed (toast already from `generateImage`). Do NOT call chat with the raw image brief — Grok often refuses and breaks immersion. */
           const fallback =
@@ -1216,6 +1430,7 @@ const Chat = () => {
           };
           setMessages((prev) => [...prev, assistantMsg]);
           clearOpeningStarterContext();
+          await applyChatAffectionAfterExchange();
         }
       } else {
         const { data, error } = await supabase.functions.invoke("chat-with-companion", {
@@ -1257,6 +1472,7 @@ const Chat = () => {
 
         await deductTokens(user.id);
         clearOpeningStarterContext();
+        await applyChatAffectionAfterExchange();
       }
     } catch (err: unknown) {
       console.error("Chat error:", err);
@@ -1305,9 +1521,14 @@ const Chat = () => {
       return;
     }
     if (fabId === "vibration") {
-      const first = vibrationPatterns[0];
-      if (first) void triggerCompanionVibration(first);
-      else toast.error("No signature patterns for this companion.");
+      if (!hasDevice) {
+        toast.error("Connect a Lovense toy first.");
+        return;
+      }
+      const sig =
+        vibrationPatterns.find((p) => p.is_abyssal_signature) ?? vibrationPatterns[0];
+      if (sig) void triggerCompanionVibration(sig);
+      else toast.error("No vibration patterns for this companion yet.");
       return;
     }
     if (fabId === "praise") void sendMessage("Praise me. I need to hear I'm good.");
@@ -1398,6 +1619,9 @@ const Chat = () => {
         imageUrl={portraitStillUrl}
         headerAnimated={headerAnimated}
         mood={mood}
+        affectionTier={affectionTier}
+        affectionProgress={affectionProgress}
+        affectionProgressMax={affectionProgressMax}
         tokensBalance={tokensBalance}
         isAdminUser={isAdminUser}
         safeWord={safeWord}
@@ -1451,6 +1675,7 @@ const Chat = () => {
         patterns={vibrationPatterns}
         patternsLoading={vibrationPatternsLoading}
         sendingVibrationId={sendingVibrationId}
+        activePatternId={livePatternId}
         onTriggerPattern={(row) => void triggerCompanionVibration(row)}
       />
 
@@ -1530,7 +1755,12 @@ const Chat = () => {
         }}
       />
 
-      <ChatQuickActionFab onAction={handleFabAction} />
+      <ChatQuickActionFab
+        onAction={handleFabAction}
+        isActionDisabled={(actionId) =>
+          actionId === "vibration" && (!hasDevice || vibrationPatterns.length === 0)
+        }
+      />
 
       <ChatVoiceSettingsSheet
         open={voiceSettingsOpen}

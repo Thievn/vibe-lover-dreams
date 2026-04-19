@@ -12,6 +12,7 @@ type Props = {
   patternsLoading: boolean;
   disabled: boolean;
   sendingId: string | null;
+  activePatternId?: string | null;
   onTrigger: (row: CompanionVibrationPatternRow) => void;
   className?: string;
 };
@@ -27,6 +28,7 @@ export function ToyControlPanel({
   patternsLoading,
   disabled,
   sendingId,
+  activePatternId = null,
   onTrigger,
   className,
 }: Props) {
@@ -94,6 +96,7 @@ export function ToyControlPanel({
           patterns={patterns}
           disabled={disabled}
           sendingId={sendingId}
+          activePatternId={activePatternId}
           onTrigger={onTrigger}
           variant="chat"
         />

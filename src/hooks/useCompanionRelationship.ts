@@ -6,6 +6,10 @@ export interface CompanionRelationship {
   user_id: string;
   companion_id: string;
   affection_level: number;
+  /** Chat bond tier 1–5 (message-count progression). */
+  chat_affection_level?: number;
+  /** Exchanges counted toward the next tier. */
+  chat_affection_progress?: number;
   breeding_progress: number;
   breeding_stage: number;
   last_interaction: string;

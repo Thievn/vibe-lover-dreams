@@ -2,6 +2,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovenseToyAvatarUrl } from "@/lib/lovenseToyAvatar";
 import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
 
+/** Edge function JSON body sometimes carries logical errors with HTTP 200. */
+function logicalErrorFromDeviceInvokeData(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const d = data as Record<string, unknown>;
+  if (typeof d.error === "string" && d.error.trim()) return d.error.trim();
+  if (d.success === false && typeof d.message === "string") return d.message.trim();
+  return null;
+}
+
 export interface LovenseToy {
   /** DB row id */
   rowId: string;
@@ -86,7 +95,7 @@ export const sendCommand = async (userId: string, command: LovenseCommand): Prom
       throw new Error(`Toy does not support ${command.command} command`);
     }
 
-    const { error } = await supabase.functions.invoke("send-device-command", {
+    const { data, error } = await supabase.functions.invoke("send-device-command", {
       body: {
         command: command.command,
         intensity: Math.min(100, Math.max(0, command.intensity)),
@@ -96,10 +105,15 @@ export const sendCommand = async (userId: string, command: LovenseCommand): Prom
       },
     });
 
-    if (error) throw error;
+    if (error) {
+      throw new Error(await messageFromFunctionsInvoke(error, data));
+    }
+    const logical = logicalErrorFromDeviceInvokeData(data);
+    if (logical) throw new Error(logical);
     return true;
   } catch (error) {
     console.error("Failed to send command:", error);
+    if (error instanceof Error) throw error;
     return false;
   }
 };
@@ -110,13 +124,16 @@ export const stopAllUserToys = async (userId: string, toys: LovenseToy[]): Promi
   if (targets.length === 0) return false;
   let ok = true;
   for (const t of targets) {
-    const s = await sendCommand(userId, {
-      command: "stop",
-      intensity: 0,
-      duration: 0,
-      toyId: t.id,
-    });
-    ok = ok && s;
+    try {
+      await sendCommand(userId, {
+        command: "stop",
+        intensity: 0,
+        duration: 0,
+        toyId: t.id,
+      });
+    } catch {
+      ok = false;
+    }
   }
   return ok;
 };
@@ -222,7 +239,11 @@ export const testToy = async (userId: string, toyDeviceUid: string): Promise<boo
     duration: 2000,
     toyId: toyDeviceUid,
   };
-  return sendCommand(userId, testCommand);
+  try {
+    return await sendCommand(userId, testCommand);
+  } catch {
+    return false;
+  }
 };
 
 const parseCapabilities = (toyType: string): string[] => {

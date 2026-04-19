@@ -68,7 +68,7 @@ export const FAB_SELFIE = {
 
     imagePrompt:
       "Lewd selfie — wearing lingerie, sheer clothing, partially undressed or topless, seductive teasing pose, " +
-      "bedroom eyes, sensual body language, highly detailed, erotic lighting, seductive and playful.",
+      "bedroom eyes,random sensual poses, sensual body language, highly detailed, erotic lighting, seductive and playful.",
   },
 
   nude: {
@@ -81,10 +81,10 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Fully nude NSFW selfie — completely naked, explicit and uncensored, highly detailed beautiful anatomy. " +
+      "Fully nude NSFW selfie — completely nakedored,, explicit and uncens highly detailed beautiful anatomy. " +
       "If female: perfect breasts, detailed pussy, tight anus, flushed skin, aroused expression. " +
       "If male: muscular chest, detailed cock, balls, tight anus, powerful physique, aroused expression. " +
-      "Sensual pose, cinematic erotic lighting, wetness or precum if appropriate, heavy breathing, extremely sensual and explicit.",
+      "Random Sensual poses, cinematic erotic lighting, wetness or precum if appropriate, heavy breathing, extremely sensual and explicit.",
   },
 } as const;
 
