@@ -49,7 +49,7 @@ export function isVideoPortraitUrl(url: string): boolean {
   return /\.(mp4|webm|mov)(\?|$)/i.test(url);
 }
 
-/** Public profile / chat: show looping MP4 only when enabled and URL is video */
+/** Companion profile / chat: show looping MP4 only when enabled and URL is video */
 export function shouldShowProfileLoopVideo(
   db: PortraitDbFields | undefined,
   profileLoopVideoEnabled: boolean | undefined,

@@ -33,7 +33,11 @@ import { buildChatSystemPrompt } from "@/lib/companionSystemPrompts";
 import { useCompanionVibrationPatterns, type CompanionVibrationPatternRow } from "@/hooks/useCompanionVibrationPatterns";
 import { parseVibrationPayload, payloadToLovenseCommand } from "@/lib/vibrationPatternPayload";
 import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
-import { inferForgeBodyTypeFromTags, inferStylizedArtFromTags } from "@/lib/forgeBodyTypes";
+import {
+  inferForgeBodyTypeFromAppearance,
+  inferForgeBodyTypeFromTags,
+  inferStylizedArtFromTags,
+} from "@/lib/forgeBodyTypes";
 import { ChatPremiumHeader } from "@/components/chat/ChatPremiumHeader";
 import { ChatMessageThread } from "@/components/chat/ChatMessageThread";
 import { ChatComposer } from "@/components/chat/ChatComposer";
@@ -553,7 +557,10 @@ const Chat = () => {
           companionId: companion.id,
           style: "chat-session",
           artStyleLabel: inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic",
-          bodyType: inferForgeBodyTypeFromTags(dbComp.tags ?? []) ?? "Average",
+          bodyType:
+            inferForgeBodyTypeFromTags(dbComp.tags ?? []) ??
+            inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
+            "Average Build",
           tags: dbComp.tags ?? [],
           baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
           vibe: companion.personality,
@@ -616,7 +623,10 @@ const Chat = () => {
           companionId: companion.id,
           style: "chat-session",
           artStyleLabel: inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic",
-          bodyType: inferForgeBodyTypeFromTags(dbComp.tags ?? []) ?? "Average",
+          bodyType:
+            inferForgeBodyTypeFromTags(dbComp.tags ?? []) ??
+            inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
+            "Average Build",
           tags: dbComp.tags ?? [],
           baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
           vibe: companion.personality,

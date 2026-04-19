@@ -328,7 +328,7 @@ Seeds:
 
 Hard requirements:
 1) name: Grok invents ONE highly unique display name (species- and setting-themed; vary etymology — no recycled "Velvet / Storm / Night / Vale" spam). Use varied registers: epithets, court titles, monastery vow-names, relic codenames, mundane jobs + odd honorifics, geography, loanwords — not only dark-romance catalog tone. Do not lean on gratuitous "forge / lust / neon vice" phonemes unless seeds clearly ask. NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs. The operator can rename in the profile editor later.
-2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps.
+2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps. The body must **clearly match** forge body type "${o.bodyType}" (height, limb proportions, scale vs environment; species or hybrid traits when non-human — never a generic silhouette that ignores this choice).
 3) backstory: 3–4 paragraphs of premium dark-romance storytelling that weaves every archetype and vibe/theme into one coherent history — not a bullet recap of tags.
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
 5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences). Bold NSFW when persona fits; never end with meta questions ("Are you ready?", "Want to start?") — close on dialogue or action.
@@ -569,6 +569,7 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
     () =>
       composeForgePortraitPrompt({
         name: name || "an original companion",
+        bodyType,
         portraitAppearanceText,
         personalityLabel,
         vibeThemeLabel,
@@ -579,6 +580,7 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
       }),
     [
       name,
+      bodyType,
       portraitAppearanceText,
       personalityLabel,
       vibeThemeLabel,
@@ -782,12 +784,12 @@ Seeds:
 
 Hard requirements:
 1) name: Grok invents ONE highly unique display name (species- and setting-themed; vary etymology — no recycled "Velvet / Storm / Night / Vale" spam). Epithets, court titles, monastery vow-names, relic codenames, or 2–4 word constructions. NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs. Do not pick from any fixed name roster — invent fresh. The operator can rename in the profile editor later.
-2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps.
+2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps. The body must **clearly match** forge body type "${bt}" (height, limb proportions, scale vs environment; species or hybrid traits when non-human).
 3) backstory: 3–4 paragraphs of premium dark-romance storytelling that weaves every archetype and vibe/theme into one coherent history — not a bullet recap of tags.
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
 5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences). Bold NSFW when persona fits; never end with meta questions ("Are you ready?", "Want to start?") — close on dialogue or action.
 6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
-7) image_prompt: one dense SFW paragraph for a vertical portrait card; must visually align with art style "${ar}" and environment "${sc}" (lighting, wardrobe, and set pieces coherent with both).
+7) image_prompt: one dense SFW paragraph for a vertical portrait card; must match body type "${bt}" for silhouette and species; align with art style "${ar}" and environment "${sc}" (lighting, wardrobe, set pieces).
 8) system_prompt: full chat charter for this persona.`;
 
     try {
@@ -839,6 +841,7 @@ Hard requirements:
         artStyleLabel: artStyle,
         randomize: false,
         bodyType,
+        ...(nar ? { appearance: nar.slice(0, 2500) } : {}),
         vibe: vibeThemeLabel,
         hair: `styled to match ${vibeThemeLabel} and ${artStyle}`,
         eyes: traits.includes("Glowing eyes") ? "striking glowing eyes" : "expressive, magnetic eyes",
@@ -1095,6 +1098,7 @@ Hard requirements:
       const portraitAppearanceForRow = effectiveNarrative || appearanceBlurb;
       const rowGrokPrompt = composeForgePortraitPrompt({
         name: name.trim() || "an original companion",
+        bodyType,
         portraitAppearanceText: portraitAppearanceForRow,
         personalityLabel,
         vibeThemeLabel,

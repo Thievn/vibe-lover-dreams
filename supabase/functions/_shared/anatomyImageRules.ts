@@ -129,8 +129,15 @@ function tagsBlob(characterData: Record<string, unknown>): string {
   return "";
 }
 
+/** Long-form prose often repeats stature when forge `bodyType` was omitted (e.g. older clients). */
+function appearanceTail(characterData: Record<string, unknown>): string {
+  const a = characterData.appearance;
+  if (typeof a !== "string" || !a.trim()) return "";
+  return a.trim().toLowerCase().slice(0, 2500);
+}
+
 function haystack(characterData: Record<string, unknown>): string {
-  return `${bodyTypeText(characterData)} | ${tagsBlob(characterData)}`;
+  return `${bodyTypeText(characterData)} | ${tagsBlob(characterData)} | ${appearanceTail(characterData)}`;
 }
 
 function matchesAny(hay: string, markers: readonly string[]): boolean {
@@ -143,7 +150,6 @@ function matchesAny(hay: string, markers: readonly string[]): boolean {
  */
 export function resolveAnatomyVariant(characterData: Record<string, unknown>): AnatomyVariant {
   const bt = bodyTypeText(characterData);
-  const tags = tagsBlob(characterData);
   const hay = haystack(characterData);
 
   const stature =
@@ -151,7 +157,7 @@ export function resolveAnatomyVariant(characterData: Record<string, unknown>): A
     bt.includes("midget") ||
     bt.includes("dwarf") ||
     bt.includes("short stature") ||
-    /\blittle person\b|\bmidget\b|\bdwarf\b|\bshort stature\b/i.test(tags);
+    /\blittle person\b|\bmidget\b|\bdwarf\b|\bshort stature\b/i.test(hay);
 
   if (stature) return "little_person";
 
@@ -163,7 +169,7 @@ export function resolveAnatomyVariant(characterData: Record<string, unknown>): A
     bt.includes("double amputee") ||
     bt.includes("missing leg") ||
     bt.includes("missing arm") ||
-    /\bamputee\b|\bwheelchair\b|\bmissing (leg|arm)s?\b|one-legged|one-armed|double amputee/i.test(tags);
+    /\bamputee\b|\bwheelchair\b|\bmissing (leg|arm)s?\b|one-legged|one-armed|double amputee/i.test(hay);
 
   if (mobility) return "mobility_limb_difference";
 
@@ -220,7 +226,9 @@ export function buildAnatomyRewriterDirective(variant: AnatomyVariant): string {
     case "little_person":
       return [
         "ANATOMY (AUTHORIZED — short stature): The user explicitly chose a **little person / short stature** presentation.",
-        "Depict **dignified adult proportions** consistent with that choice (shorter limbs relative to torso) **without** mockery, infantilization, fetishizing disability, or carnival caricature.",
+        "Depict **dignified adult proportions** consistent with that choice (shorter limbs relative to torso, believable head-to-body ratio for an adult) **without** mockery, infantilization, fetishizing disability, or carnival caricature.",
+        "Do **NOT** substitute a generic tall or average-height fashion model — avoid runway leg length, implied 5'8\"+ stature, or child/teen framing.",
+        "Use **environment scale** (door frames, bar rails, furniture, handrails) or three-quarter / full-length framing so shorter stature reads clearly.",
         "Hands and feet must stay **coherent and intentional** (correct finger count, believable joints, clean silhouettes).",
         "Stay SFW. Do not add unrelated limb loss, horror distortion, or random glitch anatomy.",
       ].join(" ");
@@ -261,9 +269,10 @@ export function buildAnatomyRewriterDirective(variant: AnatomyVariant): string {
       ].join(" ");
     default:
       return [
-        "ANATOMY (DEFAULT — strict photoreal human): Unless the brief matches an approved forge theme above, depict **flawless natural human anatomy**.",
-        "Requirements: **realistic leg length and leg-to-torso ratio**; **anatomically correct hands and feet** with clear fingers/toes; no fused digits, no extra limbs for shock value.",
-        "Do **not** substitute a generic human when the user selected a **non-human forge body type** — that case uses an authorized variant instead.",
+        "ANATOMY (DEFAULT — photoreal humanoid): CONTEXT almost always includes a **forge body type** string from the product UI — that label is the **highest-priority** silhouette instruction.",
+        "Match it exactly for build and scale: e.g. curvy, plus-size, petite, tall, muscular, androgynous, hyper-shape options, etc. — **not** a generic runway or stock-model default.",
+        "**Realistic** hands and feet (clear digits, believable joints); coherent proportions for the chosen build — no random fused fingers or shock extra limbs.",
+        "If CONTEXT later authorizes non-human anatomy (other switch cases), those rules add on top — never ignore the forge label.",
         "Stay SFW.",
       ].join(" ");
   }
@@ -274,7 +283,7 @@ export function buildAnatomyImagineKeyRules(variant: AnatomyVariant): string {
   switch (variant) {
     case "little_person":
       return [
-        "Anatomy: **Short-stature / little person** presentation is **explicitly authorized** — respectful, adult, dignified proportions; detailed believable hands and feet; no mockery or fetishizing.",
+        "Anatomy: **Short-stature / little person** — adult proportions with shorter limbs; **not** average-height model legs; use setting scale so stature is obvious; respectful, detailed hands/feet; no mockery or fetishizing.",
       ].join(" ");
     case "mobility_limb_difference":
       return [
@@ -302,7 +311,7 @@ export function buildAnatomyImagineKeyRules(variant: AnatomyVariant): string {
       ].join(" ");
     default:
       return [
-        "Anatomy: **Strict photoreal human** — flawless proportions, realistic leg-to-body ratio, **detailed realistic hands and feet**, unless the forge body type above authorizes non-human anatomy.",
+        "Anatomy: **Photoreal humanoid** — the **forge body type line in Character Details above is authoritative** for build and silhouette (every UI category: realistic builds, stature, mobility, anthro, hybrid, otherworldly, hyper-shape, etc.). Match that label; do not substitute a generic default figure. Detailed believable hands and feet; non-human cases follow the variant rules already injected.",
       ].join(" ");
   }
 }

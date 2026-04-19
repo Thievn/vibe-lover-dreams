@@ -232,13 +232,33 @@ export function forgeBodyCategoryIdForType(bodyType: string): string {
   return "humanoid";
 }
 
+/**
+ * Infer forge body type from tags. Matches partial phrases (e.g. "little person" alone)
+ * so we still resolve stature when the full UI label was not copied into tags.
+ */
 export function inferForgeBodyTypeFromTags(tags: string[]): ForgeBodyType | undefined {
   const blob = tags.map((x) => x.toLowerCase()).join(" | ");
+  if (
+    /\blittle person\b|\bmidget\b|\bshort stature\b|\bshort-stature\b|\bachondroplasia\b/i.test(blob) ||
+    (/\bdwarf\b/i.test(blob) && !/\bdragon\b/i.test(blob) && !/\b(dwarven|dwarf\s+lord)\b/i.test(blob))
+  ) {
+    return "Little Person / Midget";
+  }
+  if (/\bwheelchair\b|\bamputee\b|\bone-legged\b|\bone-armed\b|\bdouble amputee\b/i.test(blob)) {
+    const hit = FORGE_BODY_TYPES.find((b) => /amputee|wheelchair|one-legged|one-armed|double amputee/i.test(b));
+    if (hit) return hit;
+  }
   for (const b of FORGE_BODY_TYPES) {
     const bl = b.toLowerCase();
     if (blob.includes(bl)) return b;
   }
   return undefined;
+}
+
+/** Same heuristics as tags, for chat image gen when tags omit the forge label. */
+export function inferForgeBodyTypeFromAppearance(appearance: string | null | undefined): ForgeBodyType | undefined {
+  if (!appearance?.trim()) return undefined;
+  return inferForgeBodyTypeFromTags([appearance]);
 }
 
 export function inferStylizedArtFromTags(tags: string[]): string | undefined {

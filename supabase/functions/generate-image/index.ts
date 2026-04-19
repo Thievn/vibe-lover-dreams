@@ -210,6 +210,10 @@ serve(async (req) => {
     const bodyTypeLine = forgeBody
       ? `- Body & silhouette (forge): **${forgeBody}** — this is authoritative; render species, scale, hybrid parts, and non-human traits to match it (not a default human silhouette unless the label is clearly humanoid-only).`
       : `- Body type: any body type (slim, curvy, muscular, plus-size, petite, tall, short, etc.)`;
+    const statureEmphasisLine =
+      anatomyVariant === "little_person"
+        ? `- **Stature (critical):** Adult proportional short stature / little person — not average-height fashion-model legs; when possible show scale vs doorways, bar, or furniture.`
+        : null;
     const artStyleLine = forgeArt
       ? `- Art style (forge): ${forgeArt} — keep rendering discipline consistent with this choice.`
       : null;
@@ -217,6 +221,7 @@ serve(async (req) => {
     const characterDetailsBlock = [
       "Character Details:",
       bodyTypeLine,
+      statureEmphasisLine,
       artStyleLine,
       `- Ethnicity / skin tone: ${characterData.ethnicity || "any"}`,
       `- Age range: ${characterData.ageRange || "young adult"}`,
@@ -252,6 +257,7 @@ ${characterDetailsBlock}
 Key Rules:
 - Strictly SFW — no nudity, no visible genitals, no explicit sex acts
 - Extremely sexy and provocative but tasteful and artistic
+${forgeBody ? `- **Forge body type** (Character Details) overrides any conflicting silhouette or species wording in the primary scene text below — match the UI label for every category (human builds, stature, mobility, anthro, hybrid, elemental, hyper-shape, etc.).` : ""}
 - ${anatomyKeyRules}
 - Highly detailed, cinematic lighting, premium quality, vertical portrait composition suitable for TCG-style card
 ${refLines ? `${refLines}\n` : ""}
@@ -268,6 +274,7 @@ ${characterDetailsBlock}
 
 Visual rules:
 - No legible logos, watermarks, UI chrome, fake app branding, or readable product/store signage in-frame.
+${forgeBody ? `- **Forge body type** (Character Details) overrides conflicting silhouette or species wording in the scene text below.` : ""}
 - ${anatomyKeyRules}
 - Premium lighting, cinematic composition, flattering portrait discipline.
 ${refLines ? `${refLines}\n` : ""}

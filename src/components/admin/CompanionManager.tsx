@@ -10,10 +10,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Search, Save, RefreshCw, Plus, Eye, EyeOff, ChevronDown, ChevronUp,
-  Loader2, X, ImageIcon, Palette, ArrowLeft, Sparkles, Trash2, Waves,
+  Loader2, X, ImageIcon, Palette, ArrowLeft, Sparkles, Trash2, Waves, Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminLoopingVideoBlock } from "@/components/admin/AdminLoopingVideoBlock";
+import { galleryStaticPortraitUrl, isVideoPortraitUrl } from "@/lib/companionMedia";
 
 type ViewMode = "list" | "edit" | "create";
 
@@ -74,6 +75,27 @@ const CUSTOM_CHARACTER_UPDATE_KEYS = new Set([
   "personality_archetypes",
   "vibe_theme_selections",
 ]);
+
+function adminStockNeedsLoopVideo(c: DbCompanion): boolean {
+  const anim = c.animated_image_url?.trim();
+  if (anim && isVideoPortraitUrl(anim)) return false;
+  return Boolean(galleryStaticPortraitUrl(c, c.id));
+}
+
+function adminForgeRowNeedsLoopVideo(row: {
+  animated_image_url?: string | null;
+  static_image_url?: string | null;
+  image_url?: string | null;
+  avatar_url?: string | null;
+}): boolean {
+  const anim = row.animated_image_url?.trim();
+  if (anim && isVideoPortraitUrl(anim)) return false;
+  return Boolean(
+    (row.static_image_url && row.static_image_url.trim()) ||
+      (row.image_url && row.image_url.trim()) ||
+      (row.avatar_url && row.avatar_url.trim()),
+  );
+}
 
 function LabeledRegenWrap({
   label,
@@ -362,6 +384,7 @@ const CompanionManager = () => {
   const [forgeVibBusyId, setForgeVibBusyId] = useState<string | null>(null);
   const [loreBusyId, setLoreBusyId] = useState<string | null>(null);
   const [repairVibBusy, setRepairVibBusy] = useState(false);
+  const [bulkLoopBusy, setBulkLoopBusy] = useState(false);
   /** When set, edit view uses this row (e.g. full forge profile) instead of catalog list lookup. */
   const [editOverride, setEditOverride] = useState<DbCompanion | null>(null);
   const [forgeEditLoadingId, setForgeEditLoadingId] = useState<string | null>(null);
@@ -504,6 +527,63 @@ const CompanionManager = () => {
       toast.error(e instanceof Error ? e.message : "Repair failed");
     } finally {
       setRepairVibBusy(false);
+    }
+  };
+
+  const bulkGenerateMissingLoopVideos = async () => {
+    if (bulkLoopBusy) return;
+    const stockIds = (companions || []).filter(adminStockNeedsLoopVideo).map((c) => c.id);
+    const { data: forgeRows, error } = await supabase
+      .from("custom_characters")
+      .select("id, static_image_url, image_url, avatar_url, animated_image_url");
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    const forgeIds = (forgeRows || []).filter(adminForgeRowNeedsLoopVideo).map((r) => `cc-${r.id}`);
+    const allIds = [...stockIds, ...forgeIds];
+    if (allIds.length === 0) {
+      toast.message("Everyone with a portrait already has an MP4 loop (or has no still to generate from).");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Generate ${allIds.length} looping profile video(s) via xAI? Runs one companion at a time with a short pause — this can take a while.`,
+      )
+    ) {
+      return;
+    }
+    setBulkLoopBusy(true);
+    const toastId = toast.loading(`Loop videos: 0/${allIds.length}…`);
+    let ok = 0;
+    let fail = 0;
+    try {
+      for (let i = 0; i < allIds.length; i++) {
+        const companionId = allIds[i];
+        try {
+          const { data, error: fnErr } = await supabase.functions.invoke("generate-profile-loop-video", {
+            body: { companionId },
+          });
+          if (fnErr) throw new Error(await getEdgeFunctionInvokeMessage(fnErr, data));
+          const errMsg = (data as { error?: string })?.error;
+          if (errMsg) throw new Error(errMsg);
+          ok++;
+        } catch {
+          fail++;
+        }
+        toast.loading(`Loop videos: ${ok + fail}/${allIds.length} (ok ${ok}, fail ${fail})`, { id: toastId });
+        if (i < allIds.length - 1) {
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      }
+      toast.success(`Loop videos finished: ${ok} ok, ${fail} failed`, { id: toastId, duration: 8000 });
+      void queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
+      void queryClient.invalidateQueries({ queryKey: ["companions"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Batch stopped", { id: toastId });
+    } finally {
+      setBulkLoopBusy(false);
     }
   };
 
@@ -1006,7 +1086,7 @@ const CompanionManager = () => {
                 onChange={(e) => setCreateData((p) => ({ ...p, profile_loop_video_enabled: e.target.checked }))}
                 className="rounded border-border"
               />
-              Show looping MP4 on public profile (when animated URL is a video)
+              Show looping MP4 on companion profile and chat (when animated URL is a video)
             </label>
             <Field label="Custom border overlay URL (optional PNG/SVG)" value={createData.rarity_border_overlay_url || ""} onChange={(v) => setCreateData(p => ({ ...p, rarity_border_overlay_url: v || null }))} />
             <Field label="Legacy image_url (optional)" value={createData.image_url || ""} onChange={(v) => setCreateData(p => ({ ...p, image_url: v || null }))} />
@@ -1173,6 +1253,16 @@ const CompanionManager = () => {
                   <><RefreshCw className="h-4 w-4" /> Regenerate Portrait</>
                 )}
               </button>
+
+              <AdminLoopingVideoBlock
+                companionId={companion.id}
+                onSuccess={() => {
+                  void queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
+                  void queryClient.invalidateQueries({ queryKey: ["companions"] });
+                  void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
+                  void queryClient.invalidateQueries({ queryKey: ["admin-vib-rows", companion.id] });
+                }}
+              />
             </div>
           </div>
 
@@ -1261,15 +1351,6 @@ const CompanionManager = () => {
             <AdminToyPatternsSection companionId={companion.id} />
             <Field label="Static portrait URL" value={(val("static_image_url") as string) || ""} onChange={(v) => setField(companion.id, "static_image_url", v || null)} />
             <Field label="Animated portrait URL" value={(val("animated_image_url") as string) || ""} onChange={(v) => setField(companion.id, "animated_image_url", v || null)} />
-            <AdminLoopingVideoBlock
-              companionId={companion.id}
-              onSuccess={() => {
-                void queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
-                void queryClient.invalidateQueries({ queryKey: ["companions"] });
-                void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
-                void queryClient.invalidateQueries({ queryKey: ["admin-vib-rows", companion.id] });
-              }}
-            />
             <label className="flex items-center gap-2 text-xs text-foreground/90 cursor-pointer">
               <input
                 type="checkbox"
@@ -1277,7 +1358,7 @@ const CompanionManager = () => {
                 onChange={(e) => setField(companion.id, "profile_loop_video_enabled", e.target.checked)}
                 className="rounded border-border"
               />
-              Show looping MP4 on public profile (when animated URL is a video)
+              Show looping MP4 on companion profile and chat (when animated URL is a video)
             </label>
             <Field label="Border overlay URL (optional)" value={(val("rarity_border_overlay_url") as string) || ""} onChange={(v) => setField(companion.id, "rarity_border_overlay_url", v || null)} />
             <Field label="image_url (legacy)" value={(val("image_url") as string) || ""} onChange={(v) => setField(companion.id, "image_url", v || null)} />
@@ -1535,8 +1616,8 @@ const CompanionManager = () => {
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-        <div className="relative flex-1 w-full">
+      <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+        <div className="relative flex-1 w-full min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
@@ -1546,9 +1627,21 @@ const CompanionManager = () => {
             className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-muted border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
           />
         </div>
-        <button onClick={openCreate} className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium flex items-center gap-2 hover:opacity-90 transition-opacity shrink-0">
-          <Plus className="h-4 w-4" /> New Companion
-        </button>
+        <div className="flex flex-wrap gap-2 shrink-0 justify-end">
+          <button
+            type="button"
+            disabled={bulkLoopBusy}
+            onClick={() => void bulkGenerateMissingLoopVideos()}
+            title="Stock + forge rows: generate MP4 loop for anyone with a still portrait but no MP4 yet"
+            className="px-4 py-2.5 rounded-xl border border-primary/40 bg-primary/10 text-primary text-sm font-medium inline-flex items-center gap-2 hover:bg-primary/15 transition-colors disabled:opacity-50"
+          >
+            {bulkLoopBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
+            Generate missing loop videos
+          </button>
+          <button onClick={openCreate} className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium flex items-center gap-2 hover:opacity-90 transition-opacity shrink-0">
+            <Plus className="h-4 w-4" /> New Companion
+          </button>
+        </div>
       </div>
 
       <p className="text-xs text-muted-foreground">{filtered.length} of {companions?.length || 0} companions</p>

@@ -1,7 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { requireAdminUser } from "../_shared/requireSessionUser.ts";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
-import { PROFILE_LOOP_VIDEO_PROMPT } from "../_shared/profileLoopVideoPrompt.ts";
+import {
+  buildProfileLoopVideoPrompt,
+  PROFILE_LOOP_VIDEO_DURATION_SECONDS,
+} from "../_shared/profileLoopVideoPrompt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,21 +34,27 @@ function jsonResponse(obj: Record<string, unknown>, status = 200) {
   });
 }
 
-async function postVideoGeneration(apiKey: string, imageUrl: string): Promise<Response> {
+async function postVideoGeneration(
+  apiKey: string,
+  imageUrl: string,
+  row: Record<string, unknown>,
+): Promise<Response> {
+  const prompt = buildProfileLoopVideoPrompt(row);
+  const payload = {
+    model: "grok-imagine-video",
+    prompt,
+    duration: PROFILE_LOOP_VIDEO_DURATION_SECONDS,
+    aspect_ratio: "9:16",
+    resolution: "480p",
+    image: { url: imageUrl },
+  };
   let res = await fetch(`${XAI_VIDEOS}/generations`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model: "grok-imagine-video",
-      prompt: PROFILE_LOOP_VIDEO_PROMPT,
-      duration: 5,
-      aspect_ratio: "9:16",
-      resolution: "480p",
-      image: { url: imageUrl },
-    }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     res = await fetch(`${XAI_VIDEOS}/generations`, {
@@ -54,14 +63,7 @@ async function postVideoGeneration(apiKey: string, imageUrl: string): Promise<Re
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: "grok-imagine-video",
-        prompt: PROFILE_LOOP_VIDEO_PROMPT,
-        duration: 5,
-        aspect_ratio: "9:16",
-        resolution: "480p",
-        image: imageUrl,
-      }),
+      body: JSON.stringify({ ...payload, image: imageUrl }),
     });
   }
   return res;
@@ -102,6 +104,7 @@ Deno.serve(async (req) => {
   let table: "companions" | "custom_characters";
   let rowPk: string;
   let imageUrl: string | null = null;
+  let row: Record<string, unknown>;
 
   if (companionId.startsWith("cc-")) {
     table = "custom_characters";
@@ -109,11 +112,11 @@ Deno.serve(async (req) => {
     const { data, error } = await svc.from("custom_characters").select("*").eq("id", rowPk).maybeSingle();
     if (error) return jsonResponse({ error: error.message }, 500);
     if (!data) return jsonResponse({ error: "Companion not found" }, 404);
-    const r = data as Record<string, unknown>;
+    row = data as Record<string, unknown>;
     const raw =
-      (typeof r.static_image_url === "string" && r.static_image_url) ||
-      (typeof r.image_url === "string" && r.image_url) ||
-      (typeof r.avatar_url === "string" && r.avatar_url) ||
+      (typeof row.static_image_url === "string" && row.static_image_url) ||
+      (typeof row.image_url === "string" && row.image_url) ||
+      (typeof row.avatar_url === "string" && row.avatar_url) ||
       null;
     imageUrl = stablePublicImageUrl(raw);
   } else {
@@ -122,10 +125,10 @@ Deno.serve(async (req) => {
     const { data, error } = await svc.from("companions").select("*").eq("id", rowPk).maybeSingle();
     if (error) return jsonResponse({ error: error.message }, 500);
     if (!data) return jsonResponse({ error: "Companion not found" }, 404);
-    const r = data as Record<string, unknown>;
+    row = data as Record<string, unknown>;
     const raw =
-      (typeof r.static_image_url === "string" && r.static_image_url) ||
-      (typeof r.image_url === "string" && r.image_url) ||
+      (typeof row.static_image_url === "string" && row.static_image_url) ||
+      (typeof row.image_url === "string" && row.image_url) ||
       null;
     imageUrl = stablePublicImageUrl(raw);
   }
@@ -134,7 +137,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "No public profile image URL — set a static portrait first." }, 400);
   }
 
-  const startRes = await postVideoGeneration(apiKey, imageUrl);
+  const startRes = await postVideoGeneration(apiKey, imageUrl, row);
   const startText = await startRes.text();
   let startParsed: Record<string, unknown>;
   try {

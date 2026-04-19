@@ -52,7 +52,7 @@ export function AdminLoopingVideoBlock({ companionId, className, onSuccess }: Pr
         Looping portrait video
       </div>
       <p className="text-[11px] text-muted-foreground leading-relaxed">
-        Uses your current profile still as source — 5s subtle loop (Grok image-to-video). Public profile can show it when enabled.
+        Uses your current profile still as source — ~10s themed loop (Grok image-to-video; motion follows name, tags, interests, vibe, and lore). Enable below to use it on the companion profile and in chat; not used on the landing page.
       </p>
       <button
         type="button"

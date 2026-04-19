@@ -115,6 +115,8 @@ const CompanionProfile = () => {
   const [livePatternId, setLivePatternId] = useState<string | null>(null);
   const livePatternClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [profileTab, setProfileTab] = useState<"profile" | "gallery">("profile");
+  /** Fade loop MP4 in over the still so we never flash an empty frame while the video buffers */
+  const [loopVideoReady, setLoopVideoReady] = useState(false);
 
   const { data: vibrationPatterns = [], isLoading: vibrationPatternsLoading } = useCompanionVibrationPatterns(id);
 
@@ -139,6 +141,16 @@ const CompanionProfile = () => {
     if (id?.startsWith("cc-")) return base;
     return portraitOverrideUrl ?? base;
   }, [dbComp, id, portraitOverrideUrl]);
+
+  const loopVideoActive = Boolean(
+    showLoopVideo && animatedPortrait && isVideoPortraitUrl(animatedPortrait),
+  );
+  const portraitAspectClass = loopVideoActive ? "aspect-[9/16]" : "aspect-[3/4]";
+
+  useEffect(() => {
+    setLoopVideoReady(false);
+  }, [id, animatedPortrait]);
+
   const backstoryParagraphs = companion
     ? getCompanionBackstoryParagraphs(companion, dbComp)
     : [];
@@ -506,7 +518,12 @@ const CompanionProfile = () => {
                 animatedSrc={lightboxAnimated}
                 triggerClassName="rounded-[1.35rem]"
               >
-                <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[1.35rem] bg-black/15">
+                <div
+                  className={cn(
+                    "relative w-full overflow-hidden rounded-[1.35rem] bg-black/15",
+                    portraitAspectClass,
+                  )}
+                >
                   {isAbyssal && <AbyssalProfileParticles />}
                   <div
                     className="absolute inset-0 z-0"
@@ -514,16 +531,31 @@ const CompanionProfile = () => {
                       background: `linear-gradient(160deg, ${companion.gradientFrom}66, ${companion.gradientTo}55)`,
                     }}
                   />
-                  {showLoopVideo && animatedPortrait && isVideoPortraitUrl(animatedPortrait) ? (
-                    <video
-                      key={animatedPortrait}
-                      className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.08] object-cover object-top"
-                      src={animatedPortrait}
-                      autoPlay
-                      muted
-                      loop
-                      playsInline
-                    />
+                  {loopVideoActive && animatedPortrait ? (
+                    <>
+                      {stillForProfile ? (
+                        <img
+                          src={stillForProfile}
+                          alt=""
+                          className="absolute inset-0 z-[1] h-full w-full object-cover object-center"
+                        />
+                      ) : null}
+                      <video
+                        key={animatedPortrait}
+                        className={cn(
+                          "absolute inset-0 z-[2] h-full w-full object-cover object-center transition-opacity duration-500 ease-out",
+                          loopVideoReady ? "opacity-100" : "opacity-0",
+                        )}
+                        src={animatedPortrait}
+                        poster={stillForProfile ?? undefined}
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        preload="auto"
+                        onLoadedData={() => setLoopVideoReady(true)}
+                      />
+                    </>
                   ) : animatedPortrait && !isVideoPortraitUrl(animatedPortrait) ? (
                     <img
                       src={animatedPortrait}
@@ -541,7 +573,12 @@ const CompanionProfile = () => {
                       <span className="font-gothic text-7xl font-bold text-white/90">{companion.name.charAt(0)}</span>
                     </div>
                   )}
-                  <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-black/90 via-black/15 to-transparent" />
+                  <div
+                    className={cn(
+                      "pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent",
+                      loopVideoActive ? "z-[3]" : "z-[1]",
+                    )}
+                  />
                   <RarityBorderOverlay
                     rarity={rarity}
                     overlayUrl={dbComp?.rarity_border_overlay_url}
@@ -549,6 +586,7 @@ const CompanionProfile = () => {
                     profilePolish
                     gradientFrom={companion.gradientFrom}
                     gradientTo={companion.gradientTo}
+                    className={loopVideoActive ? "z-[4]" : undefined}
                   />
                   <RarityTierCaption rarity={rarity} />
                 </div>
