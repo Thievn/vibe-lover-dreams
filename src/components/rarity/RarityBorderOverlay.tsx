@@ -49,7 +49,7 @@ export function RarityBorderOverlay({
           <img
             src={src}
             alt=""
-            className="absolute inset-0 z-0 h-full w-full scale-[1.05] object-fill mix-blend-screen motion-reduce:opacity-25 opacity-[0.36] animate-profile-frame-bloom-breathe"
+            className="absolute inset-0 z-0 h-full w-full scale-[1.13] object-fill mix-blend-screen motion-reduce:opacity-25 opacity-[0.4] animate-profile-frame-bloom-breathe"
             style={{ filter: rarityProfileBloomFilter(rarity) }}
           />
           <div className="absolute inset-0 z-[1] motion-reduce:hidden" aria-hidden>
@@ -57,8 +57,8 @@ export function RarityBorderOverlay({
               src={src}
               alt=""
               className={cn(
-                "absolute inset-0 h-full w-full object-fill mix-blend-screen will-change-transform",
-                softGlitch ? "opacity-[0.42]" : "opacity-[0.58]",
+                "absolute inset-0 h-full w-full scale-[1.13] object-fill mix-blend-screen will-change-transform",
+                softGlitch ? "opacity-[0.48]" : "opacity-[0.62]",
               )}
               style={{
                 filter: glitchFilterA,
@@ -69,8 +69,8 @@ export function RarityBorderOverlay({
               src={src}
               alt=""
               className={cn(
-                "absolute inset-0 h-full w-full object-fill mix-blend-screen will-change-transform",
-                softGlitch ? "opacity-[0.38]" : "opacity-[0.52]",
+                "absolute inset-0 h-full w-full scale-[1.13] object-fill mix-blend-screen will-change-transform",
+                softGlitch ? "opacity-[0.44]" : "opacity-[0.56]",
               )}
               style={{
                 filter: glitchFilterB,
@@ -81,7 +81,7 @@ export function RarityBorderOverlay({
           <img
             src={src}
             alt=""
-            className="absolute inset-0 z-[3] h-full w-full object-fill opacity-[0.98]"
+            className="absolute inset-0 z-[3] h-full w-full scale-[1.13] object-fill opacity-[0.98]"
             style={{ filter: rarityProfileVectorGlowFilter(rarity) }}
           />
         </>

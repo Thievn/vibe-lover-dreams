@@ -32,6 +32,7 @@ import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFr
 import { CompanionGalleryGrid } from "@/components/companion/CompanionGalleryGrid";
 import type { CompanionRarity } from "@/lib/companionRarity";
 import { RarityBorderOverlay } from "@/components/rarity/RarityBorderOverlay";
+import { RarityTierCaption } from "@/components/rarity/RarityTierCaption";
 import { ProfilePortraitTierHalo } from "@/components/rarity/ProfilePortraitTierHalo";
 import { RarityBadgeIcon } from "@/components/rarity/RarityBadgeIcon";
 import { AbyssalProfileParticles } from "@/components/rarity/AbyssalProfileParticles";
@@ -422,7 +423,7 @@ const CompanionProfile = () => {
                   {animatedPortrait && isVideoPortraitUrl(animatedPortrait) ? (
                     <video
                       key={animatedPortrait}
-                      className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
+                      className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.08] object-cover object-top"
                       src={animatedPortrait}
                       autoPlay
                       muted
@@ -433,13 +434,13 @@ const CompanionProfile = () => {
                     <img
                       src={animatedPortrait}
                       alt=""
-                      className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
+                      className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.08] object-cover object-top"
                     />
                   ) : stillForProfile ? (
                     <img
                       src={stillForProfile}
                       alt=""
-                      className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
+                      className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.08] object-cover object-top"
                     />
                   ) : (
                     <div className="absolute inset-0 z-[1] flex items-center justify-center">
@@ -453,6 +454,7 @@ const CompanionProfile = () => {
                     abyssal={isAbyssal}
                     profilePolish
                   />
+                  <RarityTierCaption rarity={rarity} />
                 </div>
               </PortraitViewLightbox>
             </ProfilePortraitTierHalo>

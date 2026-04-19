@@ -126,7 +126,14 @@ export function ChatMessageThread({
             ) : (
               <div className="flex flex-col gap-2 min-w-0">
                 <div className="flex items-start gap-2">
-                  <p className="whitespace-pre-wrap flex-1 min-w-0">{msg.content}</p>
+                  <p
+                    className={cn(
+                      "whitespace-pre-wrap flex-1 min-w-0 break-words",
+                      msg.role === "assistant" && "leading-[1.7] text-foreground/92",
+                    )}
+                  >
+                    {msg.content}
+                  </p>
                   {msg.role === "assistant" && onTtsClick ? (
                     <button
                       type="button"

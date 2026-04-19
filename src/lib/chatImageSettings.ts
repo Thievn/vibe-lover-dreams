@@ -50,9 +50,11 @@ export const FAB_SELFIE = {
       "Send me something sweet and flirty~",
       "Show me how you look today 💕",
       "A cute selfie would make my day...",
-    ] ,
+    ],
 
-    imagePrompt: "Beautiful SFW casual selfie, fully clothed, flattering lighting, natural pose, looking at camera with soft smile or playful expression, high detail portrait, cinematic soft lighting.",
+    imagePrompt:
+      "Beautiful SFW casual selfie, fully clothed, flattering lighting, natural pose, " +
+      "looking at camera with soft smile or playful expression, high detail portrait, cinematic soft lighting.",
   },
 
   lewd: {
@@ -62,9 +64,11 @@ export const FAB_SELFIE = {
       "Tease me with something spicy~",
       "Show me a lewd selfie, I'm ready...",
       "Don't be shy... let me see more of you 💋",
-    ] ,
+    ],
 
-    imagePrompt: "Lewd selfie — wearing lingerie, sheer clothing, partially undressed or topless, seductive teasing pose, bedroom eyes, sensual body language, highly detailed, erotic lighting, seductive and playful.",
+    imagePrompt:
+      "Lewd selfie — wearing lingerie, sheer clothing, partially undressed or topless, seductive teasing pose, " +
+      "bedroom eyes, sensual body language, highly detailed, erotic lighting, seductive and playful.",
   },
 
   nude: {
@@ -74,7 +78,7 @@ export const FAB_SELFIE = {
       "Full nude selfie please, no hiding~",
       "Be completely bare for me...",
       "I need to see you fully naked right now 🔥",
-    ] ,
+    ],
 
     imagePrompt:
       "Fully nude NSFW selfie — completely naked, explicit and uncensored, highly detailed beautiful anatomy. " +
@@ -83,6 +87,20 @@ export const FAB_SELFIE = {
       "Sensual pose, cinematic erotic lighting, wetness or precum if appropriate, heavy breathing, extremely sensual and explicit.",
   },
 } as const;
+
+export type FabSelfieTier = keyof typeof FAB_SELFIE;
+
+/**
+ * Resolves chat line for + menu selfies: random line from `display` when it is an array
+ * (so `sendMessage` always receives a string — arrays have no `.trim()` and would noop).
+ */
+export function resolveFabDisplay(display: string | readonly string[]): string {
+  if (typeof display === "string") return display.trim();
+  const arr = display.length ? [...display] : [];
+  if (arr.length === 0) return "";
+  const line = arr[Math.floor(Math.random() * arr.length)] ?? arr[0];
+  return String(line).trim();
+}
 
 /** Rough NSFW / explicit image request — qualifies for free-tier counter when under cap. */
 export function isExplicitImageRequest(text: string): boolean {

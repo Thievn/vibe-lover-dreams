@@ -40,6 +40,40 @@ export function normalizeCompanionRarity(raw: string | null | undefined): Compan
   return "common";
 }
 
+/** Profile / card caption (rarity names may change later). */
+export function rarityDisplayLabel(rarity: CompanionRarity): string {
+  const map: Record<CompanionRarity, string> = {
+    common: "Common",
+    rare: "Rare",
+    epic: "Epic",
+    legendary: "Legendary",
+    mythic: "Mythic",
+    abyssal: "Abyssal",
+  };
+  return map[rarity] ?? "Common";
+}
+
+/** Solid fill for tier caption; Abyssal uses `gradient-vice-text` in UI instead. */
+export function rarityTierCaptionColor(rarity: CompanionRarity): string {
+  const { common, rare, epic, legendary, mythic, abyssal } = RARITY_NEON;
+  switch (rarity) {
+    case "common":
+      return "#ffffff";
+    case "rare":
+      return rare.from;
+    case "epic":
+      return epic.from;
+    case "legendary":
+      return legendary.from;
+    case "mythic":
+      return mythic.from;
+    case "abyssal":
+      return abyssal.from;
+    default:
+      return common.core;
+  }
+}
+
 /** When Supabase has no row (static catalog), assign showcase tiers for UI. */
 export function getStaticRarityForCatalog(id: string): CompanionRarity {
   return STATIC_RARITY[id] ?? "common";
@@ -57,17 +91,17 @@ export function rarityProfileVectorGlowFilter(rarity: CompanionRarity): string {
   const { common, rare, epic, legendary, mythic, abyssal } = RARITY_NEON;
   switch (rarity) {
     case "common":
-      return `brightness(1.06) contrast(1.02) drop-shadow(0 0 1px ${common.outline}cc) drop-shadow(0 0 10px ${common.core}99) drop-shadow(0 0 24px ${common.core}44)`;
+      return `brightness(1.06) contrast(1.02) drop-shadow(0 0 1px ${common.outline}cc) drop-shadow(0 0 10px ${common.core}99) drop-shadow(0 0 24px ${common.core}44) drop-shadow(0 0 42px ${common.core}33)`;
     case "rare":
-      return `brightness(1.08) saturate(1.12) drop-shadow(0 0 1.5px ${rare.to}) drop-shadow(0 0 12px ${rare.from}cc) drop-shadow(0 0 28px ${rare.to}66)`;
+      return `brightness(1.08) saturate(1.12) drop-shadow(0 0 1.5px ${rare.to}) drop-shadow(0 0 12px ${rare.from}cc) drop-shadow(0 0 28px ${rare.to}66) drop-shadow(0 0 48px ${rare.from}44)`;
     case "epic":
-      return `brightness(1.09) saturate(1.12) drop-shadow(0 0 1.5px ${epic.from}) drop-shadow(0 0 12px ${epic.to}aa) drop-shadow(0 0 26px ${epic.from}55)`;
+      return `brightness(1.09) saturate(1.12) drop-shadow(0 0 1.5px ${epic.from}) drop-shadow(0 0 12px ${epic.to}aa) drop-shadow(0 0 26px ${epic.from}55) drop-shadow(0 0 52px ${epic.to}40)`;
     case "legendary":
-      return `brightness(1.12) saturate(1.14) drop-shadow(0 0 1.5px ${legendary.from}) drop-shadow(0 0 14px ${legendary.to}cc) drop-shadow(0 0 32px ${legendary.from}55) drop-shadow(0 0 2px rgba(255,255,255,0.35))`;
+      return `brightness(1.12) saturate(1.14) drop-shadow(0 0 1.5px ${legendary.from}) drop-shadow(0 0 14px ${legendary.to}cc) drop-shadow(0 0 32px ${legendary.from}55) drop-shadow(0 0 2px rgba(255,255,255,0.35)) drop-shadow(0 0 56px ${legendary.to}38)`;
     case "mythic":
-      return `brightness(1.09) saturate(1.15) drop-shadow(0 0 1.5px ${mythic.from}) drop-shadow(0 0 12px ${mythic.to}bb) drop-shadow(0 0 28px ${mythic.from}66)`;
+      return `brightness(1.09) saturate(1.15) drop-shadow(0 0 1.5px ${mythic.from}) drop-shadow(0 0 12px ${mythic.to}bb) drop-shadow(0 0 28px ${mythic.from}66) drop-shadow(0 0 50px ${mythic.to}44)`;
     case "abyssal":
-      return `brightness(1.12) saturate(1.18) drop-shadow(0 0 2px ${abyssal.to}) drop-shadow(0 0 14px ${abyssal.from}dd) drop-shadow(0 0 28px ${abyssal.to}88) drop-shadow(0 0 40px ${abyssal.from}55)`;
+      return `brightness(1.12) saturate(1.18) drop-shadow(0 0 2px ${abyssal.to}) drop-shadow(0 0 14px ${abyssal.from}dd) drop-shadow(0 0 28px ${abyssal.to}88) drop-shadow(0 0 40px ${abyssal.from}55) drop-shadow(0 0 64px ${abyssal.to}44)`;
     default:
       return `brightness(1.05) drop-shadow(0 0 8px ${common.core}66)`;
   }

@@ -1,6 +1,7 @@
 import { ArrowLeft, AlertOctagon, Flame, Images, Volume2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PortraitViewLightbox } from "@/components/PortraitViewLightbox";
+import { ChatHeaderAvatarRing } from "@/components/chat/ChatHeaderAvatarRing";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { normalizeCompanionRarity } from "@/lib/companionRarity";
 import type { Companion } from "@/data/companions";
@@ -59,41 +60,43 @@ export function ChatPremiumHeader({
         </button>
 
         <div className="flex flex-col items-center flex-1 min-w-0 gap-2">
-          <div className="relative shrink-0 w-[5.5rem] h-[5.5rem] md:w-28 md:h-28 overflow-visible p-1">
+          <div className="relative h-[5.5rem] w-[5.5rem] shrink-0 overflow-visible p-1 md:h-28 md:w-28">
             <PortraitViewLightbox
               alt={companion.name}
               stillSrc={imageUrl}
               animatedSrc={headerAnimated}
               triggerClassName="h-full w-full rounded-full"
             >
-              <TierHaloPortraitFrame
-                variant="avatar"
-                frameStyle="clean"
-                rarity={rarity}
-                gradientFrom={companion.gradientFrom}
-                gradientTo={companion.gradientTo}
-                overlayUrl={dbComp?.rarity_border_overlay_url ?? null}
-                aspectClassName="aspect-square w-full h-full"
-                className="rounded-full"
-              >
-                <div
-                  className="absolute inset-0 z-0 rounded-full"
-                  style={{
-                    background: imageUrl ? undefined : `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
-                  }}
-                />
-                {imageUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt=""
-                    className="absolute inset-0 z-[1] h-full w-full object-cover object-top rounded-full"
+              <ChatHeaderAvatarRing rarity={rarity} className="h-full w-full">
+                <TierHaloPortraitFrame
+                  variant="avatar"
+                  frameStyle="clean"
+                  rarity={rarity}
+                  gradientFrom={companion.gradientFrom}
+                  gradientTo={companion.gradientTo}
+                  overlayUrl={dbComp?.rarity_border_overlay_url ?? null}
+                  aspectClassName="aspect-square h-full w-full"
+                  className="rounded-full"
+                >
+                  <div
+                    className="absolute inset-0 z-0 rounded-full"
+                    style={{
+                      background: imageUrl ? undefined : `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
+                    }}
                   />
-                ) : (
-                  <span className="absolute inset-0 z-[2] flex items-center justify-center text-2xl font-gothic font-bold text-white/90 rounded-full">
-                    {companion.name.charAt(0)}
-                  </span>
-                )}
-              </TierHaloPortraitFrame>
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt=""
+                      className="absolute inset-0 z-[1] h-full w-full rounded-full object-cover object-top"
+                    />
+                  ) : (
+                    <span className="absolute inset-0 z-[2] flex items-center justify-center rounded-full font-gothic text-2xl font-bold text-white/90">
+                      {companion.name.charAt(0)}
+                    </span>
+                  )}
+                </TierHaloPortraitFrame>
+              </ChatHeaderAvatarRing>
             </PortraitViewLightbox>
             {onCompanionPortraitClick ? (
               <button

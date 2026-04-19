@@ -4,9 +4,17 @@ import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import ParticleBackground from "@/components/ParticleBackground";
 import { motion } from "framer-motion";
-import { Save, Trash2, Shield, Loader2, Wifi, WifiOff, QrCode } from "lucide-react";
+import { Save, Trash2, Shield, Loader2, Wifi, WifiOff, QrCode, Volume2 } from "lucide-react";
 import { toast } from "sonner";
 import { disconnectToy } from "@/lib/lovense";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { TTS_UX_LABELS, TTS_UX_VOICE_IDS, resolveUxVoiceId } from "@/lib/ttsVoicePresets";
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -14,6 +22,8 @@ const Settings = () => {
   const [safeWord, setSafeWord] = useState(() => localStorage.getItem("lustforge-safeword") || "RED");
   const [intensityLimit, setIntensityLimit] = useState(() => parseInt(localStorage.getItem("lustforge-intensity") || "100"));
   const [deviceUid, setDeviceUid] = useState("");
+  /** Empty = no global override (each companion / relationship voice applies). */
+  const [ttsGlobalVoice, setTtsGlobalVoice] = useState("");
   const [saving, setSaving] = useState(false);
 
   // QR connection state
@@ -29,7 +39,7 @@ const Settings = () => {
         return;
       }
       setUser(session.user);
-      loadDeviceUid(session.user.id);
+      loadProfileSettings(session.user.id);
     });
 
     return () => {
@@ -37,13 +47,15 @@ const Settings = () => {
     };
   }, []);
 
-  const loadDeviceUid = async (userId: string) => {
+  const loadProfileSettings = async (userId: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("device_uid")
+      .select("device_uid, tts_voice_global_override")
       .eq("user_id", userId)
       .single();
     if (data?.device_uid) setDeviceUid(data.device_uid);
+    const g = data?.tts_voice_global_override;
+    setTtsGlobalVoice(typeof g === "string" && g.trim() ? resolveUxVoiceId(g) : "");
   };
 
   const handleConnectToy = async () => {
@@ -118,13 +130,24 @@ const Settings = () => {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!user) return;
     setSaving(true);
-    localStorage.setItem("lustforge-safeword", safeWord);
-    localStorage.setItem("lustforge-intensity", intensityLimit.toString());
-    setTimeout(() => {
+    try {
+      localStorage.setItem("lustforge-safeword", safeWord);
+      localStorage.setItem("lustforge-intensity", intensityLimit.toString());
+      const override = ttsGlobalVoice.trim() ? resolveUxVoiceId(ttsGlobalVoice) : null;
+      const { error } = await supabase
+        .from("profiles")
+        .update({ tts_voice_global_override: override })
+        .eq("user_id", user.id);
+      if (error) throw error;
+      toast.success("Settings saved");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Could not save settings");
+    } finally {
       setSaving(false);
-    }, 300);
+    }
   };
 
   const handleClearHistory = async () => {
@@ -201,6 +224,35 @@ const Settings = () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Voice (TTS) */}
+          <div className="rounded-xl border border-border bg-card p-6 mb-6">
+            <h2 className="font-gothic text-lg font-bold text-foreground mb-2 flex items-center gap-2">
+              <Volume2 className="h-5 w-5 text-primary" />
+              Voice
+            </h2>
+            <p className="text-xs leading-relaxed text-muted-foreground mb-4">
+              Choose one voice for every chat, or leave it off and set voice per companion in each chat&apos;s voice
+              menu.
+            </p>
+            <label className="block text-sm text-foreground mb-2">Read-aloud voice default</label>
+            <Select
+              value={ttsGlobalVoice.trim() ? ttsGlobalVoice : "__off__"}
+              onValueChange={(v) => setTtsGlobalVoice(v === "__off__" ? "" : v)}
+            >
+              <SelectTrigger className="w-full border-border bg-muted/40">
+                <SelectValue placeholder="Choose…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__off__">Off — use each companion&apos;s voice</SelectItem>
+                {TTS_UX_VOICE_IDS.map((id) => (
+                  <SelectItem key={id} value={id}>
+                    {TTS_UX_LABELS[id]} — all chats
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Device Connection */}

@@ -40,6 +40,7 @@ import { FloatingHeartsLayer } from "@/components/chat/FloatingHeartsLayer";
 import { ChatVoiceSettingsSheet } from "@/components/chat/ChatVoiceSettingsSheet";
 import type { ChatMessage } from "@/components/chat/chatTypes";
 import { deriveChatMood } from "@/lib/chatMood";
+import { getTtsAutoplay, persistTtsAutoplay } from "@/lib/ttsChatPreferences";
 import {
   TTS_UX_LABELS,
   resolveUxVoiceId,
@@ -56,6 +57,7 @@ import {
   getFreeNsfwImagesUsed,
   incrementFreeNsfwImagesUsed,
   isExplicitImageRequest,
+  resolveFabDisplay,
   setChatAutoSpendImages,
 } from "@/lib/chatImageSettings";
 
@@ -97,6 +99,7 @@ const Chat = () => {
   const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
   const [voicePresetSaving, setVoicePresetSaving] = useState(false);
   const [profileTtsGlobal, setProfileTtsGlobal] = useState<string | null>(null);
+  const [ttsAutoplay, setTtsAutoplayState] = useState(() => getTtsAutoplay());
   const [smartSuggestions, setSmartSuggestions] = useState<string[]>(SMART_FALLBACK);
   const [heartBursts, setHeartBursts] = useState<{ id: number; x: string }[]>([]);
   const heartIdRef = useRef(0);
@@ -162,6 +165,34 @@ const Chat = () => {
   }, [profileTtsGlobal, relationship, dbComp]);
 
   const effectiveVoiceLabel = TTS_UX_LABELS[effectiveUxVoice];
+
+  const relationshipVoicePreset = useMemo(
+    () => resolveUxVoiceId(relationship?.tts_voice_preset ?? dbComp?.tts_voice_preset),
+    [relationship?.tts_voice_preset, dbComp?.tts_voice_preset],
+  );
+
+  const globalVoiceLabelForSheet = useMemo(() => {
+    if (!profileTtsGlobal?.trim()) return null;
+    return TTS_UX_LABELS[resolveUxVoiceId(profileTtsGlobal)];
+  }, [profileTtsGlobal]);
+
+  const onTtsAutoplayChange = useCallback((enabled: boolean) => {
+    persistTtsAutoplay(enabled);
+    setTtsAutoplayState(enabled);
+  }, []);
+
+  useEffect(() => {
+    if (!voiceSettingsOpen || !user?.id) return;
+    void (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("tts_voice_global_override")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const g = data?.tts_voice_global_override;
+      setProfileTtsGlobal(typeof g === "string" && g.trim() ? g.trim() : null);
+    })();
+  }, [voiceSettingsOpen, user?.id]);
 
   const userAvatarUrl = useMemo(() => {
     const m = user?.user_metadata as Record<string, string | undefined> | undefined;
@@ -774,33 +805,6 @@ const Chat = () => {
     }
   }, [relationship?.affection_level]);
 
-  useEffect(() => {
-    if (!companion || !user || !historyReady) return;
-    const wasLoading = prevLoadingRef.current;
-    prevLoadingRef.current = loading;
-    if (wasLoading && !loading) {
-      const last = messagesRef.current[messagesRef.current.length - 1];
-      if (last?.role !== "assistant") return;
-      const t = window.setTimeout(() => {
-        void (async () => {
-          const thread = messagesRef.current.slice(-12).map((m) => ({ role: m.role, content: m.content }));
-          try {
-            const { data, error } = await supabase.functions.invoke("chat-smart-replies", {
-              body: { companionId: companion.id, companionName: companion.name, messages: thread },
-            });
-            if (error) throw error;
-            const sug = (data as { suggestions?: string[] })?.suggestions;
-            if (Array.isArray(sug) && sug.length) setSmartSuggestions(sug.slice(0, 3));
-            else setSmartSuggestions(SMART_FALLBACK);
-          } catch {
-            setSmartSuggestions(SMART_FALLBACK);
-          }
-        })();
-      }, 500);
-      return () => clearTimeout(t);
-    }
-  }, [loading, companion, user, historyReady]);
-
   const saveRelationshipVoice = async (v: TtsUxVoiceId) => {
     if (!user || !companion) return;
     setVoicePresetSaving(true);
@@ -885,6 +889,46 @@ const Chat = () => {
     },
     [user, ttsPlayingId, effectiveUxVoice],
   );
+
+  useEffect(() => {
+    if (!companion || !user || !historyReady) return;
+    const wasLoading = prevLoadingRef.current;
+    prevLoadingRef.current = loading;
+    if (wasLoading && !loading) {
+      const last = messagesRef.current[messagesRef.current.length - 1];
+      if (last?.role !== "assistant") {
+        return;
+      }
+      const t = window.setTimeout(() => {
+        void (async () => {
+          const thread = messagesRef.current.slice(-12).map((m) => ({ role: m.role, content: m.content }));
+          try {
+            const { data, error } = await supabase.functions.invoke("chat-smart-replies", {
+              body: { companionId: companion.id, companionName: companion.name, messages: thread },
+            });
+            if (error) throw error;
+            const sug = (data as { suggestions?: string[] })?.suggestions;
+            if (Array.isArray(sug) && sug.length) setSmartSuggestions(sug.slice(0, 3));
+            else setSmartSuggestions(SMART_FALLBACK);
+          } catch {
+            setSmartSuggestions(SMART_FALLBACK);
+          }
+        })();
+      }, 500);
+
+      let ttsTimer: number | undefined;
+      if (ttsAutoplay && last && !last.imageUrl && last.content?.trim()) {
+        ttsTimer = window.setTimeout(() => {
+          void handleTts(last);
+        }, 400);
+      }
+
+      return () => {
+        clearTimeout(t);
+        if (ttsTimer !== undefined) clearTimeout(ttsTimer);
+      };
+    }
+  }, [loading, companion, user, historyReady, handleTts, ttsAutoplay]);
 
   const handleBreedingComplete = (offspring: any) => {
     setShowBreedingRitual(false);
@@ -1220,21 +1264,21 @@ const Chat = () => {
       return;
     }
     if (fabId === "selfie_sfw") {
-      void sendMessage(FAB_SELFIE.sfw.display, {
+      void sendMessage(resolveFabDisplay(FAB_SELFIE.sfw.display), {
         imageGenerationPrompt: FAB_SELFIE.sfw.imagePrompt,
         bypassImageConfirmation: true,
       });
       return;
     }
     if (fabId === "selfie_lewd") {
-      void sendMessage(FAB_SELFIE.lewd.display, {
+      void sendMessage(resolveFabDisplay(FAB_SELFIE.lewd.display), {
         imageGenerationPrompt: FAB_SELFIE.lewd.imagePrompt,
         bypassImageConfirmation: true,
       });
       return;
     }
     if (fabId === "selfie_nude") {
-      void sendMessage(FAB_SELFIE.nude.display, {
+      void sendMessage(resolveFabDisplay(FAB_SELFIE.nude.display), {
         imageGenerationPrompt: FAB_SELFIE.nude.imagePrompt,
         bypassImageConfirmation: true,
       });
@@ -1471,9 +1515,13 @@ const Chat = () => {
         onOpenChange={setVoiceSettingsOpen}
         companionName={companion.name}
         effectiveLabel={effectiveVoiceLabel}
-        relationshipPreset={resolveUxVoiceId(relationship?.tts_voice_preset ?? undefined)}
+        globalVoiceActive={Boolean(profileTtsGlobal?.trim())}
+        globalVoiceLabel={globalVoiceLabelForSheet}
+        relationshipPreset={relationshipVoicePreset}
         onSaveRelationshipPreset={saveRelationshipVoice}
         saving={voicePresetSaving}
+        ttsAutoplay={ttsAutoplay}
+        onTtsAutoplayChange={onTtsAutoplayChange}
       />
 
       {/* Image Viewer Modal */}

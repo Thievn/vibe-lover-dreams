@@ -74,82 +74,95 @@ export const ImageViewer = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/88 backdrop-blur-xl p-3 sm:p-5"
         onClick={onClose}
       >
         <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
+          initial={{ scale: 0.96, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
+          exit={{ scale: 0.96, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 380, damping: 32 }}
           onClick={(e) => e.stopPropagation()}
-          className="relative max-w-4xl w-full max-h-screen overflow-hidden rounded-2xl bg-card border border-border shadow-2xl"
+          className="relative flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/[0.09] bg-gradient-to-b from-zinc-950/98 via-zinc-950/95 to-black shadow-[0_24px_80px_rgba(0,0,0,0.65)] ring-1 ring-white/[0.06]"
         >
-          {/* Close Button */}
           <button
+            type="button"
             onClick={onClose}
-            className="absolute top-4 right-4 z-10 p-2 rounded-lg bg-black/60 hover:bg-black/80 text-white transition-colors"
+            className="absolute right-3 top-3 z-20 rounded-xl bg-black/70 p-2.5 text-white transition-colors hover:bg-black/90 sm:right-4 sm:top-4"
+            aria-label="Close"
           >
             <X className="h-5 w-5" />
           </button>
 
-          {/* Image Container */}
-          <div className="flex flex-col h-full min-h-0">
-            <div className="flex-1 min-h-[min(72vh,620px)] flex flex-col items-stretch justify-center bg-black/40 overflow-hidden px-1 pt-2">
-              <ZoomableImageViewport src={imageUrl} alt={companionName} className="min-h-[min(68vh,580px)]" />
-              <p className="shrink-0 pt-2 pb-1 text-center text-[10px] text-muted-foreground">
-                Pinch or scroll to zoom · drag to pan · double-click to reset
+          <div className="flex min-h-0 flex-1 flex-col">
+            {/* Image stage: centered, full width, no “stuck to the right” */}
+            <div className="relative flex min-h-[min(52vh,420px)] flex-1 flex-col bg-black sm:min-h-[min(58vh,520px)]">
+              <div
+                className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,45,123,0.08)_0%,transparent_55%)]"
+                aria-hidden
+              />
+              <div className="relative flex min-h-0 flex-1 items-center justify-center px-2 py-10 sm:px-6 sm:py-12">
+                <div className="h-full w-full max-h-[min(72vh,680px)] min-h-[240px]">
+                  <ZoomableImageViewport src={imageUrl} alt={companionName} className="h-full w-full" />
+                </div>
+              </div>
+              <p className="pointer-events-none shrink-0 px-4 pb-3 text-center text-[10px] text-zinc-500 sm:text-[11px]">
+                Scroll to zoom smoothly · drag to pan · double-click to reset
               </p>
             </div>
 
-            {/* Info and Controls */}
-            <div className="bg-card border-t border-border p-6 space-y-4">
-              {/* Prompt Display */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">Generated from:</label>
-                <p className="text-sm text-foreground/80 italic">"{prompt}"</p>
+            {/* Themed meta + actions */}
+            <div className="shrink-0 space-y-4 border-t border-white/[0.08] bg-gradient-to-b from-zinc-950/98 to-zinc-950 p-5 sm:p-6">
+              <div className="rounded-xl border border-primary/15 bg-primary/[0.04] px-4 py-3 backdrop-blur-sm">
+                <p className="font-gothic text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/75">Generated from</p>
+                <p className="mt-2 max-h-28 overflow-y-auto font-mono text-xs leading-relaxed text-zinc-200/95 sm:text-sm">
+                  {prompt}
+                </p>
               </div>
 
-              {/* Action Buttons */}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <button
+                  type="button"
                   onClick={handleDownload}
-                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-colors text-sm font-medium"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-primary/12 px-3 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/22"
                 >
-                  <Download className="h-4 w-4" />
+                  <Download className="h-4 w-4 shrink-0" />
                   <span className="hidden sm:inline">Download</span>
                 </button>
 
                 <button
+                  type="button"
                   onClick={handleCopyUrl}
-                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent transition-colors text-sm font-medium"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-white/[0.06] px-3 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.1]"
                 >
-                  <Copy className="h-4 w-4" />
+                  <Copy className="h-4 w-4 shrink-0" />
                   <span className="hidden sm:inline">Copy URL</span>
                 </button>
 
                 <button
+                  type="button"
                   onClick={handleSaveCompanion}
                   disabled={isSavingCompanion || companionGalleryAutoSaved}
-                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-secondary/10 hover:bg-secondary/20 text-secondary disabled:opacity-50 transition-colors text-sm font-medium"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-secondary/15 px-3 py-2.5 text-sm font-medium text-secondary transition-colors hover:bg-secondary/25 disabled:opacity-50"
                 >
-                  <Save className="h-4 w-4" />
+                  <Save className="h-4 w-4 shrink-0" />
                   <span className="hidden sm:inline">{companionGalleryAutoSaved ? "In gallery" : "Companion"}</span>
                 </button>
 
                 <button
+                  type="button"
                   onClick={handleSavePersonal}
                   disabled={isSavingPersonal}
-                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-foreground/10 hover:bg-foreground/20 text-foreground disabled:opacity-50 transition-colors text-sm font-medium"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-white/[0.06] px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-white/[0.11] disabled:opacity-50"
                 >
-                  <Save className="h-4 w-4" />
+                  <Save className="h-4 w-4 shrink-0" />
                   <span className="hidden sm:inline">Personal</span>
                 </button>
               </div>
 
-              {/* Info Text */}
-              <p className="text-xs text-muted-foreground text-center">
+              <p className="text-center text-[11px] leading-snug text-zinc-500">
                 {companionGalleryAutoSaved
-                  ? "This shot is already in the companion gallery. Save to your personal vault for an extra backup."
+                  ? "Already in the companion gallery. Save to your personal vault for an extra backup."
                   : "Save to the companion gallery or your personal vault — or download anytime."}
               </p>
             </div>
