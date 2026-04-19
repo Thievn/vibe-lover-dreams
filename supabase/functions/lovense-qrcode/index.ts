@@ -67,7 +67,17 @@ Deno.serve(async (req) => {
     //   https://<project-ref>.supabase.co/functions/v1/lovense-callback
     // (Scan flow sends pairing data to that endpoint; `utoken` matches `pairing_token` rows above.)
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const displayName =
+      typeof profileRow?.display_name === "string" && profileRow.display_name.trim()
+        ? profileRow.display_name.trim()
+        : "";
     const uname =
+      displayName ||
       (typeof user.user_metadata?.full_name === "string" && user.user_metadata.full_name.trim()) ||
       (typeof user.email === "string" && user.email.split("@")[0]) ||
       "User";

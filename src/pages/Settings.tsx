@@ -8,6 +8,7 @@ import { Save, Trash2, Shield, Loader2, Wifi, WifiOff, QrCode, Volume2 } from "l
 import { toast } from "sonner";
 import { disconnectToy, getToys, type LovenseToy } from "@/lib/lovense";
 import { useLovensePairing } from "@/hooks/useLovensePairing";
+import { useWindowVisibleRefresh } from "@/hooks/useWindowVisibleRefresh";
 import { LovensePairingQrBlock } from "@/components/toy/LovensePairingQrBlock";
 import {
   Select,
@@ -87,6 +88,15 @@ const Settings = () => {
       }, 100);
     }
   }, []);
+
+  useWindowVisibleRefresh(
+    () => {
+      if (!user?.id) return;
+      void loadProfileSettings(user.id);
+      void refreshLinkedToys(user.id);
+    },
+    Boolean(user?.id),
+  );
 
   const handleDisconnect = async () => {
     if (!user) return;

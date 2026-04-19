@@ -44,6 +44,7 @@ import {
   type DashboardNavId,
   type NavId,
 } from "@/lib/dashboardNav";
+import { useWindowVisibleRefresh } from "@/hooks/useWindowVisibleRefresh";
 
 const NEON_PINK = "#FF2D7B";
 
@@ -77,6 +78,7 @@ const AFFECTION_ROWS: { name: string; pct: number; tier: string }[] = [
   { name: "Kira Lux", pct: 61, tier: "Smitten" },
 ];
 
+/** Uses `profiles.display_name` verbatim (same casing as Account). Uniqueness is enforced case-insensitively in DB/RPC. */
 function resolveGreetingName(user: User | null, profileDisplayName: string | null): string {
   if (!user) return "Forgemaster";
   const fromProfile = profileDisplayName?.trim();
@@ -155,6 +157,13 @@ export default function Dashboard() {
       setToyLabel(null);
     }
   }, []);
+
+  useWindowVisibleRefresh(
+    () => {
+      if (user?.id) void refreshToy(user.id);
+    },
+    Boolean(user?.id),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -414,7 +423,7 @@ export default function Dashboard() {
             <div>
               <h1 className="font-gothic text-2xl sm:text-3xl font-bold tracking-tight">
                 <span className="text-foreground">Welcome back, </span>
-                <span className="gradient-vice-text normal-case">{greetingName}</span>
+                <span className="gradient-vice-text normal-case font-sans">{greetingName}</span>
               </h1>
               <p className="text-sm text-muted-foreground mt-1 italic">
                 Your forge is live — every pulse, every whisper, yours to command.
@@ -564,6 +573,7 @@ export default function Dashboard() {
                 label={toyLabel}
                 onRefresh={() => user && void refreshToy(user.id)}
                 onOpenChat={() => navigate("/chat")}
+                onOpenDeviceSettings={() => navigate("/settings#device-connection")}
               />
             )}
             {activeNav === "history" && <ChatHistoryView onOpenChat={() => navigate("/chat")} />}
@@ -606,7 +616,7 @@ export default function Dashboard() {
                       Identity
                     </h3>
                     <div className="rounded-2xl border border-border/80 bg-card/40 p-4 space-y-2">
-                      <p className="text-sm text-foreground font-gothic normal-case">{greetingName}</p>
+                      <p className="text-sm text-foreground font-sans normal-case">{greetingName}</p>
                       <p className="text-xs text-muted-foreground break-all">{user?.email}</p>
                     </div>
                   </section>
@@ -1084,11 +1094,13 @@ function ToyControlView({
   label,
   onRefresh,
   onOpenChat,
+  onOpenDeviceSettings,
 }: {
   connected: boolean;
   label: string | null;
   onRefresh: () => void;
   onOpenChat: () => void;
+  onOpenDeviceSettings: () => void;
 }) {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -1098,8 +1110,8 @@ function ToyControlView({
           Toy control
         </h2>
         <p className="text-muted-foreground mt-2 text-sm">
-          Haptics sync from the live forge session. Calibrate intensity and patterns where the fantasy actually
-          unfolds.
+          Same Lovense link as <strong className="text-foreground/90">Settings → Device connection</strong> and the
+          profile menu — pair once; chat, dashboard, and patterns all use it.
         </p>
       </div>
       <div className="rounded-2xl border border-border/80 bg-card/50 backdrop-blur-md p-6 space-y-4">
@@ -1121,16 +1133,25 @@ function ToyControlView({
         >
           {connected
             ? `Linked${label ? ` — ${label}` : ""}. Session commands will route in real time.`
-            : "No toy linked to your profile. Open a live session to pair via Lovense callback."}
+            : "No toy linked yet. Pair with the QR code in Settings (or dashboard profile → Connect Lovense), then refresh here."}
         </div>
-        <button
-          type="button"
-          onClick={onOpenChat}
-          className="w-full py-3 rounded-xl font-semibold text-primary-foreground glow-pink"
-          style={{ backgroundColor: NEON_PINK }}
-        >
-          Open live session
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button
+            type="button"
+            onClick={onOpenDeviceSettings}
+            className="flex-1 py-3 rounded-xl font-semibold border border-accent/40 bg-accent/10 text-accent hover:bg-accent/15 transition-colors"
+          >
+            Pair in Settings
+          </button>
+          <button
+            type="button"
+            onClick={onOpenChat}
+            className="flex-1 py-3 rounded-xl font-semibold text-primary-foreground glow-pink"
+            style={{ backgroundColor: NEON_PINK }}
+          >
+            Open live session
+          </button>
+        </div>
       </div>
     </div>
   );

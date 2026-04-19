@@ -5,15 +5,30 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-/** Lovense may send `toyList` (array) or `toys` (id → object map). */
+/**
+ * Lovense may send `toyList` (array) or `toys` (id → object map).
+ * Map keys are often the device id; inner objects may omit `id` (see Standard API docs).
+ */
 function normalizeToyList(callbackData: Record<string, unknown>): Array<Record<string, unknown>> {
   const toyList = callbackData.toyList;
   if (Array.isArray(toyList)) return toyList as Array<Record<string, unknown>>;
   const toys = callbackData.toys;
   if (toys && typeof toys === "object" && !Array.isArray(toys)) {
-    return Object.values(toys as Record<string, Record<string, unknown>>);
+    return Object.entries(toys as Record<string, Record<string, unknown>>).map(([mapKey, toy]) => {
+      const rawId = toy.id ?? toy.uid ?? mapKey;
+      const id = rawId != null ? String(rawId).trim() : "";
+      return { ...toy, id: id || mapKey };
+    });
   }
   return [];
+}
+
+function toyTypeFromRecord(toy: Record<string, unknown>): string {
+  if (typeof toy.toyType === "string" && toy.toyType.trim()) return toy.toyType.toLowerCase();
+  if (typeof toy.type === "string" && toy.type.trim()) return toy.type.toLowerCase();
+  // Standard LAN callback uses `name` for model id (e.g. "max", "lush")
+  if (typeof toy.name === "string" && toy.name.trim()) return String(toy.name).toLowerCase();
+  return "unknown";
 }
 
 function capabilitiesForToyType(toyType: string): string[] {
@@ -120,12 +135,7 @@ Deno.serve(async (req) => {
           (typeof toy.nickname === "string" && toy.nickname.trim()) ||
           (typeof toy.name === "string" && toy.name.trim()) ||
           "Lovense toy";
-        const toyType =
-          typeof toy.toyType === "string"
-            ? toy.toyType.toLowerCase()
-            : typeof toy.type === "string"
-              ? toy.type.toLowerCase()
-              : "unknown";
+        const toyType = toyTypeFromRecord(toy);
         const nickname =
           typeof toy.nickName === "string"
             ? toy.nickName

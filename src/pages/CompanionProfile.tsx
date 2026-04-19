@@ -53,6 +53,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useLovensePairing } from "@/hooks/useLovensePairing";
+import { useWindowVisibleRefresh } from "@/hooks/useWindowVisibleRefresh";
 import { LovensePairingQrBlock } from "@/components/toy/LovensePairingQrBlock";
 
 const RARITY_BADGE: Record<
@@ -186,6 +187,8 @@ const CompanionProfile = () => {
     const toys = await getToys(user.id);
     setConnectedToys(toys);
   }, [user?.id]);
+
+  useWindowVisibleRefresh(refreshConnectedToys, Boolean(user?.id));
 
   const {
     qrImageUrl: pairQrUrl,

@@ -50,6 +50,7 @@ import { ToyHubPopover } from "@/components/toy/ToyHubPopover";
 import { ChatGallerySheet } from "@/components/chat/ChatGallerySheet";
 import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFromGallery";
 import { useLovensePairing } from "@/hooks/useLovensePairing";
+import { useWindowVisibleRefresh } from "@/hooks/useWindowVisibleRefresh";
 import {
   FAB_SELFIE,
   FREE_NSFW_CHAT_IMAGES,
@@ -306,10 +307,17 @@ const Chat = () => {
     localStorage.setItem("lustforge-intensity", intensity.toString());
   }, [intensity]);
 
-  const checkDevice = async (userId: string) => {
+  const checkDevice = useCallback(async (userId: string) => {
     const toys = await getToys(userId);
     setConnectedToys(toys);
-  };
+  }, []);
+
+  useWindowVisibleRefresh(
+    () => {
+      if (user?.id) void checkDevice(user.id);
+    },
+    Boolean(user?.id),
+  );
 
   const refreshToys = async () => {
     if (!user?.id) return;

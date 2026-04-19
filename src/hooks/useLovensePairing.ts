@@ -25,6 +25,8 @@ export function useLovensePairing(
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const baselineDeviceUidRef = useRef<string | null>(null);
   const baselineToyCountRef = useRef<number>(0);
+  /** Set while a QR session is active; callback deletes this row on success (see `lovense-callback`). */
+  const activePairingTokenRef = useRef<string | null>(null);
 
   const clearPoll = useCallback(() => {
     if (pollRef.current) {
@@ -52,10 +54,30 @@ export function useLovensePairing(
       attempts += 1;
       if (attempts > MAX_ATTEMPTS) {
         clearPoll();
+        activePairingTokenRef.current = null;
         setQrImageUrl(null);
         setStatus("idle");
         setLastError("Pairing timed out. Try again — keep Lovense Remote open after scanning.");
         return;
+      }
+
+      const pairingToken = activePairingTokenRef.current;
+      if (pairingToken) {
+        const { data: pairingRow, error: pairingErr } = await supabase
+          .from("lovense_pairings")
+          .select("id")
+          .eq("pairing_token", pairingToken)
+          .maybeSingle();
+
+        if (!pairingErr && pairingRow === null) {
+          clearPoll();
+          activePairingTokenRef.current = null;
+          setQrImageUrl(null);
+          setStatus("idle");
+          setLastError(null);
+          onConnectedRef.current?.();
+          return;
+        }
       }
 
       const [{ data: prof }, { count }] = await Promise.all([
@@ -73,6 +95,7 @@ export function useLovensePairing(
 
       if (uidNew || toysNew) {
         clearPoll();
+        activePairingTokenRef.current = null;
         setQrImageUrl(null);
         setStatus("idle");
         setLastError(null);
@@ -85,6 +108,7 @@ export function useLovensePairing(
     if (!userId) return;
     setLastError(null);
     setQrImageUrl(null);
+    activePairingTokenRef.current = null;
     setStatus("loading");
     await fetchBaseline();
 
@@ -99,6 +123,11 @@ export function useLovensePairing(
         data && typeof data === "object" && "qrCodeUrl" in data
           ? (data as { qrCodeUrl?: string }).qrCodeUrl?.trim()
           : undefined;
+      const pairingToken =
+        data && typeof data === "object" && "pairingToken" in data
+          ? String((data as { pairingToken?: string }).pairingToken ?? "").trim()
+          : "";
+      if (pairingToken) activePairingTokenRef.current = pairingToken;
       if (!url) {
         setStatus("idle");
         setLastError("No QR image returned from server.");
@@ -115,6 +144,7 @@ export function useLovensePairing(
 
   const cancelPairing = useCallback(() => {
     clearPoll();
+    activePairingTokenRef.current = null;
     setQrImageUrl(null);
     setStatus("idle");
     setLastError(null);

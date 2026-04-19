@@ -38,7 +38,7 @@ export function LovensePairingQrBlock({ qrImageUrl, loading, onCancel, className
         </div>
         <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground animate-pulse">
           <QrCode className="h-3.5 w-3.5 shrink-0 opacity-70" />
-          Waiting for LustForge to register your toy…
+          Finishing link with LustForge — keep this page open…
         </p>
       </div>
       {onCancel ? (
