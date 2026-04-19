@@ -1,4 +1,5 @@
-/** Themed fragments — combined for extra variety when the static list would feel repetitive. */
+/** Offline fallback only when Grok name invention fails — no static catalog roster. */
+
 const NAME_CORES = [
   "Myrrh",
   "Vex",
@@ -71,111 +72,10 @@ function pick<T extends readonly string[]>(arr: T): T[number] {
   return arr[Math.floor(Math.random() * arr.length)]!;
 }
 
-/** Evocative catalog-style names — never `Forge-*` developer slugs. */
-const FORGE_DISPLAY_NAMES = [
-  "Seraphine Devereaux",
-  "Kaelen Marrow",
-  "Orin Voss",
-  "Lyra Nightingale",
-  "Morwyn Ash",
-  "Sable Rook",
-  "Elara Moon",
-  "Jax Harlan",
-  "Kira Lux",
-  "Zara Eclipse",
-  "Nova Quinn",
-  "Riven Thorne",
-  "Cassian Vale",
-  "Isolde Fair",
-  "Dorian Cross",
-  "Mira Solace",
-  "Theron Drake",
-  "Vesper Nyx",
-  "Aurelia Frost",
-  "Rowan Sable",
-  "Silas Meridian",
-  "Nadia Vex",
-  "Caius Storm",
-  "Elowen Reed",
-  "Lazarus Bloom",
-  "Selene Drift",
-  "Orion Hale",
-  "Freya Ink",
-  "Magnus Rook",
-  "Iris Vail",
-  "Dante Hollow",
-  "Yara Quill",
-  "Phoenix Vale",
-  "Lilith Vesper",
-  "Soren Blake",
-  "Amara Lux",
-  "Gideon Crow",
-  "Nyx Solari",
-  "Valen Ashford",
-  "Celeste Drift",
-  "Rhys Marlowe",
-  "Ophelia Rook",
-  "Zane Crossfire",
-  "Morgana Vale",
-  "Atlas Night",
-  "Juno Sterling",
-  "Cyrus Vane",
-  "Delilah Thorne",
-  "Remy Solstice",
-  "Sage Evergreen",
-  "Indigo Rae",
-  "Felix Harrow",
-  "Luna Sable",
-  "Orpheus Dawn",
-  "Aria Storm",
-  "Cassiel Noir",
-  "Echo Meridian",
-  "Raven Nox",
-  "Solene Ash",
-  "Marlowe Vex",
-  "Coraline Drift",
-  "Thorne Blackwood",
-  "Vespera Moon",
-  "Alaric Stone",
-  "Seren Vale",
-  "Dax Harlan",
-  "Mielo Cross",
-  "Rhea Solace",
-  "Cinder Rook",
-  "Nero Ash",
-  "Lyric Night",
-  "Oberon Vale",
-  "Sable Quinn",
-  "Tempest Rae",
-  "Alistair Frost",
-  "Belladonna Vex",
-  "Cassian Night",
-  "Eira Solstice",
-  "Lucian Marrow",
-  "Nocturne Vale",
-  "Sorrel Ash",
-  "Zephyr Drift",
-  "Morrigan Cross",
-  "Orion Sable",
-  "Vesper Thorn",
-  "Calypso Moon",
-  "Riven Sol",
-  "Isabeau Noir",
-  "Kestrel Vale",
-  "Mordecai Rook",
-  "Sylva Nightingale",
-  "Torin Ash",
-  "Vega Solari",
-  "Wren Marlowe",
-  "Xanthe Drift",
-  "Yaelis Thorn",
-  "Zinnia Vale",
-];
-
-export function suggestedForgeDisplayName(): string {
-  if (Math.random() < 0.55) {
-    return compoundEvocativeName();
-  }
-  const i = Math.floor(Math.random() * FORGE_DISPLAY_NAMES.length);
-  return FORGE_DISPLAY_NAMES[i] ?? compoundEvocativeName();
+/**
+ * Last-resort display name if `forge_name_only` fails (network / API).
+ * Procedural glue — not a curated list, so it won't mirror catalog cards.
+ */
+export function fallbackForgeDisplayName(): string {
+  return compoundEvocativeName();
 }

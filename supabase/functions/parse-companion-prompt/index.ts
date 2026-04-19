@@ -26,6 +26,7 @@ Deno.serve(async (req) => {
 
     const parodyLab = mode === "parody_lab";
     const companionDesignLab = mode === "companion_design_lab";
+    const forgeNameOnly = mode === "forge_name_only";
 
     const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
     if (!apiKey) {
@@ -46,7 +47,8 @@ Deno.serve(async (req) => {
 
 For backstory: write at least 3 full paragraphs of continuous narrative (roughly 400+ words when you must invent from thin hints). FORBIDDEN: comma-only trait dumps, lines that look like "Tags: …", or pasting the tags array as prose — tell a story with scenes, relationships, and turning points.
 
-For fantasy_starters: each item must have "title" (short card label) and "description" (the EXACT first USER chat line the UI will send when the card is tapped — write it as the human's in-world opener, second person or first-person user POV, not assistant narration). Optional "emoji" for decoration only.`;
+For fantasy_starters: each item must have "title" (short card label) and "description" (the EXACT first USER chat line the UI will send when the card is tapped — write it as the human's in-world opener, second person or first-person user POV, not assistant narration). Optional "emoji" for decoration only.
+Fantasy starter descriptions: adults-only; match the character's heat — bold, seductive, explicit when the persona fits. FORBIDDEN: meta lines that break immersion ("Are you ready?", "Want to begin?", "Tell me when you're comfortable") — end on dialogue, action, or desire, not a questionnaire.`;
 
     const systemParody =
       `You are an admin-only "parody lab" generator for a fictional companion platform.
@@ -56,7 +58,7 @@ Rules (non-negotiable):
 - The character is a "garbage pale" parody: washed-out skin, tired eyes, harsh flash, bargain-bin glamour, uncanny paparazzi energy — still SFW, no nudity.
 - Personality should echo a broad fictional archetype (e.g. "diva pop chaos", "gritty spy lead") only as caricature, not as impersonation of any real individual.
 - Fill every tool field richly: tagline, bio, system_prompt, image_prompt (SFW portrait; no fake shop signs or legible product/app names in-frame), fantasy_starters (exactly 4), gradients, tags, kinks as appropriate for the parody.
-- fantasy_starters: exactly 4; each description = verbatim first USER chat line (in-world).
+- fantasy_starters: exactly 4; each description = verbatim first USER chat line (in-world). Match parody spice level — satirical but can be crude/lewd in voice when it fits the garbage-pale caricature. No "are you ready?" meta — end in-character.
 Always return data via the extract_companion_fields tool call.`;
 
     const systemCompanionDesignLab =
@@ -74,7 +76,7 @@ Bio vs backstory (minimum depth — never thin keyword dumps):
 - bio: at least ~80 words across 2 vivid paragraphs users skim first; voice-forward, seductive or tender per persona.
 - backstory: at least ~400 words across 3+ full paragraphs of continuous prose — deep, memorable lore (wound, want, secret, relationships, at least one cinematic scene with concrete place/time). May imply mature chemistry without pornographic blow-by-blow. FORBIDDEN: restating tags as a list, "Tags:" lines, comma-only keyword dumps, or any paragraph that is mostly traits without narrative.
 
-Fantasy starters: exactly 4 items (mandatory in this mode). Each needs title (card label) + description (the verbatim first USER chat line when they tap the card — in-world, may be seductive / playful / dominant / teasing per persona; not assistant narration). Each description should be 1–4 natural sentences the human would plausibly type.
+Fantasy starters: exactly 4 items (mandatory in this mode). Each needs title (card label) + description (the verbatim first USER chat line when they tap the card — in-world; seductive, explicit, or tender per persona — not assistant narration). Each description should be 1–4 natural sentences. FORBIDDEN: immersion-breaking meta ("Are you ready?", "Want to start?") — end on an in-world beat. Prefer bold NSFW openers when the character's tone supports it.
 
 Appearance: NEVER output the seed trait list as comma-separated keywords. Write 3+ flowing sentences of cinematic prose (silhouette, skin, hair, eyes, wardrobe, aura). Tags belong in the tags array, not copy-pasted into appearance.
 
@@ -92,10 +94,23 @@ Gradients: hex pair matching palette.
 
 Return everything ONLY via the extract_companion_fields tool call (that is your structured JSON channel).`;
 
+    const systemForgeNameOnly =
+      `You invent exactly ONE display name for a premium adult fantasy AI companion. The operator sends high-entropy random seeds — use them only as loose flavor for tone and mythic register; do NOT concatenate seed words into the name.
+
+Rules:
+- 2–4 words OR one rare compound (8–28 characters). Pull from varied etymologies: mythic epithets, invented compounds, hyphenated court titles, relic codenames, undercity aliases, monastery vow-names, hive-caste designations, serial-poetic labels, unpronounceable-but-evocative spellings, etc.
+- The name must feel distinct from generic romance-catalog entries — weirder and more specific than "Firstname Lastname" clichés.
+- BANNED: Forge-*, Temp-*, CC-*, UUIDs, random alphanumeric slugs, usernames.
+- BANNED: leaning on a single stock token (Velvet, Raven, Storm, Night, Ash, Vale, Thorne, Cross, Noir, Sable, Luna) as the only memorable part unless paired with a highly unusual second token.
+
+Return ONLY the name via the tool — no other fields.`;
+
     const userContent = parodyLab
       ? `Parody lab request (broad archetypes / genres only — no real people named):\n\n${prompt}\n\nGenerate ONE original parody companion profile via the tool.`
       : companionDesignLab
       ? `Invent ONE premium catalog companion.\n\nOperator hints (optional — if blank, maximize surprise and variety):\n${prompt.trim() || "(none — go wild within policy)"}\n\nPopulate all tool fields.`
+      : forgeNameOnly
+      ? prompt
       : `Parse this companion profile and extract all fields:\n\n${prompt}`;
 
     const fantasyStartersSchema: Record<string, unknown> = {
@@ -177,6 +192,28 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
       required: ["name"],
     };
 
+    const toolParametersForgeNameOnly = {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description:
+            "Single highly unique display name (2–4 words or one rare compound). Never developer slugs.",
+        },
+      },
+      required: ["name"],
+    };
+
+    const effectiveSystem = forgeNameOnly
+      ? systemForgeNameOnly
+      : parodyLab
+      ? systemParody
+      : companionDesignLab
+      ? systemCompanionDesignLab
+      : systemDefault;
+
+    const effectiveToolParameters = forgeNameOnly ? toolParametersForgeNameOnly : toolParameters;
+
     const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -188,11 +225,7 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
         messages: [
           {
             role: "system",
-            content: parodyLab
-              ? systemParody
-              : companionDesignLab
-              ? systemCompanionDesignLab
-              : systemDefault,
+            content: effectiveSystem,
           },
           {
             role: "user",
@@ -204,13 +237,15 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
             type: "function",
             function: {
               name: "extract_companion_fields",
-              description: "Extract structured companion profile fields from text",
-              parameters: toolParameters,
+              description: forgeNameOnly
+                ? "Return the invented display name"
+                : "Extract structured companion profile fields from text",
+              parameters: effectiveToolParameters,
             },
           },
         ],
         tool_choice: { type: "function", function: { name: "extract_companion_fields" } },
-        temperature: companionDesignLab ? 0.88 : 0.7,
+        temperature: forgeNameOnly ? 0.93 : companionDesignLab ? 0.88 : 0.7,
       }),
     });
 

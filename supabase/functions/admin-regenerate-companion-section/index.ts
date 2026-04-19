@@ -294,8 +294,18 @@ Deno.serve(async (req) => {
     const system =
       `You are a senior editor for a premium dark-fantasy romance companion platform. The operator will ask you to rewrite ONE part of an existing character. Preserve core identity, name, and overall theme — improve prose quality, rhythm, and specificity. Forbidden: shrinking rich sections into keyword dumps, "Tags:" lines, or pasting the tags array as backstory. Return ONLY via the provided tool call.`;
 
-    const user = `SECTION TO REWRITE: ${section}
+    const fantasyStartersRules =
+      section === "fantasy_starters"
+        ? `
 
+Extra rules for fantasy_starters only:
+- Each description is the verbatim first USER chat line (what the human sends). Adults-only; match character heat — explicit when appropriate.
+- Do NOT end descriptions with meta prompts to the reader ("Are you ready?", "Want to begin?", "Tell me if you're comfortable"). End on an in-world line of dialogue, action, or desire.
+`
+        : "";
+
+    const user = `SECTION TO REWRITE: ${section}
+${fantasyStartersRules}
 Current profile JSON (trimmed for context — your output replaces only the fields in the tool):
 ${summarizeRow(row)}
 

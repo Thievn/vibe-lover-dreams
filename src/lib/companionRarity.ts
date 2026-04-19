@@ -18,10 +18,10 @@ export const RARITY_NEON = {
   epic: { from: "#a855f7", to: "#6d28d9" },
   /** Legendary: gold. */
   legendary: { from: "#fbbf24", to: "#d97706" },
-  /** Mythic: purplish crimson / wine-magenta. */
-  mythic: { from: "#be123c", to: "#9d174d" },
-  /** Abyssal: purple–pink void. */
-  abyssal: { from: "#c026d3", to: "#ec4899" },
+  /** Mythic: dual tone — crimson red + dark violet (half-and-half energy in glows / sheen). */
+  mythic: { from: "#dc2626", to: "#5b21b6" },
+  /** Abyssal: purple → hot pink gradient (pairs with glitch on profile). */
+  abyssal: { from: "#a855f7", to: "#f472b6" },
 } as const;
 
 const STATIC_RARITY: Partial<Record<string, CompanionRarity>> = {

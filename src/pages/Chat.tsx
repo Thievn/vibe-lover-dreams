@@ -1231,8 +1231,22 @@ const Chat = () => {
       setGalleryOpen(true);
       return;
     }
-    if (fabId === "selfie") {
-      setInput("Send me a picture of you, please.");
+    if (fabId === "selfie_sfw") {
+      setInput(
+        "Send me a casual SFW selfie — fully clothed, cute pose, good lighting. No nudity.",
+      );
+      return;
+    }
+    if (fabId === "selfie_lewd") {
+      setInput(
+        "Send me a lewd selfie — lingerie or partial nude, explicit teasing, looking at the camera.",
+      );
+      return;
+    }
+    if (fabId === "selfie_nude") {
+      setInput(
+        "Send me a fully nude NSFW selfie — explicit, uncensored, full body or close-up as fits the scene.",
+      );
       return;
     }
     if (fabId === "vibration") {

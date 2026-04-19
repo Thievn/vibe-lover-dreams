@@ -10,12 +10,15 @@ import {
   Plus,
   X,
   Images,
+  Aperture,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 export type FabActionId =
-  | "selfie"
+  | "selfie_sfw"
+  | "selfie_lewd"
+  | "selfie_nude"
   | "vibration"
   | "praise"
   | "tease"
@@ -28,7 +31,9 @@ type Item = { id: FabActionId; label: string; icon: typeof Heart; disabled?: boo
 
 const ITEMS: Item[] = [
   { id: "gallery", label: "Open companion gallery", icon: Images },
-  { id: "selfie", label: "Generate Selfie / Lewd Image", icon: Camera },
+  { id: "selfie_sfw", label: "SFW selfie (casual picture)", icon: Camera },
+  { id: "selfie_lewd", label: "Lewd selfie (teasing / lingerie)", icon: Aperture },
+  { id: "selfie_nude", label: "Nude selfie (explicit)", icon: Sparkles },
   { id: "vibration", label: "Trigger Signature Vibration Pattern", icon: Zap },
   { id: "praise", label: "Praise Me", icon: Heart },
   { id: "tease", label: "Tease Me", icon: Sparkles },
@@ -45,7 +50,7 @@ export function ChatQuickActionFab({ onAction }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-50 md:right-8">
+    <div className="fixed bottom-[calc(12.5rem+env(safe-area-inset-bottom))] right-3 z-40 sm:bottom-[calc(10.5rem+env(safe-area-inset-bottom))] sm:right-5 md:right-8">
       <AnimatePresence>
         {open ? (
           <motion.div
@@ -97,7 +102,7 @@ export function ChatQuickActionFab({ onAction }: Props) {
         whileTap={{ scale: 0.94 }}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "h-14 w-14 rounded-full flex items-center justify-center shadow-lg border border-primary/40",
+          "h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center shadow-lg border border-primary/40",
           "bg-gradient-to-br from-[#FF2D7B] to-[hsl(280_45%_32%)] text-white",
           "hover:shadow-[0_0_28px_rgba(255,45,123,0.45)] transition-shadow",
         )}

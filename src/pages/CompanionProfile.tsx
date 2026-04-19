@@ -411,7 +411,7 @@ const CompanionProfile = () => {
                 animatedSrc={animatedPortrait}
                 triggerClassName="rounded-[1.35rem]"
               >
-                <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[1.35rem] bg-black/50">
+                <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[1.35rem] bg-black/15">
                   {isAbyssal && <AbyssalProfileParticles />}
                   <div
                     className="absolute inset-0 z-0"
@@ -503,6 +503,25 @@ const CompanionProfile = () => {
                 </span>
               </p>
             </div>
+
+            {backstoryParagraphs.length > 0 ? (
+              <section className="rounded-2xl border border-primary/20 bg-gradient-to-b from-black/55 via-black/40 to-black/35 p-5 sm:p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ring-1 ring-white/[0.06]">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-primary/85 mb-2">
+                  Chronicle
+                </p>
+                <h2 className="font-gothic text-xl sm:text-2xl font-bold text-foreground mb-4">Their story</h2>
+                <div className="space-y-4 text-sm sm:text-[15px] leading-relaxed text-muted-foreground/95 max-w-prose">
+                  {backstoryParagraphs.map((p, i) => (
+                    <p
+                      key={i}
+                      className="first-letter:text-primary first-letter:font-gothic first-letter:text-2xl sm:first-letter:text-3xl first-letter:float-left first-letter:mr-2 first-letter:leading-none"
+                    >
+                      {p}
+                    </p>
+                  ))}
+                </div>
+              </section>
+            ) : null}
 
             <div className="flex flex-wrap gap-3">
               <motion.button
@@ -712,8 +731,6 @@ const CompanionProfile = () => {
               </div>
             </div>
 
-            <TcgProfilePanel stats={companion.tcgStats} />
-
             <div className="grid gap-4 sm:grid-cols-2 items-start">
               <div className="rounded-2xl border border-white/[0.08] bg-card/70 p-5 shadow-lg shadow-black/25 ring-1 ring-white/[0.04] backdrop-blur-xl">
                 <h3 className="mb-2 flex items-center gap-2 font-gothic text-lg font-bold text-foreground">
@@ -756,6 +773,8 @@ const CompanionProfile = () => {
                 </div>
               </div>
             </div>
+
+            <TcgProfilePanel stats={companion.tcgStats} />
 
             {companion.kinks.length > 0 ? (
               <div className="rounded-2xl border border-fuchsia-500/20 bg-black/40 p-5 backdrop-blur-xl ring-1 ring-fuchsia-500/10">
@@ -828,26 +847,6 @@ const CompanionProfile = () => {
 
         {profileTab === "profile" ? (
         <>
-        {/* Backstory */}
-        <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="mt-14 sm:mt-16 rounded-[1.5rem] border border-white/[0.08] bg-black/35 p-6 sm:p-10 shadow-[0_0_50px_rgba(0,0,0,0.35)] ring-1 ring-white/[0.04] backdrop-blur-2xl"
-        >
-          <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-muted-foreground mb-3">
-            Chronicle
-          </p>
-          <h2 className="font-gothic text-2xl sm:text-3xl font-bold text-foreground mb-6">Backstory</h2>
-          <div className="space-y-5 text-sm sm:text-base leading-relaxed text-muted-foreground/92">
-            {backstoryParagraphs.map((p, i) => (
-              <p key={i} className="first-letter:text-primary first-letter:font-gothic first-letter:text-3xl first-letter:float-left first-letter:mr-2 first-letter:leading-none">
-                {p}
-              </p>
-            ))}
-          </div>
-        </motion.section>
-
         {/* Fantasy starters */}
         <section className="mt-12 sm:mt-14">
           <h2 className="font-gothic text-2xl sm:text-3xl font-bold text-foreground mb-2">Fantasy starters</h2>

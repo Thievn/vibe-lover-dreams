@@ -296,7 +296,7 @@ ${sourceContext} Invent ONE new wholly original hybrid adult companion that beli
 - bio: 2 vivid paragraphs
 - system_prompt: full chat charter including limits and aftercare instincts
 - image_prompt: single dense SFW vertical portrait brief (no nudity, no legible branding/signage)
-- fantasy_starters: exactly 4; each description is the verbatim first USER chat line (in-world, seductive or playful per persona)
+- fantasy_starters: exactly 4; each description is the verbatim first USER chat line (in-world; seductive, explicit, or playful per fused persona). FORBIDDEN: meta quiz closers ("Are you ready?", "Tell me when..."). End on dialogue or desire.
 
 Naming: invent a distinctive new name (2–4 words or one rare compound). Never reuse either parent’s full name.${infuseLine}
 

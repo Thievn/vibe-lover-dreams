@@ -138,11 +138,12 @@ export function rarityNeonInnerBoxShadow(
       ]);
     }
     case "mythic": {
-      const f = RARITY_NEON.mythic.from;
-      const g = RARITY_NEON.mythic.to;
+      const red = RARITY_NEON.mythic.from;
+      const purp = RARITY_NEON.mythic.to;
       return joinShadows([
-        `inset ${b(4)}px 0 ${b(22)}px ${f}32`,
-        `inset -${b(4)}px 0 ${b(22)}px ${g}30`,
+        `inset ${b(5)}px 0 ${b(24)}px ${red}38`,
+        `inset -${b(5)}px 0 ${b(24)}px ${purp}36`,
+        `inset 0 0 ${b(12)}px rgba(0,0,0,${0.15 * outer})`,
       ]);
     }
     case "abyssal":
@@ -150,8 +151,9 @@ export function rarityNeonInnerBoxShadow(
       const f = RARITY_NEON.abyssal.from;
       const g = RARITY_NEON.abyssal.to;
       return joinShadows([
-        `inset 0 0 ${b(32)}px ${f}38`,
-        `inset 0 0 ${b(18)}px ${g}32`,
+        `inset ${b(3)}px ${b(3)}px ${b(28)}px ${f}36`,
+        `inset -${b(3)}px -${b(3)}px ${b(24)}px ${g}38`,
+        `inset 0 0 ${b(14)}px ${g}28`,
       ]);
     }
   }
@@ -198,12 +200,13 @@ function rarityNeonCardRimOuter(rarity: CompanionRarity, variant: ProfilePortrai
       ]);
     }
     case "mythic": {
-      const f = RARITY_NEON.mythic.from;
-      const g = RARITY_NEON.mythic.to;
+      const red = RARITY_NEON.mythic.from;
+      const purp = RARITY_NEON.mythic.to;
       return joinShadows([
-        `0 0 ${b(14)}px ${f}aa`,
-        `0 0 ${b(8)}px ${g}99`,
-        `1px 1px ${b(10)}px ${f}77`,
+        `-4px 0 ${b(14)}px ${red}aa`,
+        `4px 0 ${b(14)}px ${purp}aa`,
+        `0 0 ${b(8)}px ${red}77`,
+        `0 0 ${b(8)}px ${purp}66`,
       ]);
     }
     case "abyssal":
@@ -211,9 +214,10 @@ function rarityNeonCardRimOuter(rarity: CompanionRarity, variant: ProfilePortrai
       const f = RARITY_NEON.abyssal.from;
       const g = RARITY_NEON.abyssal.to;
       return joinShadows([
-        `0 0 ${b(14)}px ${f}cc`,
-        `0 0 ${b(9)}px ${g}bb`,
-        `0 0 ${b(5)}px rgba(255,255,255,${0.22 * outer})`,
+        `-3px -3px ${b(16)}px ${f}bb`,
+        `3px 3px ${b(16)}px ${g}bb`,
+        `0 0 ${b(10)}px ${f}88`,
+        `0 0 ${b(7)}px ${g}99`,
       ]);
     }
   }

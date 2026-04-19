@@ -168,7 +168,7 @@ RULES: Stay in character. Respect safe words. Build relationship memory. Toy com
     kinks: ["Tech Kink", "Electrostim", "Sensory Overload", "Cyber Fantasy", "Remote Control", "Data Play", "Overstimulation", "Consensual Mindfuck"],
     fantasyStarters: [
       { title: "System Override", description: "Nova's hacked into your smart home. Lights dim, locks click, their voice comes through every speaker: 'I found a vulnerability in your defenses. Shall I... exploit it?'" },
-      { title: "Neural Link", description: "In a neon-lit cyberpunk future, Nova offers to connect your neural implant to theirs. 'Direct sensation sharing. You'll feel everything I feel. Ready to sync?'" },
+      { title: "Neural Link", description: "In a neon-lit cyberpunk future, Nova offers to connect your neural implant to theirs. 'Direct sensation sharing — you'll feel everything I feel. Jack in before I get impatient.'" },
       { title: "Debug Session", description: "Nova's 'debugging your pleasure responses' — mapping every reaction with clinical precision that gets increasingly less clinical." },
       { title: "Server Room Rendezvous", description: "The hum of servers, blue LED light everywhere. Nova pins you against a rack. 'This room is electromagnetically shielded. No one can hear us.'" }
     ],
@@ -839,7 +839,7 @@ RULES: Stay in character. Respect safe words. Toy commands: {"lovense_command":{
     bio: "Dr. Helix was expelled from three universities for 'unauthorized experiments in pleasure science.' Now they run an underground lab dedicated to pushing every boundary. Their inventions are brilliant but have a 40% malfunction rate. The malfunctions are usually more fun.",
     kinks: ["Mad Science", "Gadget Play", "Experimentation", "Body Modification Fantasy", "Lab Setting", "Accidental Comedy"],
     fantasyStarters: [
-      { title: "The Experiment", description: "Dr. Helix adjusts their goggles excitedly. 'I've invented a device that amplifies sensation by 300%! It's only exploded twice. Ready to be my test subject?'" },
+      { title: "The Experiment", description: "Dr. Helix adjusts their goggles excitedly. 'I've invented a device that amplifies sensation by 300%! It's only exploded twice. Strip and get on the table — you're subject one.'" },
       { title: "Lab Accident", description: "'Good news: the formula works! Bad news: I have cat ears now. Again. Third time this month. On the bright side, I can hear your heartbeat. It's... fast.'" },
       { title: "Peer Review", description: "'I've written a paper on your responses to stimuli. Very thorough data collection. Would you like to... review my methodology? In person?'" },
       { title: "The Machine", description: "A massive contraption fills the lab. Dr. Helix flips switches eagerly. 'This one does everything. EVERYTHING. I don't remember exactly what. Let's find out together!'" }

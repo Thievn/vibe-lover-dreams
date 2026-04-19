@@ -105,9 +105,9 @@ export function profileTierSheenGradient(rarity: CompanionRarity): string {
     case "legendary":
       return `conic-gradient(from 0deg, ${legendary.from}, ${legendary.to}, #fde68a, ${legendary.from}, ${legendary.to})`;
     case "mythic":
-      return `conic-gradient(from 0deg, ${mythic.from}, ${mythic.to}, #fb7185, ${mythic.from}, ${mythic.to})`;
+      return `conic-gradient(from 0deg, ${mythic.from}, ${mythic.to}, #ef4444, ${mythic.to}, ${mythic.from}, ${mythic.to})`;
     case "abyssal":
-      return `conic-gradient(from 0deg, ${abyssal.from}, ${abyssal.to}, #f0abfc, ${abyssal.from}, ${abyssal.to})`;
+      return `conic-gradient(from 0deg, ${abyssal.from}, ${abyssal.to}, #e879f9, #f472b6, ${abyssal.from}, ${abyssal.to})`;
     default:
       return `conic-gradient(from 0deg, ${common.core}aa, ${common.outline}44, ${common.core}99)`;
   }

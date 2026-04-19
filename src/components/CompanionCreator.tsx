@@ -32,7 +32,8 @@ import {
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { formatSupabaseError } from "@/lib/supabaseError";
-import { suggestedForgeDisplayName } from "@/lib/forgeRandomName";
+import { fallbackForgeDisplayName } from "@/lib/forgeRandomName";
+import { pickOne, pickRandom, randomSelectionCount, randomTraitCount } from "@/lib/forgeRandomSeeds";
 import { cn } from "@/lib/utils";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { stablePortraitDisplayUrl } from "@/lib/companionMedia";
@@ -320,14 +321,43 @@ Seeds:
 - notable traits: ${o.traits.length ? o.traits.join(", ") : "(none)"}
 
 Hard requirements:
-1) name: highly unique, species- and setting-themed (vary etymology every time — no recycled "Velvet / Storm / Night / Vale" spam). Epithets, court titles, monastery vow-names, relic codenames, or 2–4 word constructions. NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs.
+1) name: Grok invents ONE highly unique display name (species- and setting-themed; vary etymology — no recycled "Velvet / Storm / Night / Vale" spam). Epithets, court titles, monastery vow-names, relic codenames, or 2–4 word constructions. NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs. Do not pick from any fixed name roster — invent fresh. The operator can rename in the profile editor later.
 2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps.
 3) backstory: 3–4 paragraphs of premium dark-romance storytelling that weaves every archetype and vibe/theme into one coherent history — not a bullet recap of tags.
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
-5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences).
+5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences). Bold NSFW when persona fits; never end with meta questions ("Are you ready?", "Want to start?") — close on dialogue or action.
 6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
 7) image_prompt: one dense SFW paragraph for a vertical portrait card; must visually align with art style "${o.artStyle}" and environment "${o.sceneAtmosphere}" (lighting, wardrobe, and set pieces coherent with both).
 8) system_prompt: full chat charter for this persona.`;
+}
+
+function buildForgeNameOnlyUserPrompt(o: {
+  gender: string;
+  personalitySelections: string[];
+  vibeThemeSelections: string[];
+  artStyle: string;
+  sceneAtmosphere: string;
+  bodyType: string;
+  orientation: string;
+  traits: string[];
+}): string {
+  const nonce =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `Forge display name — invent ONE name only (operator may edit later in the profile editor).
+
+Uniqueness salt (do not echo in the name): ${nonce}
+
+Seeds (mood only — do not concatenate these words into the name):
+- gender leaning: ${o.gender}
+- personality archetypes (fused): ${o.personalitySelections.join(" · ")}
+- vibe / theme: ${o.vibeThemeSelections.join(" · ")}
+- art style: ${o.artStyle}
+- scene anchor: ${o.sceneAtmosphere}
+- body type: ${o.bodyType}
+- orientation: ${o.orientation}
+- notable traits: ${o.traits.length ? o.traits.join(", ") : "(none)"}`;
 }
 
 export default function CompanionCreator({ mode = "user", embedded = false, onForged }: CompanionCreatorProps) {
@@ -342,14 +372,18 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
   const [name, setName] = useState("");
   const [namePrefix, setNamePrefix] = useState("");
   const [tagline, setTagline] = useState("");
-  const [gender, setGender] = useState<string>(GENDERS[0]!);
-  const [personalitySelections, setPersonalitySelections] = useState<string[]>(() => [PERSONALITIES[0]!]);
-  const [vibeThemeSelections, setVibeThemeSelections] = useState<string[]>(() => [VIBES[0]!]);
-  const [artStyle, setArtStyle] = useState<string>(() => FORGE_ART_STYLES[0]!);
-  const [sceneAtmosphere, setSceneAtmosphere] = useState<string>(() => FORGE_SCENE_ATMOSPHERES[0]!);
-  const [bodyType, setBodyType] = useState<string>(() => normalizeForgeBodyType(FORGE_BODY_TYPES[0]!));
-  const [traits, setTraits] = useState<string[]>(["Tattoos", "Piercings"]);
-  const [orientation, setOrientation] = useState<string>(ORIENTATIONS[0]!);
+  const [gender, setGender] = useState<string>(() => pickOne(GENDERS));
+  const [personalitySelections, setPersonalitySelections] = useState<string[]>(() =>
+    pickRandom(PERSONALITIES, randomSelectionCount()),
+  );
+  const [vibeThemeSelections, setVibeThemeSelections] = useState<string[]>(() =>
+    pickRandom(VIBE_THEME_POOL, randomSelectionCount()),
+  );
+  const [artStyle, setArtStyle] = useState<string>(() => pickOne(FORGE_ART_STYLES));
+  const [sceneAtmosphere, setSceneAtmosphere] = useState<string>(() => pickOne(FORGE_SCENE_ATMOSPHERES));
+  const [bodyType, setBodyType] = useState<string>(() => normalizeForgeBodyType(pickOne(FORGE_BODY_TYPES)));
+  const [traits, setTraits] = useState<string[]>(() => pickRandom(TRAITS, randomTraitCount()));
+  const [orientation, setOrientation] = useState<string>(() => pickOne(ORIENTATIONS));
   const [extraNotes, setExtraNotes] = useState("");
   const [batchPreset, setBatchPreset] = useState<number>(1);
   const [batchCustom, setBatchCustom] = useState("");
@@ -726,11 +760,11 @@ Seeds:
 - notable traits: ${shuffled.join(", ")}
 
 Hard requirements:
-1) name: highly unique, species- and setting-themed (vary etymology every time — no recycled "Velvet / Storm / Night / Vale" spam). Epithets, court titles, monastery vow-names, relic codenames, or 2–4 word constructions. NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs.
+1) name: Grok invents ONE highly unique display name (species- and setting-themed; vary etymology — no recycled "Velvet / Storm / Night / Vale" spam). Epithets, court titles, monastery vow-names, relic codenames, or 2–4 word constructions. NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs. Do not pick from any fixed name roster — invent fresh. The operator can rename in the profile editor later.
 2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps.
 3) backstory: 3–4 paragraphs of premium dark-romance storytelling that weaves every archetype and vibe/theme into one coherent history — not a bullet recap of tags.
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
-5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences).
+5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences). Bold NSFW when persona fits; never end with meta questions ("Are you ready?", "Want to start?") — close on dialogue or action.
 6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
 7) image_prompt: one dense SFW paragraph for a vertical portrait card; must visually align with art style "${ar}" and environment "${sc}" (lighting, wardrobe, and set pieces coherent with both).
 8) system_prompt: full chat charter for this persona.`;
@@ -916,9 +950,40 @@ Hard requirements:
     if (!userId) return;
     let forgeName = name.trim();
     if (!forgeName && isAdmin) {
-      const picked = suggestedForgeDisplayName();
-      forgeName = picked;
-      setName(picked);
+      toast.info("Inventing a unique name with Grok…");
+      try {
+        const namePrompt = buildForgeNameOnlyUserPrompt({
+          gender,
+          personalitySelections,
+          vibeThemeSelections,
+          artStyle,
+          sceneAtmosphere,
+          bodyType,
+          orientation,
+          traits,
+        });
+        const { data: nameData, error: nameErr } = await supabase.functions.invoke("parse-companion-prompt", {
+          body: { mode: "forge_name_only", prompt: namePrompt },
+        });
+        if (nameErr) throw new Error(await getEdgeFunctionInvokeMessage(nameErr, nameData));
+        if (nameData?.error) throw new Error(String(nameData.error));
+        const rawName = (nameData?.fields as Record<string, unknown> | undefined)?.name;
+        const invented = typeof rawName === "string" ? rawName.trim().slice(0, 120) : "";
+        if (invented) {
+          forgeName = invented;
+          setName(invented);
+        } else {
+          const fb = fallbackForgeDisplayName();
+          forgeName = fb;
+          setName(fb);
+          toast.warning("Used offline fallback name — edit in Character management if you like.");
+        }
+      } catch {
+        const fb = fallbackForgeDisplayName();
+        forgeName = fb;
+        setName(fb);
+        toast.warning("Could not reach name AI — used offline fallback. Rename in the profile editor anytime.");
+      }
     }
     if (!forgeName) {
       toast.error("Name your companion before forging.");
