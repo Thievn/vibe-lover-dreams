@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
@@ -6,8 +6,9 @@ import ParticleBackground from "@/components/ParticleBackground";
 import { motion } from "framer-motion";
 import { Save, Trash2, Shield, Loader2, Wifi, WifiOff, QrCode, Volume2 } from "lucide-react";
 import { toast } from "sonner";
-import { disconnectToy } from "@/lib/lovense";
-import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
+import { disconnectToy, getToys, type LovenseToy } from "@/lib/lovense";
+import { useLovensePairing } from "@/hooks/useLovensePairing";
+import { LovensePairingQrBlock } from "@/components/toy/LovensePairingQrBlock";
 import {
   Select,
   SelectContent,
@@ -26,12 +27,46 @@ const Settings = () => {
   /** Empty = no global override (each companion / relationship voice applies). */
   const [ttsGlobalVoice, setTtsGlobalVoice] = useState("");
   const [saving, setSaving] = useState(false);
+  const [linkedToys, setLinkedToys] = useState<LovenseToy[]>([]);
 
-  // QR connection state
-  const [qrLoading, setQrLoading] = useState(false);
-  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
-  const [polling, setPolling] = useState(false);
-  const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const refreshLinkedToys = useCallback(async (userId: string) => {
+    const toys = await getToys(userId);
+    setLinkedToys(toys);
+  }, []);
+
+  const loadProfileSettings = useCallback(async (userId: string) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("device_uid, tts_voice_global_override")
+      .eq("user_id", userId)
+      .single();
+    if (data?.device_uid) setDeviceUid(data.device_uid);
+    else setDeviceUid("");
+    const g = data?.tts_voice_global_override;
+    setTtsGlobalVoice(typeof g === "string" && g.trim() ? resolveUxVoiceId(g) : "");
+  }, []);
+
+  const {
+    qrImageUrl,
+    isLoading: pairingLoading,
+    startPairing,
+    cancelPairing,
+    lastError: pairingError,
+    setLastError: setPairingError,
+  } = useLovensePairing(user?.id, {
+    onConnected: () => {
+      if (!user?.id) return;
+      void loadProfileSettings(user.id);
+      void refreshLinkedToys(user.id);
+      toast.success("Lovense linked — you’re ready for haptics in chat.");
+    },
+  });
+
+  useEffect(() => {
+    if (!pairingError) return;
+    toast.error(pairingError);
+    setPairingError(null);
+  }, [pairingError, setPairingError]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -40,101 +75,31 @@ const Settings = () => {
         return;
       }
       setUser(session.user);
-      loadProfileSettings(session.user.id);
+      void loadProfileSettings(session.user.id);
+      void refreshLinkedToys(session.user.id);
     });
+  }, [navigate, refreshLinkedToys, loadProfileSettings]);
 
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
+  useEffect(() => {
+    if (window.location.hash === "#device-connection") {
+      window.setTimeout(() => {
+        document.getElementById("device-connection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    }
   }, []);
-
-  const loadProfileSettings = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("device_uid, tts_voice_global_override")
-      .eq("user_id", userId)
-      .single();
-    if (data?.device_uid) setDeviceUid(data.device_uid);
-    const g = data?.tts_voice_global_override;
-    setTtsGlobalVoice(typeof g === "string" && g.trim() ? resolveUxVoiceId(g) : "");
-  };
-
-  const handleConnectToy = async () => {
-    if (!user) return;
-    setQrLoading(true);
-    setQrCodeUrl(null);
-
-    try {
-      const { data, error } = await supabase.functions.invoke("lovense-qrcode", {
-        body: {},
-      });
-
-      if (error) {
-        const msg = await messageFromFunctionsInvoke(error, data);
-        toast.error(msg);
-        return;
-      }
-
-      const url = data && typeof data === "object" && "qrCodeUrl" in data ? (data as { qrCodeUrl?: string }).qrCodeUrl : undefined;
-      if (url?.trim()) {
-        setQrCodeUrl(url.trim());
-        startPolling();
-      } else {
-        toast.error("Could not generate QR code — empty response from server.");
-      }
-    } catch (err: any) {
-      console.error("QR code error:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to generate connection QR code");
-    } finally {
-      setQrLoading(false);
-    }
-  };
-
-  const startPolling = () => {
-    setPolling(true);
-    let attempts = 0;
-    const maxAttempts = 60; // 3 minutes at 3s intervals
-
-    pollRef.current = setInterval(async () => {
-      attempts++;
-      if (attempts >= maxAttempts) {
-        stopPolling();
-        setQrCodeUrl(null);
-        toast.error("Connection timed out. Try again.");
-        return;
-      }
-
-      const { data } = await supabase
-        .from("profiles")
-        .select("device_uid")
-        .eq("user_id", user.id)
-        .single();
-
-      if (data?.device_uid && data.device_uid !== deviceUid) {
-        setDeviceUid(data.device_uid);
-        stopPolling();
-        setQrCodeUrl(null);
-      }
-    }, 3000);
-  };
-
-  const stopPolling = () => {
-    setPolling(false);
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  };
 
   const handleDisconnect = async () => {
     if (!user) return;
     const ok = await disconnectToy(user.id);
     if (ok) {
       setDeviceUid("");
+      setLinkedToys([]);
     } else {
       toast.error("Failed to disconnect devices");
     }
   };
+
+  const hasLinkedDevice = Boolean(deviceUid?.trim()) || linkedToys.length > 0;
 
   const handleSave = async () => {
     if (!user) return;
@@ -262,72 +227,91 @@ const Settings = () => {
           </div>
 
           {/* Device Connection */}
-          <div className="rounded-xl border border-border bg-card p-6 mb-6">
+          <div id="device-connection" className="rounded-xl border border-border bg-card p-6 mb-6 scroll-mt-24">
             <h2 className="font-gothic text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-              {deviceUid ? (
+              {hasLinkedDevice ? (
                 <Wifi className="h-5 w-5 text-accent" />
               ) : (
                 <WifiOff className="h-5 w-5 text-muted-foreground" />
               )}
-              Device Connection
+              Device connection (Lovense)
             </h2>
 
-            {deviceUid ? (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-accent/10 border border-accent/20">
-                  <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-                  <span className="text-sm text-accent font-medium">Device connected</span>
+            {hasLinkedDevice ? (
+              <div className="space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Linked toys receive patterns from chat, companion profiles, and the toy hub. Disconnect to remove all
+                  links from this account.
+                </p>
+                <div className="space-y-2">
+                  {linkedToys.map((t) => (
+                    <div
+                      key={t.rowId}
+                      className="flex gap-3 rounded-xl border border-white/[0.08] bg-black/30 p-3"
+                    >
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black/50">
+                        <img src={t.imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-foreground truncate">{t.name}</p>
+                        <p className="text-[11px] text-muted-foreground capitalize">{t.type}</p>
+                        <p className="text-[10px] font-mono text-muted-foreground/80 truncate" title={t.id}>
+                          {t.id}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  {linkedToys.length === 0 && deviceUid ? (
+                    <div className="rounded-xl border border-accent/20 bg-accent/5 px-3 py-2 text-xs text-muted-foreground">
+                      Primary device id: <span className="font-mono text-foreground/90">{deviceUid}</span>
+                    </div>
+                  ) : null}
                 </div>
                 <button
+                  type="button"
+                  onClick={() => void startPairing()}
+                  disabled={pairingLoading || Boolean(qrImageUrl)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-primary/40 text-primary text-sm hover:bg-primary/10 transition-colors disabled:opacity-50"
+                >
+                  <QrCode className="h-4 w-4" />
+                  Add another device
+                </button>
+                <LovensePairingQrBlock
+                  qrImageUrl={qrImageUrl}
+                  loading={pairingLoading}
+                  onCancel={cancelPairing}
+                />
+                <button
+                  type="button"
                   onClick={handleDisconnect}
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-destructive/30 text-destructive text-sm hover:bg-destructive/10 transition-colors"
                 >
                   <WifiOff className="h-4 w-4" />
-                  Disconnect Device
+                  Disconnect all devices
                 </button>
               </div>
             ) : (
               <div className="space-y-4">
                 <p className="text-xs text-muted-foreground">
-                  Scan the QR code with your Lovense Remote app to connect your device.
+                  Generate a QR code, then scan it with the <strong className="text-foreground">Lovense Remote</strong>{" "}
+                  app (not the browser). Your phone bridges the toy to LustForge.
                 </p>
-
-                {qrCodeUrl ? (
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="bg-white p-4 rounded-xl">
-                      <img
-                        src={qrCodeUrl}
-                        alt="Scan to connect device"
-                        className="w-48 h-48"
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground animate-pulse">
-                      Waiting for connection...
-                    </p>
-                    <button
-                      onClick={() => {
-                        stopPolling();
-                        setQrCodeUrl(null);
-                      }}
-                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
+                <LovensePairingQrBlock
+                  qrImageUrl={qrImageUrl}
+                  loading={pairingLoading}
+                  onCancel={cancelPairing}
+                />
+                {!qrImageUrl ? (
                   <button
-                    onClick={handleConnectToy}
-                    disabled={qrLoading}
+                    type="button"
+                    onClick={() => void startPairing()}
+                    disabled={pairingLoading}
                     className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-accent text-accent-foreground font-medium text-sm hover:scale-[1.02] transition-transform disabled:opacity-50"
                   >
-                    {qrLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <QrCode className="h-4 w-4" />
-                    )}
-                    Connect Device
+                    {pairingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
+                    Connect device (show QR)
                   </button>
-                )}
+                ) : null}
               </div>
             )}
           </div>

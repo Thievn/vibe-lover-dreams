@@ -410,7 +410,7 @@ export default function Dashboard() {
         {/* Main column */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {/* Top bar */}
-          <header className="shrink-0 border-b border-border/80 bg-black/40 backdrop-blur-xl px-4 sm:px-8 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <header className="relative z-[100] isolate shrink-0 border-b border-border/80 bg-black/40 backdrop-blur-xl px-4 sm:px-8 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="font-gothic text-2xl sm:text-3xl font-bold tracking-tight">
                 <span className="text-foreground">Welcome back, </span>
@@ -480,7 +480,7 @@ export default function Dashboard() {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -6, scale: 0.97 }}
                       transition={{ type: "spring", stiffness: 400, damping: 28 }}
-                      className="absolute right-0 top-[calc(100%+10px)] w-56 rounded-2xl border border-border/80 bg-card/95 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden z-50"
+                      className="absolute right-0 top-[calc(100%+10px)] w-56 rounded-2xl border border-border/80 bg-card/95 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden z-[200]"
                     >
                       <div className="px-4 py-3 border-b border-border/60 bg-white/[0.03]">
                         <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
@@ -493,6 +493,14 @@ export default function Dashboard() {
                         >
                           <UserRound className="h-4 w-4" />
                           Account
+                        </Link>
+                        <Link
+                          to="/settings#device-connection"
+                          onClick={() => setProfileOpen(false)}
+                          className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-foreground hover:bg-[#00ffd4]/10 hover:text-[#00ffd4] transition-colors"
+                        >
+                          <Gamepad2 className="h-4 w-4" />
+                          Connect Lovense
                         </Link>
                         <button
                           type="button"

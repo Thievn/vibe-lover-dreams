@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { ToyControlPanel } from "@/components/toy/ToyControlPanel";
+import { LovensePairingQrBlock } from "@/components/toy/LovensePairingQrBlock";
 import type { LovenseToy } from "@/lib/lovense";
 import type { CompanionVibrationPatternRow } from "@/hooks/useCompanionVibrationPatterns";
 import { cn } from "@/lib/utils";
@@ -12,9 +13,10 @@ type Props = {
   affectionPct: number;
   breedingStage: number;
   hasDevice: boolean;
-  pairingUrl: string | null;
+  pairingQrUrl: string | null;
   toyUtilityBusy: boolean;
   pairingLoading: boolean;
+  onCancelPairing?: () => void;
   onTestToy: () => void;
   onDisconnectToy: () => void;
   onStopAll: () => void;
@@ -36,9 +38,10 @@ export function ChatDevicesCollapsible({
   affectionPct,
   breedingStage,
   hasDevice,
-  pairingUrl,
+  pairingQrUrl,
   toyUtilityBusy,
   pairingLoading,
+  onCancelPairing,
   onTestToy,
   onDisconnectToy,
   onStopAll,
@@ -140,19 +143,17 @@ export function ChatDevicesCollapsible({
                 onTrigger={(row) => void onTriggerPattern(row)}
               />
             ) : (
-              <div className="rounded-xl border border-dashed border-white/10 bg-black/25 px-3 py-3 text-center text-[11px] text-muted-foreground">
-                Pair your Lovense toy to unlock <span className="text-primary/90">{companionName}</span>&apos;s signature
-                vibration patterns in this chat.
-                {pairingUrl ? (
-                  <a
-                    href={pairingUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="ml-2 text-primary underline font-medium"
-                  >
-                    Open pairing portal
-                  </a>
-                ) : null}
+              <div className="rounded-xl border border-dashed border-white/10 bg-black/25 px-3 py-3 text-[11px] text-muted-foreground space-y-3">
+                <p className="text-center">
+                  Pair your Lovense toy to unlock <span className="text-primary/90">{companionName}</span>&apos;s
+                  signature vibration patterns in this chat.
+                </p>
+                <LovensePairingQrBlock
+                  compact
+                  qrImageUrl={pairingQrUrl}
+                  loading={pairingLoading}
+                  onCancel={onCancelPairing}
+                />
               </div>
             )}
           </div>

@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { getCompanionBackstoryParagraphs } from "@/lib/companionBackstory";
 import { profileAnimatedPortraitUrl, profileStillPortraitUrl, isVideoPortraitUrl } from "@/lib/companionMedia";
 import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFromGallery";
@@ -46,6 +46,14 @@ import { splitProseIntoParagraphs } from "@/lib/profileProseSplit";
 import { buildProfileSearchTags } from "@/lib/companionSearchTags";
 import { TcgProfilePanel } from "@/components/tcg/TcgStatDisplay";
 import { PortraitViewLightbox } from "@/components/PortraitViewLightbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useLovensePairing } from "@/hooks/useLovensePairing";
+import { LovensePairingQrBlock } from "@/components/toy/LovensePairingQrBlock";
 
 const RARITY_BADGE: Record<
   CompanionRarity,
@@ -96,6 +104,7 @@ const CompanionProfile = () => {
   const [voteBusy, setVoteBusy] = useState(false);
   const [pinBusy, setPinBusy] = useState(false);
   const [connectedToys, setConnectedToys] = useState<LovenseToy[]>([]);
+  const [pairDialogOpen, setPairDialogOpen] = useState(false);
   const [sendingVibrationId, setSendingVibrationId] = useState<string | null>(null);
   const [profileTab, setProfileTab] = useState<"profile" | "gallery">("profile");
 
@@ -171,6 +180,33 @@ const CompanionProfile = () => {
 
   const activeToys = useMemo(() => connectedToys.filter((t) => t.enabled), [connectedToys]);
   const hasLovenseToy = activeToys.length > 0;
+
+  const refreshConnectedToys = useCallback(async () => {
+    if (!user?.id) return;
+    const toys = await getToys(user.id);
+    setConnectedToys(toys);
+  }, [user?.id]);
+
+  const {
+    qrImageUrl: pairQrUrl,
+    isLoading: pairLoading,
+    startPairing: startLovensePairing,
+    cancelPairing: cancelLovensePairing,
+    lastError: pairErr,
+    setLastError: setPairErr,
+  } = useLovensePairing(user?.id, {
+    onConnected: () => {
+      void refreshConnectedToys();
+      setPairDialogOpen(false);
+      toast.success("Toy linked — try a pattern below.");
+    },
+  });
+
+  useEffect(() => {
+    if (!pairErr) return;
+    toast.error(pairErr);
+    setPairErr(null);
+  }, [pairErr, setPairErr]);
 
   const triggerProfileVibration = async (row: CompanionVibrationPatternRow) => {
     if (!user) {
@@ -813,16 +849,23 @@ const CompanionProfile = () => {
                     <p className="text-xs text-muted-foreground mt-1 max-w-sm">
                       {hasLovenseToy
                         ? `Tap to send ${companion.name}'s curated patterns to your linked toy.`
-                        : "Connect a Lovense device in Settings to feel these patterns live."}
+                        : "Tap Pair toy to scan the QR, or use Settings → Device connection."}
                     </p>
                   </div>
                   {!hasLovenseToy ? (
-                    <Link
-                      to="/settings"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!user) {
+                          navigate("/auth", { state: { from: location.pathname } });
+                          return;
+                        }
+                        setPairDialogOpen(true);
+                      }}
                       className="text-[11px] font-semibold uppercase tracking-wider text-primary hover:underline shrink-0"
                     >
                       Pair toy
-                    </Link>
+                    </button>
                   ) : (
                     <span className="rounded-full border border-[#00ffd4]/30 bg-[#00ffd4]/10 px-2.5 py-1 text-[10px] font-medium text-[#00ffd4]">
                       Linked
@@ -916,6 +959,42 @@ const CompanionProfile = () => {
         </>
         ) : null}
       </main>
+
+      <Dialog open={pairDialogOpen} onOpenChange={setPairDialogOpen}>
+        <DialogContent className="border-border/80 bg-[hsl(280_25%_8%)]/98 p-0 backdrop-blur-xl sm:max-w-md">
+          <DialogHeader className="border-b border-white/[0.07] px-5 pb-3 pt-5">
+            <DialogTitle className="font-gothic text-xl">Pair Lovense</DialogTitle>
+            <p className="text-xs text-muted-foreground font-normal leading-relaxed pt-1">
+              Same device link as Settings — scan with Lovense Remote. You can also use{" "}
+              <Link to="/settings#device-connection" className="text-primary underline-offset-4 hover:underline">
+                Account → Device connection
+              </Link>
+              .
+            </p>
+          </DialogHeader>
+          <div className="space-y-4 px-5 pb-5">
+            <LovensePairingQrBlock
+              qrImageUrl={pairQrUrl}
+              loading={pairLoading}
+              onCancel={() => {
+                cancelLovensePairing();
+                setPairDialogOpen(false);
+              }}
+            />
+            {!pairQrUrl ? (
+              <button
+                type="button"
+                onClick={() => void startLovensePairing()}
+                disabled={pairLoading}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {pairLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Show QR code
+              </button>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

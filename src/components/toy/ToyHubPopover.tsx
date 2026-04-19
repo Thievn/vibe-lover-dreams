@@ -3,12 +3,15 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { LovenseToy } from "@/lib/lovense";
+import { LovensePairingQrBlock } from "@/components/toy/LovensePairingQrBlock";
 
 type Props = {
   toys: LovenseToy[];
   loading?: boolean;
   pairingLoading: boolean;
-  pairingUrl: string | null;
+  /** QR image URL from Lovense (show inline — not a browser link). */
+  pairingQrUrl: string | null;
+  onCancelPairing?: () => void;
   onRefresh: () => void | Promise<void>;
   onConnect: () => void | Promise<void>;
   onDisconnectOne: (deviceUid: string) => void | Promise<void>;
@@ -19,14 +22,14 @@ export function ToyHubPopover({
   toys,
   loading,
   pairingLoading,
-  pairingUrl,
+  pairingQrUrl,
+  onCancelPairing,
   onRefresh,
   onConnect,
   onDisconnectOne,
   onToggleEnabled,
 }: Props) {
   const n = toys.length;
-  const open = pairingUrl;
 
   return (
     <Popover
@@ -53,7 +56,10 @@ export function ToyHubPopover({
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[min(100vw-2rem,22rem)] p-0 border-white/10 bg-[hsl(280_25%_8%)] text-foreground shadow-2xl">
+      <PopoverContent
+        align="end"
+        className="w-[min(100vw-2rem,22rem)] p-0 border-white/10 bg-[hsl(280_25%_8%)] text-foreground shadow-2xl z-[300]"
+      >
         <div className="border-b border-white/10 px-3 py-2.5">
           <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">Lovense devices</p>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -118,16 +124,13 @@ export function ToyHubPopover({
             {pairingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
             Add / pair another device
           </button>
-          {open ? (
-            <a
-              href={pairingUrl!}
-              target="_blank"
-              rel="noreferrer"
-              className="block text-center text-[11px] text-primary underline font-medium"
-            >
-              Open pairing portal
-            </a>
-          ) : null}
+          <LovensePairingQrBlock
+            compact
+            qrImageUrl={pairingQrUrl}
+            loading={pairingLoading}
+            onCancel={onCancelPairing}
+            className="px-2 pb-2"
+          />
         </div>
       </PopoverContent>
     </Popover>

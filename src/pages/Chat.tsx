@@ -18,7 +18,6 @@ import {
   getToys,
   sendCommand,
   testToy,
-  generatePairingQR,
   disconnectToy,
   stopAllUserToys,
   setToyEnabled,
@@ -50,6 +49,7 @@ import {
 import { ToyHubPopover } from "@/components/toy/ToyHubPopover";
 import { ChatGallerySheet } from "@/components/chat/ChatGallerySheet";
 import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFromGallery";
+import { useLovensePairing } from "@/hooks/useLovensePairing";
 import {
   FAB_SELFIE,
   FREE_NSFW_CHAT_IMAGES,
@@ -108,8 +108,6 @@ const Chat = () => {
   const [ttsLoadingId, setTtsLoadingId] = useState<string | null>(null);
   const [ttsPlayingId, setTtsPlayingId] = useState<string | null>(null);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
-  const [pairingUrl, setPairingUrl] = useState<string | null>(null);
-  const [pairingLoading, setPairingLoading] = useState(false);
   const [intensity, setIntensity] = useState<number>(() => parseInt(localStorage.getItem("lustforge-intensity") || "50"));
   const [sendingVibrationId, setSendingVibrationId] = useState<string | null>(null);
   const [toyUtilityBusy, setToyUtilityBusy] = useState(false);
@@ -322,6 +320,27 @@ const Chat = () => {
       setToysPanelLoading(false);
     }
   };
+
+  const {
+    qrImageUrl: pairingQrUrl,
+    isLoading: pairingLoading,
+    startPairing: startLovensePairing,
+    cancelPairing: cancelLovensePairing,
+    lastError: pairingError,
+    setLastError: setPairingError,
+  } = useLovensePairing(user?.id, {
+    onConnected: () => {
+      if (!user?.id) return;
+      void checkDevice(user.id);
+      toast.success("Toy linked — haptics are live in this chat.");
+    },
+  });
+
+  useEffect(() => {
+    if (!pairingError) return;
+    toast.error(pairingError);
+    setPairingError(null);
+  }, [pairingError, setPairingError]);
 
   const handleToggleToyEnabled = async (deviceUid: string, enabled: boolean) => {
     if (!user) return;
@@ -730,15 +749,8 @@ const Chat = () => {
     }
   };
 
-    const handleConnectToy = async () => {
-    if (!user) return;
-    setPairingLoading(true);
-    const url = await generatePairingQR(user.id);
-    setPairingUrl(url);
-    setPairingLoading(false);
-    if (!url) {
-      toast.error("Failed to create pairing link.");
-    }
+  const handleConnectToy = () => {
+    void startLovensePairing();
   };
 
   const handleDisconnectToy = async () => {
@@ -1398,7 +1410,8 @@ const Chat = () => {
               toys={connectedToys}
               loading={toysPanelLoading}
               pairingLoading={pairingLoading}
-              pairingUrl={pairingUrl}
+              pairingQrUrl={pairingQrUrl}
+              onCancelPairing={cancelLovensePairing}
               onRefresh={refreshToys}
               onConnect={() => void handleConnectToy()}
               onDisconnectOne={(uid) => void handleDisconnectOneToy(uid)}
@@ -1415,9 +1428,10 @@ const Chat = () => {
         affectionPct={relationship?.affection_level ?? 0}
         breedingStage={relationship?.breeding_stage ?? 0}
         hasDevice={hasDevice}
-        pairingUrl={pairingUrl}
+        pairingQrUrl={pairingQrUrl}
         toyUtilityBusy={toyUtilityBusy}
         pairingLoading={pairingLoading}
+        onCancelPairing={cancelLovensePairing}
         onTestToy={() => void handleTestToy()}
         onDisconnectToy={() => void handleDisconnectToy()}
         onStopAll={() => void handleStopAll()}
