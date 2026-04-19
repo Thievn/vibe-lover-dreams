@@ -40,6 +40,8 @@ import { buildSmartAngles } from "@/lib/xMarketingSiteRegistry";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { inferForgeBodyTypeFromTags, inferStylizedArtFromTags } from "@/lib/forgeBodyTypes";
 import { isPlatformAdmin } from "@/config/auth";
+import { MarketingHubTabStrip, MarketingHubZernioPanels } from "@/components/admin/xmarketing/MarketingHubZernio";
+import type { ZernioHubTab } from "@/lib/zernioSocial";
 
 const NEON = "#FF2D7B";
 const MARKETING_IMAGE_TOKEN_COST = 75;
@@ -258,6 +260,7 @@ export default function XMarketingHub() {
 
   const [history, setHistory] = useState<XMarketingHistoryEntry[]>(() => loadHistory());
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [hubTab, setHubTab] = useState<ZernioHubTab>("compose");
 
   const [chatMessages, setChatMessages] = useState<ChatTurn[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -682,6 +685,21 @@ export default function XMarketingHub() {
             <p className="text-sm text-destructive border border-destructive/30 rounded-xl p-4 bg-destructive/10 mb-6">{statsError}</p>
           ) : null}
 
+          <div className="mb-4 space-y-3">
+            <MarketingHubTabStrip hubTab={hubTab} onHubTab={setHubTab} />
+          </div>
+
+          {hubTab !== "compose" ? (
+            <MarketingHubZernioPanels
+              hubTab={hubTab}
+              onHubTab={setHubTab}
+              variations={variations}
+              fullTweetText={fullTweetText}
+              selected={selected}
+            />
+          ) : null}
+
+          {hubTab === "compose" ? (
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_min(440px,100%)] gap-6 xl:gap-8 items-start">
             {/* LEFT */}
             <div className="space-y-6 min-w-0">
@@ -1463,8 +1481,17 @@ export default function XMarketingHub() {
                   Clear chat
                 </button>
               </div>
+
+              <MarketingHubZernioPanels
+                hubTab="compose"
+                onHubTab={setHubTab}
+                variations={variations}
+                fullTweetText={fullTweetText}
+                selected={selected}
+              />
             </div>
           </div>
+          ) : null}
         </div>
       </div>
     </div>

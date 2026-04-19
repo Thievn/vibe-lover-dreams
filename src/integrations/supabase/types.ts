@@ -472,6 +472,72 @@ export type Database = {
         }
         Relationships: []
       }
+      marketing_social_settings: {
+        Row: {
+          auto_process_forge_queue: boolean
+          id: number
+          updated_at: string
+          zernio_twitter_account_id: string | null
+        }
+        Insert: {
+          auto_process_forge_queue?: boolean
+          id?: number
+          updated_at?: string
+          zernio_twitter_account_id?: string | null
+        }
+        Update: {
+          auto_process_forge_queue?: boolean
+          id?: number
+          updated_at?: string
+          zernio_twitter_account_id?: string | null
+        }
+        Relationships: []
+      }
+      social_post_jobs: {
+        Row: {
+          companion_id: string | null
+          content: string | null
+          created_at: string
+          created_by: string | null
+          error: string | null
+          id: string
+          kind: string
+          media_urls: Json | null
+          scheduled_for: string | null
+          status: string
+          zernio_post_id: string | null
+          zernio_response: Json | null
+        }
+        Insert: {
+          companion_id?: string | null
+          content?: string | null
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          id?: string
+          kind: string
+          media_urls?: Json | null
+          scheduled_for?: string | null
+          status?: string
+          zernio_post_id?: string | null
+          zernio_response?: Json | null
+        }
+        Update: {
+          companion_id?: string | null
+          content?: string | null
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          id?: string
+          kind?: string
+          media_urls?: Json | null
+          scheduled_for?: string | null
+          status?: string
+          zernio_post_id?: string | null
+          zernio_response?: Json | null
+        }
+        Relationships: []
+      }
       generated_images: {
         Row: {
           companion_id: string | null

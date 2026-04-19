@@ -49,3 +49,6 @@ verify_jwt = false
 
 [functions.send-device-command]
 verify_jwt = false
+
+[functions.zernio-social]
+verify_jwt = false

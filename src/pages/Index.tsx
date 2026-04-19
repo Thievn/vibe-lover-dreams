@@ -37,7 +37,7 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
+    <div className="min-h-screen bg-background relative overflow-x-hidden">
       <ParticleBackground />
       {/* Soft ambient lift — still dark, reads “brighter” without washing out neon */}
       <div

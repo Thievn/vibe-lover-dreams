@@ -27,7 +27,7 @@ export default function FeaturesGrid() {
   ];
 
   return (
-    <section className="py-20 sm:py-24 px-4 relative overflow-hidden">
+    <section className="py-20 sm:py-24 px-4 relative overflow-x-hidden overflow-y-visible w-full max-w-[100vw]">
       <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-accent/[0.04] to-transparent" />
       <div className="max-w-7xl mx-auto relative z-10">
         <div className="text-center mb-12">

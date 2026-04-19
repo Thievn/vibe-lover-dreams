@@ -538,20 +538,32 @@ function AdminShell() {
 
       {/* Main */}
       <main className="relative z-10 flex-1 overflow-y-auto min-h-screen lg:min-h-0">
-        <div className="lg:hidden sticky top-0 z-30 bg-black/80 backdrop-blur-md border-b border-border/60 px-3 py-2 flex gap-1 overflow-x-auto">
-          {NAV.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => goSection(id)}
-              className={cn(
-                "shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap",
-                section === id ? "bg-primary/20 text-primary" : "text-muted-foreground",
-              )}
-            >
-              {label}
-            </button>
-          ))}
+        <div
+          className="lg:hidden sticky top-0 z-30 bg-black/80 backdrop-blur-md border-b border-border/60 px-2 py-2 flex items-center gap-2"
+          style={{ paddingTop: "max(0.35rem, env(safe-area-inset-top))" }}
+        >
+          <Link
+            to="/dashboard"
+            className="shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 bg-black/50 text-muted-foreground hover:text-foreground hover:border-primary/35 transition-colors touch-manipulation"
+            aria-label="Back to dashboard"
+          >
+            <ChevronRight className="h-5 w-5 rotate-180" />
+          </Link>
+          <div className="flex gap-1 overflow-x-auto flex-1 min-w-0 pb-0.5 [-webkit-overflow-scrolling:touch]">
+            {NAV.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => goSection(id)}
+                className={cn(
+                  "shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap",
+                  section === id ? "bg-primary/20 text-primary" : "text-muted-foreground",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="p-4 md:p-8 max-w-[1400px] mx-auto pb-24">
