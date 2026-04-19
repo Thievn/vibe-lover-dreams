@@ -64,6 +64,8 @@ Deno.serve(async (req) => {
       context?: string;
       characterData?: Record<string, unknown>;
       userId?: string;
+      /** `portrait_card` = SFW catalog-style rewrite; default `chat_session` = adult session image. */
+      rewriteMode?: "chat_session" | "portrait_card";
     };
     const raw = (body.raw ?? "").trim();
     if (!raw) {
@@ -104,11 +106,14 @@ Deno.serve(async (req) => {
       }
     }
     const anatomyVariant = resolveAnatomyVariant(characterData);
+    const rewriteMode = body.rewriteMode === "portrait_card" ? "portrait_card" : "chat_session";
+
     const safePrompt = await rewritePromptForImagine({
       raw,
       context,
       apiKey,
       anatomyPolicy: buildAnatomyRewriterDirective(anatomyVariant),
+      rewriteMode,
     });
 
     return new Response(JSON.stringify({ safePrompt }), {

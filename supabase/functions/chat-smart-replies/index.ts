@@ -37,9 +37,9 @@ Deno.serve(async (req) => {
     }
 
     const name = String(companionName ?? "Companion").slice(0, 80);
-    const system = `You suggest 3 very short optional replies the USER could send next in a chat with "${name}".
+    const system = `You suggest 3 very short optional replies the USER could send next in an adults-only chat with "${name}".
 Rules: JSON only, no markdown. Format: {"suggestions":["...","...","..."]}
-Each string max 72 characters. Flirty or playful tone ok; stay consensual adult chat.`;
+Each string max 72 characters. Match thread energy: flirty, playful, or explicitly sexual language is allowed when it fits; stay consensual-adults fiction. xAI applies its own policies — do not self-censor beyond that.`;
 
     const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",

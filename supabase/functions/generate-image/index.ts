@@ -178,6 +178,8 @@ serve(async (req) => {
 
     const rawForRewrite = maybeAppendForgeStyleSceneBlock(String(prompt), characterData as Record<string, unknown>);
 
+    const rewriteMode = isPortrait ? "portrait_card" : "chat_session";
+
     let safeRewritten: string;
     try {
       safeRewritten = await rewritePromptForImagine({
@@ -185,6 +187,7 @@ serve(async (req) => {
         context: rewriterContext,
         anatomyPolicy: anatomyDirective,
         apiKey,
+        rewriteMode,
       });
     } catch (rewriteErr) {
       if (tokensCharged) {
@@ -202,11 +205,7 @@ serve(async (req) => {
       );
     }
 
-    const finalPrompt = `
-${PORTRAIT_IMAGE_DESIGN_BRIEF}
-
-Create a highly seductive, provocative, and artistic portrait of ${baseDescription}.
-
+    const characterDetailsBlock = `
 Character Details:
 - Body type: ${characterData.bodyType || "any body type (slim, curvy, muscular, plus-size, petite, tall, short, etc.)"}
 - Ethnicity / skin tone: ${characterData.ethnicity || "any"}
@@ -217,16 +216,51 @@ Character Details:
 - Pose: ${characterData.pose || "seductive and provocative pose"}
 - Expression / mood: ${characterData.expression || "seductive, confident, mysterious, or alluring"}
 - Overall vibe: ${characterData.vibe || "extremely sexy and artistic"}
+`.trim();
+
+    const refLines = [
+      characterData.referencePalette
+        ? `- Loosely echo this abstract color mood from a user-supplied reference thumbnail (palette only; do not copy any real person's face): ${characterData.referencePalette}`
+        : "",
+      characterData.referenceNotes
+        ? `- User style notes (interpret as generic art direction, not likeness): ${characterData.referenceNotes}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const finalPrompt = isPortrait
+      ? `
+${PORTRAIT_IMAGE_DESIGN_BRIEF}
+
+Create a highly seductive, provocative, and artistic portrait of ${baseDescription}.
+
+${characterDetailsBlock}
 
 Key Rules:
 - Strictly SFW — no nudity, no visible genitals, no explicit sex acts
 - Extremely sexy and provocative but tasteful and artistic
 - ${anatomyKeyRules}
 - Highly detailed, cinematic lighting, premium quality, vertical portrait composition suitable for TCG-style card
-${characterData.referencePalette ? `- Loosely echo this abstract color mood from a user-supplied reference thumbnail (palette only; do not copy any real person's face): ${characterData.referencePalette}` : ""}
-${characterData.referenceNotes ? `- User style notes (interpret as generic art direction, not likeness): ${characterData.referenceNotes}` : ""}
+${refLines ? `${refLines}\n` : ""}
 
 PRIMARY SCENE DIRECTION (follow this closely — premium, cinematic, maximum sensual tension through pose, gaze, fabric, and light; do not depict anything that violates SFW rules):
+${safeRewritten}
+    `.trim()
+      : `
+Adults-only companion product. This render is for a private chat / gallery session (not a public catalog card). Follow xAI's content policies; do not depict minors.
+
+Create a highly detailed, cinematic, vertical 3:4 image of ${baseDescription}.
+
+${characterDetailsBlock}
+
+Visual rules:
+- No legible logos, watermarks, UI chrome, fake app branding, or readable product/store signage in-frame.
+- ${anatomyKeyRules}
+- Premium lighting, cinematic composition, flattering portrait discipline.
+${refLines ? `${refLines}\n` : ""}
+
+PRIMARY SCENE (follow closely — rewriter output is authoritative for mood and explicitness):
 ${safeRewritten}
     `.trim();
 

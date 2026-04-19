@@ -1,9 +1,15 @@
 /**
- * Rewrites raw user / model text into a Grok-Imagine–friendly, SFW-but-scorching art direction.
- * Used by `safe-image-prompt` and `generate-image` (same module = one deploy, no extra HTTP hop).
+ * Rewrites raw text into a Grok Imagine image prompt.
+ * - `chat_session`: adult chat / in-session images — explicit content allowed in the rewritten prompt (xAI enforces its own limits).
+ * - `portrait_card`: catalog / forge **card portrait** only — output must stay SFW (pin-up / cover art); see `PORTRAIT_IMAGE_REWRITER_SYSTEM`.
+ *
+ * Used by `safe-image-prompt` and `generate-image`.
  */
 
-export const SAFE_IMAGE_REWRITER_SYSTEM = `You are the principal visual director for Grok Imagine (image generation) on an adults-only fantasy companion product.
+export type ImagineRewriteMode = "chat_session" | "portrait_card";
+
+/** In-session or marketing images: do not pre-sanitize for “SFW” — Imagine + xAI handle policy. */
+export const CHAT_SESSION_IMAGE_REWRITER_SYSTEM = `You are the principal visual director for Grok Imagine (image generation) on an adults-only fantasy companion product.
 
 INPUT: you receive RAW_TEXT — anything from a user's chat request to an AI roleplay reply. It may be blunt, explicit, or obscene. You also receive optional CONTEXT (character notes, scene, wardrobe hints).
 
@@ -25,6 +31,24 @@ YOUR JOB: produce ONE final English image prompt (plain text only, no markdown, 
 
 6) Output ONLY the prompt string. No preamble ("Here is"), no JSON.`;
 
+/** Catalog / card portraits only — must stay SFW for Grok Imagine (public roster art). */
+export const PORTRAIT_IMAGE_REWRITER_SYSTEM = `You are the visual director for **catalog card portraits** on an adults-only companion product.
+
+INPUT: RAW_TEXT and optional CONTEXT (appearance, wardrobe, character).
+
+YOUR JOB: produce ONE final English image prompt for Grok Imagine (plain text only, no markdown, no quotes) that:
+
+1) Stays **strictly SFW**: no nudity, no visible genitals, no explicit sex acts — seductive pin-up, fashion editorial, or cinematic cover art only. Maximum sensual tension through pose, gaze, fabric, and light.
+
+2) Is specific and premium — never generic stock. Cinematic lighting, wardrobe personality, flattering lens mood.
+
+3) Never instruct legible logos, watermarks, fake UI, or product/platform branding in-frame.
+
+4) Length: roughly 80–180 words. Output ONLY the prompt string.`;
+
+/** @deprecated Use CHAT_SESSION_IMAGE_REWRITER_SYSTEM */
+export const SAFE_IMAGE_REWRITER_SYSTEM = CHAT_SESSION_IMAGE_REWRITER_SYSTEM;
+
 export type RewritePromptForImagineArgs = {
   raw: string;
   context?: string;
@@ -33,6 +57,11 @@ export type RewritePromptForImagineArgs = {
   apiKey: string;
   /** Override model id (default: env GROK_SAFE_PROMPT_MODEL or grok-3). */
   chatModel?: string;
+  /**
+   * `chat_session` — adult in-chat / non-catalog images; rewriter may output explicit directions.
+   * `portrait_card` — forge preview + roster card art; rewriter must output SFW-only Imagine prompts.
+   */
+  rewriteMode?: ImagineRewriteMode;
 };
 
 function stripCodeFences(text: string): string {
@@ -47,7 +76,7 @@ function stripCodeFences(text: string): string {
 }
 
 /**
- * Calls xAI chat completions to rewrite raw text into an Imagine-safe, high-heat art prompt.
+ * Calls xAI chat completions to rewrite raw text into a Grok Imagine prompt.
  */
 export async function rewritePromptForImagine(args: RewritePromptForImagineArgs): Promise<string> {
   const raw = (args.raw || "").trim();
@@ -55,18 +84,27 @@ export async function rewritePromptForImagine(args: RewritePromptForImagineArgs)
     throw new Error("Rewriter: empty raw prompt.");
   }
 
+  const mode: ImagineRewriteMode = args.rewriteMode ?? "chat_session";
+  const system =
+    mode === "portrait_card" ? PORTRAIT_IMAGE_REWRITER_SYSTEM : CHAT_SESSION_IMAGE_REWRITER_SYSTEM;
+
   const model =
     (args.chatModel && args.chatModel.trim()) || Deno.env.get("GROK_SAFE_PROMPT_MODEL")?.trim() || "grok-3";
 
   const contextBlock = (args.context || "").trim().slice(0, 6000);
   const anatomy = (args.anatomyPolicy || "").trim();
 
+  const contextLabel =
+    mode === "portrait_card"
+      ? "OPTIONAL_CONTEXT (character / scene — respect; OUTPUT must remain SFW pin-up / cover art for a public catalog card):"
+      : "OPTIONAL_CONTEXT (character / scene — respect; preserve explicit adult content from RAW_TEXT when requested):";
+
   const userContent = [
     anatomy ? `ANATOMY_POLICY (must obey — do not contradict in the rewritten prompt):\n${anatomy}\n` : "",
     "RAW_TEXT:",
     raw.slice(0, 12000),
     "",
-    "OPTIONAL_CONTEXT (character / scene — respect but stay SFW for the image):",
+    contextLabel,
     contextBlock || "(none)",
   ]
     .filter(Boolean)
@@ -83,7 +121,7 @@ export async function rewritePromptForImagine(args: RewritePromptForImagineArgs)
       temperature: 0.88,
       max_tokens: 900,
       messages: [
-        { role: "system", content: SAFE_IMAGE_REWRITER_SYSTEM },
+        { role: "system", content: system },
         { role: "user", content: userContent },
       ],
     }),

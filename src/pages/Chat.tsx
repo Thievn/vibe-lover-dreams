@@ -374,7 +374,7 @@ const Chat = () => {
     if (!companion || !dbComp) return null;
 
     try {
-      /** Raw desire text — `generate-image` runs `rewritePromptForImagine` + SFW portrait brief server-side. */
+      /** Raw desire text — `generate-image` uses chat-session rewrite + non–card Imagine prompt (explicit ok; xAI enforces limits). */
       const prompt = `${userRequest}\n\n(Character: ${companion.name}, ${companion.gender}. ${companion.appearance})`.slice(
         0,
         8000,
