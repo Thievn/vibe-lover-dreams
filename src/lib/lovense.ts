@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { lovenseToyAvatarUrl } from "@/lib/lovenseToyAvatar";
+import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
 
 export interface LovenseToy {
   /** DB row id */
@@ -246,9 +247,16 @@ export const generatePairingQR = async (_userId: string): Promise<string | null>
       body: {},
     });
 
-    if (error) throw error;
+    if (error) {
+      console.error("lovense-qrcode:", await messageFromFunctionsInvoke(error, data));
+      return null;
+    }
 
-    return data.qrCodeUrl;
+    const url =
+      data && typeof data === "object" && "qrCodeUrl" in data
+        ? (data as { qrCodeUrl?: string }).qrCodeUrl?.trim()
+        : undefined;
+    return url || null;
   } catch (error) {
     console.error("Failed to generate pairing QR:", error);
     return null;

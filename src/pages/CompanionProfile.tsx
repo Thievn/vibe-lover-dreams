@@ -453,6 +453,8 @@ const CompanionProfile = () => {
                     overlayUrl={dbComp?.rarity_border_overlay_url}
                     abyssal={isAbyssal}
                     profilePolish
+                    gradientFrom={companion.gradientFrom}
+                    gradientTo={companion.gradientTo}
                   />
                   <RarityTierCaption rarity={rarity} />
                 </div>

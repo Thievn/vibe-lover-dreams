@@ -5,6 +5,17 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/** Lovense may send `toyList` (array) or `toys` (id → object map). */
+function normalizeToyList(callbackData: Record<string, unknown>): Array<Record<string, unknown>> {
+  const toyList = callbackData.toyList;
+  if (Array.isArray(toyList)) return toyList as Array<Record<string, unknown>>;
+  const toys = callbackData.toys;
+  if (toys && typeof toys === "object" && !Array.isArray(toys)) {
+    return Object.values(toys as Record<string, Record<string, unknown>>);
+  }
+  return [];
+}
+
 function capabilitiesForToyType(toyType: string): string[] {
   const t = (toyType || "").toLowerCase();
   const map: Record<string, string[]> = {
@@ -87,10 +98,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const toyList = callbackData.toyList;
-    const toys: Array<Record<string, unknown>> = Array.isArray(toyList)
-      ? (toyList as Array<Record<string, unknown>>)
-      : [];
+    const toys = normalizeToyList(callbackData);
 
     const legacyUid =
       (typeof callbackData.uid === "string" && callbackData.uid) ||
@@ -108,6 +116,7 @@ Deno.serve(async (req) => {
         if (!firstDeviceUid) firstDeviceUid = deviceUid;
 
         const name =
+          (typeof toy.nickName === "string" && toy.nickName.trim()) ||
           (typeof toy.nickname === "string" && toy.nickname.trim()) ||
           (typeof toy.name === "string" && toy.name.trim()) ||
           "Lovense toy";
@@ -117,7 +126,12 @@ Deno.serve(async (req) => {
             : typeof toy.type === "string"
               ? toy.type.toLowerCase()
               : "unknown";
-        const nickname = typeof toy.nickname === "string" ? toy.nickname : null;
+        const nickname =
+          typeof toy.nickName === "string"
+            ? toy.nickName
+            : typeof toy.nickname === "string"
+              ? toy.nickname
+              : null;
         const battery =
           typeof toy.battery === "number" && Number.isFinite(toy.battery) ? Math.round(toy.battery) : null;
 

@@ -3,11 +3,21 @@ import type { CompanionRarity } from "@/lib/companionRarity";
 import {
   defaultRarityBorderPath,
   rarityCardOverlayGlowFilter,
-  rarityGlitchLayerFilters,
-  rarityProfileBloomFilter,
   rarityProfileVectorGlowFilter,
 } from "@/lib/companionRarity";
 import type { ProfilePortraitFrameStyle } from "@/lib/profilePortraitTierHalo";
+
+/** Same-origin SVG paths work as CSS masks; remote URLs often cannot mask cross-origin. */
+function canUseSrcAsCssMask(src: string): boolean {
+  if (src.startsWith("/")) return true;
+  if (typeof window === "undefined") return false;
+  try {
+    const u = new URL(src, window.location.href);
+    return u.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
 
 type Props = {
   rarity: CompanionRarity;
@@ -16,8 +26,11 @@ type Props = {
   className?: string;
   /** Extra wrapper class for Abyssal outer glow. */
   abyssal?: boolean;
-  /** Profile sheet only — soft bloom + breathe on the vector frame. */
+  /** Profile sheet only — single diagonal two-tone frame (no glitch layers). */
   profilePolish?: boolean;
+  /** Companion accent colors for a sharp 135° diagonal split on the profile frame. */
+  gradientFrom?: string;
+  gradientTo?: string;
   /** Grid cards: single vector pass, no stacked Abyssal pulse on the wrapper. */
   frameStyle?: ProfilePortraitFrameStyle;
 };
@@ -29,11 +42,18 @@ export function RarityBorderOverlay({
   abyssal,
   profilePolish,
   frameStyle = "full",
+  gradientFrom,
+  gradientTo,
 }: Props) {
   const src = (overlayUrl && overlayUrl.trim()) || defaultRarityBorderPath(rarity);
   const clean = frameStyle === "clean";
-  const [glitchFilterA, glitchFilterB] = rarityGlitchLayerFilters(rarity);
-  const softGlitch = rarity === "abyssal";
+  const profileFrameScale = "scale-[1.28]";
+
+  const from = gradientFrom?.trim();
+  const to = gradientTo?.trim();
+  const maskOk = Boolean(
+    profilePolish && from && to && canUseSrcAsCssMask(src),
+  );
 
   return (
     <div
@@ -46,42 +66,32 @@ export function RarityBorderOverlay({
     >
       {profilePolish ? (
         <>
+          {maskOk ? (
+            <div
+              className={cn(
+                "pointer-events-none absolute left-1/2 top-1/2 z-0 h-full w-full -translate-x-1/2 -translate-y-1/2 origin-center mix-blend-screen opacity-[0.92]",
+                profileFrameScale,
+              )}
+              style={{
+                background: `linear-gradient(135deg, ${from} 0%, ${from} 50%, ${to} 50%, ${to} 100%)`,
+                WebkitMaskImage: `url(${src})`,
+                maskImage: `url(${src})`,
+                maskSize: "100% 100%",
+                WebkitMaskSize: "100% 100%",
+                maskRepeat: "no-repeat",
+                maskPosition: "center",
+                WebkitMaskRepeat: "no-repeat",
+                WebkitMaskPosition: "center",
+              }}
+            />
+          ) : null}
           <img
             src={src}
             alt=""
-            className="absolute inset-0 z-0 h-full w-full scale-[1.13] object-fill mix-blend-screen motion-reduce:opacity-25 opacity-[0.4] animate-profile-frame-bloom-breathe"
-            style={{ filter: rarityProfileBloomFilter(rarity) }}
-          />
-          <div className="absolute inset-0 z-[1] motion-reduce:hidden" aria-hidden>
-            <img
-              src={src}
-              alt=""
-              className={cn(
-                "absolute inset-0 h-full w-full scale-[1.13] object-fill mix-blend-screen will-change-transform",
-                softGlitch ? "opacity-[0.48]" : "opacity-[0.62]",
-              )}
-              style={{
-                filter: glitchFilterA,
-                animation: "rarity-border-glitch-a 2.85s steps(10, end) infinite",
-              }}
-            />
-            <img
-              src={src}
-              alt=""
-              className={cn(
-                "absolute inset-0 h-full w-full scale-[1.13] object-fill mix-blend-screen will-change-transform",
-                softGlitch ? "opacity-[0.44]" : "opacity-[0.56]",
-              )}
-              style={{
-                filter: glitchFilterB,
-                animation: "rarity-border-glitch-b 3.1s steps(10, end) infinite",
-              }}
-            />
-          </div>
-          <img
-            src={src}
-            alt=""
-            className="absolute inset-0 z-[3] h-full w-full scale-[1.13] object-fill opacity-[0.98]"
+            className={cn(
+              "absolute left-1/2 top-1/2 z-[1] h-full w-full -translate-x-1/2 -translate-y-1/2 origin-center object-fill opacity-[0.98]",
+              profileFrameScale,
+            )}
             style={{ filter: rarityProfileVectorGlowFilter(rarity) }}
           />
         </>

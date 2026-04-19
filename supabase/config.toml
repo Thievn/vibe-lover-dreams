@@ -39,3 +39,13 @@ verify_jwt = false
 
 [functions.chat-smart-replies]
 verify_jwt = false
+
+# Lovense: validate auth in Deno (or no JWT for vendor callback). Kong JWT verification can fail on ES256 session tokens.
+[functions.lovense-qrcode]
+verify_jwt = false
+
+[functions.lovense-callback]
+verify_jwt = false
+
+[functions.send-device-command]
+verify_jwt = false

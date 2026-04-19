@@ -50,46 +50,78 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    await serviceClient.from("lovense_pairings").insert({
+    const { error: pairingInsertError } = await serviceClient.from("lovense_pairings").insert({
       user_id: user.id,
       pairing_token: pairingToken,
     });
 
-    // Build callback URL
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const callbackUrl = `${supabaseUrl}/functions/v1/lovense-callback?token=${pairingToken}`;
+    if (pairingInsertError) {
+      console.error("lovense_pairings insert:", pairingInsertError);
+      return new Response(JSON.stringify({ error: "Could not start pairing session", details: pairingInsertError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    // Request QR code from Lovense API
+    // Lovense developer dashboard must list your callback URL as:
+    //   https://<project-ref>.supabase.co/functions/v1/lovense-callback
+    // (Scan flow sends pairing data to that endpoint; `utoken` matches `pairing_token` rows above.)
+
+    const uname =
+      (typeof user.user_metadata?.full_name === "string" && user.user_metadata.full_name.trim()) ||
+      (typeof user.email === "string" && user.email.split("@")[0]) ||
+      "User";
+
+    // Request QR code — Standard LAN API expects `v` (not `apiVer`). See Lovense Standard API docs.
     const lovenseRes = await fetch("https://api.lovense.com/api/lan/getQrCode", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         token: developerToken,
         uid: user.id,
+        uname,
         utoken: pairingToken,
-        apiVer: 2,
+        v: 2,
       }),
     });
 
-    const lovenseData = await lovenseRes.json();
+    const lovenseData = (await lovenseRes.json()) as Record<string, unknown>;
 
-    if (!lovenseData.result || lovenseData.code !== 0) {
-      console.error("Lovense QR error:", lovenseData);
-      return new Response(JSON.stringify({ error: "Failed to generate QR code", details: lovenseData }), {
+    /** Standard LAN API: `{ code: 0, result: true, data: { qr: "https://...jpg" } }`. Some variants put the image URL in `message`. */
+    const code = lovenseData.code;
+    const codeOk = code === 0 || code === "0";
+    const dataObj = lovenseData.data && typeof lovenseData.data === "object" ? (lovenseData.data as Record<string, unknown>) : null;
+    let qrCodeUrl: string | null = null;
+    if (dataObj && typeof dataObj.qr === "string" && dataObj.qr.trim()) {
+      qrCodeUrl = dataObj.qr.trim();
+    }
+    if (!qrCodeUrl && typeof lovenseData.message === "string") {
+      const m = lovenseData.message.trim();
+      if (/^https?:\/\//i.test(m)) qrCodeUrl = m;
+    }
+
+    const explicitFail = lovenseData.result === false || lovenseData.success === false;
+    if (!codeOk || explicitFail || !qrCodeUrl) {
+      console.error("Lovense QR error:", JSON.stringify(lovenseData));
+      return new Response(JSON.stringify({
+        error: "Failed to generate QR code",
+        details: typeof lovenseData.message === "string" ? lovenseData.message : JSON.stringify(lovenseData).slice(0, 500),
+      }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     return new Response(JSON.stringify({
-      qrCodeUrl: lovenseData.message,
+      qrCodeUrl,
       pairingToken,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     console.error("QR code generation error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
+    const msg = err instanceof Error ? err.message : String(err);
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

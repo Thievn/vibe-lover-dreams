@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { Save, Trash2, Shield, Loader2, Wifi, WifiOff, QrCode, Volume2 } from "lucide-react";
 import { toast } from "sonner";
 import { disconnectToy } from "@/lib/lovense";
+import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
 import {
   Select,
   SelectContent,
@@ -68,17 +69,22 @@ const Settings = () => {
         body: {},
       });
 
-      if (error) throw error;
+      if (error) {
+        const msg = await messageFromFunctionsInvoke(error, data);
+        toast.error(msg);
+        return;
+      }
 
-      if (data?.qrCodeUrl) {
-        setQrCodeUrl(data.qrCodeUrl);
+      const url = data && typeof data === "object" && "qrCodeUrl" in data ? (data as { qrCodeUrl?: string }).qrCodeUrl : undefined;
+      if (url?.trim()) {
+        setQrCodeUrl(url.trim());
         startPolling();
       } else {
-        toast.error("Could not generate QR code");
+        toast.error("Could not generate QR code — empty response from server.");
       }
     } catch (err: any) {
       console.error("QR code error:", err);
-      toast.error("Failed to generate connection QR code");
+      toast.error(err instanceof Error ? err.message : "Failed to generate connection QR code");
     } finally {
       setQrLoading(false);
     }
