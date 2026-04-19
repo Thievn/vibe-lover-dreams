@@ -5,7 +5,6 @@ import type { CompanionGalleryRow } from "@/hooks/useCompanionGeneratedImages";
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  companionId: string;
   companionName: string;
   images: CompanionGalleryRow[];
   loading: boolean;

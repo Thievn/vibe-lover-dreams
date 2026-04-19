@@ -9,14 +9,19 @@ export const COMPANION_RARITIES = [
 
 export type CompanionRarity = (typeof COMPANION_RARITIES)[number];
 
-/** Canonical neon palette for companion frames (CSS + overlays). */
+/** Canonical neon palette for companion frames (CSS + overlays). Order: common → rare → epic → legendary → mythic → abyssal. */
 export const RARITY_NEON = {
-  common: { core: "#E5E5E5", outline: "#FFFFFF" },
-  rare: { from: "#A020F0", to: "#00D4FF" },
-  epic: { from: "#00F7FF", to: "#00FF9F" },
-  legendary: { from: "#FFD700", to: "#FF8C00" },
-  mythic: { from: "#FF00FF", to: "#FF1493" },
-  abyssal: { from: "#6B00B3", to: "#FF0033" },
+  common: { core: "#d4d4d8", outline: "#f4f4f5" },
+  /** Rare: blue tier. */
+  rare: { from: "#60a5fa", to: "#2563eb" },
+  /** Epic: rich purple (distinct from rare blue and abyssal pink-violet). */
+  epic: { from: "#a855f7", to: "#6d28d9" },
+  /** Legendary: gold. */
+  legendary: { from: "#fbbf24", to: "#d97706" },
+  /** Mythic: purplish crimson / wine-magenta. */
+  mythic: { from: "#be123c", to: "#9d174d" },
+  /** Abyssal: purple–pink void. */
+  abyssal: { from: "#c026d3", to: "#ec4899" },
 } as const;
 
 const STATIC_RARITY: Partial<Record<string, CompanionRarity>> = {
@@ -93,9 +98,9 @@ export function rarityCardOverlayGlowFilter(rarity: CompanionRarity): string {
 export function rarityProfileBloomFilter(rarity: CompanionRarity): string {
   switch (rarity) {
     case "rare":
-      return "blur(14px) brightness(1.28) saturate(1.25) hue-rotate(-8deg)";
+      return "blur(14px) brightness(1.28) saturate(1.22) hue-rotate(-4deg)";
     case "epic":
-      return "blur(14px) brightness(1.22) saturate(1.2) hue-rotate(12deg)";
+      return "blur(14px) brightness(1.24) saturate(1.28) hue-rotate(8deg)";
     case "legendary":
       return "blur(14px) brightness(1.3) saturate(1.15) hue-rotate(-6deg)";
     case "mythic":
@@ -115,38 +120,38 @@ export function rarityGlitchLayerFilters(rarity: CompanionRarity): readonly [str
   switch (rarity) {
     case "common":
       return [
-        "hue-rotate(-8deg) saturate(1.25) brightness(1.06) contrast(1.03)",
-        "hue-rotate(22deg) saturate(1.2) brightness(1.04)",
+        "hue-rotate(-14deg) saturate(1.45) brightness(1.1) contrast(1.08)",
+        "hue-rotate(28deg) saturate(1.38) brightness(1.08) contrast(1.05)",
       ];
     case "rare":
       return [
-        "hue-rotate(-28deg) saturate(1.5) brightness(1.1) contrast(1.04)",
-        "hue-rotate(18deg) saturate(1.4) brightness(1.06)",
+        "hue-rotate(-38deg) saturate(1.65) brightness(1.14) contrast(1.1)",
+        "hue-rotate(32deg) saturate(1.55) brightness(1.1) contrast(1.06)",
       ];
     case "epic":
       return [
-        "hue-rotate(-35deg) saturate(1.45) brightness(1.08)",
-        "hue-rotate(25deg) saturate(1.5) brightness(1.07)",
+        "hue-rotate(-42deg) saturate(1.62) brightness(1.12) contrast(1.08)",
+        "hue-rotate(36deg) saturate(1.58) brightness(1.1) contrast(1.07)",
       ];
     case "legendary":
       return [
-        "hue-rotate(-18deg) saturate(1.5) brightness(1.12)",
-        "hue-rotate(12deg) saturate(1.35) brightness(1.08)",
+        "hue-rotate(-28deg) saturate(1.7) brightness(1.18) contrast(1.1)",
+        "hue-rotate(22deg) saturate(1.5) brightness(1.12) contrast(1.08)",
       ];
     case "mythic":
       return [
-        "hue-rotate(-22deg) saturate(1.55) brightness(1.09)",
-        "hue-rotate(20deg) saturate(1.45) brightness(1.07)",
+        "hue-rotate(-32deg) saturate(1.75) brightness(1.14) contrast(1.1)",
+        "hue-rotate(28deg) saturate(1.62) brightness(1.12) contrast(1.08)",
       ];
     case "abyssal":
       return [
-        "hue-rotate(-15deg) saturate(1.4) brightness(1.1)",
-        "hue-rotate(35deg) saturate(1.35) brightness(1.06)",
+        "hue-rotate(-24deg) saturate(1.68) brightness(1.14) contrast(1.1)",
+        "hue-rotate(42deg) saturate(1.55) brightness(1.1) contrast(1.07)",
       ];
     default:
       return [
-        "hue-rotate(-10deg) saturate(1.2) brightness(1.05)",
-        "hue-rotate(15deg) saturate(1.15) brightness(1.04)",
+        "hue-rotate(-14deg) saturate(1.35) brightness(1.08) contrast(1.06)",
+        "hue-rotate(22deg) saturate(1.28) brightness(1.06) contrast(1.04)",
       ];
   }
 }

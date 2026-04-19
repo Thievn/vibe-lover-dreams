@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { isVideoPortraitUrl } from "@/lib/companionMedia";
+import { ZoomableImageViewport } from "@/components/ZoomableImageViewport";
 
 type Props = {
   alt: string;
@@ -48,7 +49,7 @@ export function PortraitViewLightbox({ alt, stillSrc, animatedSrc, children, tri
         </span>
       </button>
       <DialogContent className="max-w-[min(96vw,56rem)] border-border/80 bg-black/92 p-2 sm:p-4">
-        <div className="flex max-h-[min(90dvh,920px)] w-full items-center justify-center overflow-auto rounded-lg bg-black/40 p-1">
+        <div className="flex max-h-[min(90dvh,920px)] w-full flex-col items-stretch justify-center overflow-hidden rounded-lg bg-black/40 p-1">
           {videoSrc && !imgSrc ? (
             <video
               src={videoSrc}
@@ -60,11 +61,12 @@ export function PortraitViewLightbox({ alt, stillSrc, animatedSrc, children, tri
               playsInline
             />
           ) : imgSrc ? (
-            <img
-              src={imgSrc}
-              alt={alt}
-              className="max-h-[85dvh] w-auto max-w-full object-contain object-top"
-            />
+            <>
+              <ZoomableImageViewport src={imgSrc} alt={alt} className="min-h-[min(80dvh,800px)]" />
+              <p className="pt-1 text-center text-[10px] text-muted-foreground">
+                Pinch or scroll to zoom · double-click to reset
+              </p>
+            </>
           ) : null}
         </div>
       </DialogContent>

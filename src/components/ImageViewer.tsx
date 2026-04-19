@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X, Download, Save, Copy } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { ZoomableImageViewport } from "@/components/ZoomableImageViewport";
 
 interface ImageViewerProps {
   imageUrl: string;
@@ -92,13 +93,12 @@ export const ImageViewer = ({
           </button>
 
           {/* Image Container */}
-          <div className="flex flex-col h-full">
-            <div className="flex-1 flex items-center justify-center bg-black/40 overflow-auto">
-              <img
-                src={imageUrl}
-                alt={companionName}
-                className="max-h-[70vh] w-auto object-contain"
-              />
+          <div className="flex flex-col h-full min-h-0">
+            <div className="flex-1 min-h-[min(72vh,620px)] flex flex-col items-stretch justify-center bg-black/40 overflow-hidden px-1 pt-2">
+              <ZoomableImageViewport src={imageUrl} alt={companionName} className="min-h-[min(68vh,580px)]" />
+              <p className="shrink-0 pt-2 pb-1 text-center text-[10px] text-muted-foreground">
+                Pinch or scroll to zoom · drag to pan · double-click to reset
+              </p>
             </div>
 
             {/* Info and Controls */}

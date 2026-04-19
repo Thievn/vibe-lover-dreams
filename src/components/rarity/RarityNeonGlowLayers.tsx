@@ -1,6 +1,10 @@
 import { cn } from "@/lib/utils";
 import type { CompanionRarity } from "@/lib/companionRarity";
-import { rarityNeonInnerBoxShadow, rarityNeonOuterBoxShadow } from "@/lib/rarityNeonGlow";
+import {
+  rarityNeonCardStaticGlow,
+  rarityNeonInnerBoxShadow,
+  rarityNeonOuterBoxShadow,
+} from "@/lib/rarityNeonGlow";
 import type { ProfilePortraitTierHaloVariant } from "@/lib/profilePortraitTierHalo";
 
 type Props = {
@@ -27,7 +31,19 @@ function outerBleedClass(variant: ProfilePortraitTierHaloVariant): string {
 export function RarityNeonGlowLayers({ rarity, variant, profileBreathing, roundClass }: Props) {
   const outer = rarityNeonOuterBoxShadow(rarity, variant);
   const inner = rarityNeonInnerBoxShadow(rarity, variant);
+  const cardStatic = rarityNeonCardStaticGlow(rarity, variant);
   const breathe = profileBreathing === true;
+  const isProfile = variant === "profile";
+
+  if (!isProfile) {
+    return (
+      <div
+        aria-hidden
+        className={cn("pointer-events-none absolute inset-0 z-0", roundClass)}
+        style={{ boxShadow: cardStatic }}
+      />
+    );
+  }
 
   return (
     <>

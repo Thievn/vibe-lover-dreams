@@ -802,8 +802,8 @@ function DashboardHome({
               </h2>
               <p className="text-sm text-muted-foreground mt-1">Tap a card to open the full companion profile.</p>
             </div>
-            <span className="text-xs text-muted-foreground uppercase tracking-widest hidden sm:block">
-              TCG preview
+            <span className="text-xs text-muted-foreground uppercase tracking-widest hidden sm:block font-gothic">
+              Signature tiers
             </span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
@@ -1016,10 +1016,6 @@ function MiniCompanionCard({ companion: c, index }: { companion: Companion; inde
           </div>
           <div className="absolute inset-0 z-[3] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none" />
         </TierHaloPortraitFrame>
-        <div className="px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/40">
-          <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Profile</span>
-          <Sparkles className="h-3.5 w-3.5 text-accent" />
-        </div>
       </Link>
     </motion.div>
   );

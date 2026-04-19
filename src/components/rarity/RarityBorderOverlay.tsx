@@ -58,11 +58,11 @@ export function RarityBorderOverlay({
               alt=""
               className={cn(
                 "absolute inset-0 h-full w-full object-fill mix-blend-screen will-change-transform",
-                softGlitch ? "opacity-[0.34]" : "opacity-[0.44]",
+                softGlitch ? "opacity-[0.42]" : "opacity-[0.58]",
               )}
               style={{
                 filter: glitchFilterA,
-                animation: "rarity-border-glitch-a 3.4s steps(8, end) infinite",
+                animation: "rarity-border-glitch-a 2.85s steps(10, end) infinite",
               }}
             />
             <img
@@ -70,11 +70,11 @@ export function RarityBorderOverlay({
               alt=""
               className={cn(
                 "absolute inset-0 h-full w-full object-fill mix-blend-screen will-change-transform",
-                softGlitch ? "opacity-[0.3]" : "opacity-[0.4]",
+                softGlitch ? "opacity-[0.38]" : "opacity-[0.52]",
               )}
               style={{
                 filter: glitchFilterB,
-                animation: "rarity-border-glitch-b 3.65s steps(8, end) infinite",
+                animation: "rarity-border-glitch-b 3.1s steps(10, end) infinite",
               }}
             />
           </div>

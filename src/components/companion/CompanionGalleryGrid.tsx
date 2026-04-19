@@ -4,6 +4,8 @@ import { ImageIcon, Loader2, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import type { CompanionGalleryRow } from "@/hooks/useCompanionGeneratedImages";
 import { stablePortraitDisplayUrl } from "@/lib/companionMedia";
+import { ZoomableImageViewport } from "@/components/ZoomableImageViewport";
+import { isPortraitNineSixteen, loadImageNaturalSize } from "@/lib/chatImageSettings";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -32,6 +34,17 @@ export function CompanionGalleryGrid({
     const url = stablePortraitDisplayUrl(row.image_url) ?? row.image_url;
     setSettingId(row.id);
     try {
+      const { width, height } = await loadImageNaturalSize(url);
+      if (width >= height) {
+        toast.error("Landscape images can’t be used as profile portraits. Pick a vertical 9∶16 image.");
+        return;
+      }
+      if (!isPortraitNineSixteen(width, height)) {
+        toast.error(
+          "Profile portraits must be 9∶16 vertical (tall phone-style). This image has a different aspect ratio.",
+        );
+        return;
+      }
       await onSetAsPortrait(url);
       toast.success("Portrait updated — you'll see this in chat and on the profile.");
     } catch (e) {
@@ -146,11 +159,16 @@ export function CompanionGalleryGrid({
               >
                 <X className="h-5 w-5" />
               </button>
-              <img
-                src={stablePortraitDisplayUrl(lightbox.image_url) ?? lightbox.image_url}
-                alt=""
-                className="w-full rounded-2xl border border-white/10 object-contain max-h-[70vh]"
-              />
+              <div className="w-full rounded-2xl border border-white/10 bg-black/30 overflow-hidden max-h-[min(78vh,800px)]">
+                <ZoomableImageViewport
+                  src={stablePortraitDisplayUrl(lightbox.image_url) ?? lightbox.image_url}
+                  alt=""
+                  className="min-h-[min(65vh,640px)]"
+                />
+              </div>
+              <p className="text-[10px] text-center text-muted-foreground/90">
+                Pinch or scroll to zoom · double-click to reset
+              </p>
               <p className="text-xs text-muted-foreground italic line-clamp-3 text-center px-2">
                 {lightbox.prompt}
               </p>

@@ -97,17 +97,17 @@ export function profileTierSheenGradient(rarity: CompanionRarity): string {
   const { common, rare, epic, legendary, mythic, abyssal } = RARITY_NEON;
   switch (rarity) {
     case "common":
-      return `conic-gradient(from 0deg, ${common.core}99, ${common.outline}55, #b8b8c8cc, ${common.core}aa, ${common.core}99)`;
+      return `conic-gradient(from 0deg, ${common.core}99, ${common.outline}55, #a1a1aacc, ${common.core}aa, ${common.core}99)`;
     case "rare":
-      return `conic-gradient(from 0deg, ${rare.from}, ${rare.to}, #c040f0, ${rare.from}, ${rare.to})`;
+      return `conic-gradient(from 0deg, ${rare.from}, ${rare.to}, #93c5fd, ${rare.from}, ${rare.to})`;
     case "epic":
-      return `conic-gradient(from 0deg, ${epic.from}, ${epic.to}, #00c8dd, ${epic.from}, ${epic.to})`;
+      return `conic-gradient(from 0deg, ${epic.from}, ${epic.to}, #c084fc, ${epic.from}, ${epic.to})`;
     case "legendary":
-      return `conic-gradient(from 0deg, ${legendary.from}, ${legendary.to}, #ffe566, ${legendary.from}, ${legendary.to})`;
+      return `conic-gradient(from 0deg, ${legendary.from}, ${legendary.to}, #fde68a, ${legendary.from}, ${legendary.to})`;
     case "mythic":
-      return `conic-gradient(from 0deg, ${mythic.from}, ${mythic.to}, #ff66cc, ${mythic.from}, ${mythic.to})`;
+      return `conic-gradient(from 0deg, ${mythic.from}, ${mythic.to}, #fb7185, ${mythic.from}, ${mythic.to})`;
     case "abyssal":
-      return `conic-gradient(from 0deg, ${abyssal.from}, ${abyssal.to}, #c400ff, ${abyssal.from}, ${abyssal.to})`;
+      return `conic-gradient(from 0deg, ${abyssal.from}, ${abyssal.to}, #f0abfc, ${abyssal.from}, ${abyssal.to})`;
     default:
       return `conic-gradient(from 0deg, ${common.core}aa, ${common.outline}44, ${common.core}99)`;
   }

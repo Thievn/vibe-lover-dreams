@@ -6,6 +6,7 @@ import { usePortraitOverrideUrl } from "@/hooks/usePortraitOverride";
 import { useCompanionGeneratedImages } from "@/hooks/useCompanionGeneratedImages";
 import { galleryStaticPortraitUrl, profileAnimatedPortraitUrl } from "@/lib/companionMedia";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { isPlatformAdmin } from "@/config/auth";
 import { Loader2, Zap } from "lucide-react";
@@ -48,6 +49,14 @@ import {
 import { ToyHubPopover } from "@/components/toy/ToyHubPopover";
 import { ChatGallerySheet } from "@/components/chat/ChatGallerySheet";
 import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFromGallery";
+import {
+  FREE_NSFW_CHAT_IMAGES,
+  getChatAutoSpendImages,
+  getFreeNsfwImagesUsed,
+  incrementFreeNsfwImagesUsed,
+  isExplicitImageRequest,
+  setChatAutoSpendImages,
+} from "@/lib/chatImageSettings";
 
 const TOKEN_COST = 15;
 const IMAGE_TOKEN_COST = 75;
@@ -97,6 +106,9 @@ const Chat = () => {
   const [historyReady, setHistoryReady] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [savingBackupImageId, setSavingBackupImageId] = useState<string | null>(null);
+  /** User asked for an image; waiting for "Generate" tap (when auto-spend is off). */
+  const [imageGenPending, setImageGenPending] = useState<{ userMessageId: string; prompt: string } | null>(null);
+  const [autoSpendChatImages, setAutoSpendChatImages] = useState(false);
   const starterSentRef = useRef(false);
   /** Keeps token checks in sync with async `fetchTokens` before React state flushes (fantasy starters). */
   const tokensBalanceRef = useRef(0);
@@ -160,6 +172,15 @@ const Chat = () => {
   useEffect(() => {
     tokensBalanceRef.current = tokensBalance;
   }, [tokensBalance]);
+
+  useEffect(() => {
+    if (companion?.id) {
+      setAutoSpendChatImages(getChatAutoSpendImages(companion.id));
+      setImageGenPending(null);
+    } else {
+      setAutoSpendChatImages(false);
+    }
+  }, [companion?.id]);
 
   const activeToys = useMemo(() => connectedToys.filter((t) => t.enabled), [connectedToys]);
   const hasDevice = activeToys.length > 0;
@@ -374,6 +395,11 @@ const Chat = () => {
     if (!companion || !dbComp) return null;
 
     try {
+      const explicit = isExplicitImageRequest(userRequest);
+      const freeUsed = getFreeNsfwImagesUsed(userId, companion.id);
+      const useFreeNsfwSlot = explicit && freeUsed < FREE_NSFW_CHAT_IMAGES;
+      const tokenCost = isAdminUser ? 0 : useFreeNsfwSlot ? 0 : IMAGE_TOKEN_COST;
+
       /** Raw desire text — `generate-image` uses chat-session rewrite + non–card Imagine prompt (explicit ok; xAI enforces limits). */
       const prompt = `${userRequest}\n\n(Character: ${companion.name}, ${companion.gender}. ${companion.appearance})`.slice(
         0,
@@ -384,7 +410,7 @@ const Chat = () => {
         prompt,
         userId,
         isPortrait: false,
-        tokenCost: isAdminUser ? 0 : IMAGE_TOKEN_COST,
+        tokenCost,
         characterData: {
           companionId: companion.id,
           style: "chat-session",
@@ -404,6 +430,10 @@ const Chat = () => {
       const imageId = data.imageId;
 
       if (!imageUrl) throw new Error("No image generated");
+
+      if (useFreeNsfwSlot) {
+        incrementFreeNsfwImagesUsed(userId, companion.id);
+      }
 
       if (typeof data.newTokensBalance === "number") {
         setTokensBalance(data.newTokensBalance);
@@ -520,7 +550,20 @@ const Chat = () => {
     try {
       const { data } = await supabase
         .from("chat_messages")
-        .select("*")
+        .select(
+          `
+          id,
+          role,
+          content,
+          lovense_command,
+          created_at,
+          tts_audio_url,
+          image_url,
+          image_prompt,
+          generated_image_id,
+          generated_images ( saved_to_companion_gallery, saved_to_personal_gallery )
+        `,
+        )
         .eq("user_id", userId)
         .eq("companion_id", id)
         .order("created_at", { ascending: true })
@@ -528,14 +571,29 @@ const Chat = () => {
 
       if (data && data.length > 0) {
         setMessages(
-          data.map((m: any) => ({
-            id: m.id,
-            role: m.role as "user" | "assistant",
-            content: m.content,
-            lovenseCommand: m.lovense_command,
-            timestamp: new Date(m.created_at),
-            tts_audio_url: m.tts_audio_url ?? undefined,
-          })),
+          data.map((m: any) => {
+            const gi = m.generated_images as
+              | { saved_to_companion_gallery?: boolean | null; saved_to_personal_gallery?: boolean | null }
+              | null
+              | undefined;
+            const hasImage = Boolean(m.image_url && m.generated_image_id);
+            return {
+              id: m.id,
+              role: m.role as "user" | "assistant",
+              content: m.content,
+              lovenseCommand: m.lovense_command,
+              timestamp: new Date(m.created_at),
+              tts_audio_url: m.tts_audio_url ?? undefined,
+              imageUrl: m.image_url ?? undefined,
+              imagePrompt: m.image_prompt ?? undefined,
+              generatedImageId: m.generated_image_id ?? undefined,
+              imageId: m.generated_image_id ?? undefined,
+              savedToCompanionGallery: hasImage
+                ? (gi?.saved_to_companion_gallery ?? true)
+                : undefined,
+              savedToPersonalGallery: hasImage ? Boolean(gi?.saved_to_personal_gallery) : undefined,
+            };
+          }),
         );
       } else {
         const greeting: ChatMessage = {
@@ -860,7 +918,7 @@ const Chat = () => {
         companion_id: companion.id,
         role: "assistant",
         content,
-        lovense_command: command,
+        lovense_command: command as Json | null,
       })
       .select("id")
       .single();
@@ -868,149 +926,204 @@ const Chat = () => {
     return data.id as string;
   };
 
-  const sendMessage = async (overrideText?: string) => {
-      const messageText = overrideText?.trim() ?? input.trim();
-      if (!messageText || loading || !user || !companion) return;
+  const insertAssistantImageMessage = async (args: {
+    content: string;
+    imageUrl: string;
+    imagePrompt: string;
+    generatedImageId: string;
+  }): Promise<string> => {
+    if (!user || !companion) throw new Error("Not ready");
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .insert({
+        user_id: user.id,
+        companion_id: companion.id,
+        role: "assistant",
+        content: args.content,
+        lovense_command: null,
+        image_url: args.imageUrl,
+        image_prompt: args.imagePrompt,
+        generated_image_id: args.generatedImageId,
+      })
+      .select("id")
+      .single();
+    if (error || !data?.id) throw new Error(error?.message || "Could not save image reply");
+    return data.id as string;
+  };
 
-      if (overrideText) {
-        setInput("");
-      }
-
-      const requestingImage = isImageRequest(messageText);
-      const requiredTokens = requestingImage ? IMAGE_TOKEN_COST : TOKEN_COST;
-
-      const balanceNow = tokensBalanceRef.current;
-      if (!isAdminUser && balanceNow < requiredTokens) {
-        const tokenType = requestingImage ? "image generation" : "messaging";
-        toast.error(`Not enough tokens for ${tokenType}. You need ${requiredTokens} but only have ${balanceNow}.`, {
-          action: {
-            label: "Upgrade",
-            onClick: () => navigate("/"),
-          },
+  const confirmPendingImageGeneration = async () => {
+    if (!imageGenPending || !user || !companion) return;
+    const { prompt } = imageGenPending;
+    const explicit = isExplicitImageRequest(prompt);
+    const freeUsed = getFreeNsfwImagesUsed(user.id, companion.id);
+    const needTokens = isAdminUser ? 0 : explicit && freeUsed < FREE_NSFW_CHAT_IMAGES ? 0 : IMAGE_TOKEN_COST;
+    if (!isAdminUser && tokensBalanceRef.current < needTokens) {
+      toast.error(
+        `Not enough tokens. You need ${needTokens} forge credits (or use one of ${FREE_NSFW_CHAT_IMAGES} free NSFW generations — ${freeUsed} used).`,
+        { action: { label: "Upgrade", onClick: () => navigate("/") } },
+      );
+      return;
+    }
+    setLoading(true);
+    try {
+      const imageResult = await generateImage(prompt, user.id);
+      if (imageResult) {
+        const rowId = await insertAssistantImageMessage({
+          content: `*creates a captivating image just for you*`,
+          imageUrl: imageResult.imageUrl,
+          imagePrompt: prompt,
+          generatedImageId: imageResult.imageId,
         });
-        return;
-      }
-
-      if (messageText.toUpperCase() === safeWord.toUpperCase()) {
-        toast.info("🛑 Safe word activated. All activity stopped. You're safe.");
-        setInput("");
-
-        if (connectedToys.length > 0) {
-          handleEmergencyStop();
-        }
-
-        const safeMsg: ChatMessage = {
-          id: Date.now().toString(),
+        setImageGenPending(null);
+        const imageMsg: ChatMessage = {
+          id: rowId,
           role: "assistant",
-          content:
-            "*immediately stops everything* Of course. Everything stops right now. You're safe. Take all the time you need. I'm here when and if you want to continue. No pressure, no judgment. 💛",
+          content: `*creates a captivating image just for you*`,
+          imageUrl: imageResult.imageUrl,
+          imageId: imageResult.imageId,
+          generatedImageId: imageResult.imageId,
+          imagePrompt: prompt,
           timestamp: new Date(),
+          savedToCompanionGallery: true,
+          savedToPersonalGallery: false,
         };
-        setMessages((prev) => [...prev, safeMsg]);
-        return;
+        setMessages((prev) => [...prev, imageMsg]);
+        void queryClient.invalidateQueries({
+          queryKey: ["companion-generated-images", user.id, companion.id],
+        });
+        clearOpeningStarterContext();
+      }
+    } catch (err: unknown) {
+      const raw = err instanceof Error ? err.message : "Could not save image to chat";
+      toast.error(raw.length > 200 ? `${raw.slice(0, 197)}…` : raw);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendMessage = async (overrideText?: string) => {
+    const messageText = overrideText?.trim() ?? input.trim();
+    if (!messageText || loading || !user || !companion) return;
+
+    if (overrideText) {
+      setInput("");
+    }
+
+    setImageGenPending(null);
+
+    const requestingImage = isImageRequest(messageText);
+    const autoSpendImages = getChatAutoSpendImages(companion.id);
+    const holdForImageButton = requestingImage && !autoSpendImages;
+    const explicitReq = isExplicitImageRequest(messageText);
+    const freeUsed = getFreeNsfwImagesUsed(user.id, companion.id);
+    const imageCharge = isAdminUser ? 0 : explicitReq && freeUsed < FREE_NSFW_CHAT_IMAGES ? 0 : IMAGE_TOKEN_COST;
+    const requiredTokens = holdForImageButton ? 0 : requestingImage ? imageCharge : TOKEN_COST;
+
+    const balanceNow = tokensBalanceRef.current;
+    if (!isAdminUser && balanceNow < requiredTokens) {
+      const tokenType = requestingImage ? "image generation" : "messaging";
+      toast.error(`Not enough tokens for ${tokenType}. You need ${requiredTokens} but only have ${balanceNow}.`, {
+        action: {
+          label: "Upgrade",
+          onClick: () => navigate("/"),
+        },
+      });
+      return;
+    }
+
+    if (messageText.toUpperCase() === safeWord.toUpperCase()) {
+      toast.info("🛑 Safe word activated. All activity stopped. You're safe.");
+      setInput("");
+
+      if (connectedToys.length > 0) {
+        handleEmergencyStop();
       }
 
-      const priorThread = messagesRef.current;
-      const userMsg: ChatMessage = {
+      const safeMsg: ChatMessage = {
         id: Date.now().toString(),
+        role: "assistant",
+        content:
+          "*immediately stops everything* Of course. Everything stops right now. You're safe. Take all the time you need. I'm here when and if you want to continue. No pressure, no judgment. 💛",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, safeMsg]);
+      return;
+    }
+
+    const priorThread = messagesRef.current;
+    const threadForModel = [...priorThread, { role: "user" as const, content: messageText }].slice(-20).map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    setInput("");
+
+    let savedUserMessageId: string | null = null;
+    let userMsg: ChatMessage | null = null;
+
+    try {
+      const { data: insertedUserRow, error: userInsertError } = await supabase
+        .from("chat_messages")
+        .insert({
+          user_id: user.id,
+          companion_id: companion.id,
+          role: "user",
+          content: messageText,
+        })
+        .select("id")
+        .single();
+
+      if (userInsertError) {
+        throw new Error(userInsertError.message || "Could not save your message.");
+      }
+      savedUserMessageId = insertedUserRow?.id ?? null;
+      if (!savedUserMessageId) throw new Error("Could not save your message.");
+
+      userMsg = {
+        id: savedUserMessageId,
         role: "user",
         content: messageText,
         timestamp: new Date(),
       };
+      setMessages((prev) => [...prev, userMsg!]);
 
-      const threadForModel = [...priorThread, userMsg].slice(-20).map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      if (holdForImageButton) {
+        setImageGenPending({ userMessageId: savedUserMessageId, prompt: messageText });
+        return;
+      }
 
-      setMessages((prev) => [...prev, userMsg]);
-      setInput("");
       setLoading(true);
 
-      let savedUserMessageId: string | null = null;
+      if (requestingImage) {
+        const imageResult = await generateImage(messageText, user.id);
 
-      try {
-        const { data: insertedUserRow, error: userInsertError } = await supabase
-          .from("chat_messages")
-          .insert({
-            user_id: user.id,
-            companion_id: companion.id,
-            role: "user",
-            content: userMsg.content,
-          })
-          .select("id")
-          .single();
+        if (imageResult) {
+          const rowId = await insertAssistantImageMessage({
+            content: `*creates a captivating image just for you*`,
+            imageUrl: imageResult.imageUrl,
+            imagePrompt: messageText,
+            generatedImageId: imageResult.imageId,
+          });
+          const imageMsg: ChatMessage = {
+            id: rowId,
+            role: "assistant",
+            content: `*creates a captivating image just for you*`,
+            imageUrl: imageResult.imageUrl,
+            imageId: imageResult.imageId,
+            generatedImageId: imageResult.imageId,
+            imagePrompt: messageText,
+            timestamp: new Date(),
+            savedToCompanionGallery: true,
+            savedToPersonalGallery: false,
+          };
 
-        if (userInsertError) {
-          throw new Error(userInsertError.message || "Could not save your message.");
-        }
-        savedUserMessageId = insertedUserRow?.id ?? null;
+          setMessages((prev) => [...prev, imageMsg]);
 
-        if (requestingImage) {
-          const imageResult = await generateImage(userMsg.content, user.id);
+          void queryClient.invalidateQueries({
+            queryKey: ["companion-generated-images", user.id, companion.id],
+          });
 
-          if (imageResult) {
-            const imageMsg: ChatMessage = {
-              id: (Date.now() + 1).toString(),
-              role: "assistant",
-              content: `*creates a captivating image just for you*`,
-              imageUrl: imageResult.imageUrl,
-              imageId: imageResult.imageId,
-              generatedImageId: imageResult.imageId,
-              imagePrompt: userMsg.content,
-              timestamp: new Date(),
-              savedToCompanionGallery: true,
-              savedToPersonalGallery: false,
-            };
-
-            setMessages((prev) => [...prev, imageMsg]);
-
-            void queryClient.invalidateQueries({
-              queryKey: ["companion-generated-images", user.id, companion.id],
-            });
-
-            clearOpeningStarterContext();
-          } else {
-            const { data, error } = await supabase.functions.invoke("chat-with-companion", {
-              body: {
-                companionId: companion.id,
-                messages: threadForModel,
-                systemPrompt: composeGrokSystemPrompt(),
-                companionName: companion.name,
-                connectedToys: connectedToys,
-              },
-            });
-
-            if (error) {
-              throw new Error(await messageFromFunctionsInvoke(error, data));
-            }
-            const chatPayload = data as { response?: string; message?: string; error?: string } | undefined;
-            if (chatPayload?.error && !chatPayload?.response && !chatPayload?.message) {
-              throw new Error(chatPayload.error);
-            }
-
-            const { cleanText, command } = parseLovenseCommand(
-              chatPayload?.response || chatPayload?.message || "",
-            );
-
-            const asstId = await insertAssistantMessage(cleanText, command);
-            const assistantMsg: ChatMessage = {
-              id: asstId,
-              role: "assistant",
-              content: cleanText,
-              lovenseCommand: command,
-              timestamp: new Date(),
-            };
-
-            setMessages((prev) => [...prev, assistantMsg]);
-
-            if (command && hasDevice) {
-              executeDeviceCommand(command);
-            }
-
-            await deductTokens(user.id);
-            clearOpeningStarterContext();
-          }
+          clearOpeningStarterContext();
         } else {
           const { data, error } = await supabase.functions.invoke("chat-with-companion", {
             body: {
@@ -1052,19 +1165,63 @@ const Chat = () => {
           await deductTokens(user.id);
           clearOpeningStarterContext();
         }
-      } catch (err: unknown) {
-        console.error("Chat error:", err);
-        if (savedUserMessageId) {
-          await supabase.from("chat_messages").delete().eq("id", savedUserMessageId);
+      } else {
+        const { data, error } = await supabase.functions.invoke("chat-with-companion", {
+          body: {
+            companionId: companion.id,
+            messages: threadForModel,
+            systemPrompt: composeGrokSystemPrompt(),
+            companionName: companion.name,
+            connectedToys: connectedToys,
+          },
+        });
+
+        if (error) {
+          throw new Error(await messageFromFunctionsInvoke(error, data));
         }
-        setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
-        setInput(messageText);
-        if (overrideText) starterSentRef.current = false;
-        const raw = err instanceof Error ? err.message : "Failed to process your request.";
-        toast.error(raw.length > 240 ? `${raw.slice(0, 237)}…` : raw);
-      } finally {
-        setLoading(false);
+        const chatPayload = data as { response?: string; message?: string; error?: string } | undefined;
+        if (chatPayload?.error && !chatPayload?.response && !chatPayload?.message) {
+          throw new Error(chatPayload.error);
+        }
+
+        const { cleanText, command } = parseLovenseCommand(
+          chatPayload?.response || chatPayload?.message || "",
+        );
+
+        const asstId = await insertAssistantMessage(cleanText, command);
+        const assistantMsg: ChatMessage = {
+          id: asstId,
+          role: "assistant",
+          content: cleanText,
+          lovenseCommand: command,
+          timestamp: new Date(),
+        };
+
+        setMessages((prev) => [...prev, assistantMsg]);
+
+        if (command && hasDevice) {
+          executeDeviceCommand(command);
+        }
+
+        await deductTokens(user.id);
+        clearOpeningStarterContext();
       }
+    } catch (err: unknown) {
+      console.error("Chat error:", err);
+      if (savedUserMessageId) {
+        await supabase.from("chat_messages").delete().eq("id", savedUserMessageId);
+      }
+      if (userMsg) {
+        setMessages((prev) => prev.filter((m) => m.id !== userMsg!.id));
+      }
+      setImageGenPending(null);
+      setInput(messageText);
+      if (overrideText) starterSentRef.current = false;
+      const raw = err instanceof Error ? err.message : "Failed to process your request.";
+      toast.error(raw.length > 240 ? `${raw.slice(0, 237)}…` : raw);
+    } finally {
+      setLoading(false);
+    }
   };
 
   sendMessageRef.current = sendMessage;
@@ -1145,6 +1302,22 @@ const Chat = () => {
     }
     return activeToys[0]?.name ?? "Toy";
   };
+
+  const freeNsfwUsed = user ? getFreeNsfwImagesUsed(user.id, companion.id) : 0;
+  const freeNsfwRemaining = Math.max(0, FREE_NSFW_CHAT_IMAGES - freeNsfwUsed);
+  const imageSubmitTitle =
+    isAdminUser
+      ? "Generate image"
+      : isImageRequest(input) && isExplicitImageRequest(input) && freeNsfwRemaining > 0
+        ? `Generate image (free NSFW · ${freeNsfwRemaining} left)`
+        : `Generate image (${IMAGE_TOKEN_COST} tokens)`;
+  const pendingExplicit = imageGenPending ? isExplicitImageRequest(imageGenPending.prompt) : false;
+  const pendingImageButtonLabel =
+    isAdminUser
+      ? "Generate image"
+      : pendingExplicit && freeNsfwRemaining > 0
+        ? `Generate image (free NSFW · ${freeNsfwRemaining} left)`
+        : `Generate image (${IMAGE_TOKEN_COST} tokens)`;
 
   return (
     <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-[hsl(280_30%_5%)] text-foreground">
@@ -1243,6 +1416,9 @@ const Chat = () => {
         messagesEndRef={messagesEndRef}
         onSaveImageBackup={user ? handleSaveImageBackup : undefined}
         savingBackupImageId={savingBackupImageId}
+        imageGenPending={imageGenPending}
+        onConfirmPendingImage={() => void confirmPendingImageGeneration()}
+        pendingImageButtonLabel={pendingImageButtonLabel}
       />
 
       <div className="shrink-0 px-3 pb-1 z-20 bg-gradient-to-t from-black/80 to-transparent">
@@ -1273,8 +1449,14 @@ const Chat = () => {
         tokensBalance={tokensBalance}
         tokenCost={TOKEN_COST}
         imageTokenCost={IMAGE_TOKEN_COST}
+        imageSubmitTitle={imageSubmitTitle}
         safeWord={safeWord}
         companionName={companion.name}
+        autoSpendChatImages={autoSpendChatImages}
+        onAutoSpendChatImagesChange={(enabled) => {
+          setAutoSpendChatImages(enabled);
+          setChatAutoSpendImages(companion.id, enabled);
+        }}
       />
 
       <ChatQuickActionFab onAction={handleFabAction} />

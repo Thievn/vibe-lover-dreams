@@ -19,7 +19,10 @@ export type Database = {
           companion_id: string
           content: string
           created_at: string
+          generated_image_id: string | null
           id: string
+          image_prompt: string | null
+          image_url: string | null
           lovense_command: Json | null
           role: string
           tts_audio_url: string | null
@@ -29,7 +32,10 @@ export type Database = {
           companion_id: string
           content: string
           created_at?: string
+          generated_image_id?: string | null
           id?: string
+          image_prompt?: string | null
+          image_url?: string | null
           lovense_command?: Json | null
           role: string
           tts_audio_url?: string | null
@@ -39,13 +45,24 @@ export type Database = {
           companion_id?: string
           content?: string
           created_at?: string
+          generated_image_id?: string | null
           id?: string
+          image_prompt?: string | null
+          image_url?: string | null
           lovense_command?: Json | null
           role?: string
           tts_audio_url?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_generated_image_id_fkey"
+            columns: ["generated_image_id"]
+            isOneToOne: false
+            referencedRelation: "generated_images"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       backstory_regen_queue: {
         Row: {

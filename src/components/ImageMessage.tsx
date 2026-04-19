@@ -27,22 +27,21 @@ export const ImageMessage = ({
       animate={{ opacity: 1, scale: 1 }}
       className="space-y-2"
     >
-      {/* Image Container */}
+      {/* Natural aspect ratio — no forced crop (avoids cut-off heads). Max height keeps thread readable. */}
       <div
         onClick={onImageClick}
-        className="relative group cursor-pointer rounded-2xl overflow-hidden bg-black/40 hover:ring-2 hover:ring-primary transition-all duration-300 max-w-[min(90vw,760px)] w-full"
+        className="relative group cursor-pointer rounded-2xl overflow-hidden bg-black/40 hover:ring-2 hover:ring-primary transition-all duration-300 w-full max-w-[min(92vw,28rem)]"
       >
-        <div className="aspect-[3/2] w-full overflow-hidden">
-          <img
-            src={imageUrl}
-            alt={prompt}
-            className="w-full h-full object-cover rounded-2xl group-hover:brightness-90 transition-all duration-300"
-            onError={(e) => {
-              console.error("Image failed to load:", imageUrl);
-              e.currentTarget.src = "/placeholder-image.png";
-            }}
-          />
-        </div>
+        <img
+          src={imageUrl}
+          alt={prompt}
+          className="w-full h-auto max-h-[min(70vh,560px)] object-contain rounded-2xl group-hover:brightness-90 transition-all duration-300"
+          loading="lazy"
+          onError={(e) => {
+            console.error("Image failed to load:", imageUrl);
+            e.currentTarget.src = "/placeholder-image.png";
+          }}
+        />
 
         {/* Hover Overlay */}
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-center justify-center">

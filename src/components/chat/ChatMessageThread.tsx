@@ -28,6 +28,10 @@ type Props = {
   messagesEndRef: RefObject<HTMLDivElement | null>;
   onSaveImageBackup?: (generatedImageId: string) => void;
   savingBackupImageId?: string | null;
+  /** Inline confirm before spending tokens on an image (when auto-spend is off). */
+  imageGenPending?: { userMessageId: string; prompt: string } | null;
+  onConfirmPendingImage?: () => void;
+  pendingImageButtonLabel?: string;
 };
 
 export function ChatMessageThread({
@@ -48,6 +52,9 @@ export function ChatMessageThread({
   messagesEndRef,
   onSaveImageBackup,
   savingBackupImageId,
+  imageGenPending = null,
+  onConfirmPendingImage,
+  pendingImageButtonLabel = "Generate image",
 }: Props) {
   const rarity = normalizeCompanionRarity(companion.rarity);
 
@@ -117,24 +124,39 @@ export function ChatMessageThread({
                 backupBusy={Boolean(msg.generatedImageId && savingBackupImageId === msg.generatedImageId)}
               />
             ) : (
-              <div className="flex items-start gap-2">
-                <p className="whitespace-pre-wrap flex-1 min-w-0">{msg.content}</p>
-                {msg.role === "assistant" && onTtsClick ? (
+              <div className="flex flex-col gap-2 min-w-0">
+                <div className="flex items-start gap-2">
+                  <p className="whitespace-pre-wrap flex-1 min-w-0">{msg.content}</p>
+                  {msg.role === "assistant" && onTtsClick ? (
+                    <button
+                      type="button"
+                      onClick={() => onTtsClick(msg)}
+                      className={cn(
+                        "shrink-0 mt-0.5 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-primary hover:bg-white/[0.1] transition-colors touch-manipulation",
+                        ttsPlayingId === msg.id && "ring-1 ring-primary/50",
+                      )}
+                      title="Play voice"
+                      aria-label="Play companion voice"
+                    >
+                      {ttsLoadingId === msg.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Volume2 className="h-4 w-4" />
+                      )}
+                    </button>
+                  ) : null}
+                </div>
+                {msg.role === "user" &&
+                imageGenPending &&
+                imageGenPending.userMessageId === msg.id &&
+                onConfirmPendingImage ? (
                   <button
                     type="button"
-                    onClick={() => onTtsClick(msg)}
-                    className={cn(
-                      "shrink-0 mt-0.5 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-primary hover:bg-white/[0.1] transition-colors touch-manipulation",
-                      ttsPlayingId === msg.id && "ring-1 ring-primary/50",
-                    )}
-                    title="Play voice"
-                    aria-label="Play companion voice"
+                    onClick={() => onConfirmPendingImage()}
+                    disabled={loading}
+                    className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-center text-sm font-semibold text-primary-foreground shadow-[0_0_20px_rgba(255,45,123,0.2)] ring-1 ring-white/10 hover:bg-black/55 disabled:opacity-40 transition-colors"
                   >
-                    {ttsLoadingId === msg.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Volume2 className="h-4 w-4" />
-                    )}
+                    {pendingImageButtonLabel}
                   </button>
                 ) : null}
               </div>
