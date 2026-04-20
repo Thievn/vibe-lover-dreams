@@ -39,6 +39,8 @@ export type GrokRealtimeVoiceOptions = {
   onAssistantTranscriptDone?: (text: string) => void;
   /** Streaming assistant speech (for Ramp Mode / analytics). */
   onAssistantTranscriptDelta?: (delta: string, accumulated: string) => void;
+  /** Final user speech-to-text (Live mode) — use to trigger chat actions (e.g. image requests). */
+  onUserTranscriptDone?: (text: string) => void;
 };
 
 function sessionUpdatePayload(instructions: string, voice: XaiVoiceId) {
@@ -48,12 +50,27 @@ function sessionUpdatePayload(instructions: string, voice: XaiVoiceId) {
       instructions,
       voice,
       turn_detection: { type: "server_vad" },
+      /** OpenAI-compatible realtime — enables user transcript events for image / chat bridging. */
+      input_audio_transcription: { model: "whisper-1" },
       audio: {
         input: { format: { type: "audio/pcm", rate: TARGET_RATE } },
         output: { format: { type: "audio/pcm", rate: TARGET_RATE } },
       },
     },
   };
+}
+
+function extractUserTranscriptFromRealtimeEvent(event: Record<string, unknown>): string | null {
+  const type = typeof event.type === "string" ? event.type : "";
+  if (type !== "conversation.item.input_audio_transcription.completed") return null;
+  const direct = typeof event.transcript === "string" ? event.transcript.trim() : "";
+  if (direct) return direct;
+  const item = event.item;
+  if (item && typeof item === "object" && item !== null) {
+    const tr = (item as { transcript?: string }).transcript;
+    if (typeof tr === "string" && tr.trim()) return tr.trim();
+  }
+  return null;
 }
 
 /**
@@ -197,6 +214,9 @@ export function startGrokRealtimeVoiceSession(opts: GrokRealtimeVoiceOptions): {
           const t = full.trim();
           if (t) opts.onAssistantTranscriptDone?.(t);
         }
+
+        const userLine = extractUserTranscriptFromRealtimeEvent(event);
+        if (userLine) opts.onUserTranscriptDone?.(userLine);
 
         if (type === "error") {
           const msg =

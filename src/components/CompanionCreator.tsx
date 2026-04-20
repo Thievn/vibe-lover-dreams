@@ -48,6 +48,8 @@ import {
   FORGE_BODY_GROUPS,
   FORGE_BODY_TYPES,
   forgeBodyCategoryIdForType,
+  forgeCompactStatureInstruction,
+  isCompactStatureForgeBodyType,
   normalizeForgeBodyType,
 } from "@/lib/forgeBodyTypes";
 import {
@@ -327,13 +329,13 @@ Seeds:
 - notable traits: ${o.traits.length ? o.traits.join(", ") : "(none)"}
 
 Hard requirements:
-1) name: Grok invents ONE highly unique display name (species- and setting-themed; vary etymology — no recycled "Velvet / Storm / Night / Vale" spam). Use varied registers: epithets, court titles, monastery vow-names, relic codenames, mundane jobs + odd honorifics, geography, loanwords — not only dark-romance catalog tone. Do not lean on gratuitous "forge / lust / neon vice" phonemes unless seeds clearly ask. NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs. The operator can rename in the profile editor later.
-2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps. The body must **clearly match** forge body type "${o.bodyType}" (height, limb proportions, scale vs environment; species or hybrid traits when non-human — never a generic silhouette that ignores this choice).
+${forgeCompactStatureInstruction(o.bodyType)}1) name: Grok invents ONE highly unique display name (species- and setting-themed; vary etymology — no recycled "Velvet / Storm / Night / Vale" spam). Use varied registers: epithets, court titles, monastery vow-names, relic codenames, mundane jobs + odd honorifics, geography, loanwords — not only dark-romance catalog tone. Do not lean on gratuitous "forge / lust / neon vice" phonemes unless seeds clearly ask. NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs. The operator can rename in the profile editor later. **Use this exact name string whenever the character is named in backstory, bio, fantasy_starters, and system_prompt — no alternate pet names as the "real" name.**
+2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps. Forge body type "${o.bodyType}" is the **spine of the physique** — lead with how this body occupies space (limb/torso/head proportions, scale vs furniture or environment). Personality, species, and wardrobe **theme around** that body; never treat it as a footnote. If "${o.bodyType}" is a compact / short-stature / little-person / pixie / micro label, nothing in the prose may read like a default average-height unnamed human — establish adult compact proportions first, then layer everything else.
 3) backstory: 3–4 paragraphs of premium dark-romance storytelling that weaves every archetype and vibe/theme into one coherent history — not a bullet recap of tags.
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
 5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences). Bold NSFW when persona fits; never end with meta questions ("Are you ready?", "Want to start?") — close on dialogue or action.
 6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
-7) image_prompt: one dense SFW paragraph for a vertical portrait card; must match body type "${o.bodyType}" for silhouette and species (non-human / hybrid / anthro when selected — do not default to a generic human figure). Align with art style "${o.artStyle}" and environment "${o.sceneAtmosphere}" (lighting, wardrobe, set pieces).
+7) image_prompt: one dense SFW paragraph for a vertical portrait card. **Silhouette and stature must match "${o.bodyType}" first** — same forge body as the text; for compact-stature types, the shot must sell scale (props, furniture, lens) so it cannot be mistaken for a generic tall-human portrait. Then align art style "${o.artStyle}" and environment "${o.sceneAtmosphere}" (lighting, wardrobe, set pieces).
 8) system_prompt: full chat charter for this persona.`;
 }
 
@@ -783,13 +785,13 @@ Seeds:
 - notable traits: ${shuffled.join(", ")}
 
 Hard requirements:
-1) name: Grok invents ONE highly unique display name (species- and setting-themed; vary etymology — no recycled "Velvet / Storm / Night / Vale" spam). Epithets, court titles, monastery vow-names, relic codenames, or 2–4 word constructions. NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs. Do not pick from any fixed name roster — invent fresh. The operator can rename in the profile editor later.
-2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps. The body must **clearly match** forge body type "${bt}" (height, limb proportions, scale vs environment; species or hybrid traits when non-human).
+${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique display name (species- and setting-themed; vary etymology — no recycled "Velvet / Storm / Night / Vale" spam). Epithets, court titles, monastery vow-names, relic codenames, or 2–4 word constructions. NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs. Do not pick from any fixed name roster — invent fresh. The operator can rename in the profile editor later.
+2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps. Forge body type "${bt}" is the **spine of the physique** — lead with scale and proportion; theme species/fashion/vibe around it. For compact / short-stature / little-person / pixie / micro picks, establish unmistakable adult compact proportions first — nothing may read like a default average-height human silhouette.
 3) backstory: 3–4 paragraphs of premium dark-romance storytelling that weaves every archetype and vibe/theme into one coherent history — not a bullet recap of tags.
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
 5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences). Bold NSFW when persona fits; never end with meta questions ("Are you ready?", "Want to start?") — close on dialogue or action.
 6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
-7) image_prompt: one dense SFW paragraph for a vertical portrait card; must match body type "${bt}" for silhouette and species; align with art style "${ar}" and environment "${sc}" (lighting, wardrobe, set pieces).
+7) image_prompt: one dense SFW paragraph for a vertical portrait card. **Stature and silhouette must match "${bt}" first** (scale cues in-frame); then art style "${ar}" and environment "${sc}".
 8) system_prompt: full chat charter for this persona.`;
 
     try {
@@ -827,9 +829,12 @@ Hard requirements:
   const buildPortraitGeneratePayload = useCallback((narrativeOverride?: string): Record<string, unknown> | null => {
     if (!userId) return null;
     const nar = (narrativeOverride ?? narrativeAppearance).trim();
+    const staturePrimary = isCompactStatureForgeBodyType(bodyType)
+      ? `[Body-type priority: ${bodyType} — compact/short-stature adult proportions are the main visual subject; pose, wardrobe, and scene support that scale, not a generic tall-human default.] `
+      : "";
     const baseDesc = nar
-      ? nar.slice(0, 900)
-      : `an original seductive character, ${gender}, ${bodyType}, ${traits.join(", ") || "clean aesthetic"}`;
+      ? `${staturePrimary}${nar.slice(0, 900)}`
+      : `${staturePrimary}an original seductive character, ${gender}, ${bodyType}, ${traits.join(", ") || "clean aesthetic"}`;
     return {
       prompt: packshotPrompt.trim() || grokPrompt,
       userId,
@@ -1058,6 +1063,11 @@ Hard requirements:
         if (labErr) throw new Error(await getEdgeFunctionInvokeMessage(labErr, labData));
         if (labData?.error) throw new Error(String(labData.error));
         const fields = labData?.fields as Record<string, unknown> | undefined;
+        if (typeof fields?.name === "string" && fields.name.trim()) {
+          const sync = fields.name.trim().slice(0, 120);
+          forgeName = sync;
+          setName(sync);
+        }
         const bs = typeof fields?.backstory === "string" ? fields.backstory.trim() : "";
         if (!bs) {
           throw new Error(

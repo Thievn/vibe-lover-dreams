@@ -3,6 +3,8 @@
  * Keep in sync with server `supabase/functions/_shared/forgePortraitAugmentation.ts` (duplicate for Deno).
  */
 
+import { forgePortraitStatureEmphasis } from "@/lib/forgeBodyTypes";
+
 export const FORGE_ART_STYLES = [
   "Photorealistic",
   "Hyper-Realistic",
@@ -172,18 +174,6 @@ export type ForgePortraitPromptArgs = {
   referenceNotes: string;
 };
 
-/** Extra camera / proportion language when UI chose short stature / little person. */
-function forgeBodyTypeEmphasis(bodyType: string): string {
-  const t = bodyType.trim().toLowerCase();
-  const littlePerson =
-    t.includes("little person") ||
-    t.includes("midget") ||
-    (t.includes("dwarf") && !t.includes("dragon")) ||
-    t.includes("short stature");
-  if (!littlePerson) return "";
-  return " Full-body or three-quarter framing so scale reads (doorways, furniture, rail height). Adult with proportional short stature — shorter limbs relative to torso — not a child, not average-height fashion-model legs.";
-}
-
 /**
  * Single string sent to Imagine (via packshot prompt or composed default).
  * Weaves appearance + personality + optional mood tags + explicit art & scene direction.
@@ -194,10 +184,10 @@ export function composeForgePortraitPrompt(a: ForgePortraitPromptArgs): string {
   const artHint = forgeArtDirectionHint(art);
   const sceneHint = forgeSceneAtmosphereHint(scene);
   const bt = a.bodyType?.trim() || "Average Build";
-  const statureExtra = forgeBodyTypeEmphasis(bt);
+  const statureExtra = forgePortraitStatureEmphasis(bt);
 
   return [
-    `Silhouette & stature (authoritative — must match this forge choice): ${bt}.${statureExtra}`,
+    `Silhouette & stature (authoritative — primary physical read; theme everything else around this): ${bt}.${statureExtra}`,
     `Portrait of ${a.name || "an original companion"}: ${a.portraitAppearanceText}.`,
     `Personality blend (weave all): ${a.personalityLabel}.`,
     a.vibeThemeLabel.trim()

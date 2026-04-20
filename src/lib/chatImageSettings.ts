@@ -105,6 +105,136 @@ export function resolveFabDisplay(display: string | readonly string[]): string {
   return String(line).trim();
 }
 
+/**
+ * When the user clearly wants a picture (typed or voice-to-text).
+ * Relaxed length for short explicit asks like “send nudes”.
+ */
+export function isImageRequestText(text: string): boolean {
+  const t = text.toLowerCase().normalize("NFKC").trim();
+  if (t.length < 6) return false;
+
+  if (inferChatImageGenerationPrompt(text)) return true;
+
+  if (t.length < 10) {
+    if (
+      /\b(send nudes|send nude|nude pic|nude selfie|naked selfie|a selfie|selfie please|pic please|photo please)\b/i.test(
+        t,
+      )
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  const phrases = [
+    "send me a picture",
+    "send me a photo",
+    "send me an image",
+    "send me a pic",
+    "send a picture",
+    "send a photo",
+    "send an image",
+    "send a pic",
+    "send nudes",
+    "take a picture",
+    "take a photo",
+    "take a selfie",
+    "take a pic",
+    "take another pic",
+    "take another picture",
+    "generate a picture",
+    "generate an image",
+    "generate image",
+    "generate a photo",
+    "create an image",
+    "create a picture",
+    "create image",
+    "draw yourself",
+    "draw you a",
+    "draw me a",
+    "paint me a",
+    "paint yourself",
+    "photo of you",
+    "picture of you",
+    "image of you",
+    "portrait of you",
+    "what do you look like",
+    "show yourself",
+    "show me what you look like",
+    "show me a picture",
+    "show me a photo",
+    "show me an image",
+    "let me see you",
+    "can i see you",
+    "can i see what you look like",
+    "see what you look like",
+    "snap a pic",
+    "snap a photo",
+    "another selfie",
+    "take a selfie for",
+    "selfie for me",
+    "send me a selfie",
+    "a selfie from you",
+    "selfie from you",
+    "send me something lewd",
+    "something lewd",
+    "lewd selfie",
+    "lewd pic",
+    "lewd picture",
+    "nude selfie",
+    "nude picture",
+    "nude photo",
+    "nsfw selfie",
+    "nsfw pic",
+    "spicy pic",
+    "spicy selfie",
+    "strip for me",
+    "lose the clothes",
+    "without your clothes",
+    "take it off",
+    "flash me",
+    "show me your body",
+    "want to see you",
+    "need a selfie",
+    "need a pic",
+  ];
+
+  if (phrases.some((p) => t.includes(p))) return true;
+
+  return false;
+}
+
+/**
+ * Map casual / voice phrasing to the same generation briefs as the + menu when intent is clear.
+ * Otherwise callers fall back to the user’s exact words.
+ */
+export function inferChatImageGenerationPrompt(text: string): string | undefined {
+  const t = text.toLowerCase().normalize("NFKC");
+
+  const nudeIntent =
+    /\b(full\s*nude|fully nude|nude selfie|nude pic|nude picture|send nudes|send nude|naked selfie|completely naked|fully naked|bare all|bare for me|no clothes|nothing on)\b/i.test(
+      t,
+    ) ||
+    (/\bnude\b|\bnaked\b|\bnsfw\b/i.test(t) &&
+      /\b(selfie|pic|picture|photo|image|send|show|take)\b/i.test(t));
+
+  if (nudeIntent) return FAB_SELFIE.nude.imagePrompt;
+
+  const lewdIntent =
+    /\b(lewd selfie|lewd pic|lewd picture|lingerie|sheer|topless|teasing|spicy selfie|spicy pic)\b/i.test(t) ||
+    (/\blewd\b/i.test(t) && /\b(selfie|pic|picture|photo|send|show)\b/i.test(t));
+
+  if (lewdIntent) return FAB_SELFIE.lewd.imagePrompt;
+
+  const sfwIntent =
+    /\b(cute selfie|casual selfie|sfw selfie|sweet selfie|pretty selfie|outfit pic|clothed selfie)\b/i.test(t) ||
+    (/\b(cute|casual|sweet|pretty)\b/i.test(t) && /\b(selfie|pic|picture|photo)\b/i.test(t) && !/\b(nude|naked|lewd|nsfw)\b/i.test(t));
+
+  if (sfwIntent) return FAB_SELFIE.sfw.imagePrompt;
+
+  return undefined;
+}
+
 /** Rough NSFW / explicit image request — qualifies for free-tier counter when under cap. */
 export function isExplicitImageRequest(text: string): boolean {
   const t = text.toLowerCase().normalize("NFKC");

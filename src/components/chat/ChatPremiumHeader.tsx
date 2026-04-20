@@ -61,7 +61,7 @@ export function ChatPremiumHeader({
       className="shrink-0 border-b border-white/[0.08] bg-gradient-to-b from-black/80 to-black/40 backdrop-blur-2xl"
       style={{ paddingTop: "max(0.35rem, env(safe-area-inset-top))" }}
     >
-      <div className="flex items-start gap-3 px-3 pt-3 pb-2 md:px-5 md:pt-4">
+      <div className="flex items-start gap-2 px-3 pt-2 pb-1.5 md:px-4 md:pt-3 md:pb-2">
         <button
           type="button"
           onClick={onBack}
@@ -73,7 +73,7 @@ export function ChatPremiumHeader({
         </button>
 
         <div className="flex flex-col items-center flex-1 min-w-0 gap-2">
-          <div className="relative h-[5.5rem] w-[5.5rem] shrink-0 overflow-visible p-1 md:h-28 md:w-28">
+          <div className="relative h-[4.75rem] w-[4.75rem] shrink-0 overflow-visible p-0.5 md:h-[6.25rem] md:w-[6.25rem]">
             <PortraitViewLightbox
               alt={companion.name}
               stillSrc={imageUrl}

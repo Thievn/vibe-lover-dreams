@@ -50,6 +50,8 @@ import { createSustainedLovenseSession } from "@/lib/sustainedLovenseSession";
 import { formatNexusCooldownShort, nexusCooldownRemainingMs } from "@/lib/nexusMerge";
 import { splitProseIntoParagraphs } from "@/lib/profileProseSplit";
 import { buildProfileSearchTags } from "@/lib/companionSearchTags";
+import { getChatAutoSpendImages, setChatAutoSpendImages } from "@/lib/chatImageSettings";
+import { ChatAutoSpendImagesToggle } from "@/components/chat/ChatAutoSpendImagesToggle";
 import { TcgProfilePanel } from "@/components/tcg/TcgStatDisplay";
 import { PortraitViewLightbox } from "@/components/PortraitViewLightbox";
 import {
@@ -119,6 +121,7 @@ const CompanionProfile = () => {
   /** Fade loop MP4 in over the still so we never flash an empty frame while the video buffers */
   const [loopVideoReady, setLoopVideoReady] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
+  const [autoSpendChatImages, setAutoSpendChatImagesState] = useState(false);
 
   const { data: vibrationPatterns = [], isLoading: vibrationPatternsLoading } = useCompanionVibrationPatterns(id);
 
@@ -152,6 +155,10 @@ const CompanionProfile = () => {
   useEffect(() => {
     setLoopVideoReady(false);
   }, [id, animatedPortrait]);
+
+  useEffect(() => {
+    if (companion?.id) setAutoSpendChatImagesState(getChatAutoSpendImages(companion.id));
+  }, [companion?.id]);
 
   const backstoryParagraphs = companion
     ? getCompanionBackstoryParagraphs(companion, dbComp)
@@ -706,6 +713,17 @@ const CompanionProfile = () => {
                 </span>
               </p>
             </div>
+
+            {user && companion ? (
+              <ChatAutoSpendImagesToggle
+                variant="profile"
+                enabled={autoSpendChatImages}
+                onChange={(enabled) => {
+                  setAutoSpendChatImagesState(enabled);
+                  setChatAutoSpendImages(companion.id, enabled);
+                }}
+              />
+            ) : null}
 
             <div className="flex rounded-2xl border border-white/[0.08] bg-black/45 p-1 gap-1 max-w-xl">
               <button

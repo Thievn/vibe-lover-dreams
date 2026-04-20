@@ -34,6 +34,8 @@ type Props = {
   liveInstructions: string;
   xaiVoice: XaiVoiceId;
   onAssistantTranscriptDone?: (text: string) => void;
+  /** Live realtime: user speech transcript → same pipeline as typed chat (images, etc.). */
+  onUserSpeechTranscript?: (text: string) => void;
   onSendText: (text: string) => void;
   rampModeActive: boolean;
   onRampModeActiveChange: (active: boolean) => void;
@@ -273,11 +275,12 @@ export function LiveVoicePanel({
         transcriptThrottleRef.current?.flushTurn(t);
         onAssistantTranscriptDone?.(t);
       },
+      onUserTranscriptDone: (t) => onUserSpeechTranscript?.(t),
     });
     realtimeStopRef.current = stop;
     updateSessionInstructionsRef.current = updateSessionInstructions;
     setMode("realtime");
-  }, [busy, disabled, onAssistantTranscriptDone, stopRealtime, xaiVoice]);
+  }, [busy, disabled, onAssistantTranscriptDone, onUserSpeechTranscript, stopRealtime, xaiVoice]);
 
   const toggleSttRecord = useCallback(async () => {
     if (transcribing || busy) return;

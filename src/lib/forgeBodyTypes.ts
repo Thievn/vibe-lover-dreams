@@ -268,3 +268,54 @@ export function inferStylizedArtFromTags(tags: string[]): string | undefined {
   }
   return undefined;
 }
+
+/**
+ * Forge labels where **scale / stature** must be the dominant physical read — not a detail tacked on after a generic body.
+ * Everything else (species, fashion, scene) themes around this.
+ */
+const COMPACT_STATURE_FORGE_TYPES: readonly string[] = [
+  "Little Person / Midget",
+  "Short Stature",
+  "Tiny & Doll-like",
+  "Pixie-Sized",
+  "Micro / Tiny Body",
+];
+
+export function isCompactStatureForgeBodyType(bodyType: string): boolean {
+  const t = normalizeForgeBodyType(bodyType);
+  return (COMPACT_STATURE_FORGE_TYPES as readonly string[]).includes(t);
+}
+
+/** True when the UI label or free text implies compact / short-stature emphasis (includes forge picks + loose phrases). */
+export function bodyTypeNeedsCompactStatureEmphasis(bodyType: string): boolean {
+  if (isCompactStatureForgeBodyType(bodyType)) return true;
+  const t = bodyType.trim().toLowerCase();
+  return (
+    t.includes("little person") ||
+    t.includes("midget") ||
+    (t.includes("dwarf") && !t.includes("dragon")) ||
+    t.includes("short stature") ||
+    t.includes("pixie-sized") ||
+    t.includes("doll-like") ||
+    t.includes("micro / tiny")
+  );
+}
+
+/**
+ * Paragraph for Grok forge prompts (design lab / roulette). Empty when not compact stature.
+ */
+export function forgeCompactStatureInstruction(bodyType: string): string {
+  if (!isCompactStatureForgeBodyType(bodyType)) return "";
+  return `BODY TYPE IS THE MAIN CHARACTER (read first — non-negotiable):
+The forge choice "${bodyType}" is the **primary physical identity** — not a flavor tag. Lead appearance, image_prompt, and any scene with **scale first**: limb length vs torso, head-to-body ratio, how hands and shoulders read against chairs, bars, door frames, clothing drape, or another figure. Personality, species, kinks, and aesthetic **orbit this body**; they must never steer the reader toward a default average-height human or runway proportions. Forbidden: a "beautiful stranger" description that could be any tall adult with one line about height. Required: unmistakable **adult** compact / short-stature proportions (respectful wording) so the silhouette cannot be mistaken for generic unnamed human build.
+
+`;
+}
+
+/**
+ * Extra language for Imagine portrait prompts — single authoritative line extension.
+ */
+export function forgePortraitStatureEmphasis(bodyType: string): string {
+  if (!bodyTypeNeedsCompactStatureEmphasis(bodyType)) return "";
+  return " Stature is the hero of this image: three-quarter or full-body framing so scale is obvious (furniture, counter height, door rail, another figure, or handheld object for hand-size read). Adult with compact proportions per forge body type — not a child, not average-height model legs; wardrobe and pose reinforce short-stature / little-person read; do not render a generic tall-human silhouette.";
+}

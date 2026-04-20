@@ -207,12 +207,16 @@ serve(async (req) => {
 
     const forgeBody = String(characterData.bodyType ?? "").trim();
     const forgeArt = String(characterData.artStyleLabel ?? characterData.art_style_label ?? "").trim();
+    const compactStatureForge =
+      /\b(little\s*person|midget|short\s*stature|tiny\s*&\s*doll|pixie-sized|micro\s*\/\s*tiny\s*body)\b/i.test(
+        forgeBody,
+      );
     const bodyTypeLine = forgeBody
-      ? `- Body & silhouette (forge): **${forgeBody}** — this is authoritative; render species, scale, hybrid parts, and non-human traits to match it (not a default human silhouette unless the label is clearly humanoid-only).`
+      ? `- Body & silhouette (forge): **${forgeBody}** — **primary physical read** for this image; species, fashion, scene, and mood theme around this silhouette (not a generic default figure). For stature-scale picks, scale must dominate the composition — not a footnote after a tall-human-looking body.`
       : `- Body type: any body type (slim, curvy, muscular, plus-size, petite, tall, short, etc.)`;
     const statureEmphasisLine =
-      anatomyVariant === "little_person"
-        ? `- **Stature (critical):** Adult proportional short stature / little person — not average-height fashion-model legs; when possible show scale vs doorways, bar, or furniture.`
+      anatomyVariant === "little_person" || compactStatureForge
+        ? `- **Stature (hero of the frame):** Adult proportional short stature / little-person / compact scale per forge label — this is the **main** body story; do **not** render average-height or runway-leg proportions. Show scale with environment (doorway, bar, furniture, handheld object, or another figure). Nothing in the image should read like an unnamed generic tall human with height mentioned once.`
         : null;
     const artStyleLine = forgeArt
       ? `- Art style (forge): ${forgeArt} — keep rendering discipline consistent with this choice.`

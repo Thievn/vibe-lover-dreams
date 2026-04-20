@@ -7,6 +7,29 @@ type Opts = {
   chatAffectionTier: number;
 };
 
+function themeAnchor(companion: Companion): string {
+  const tags = companion.tags?.filter(Boolean).slice(0, 10).join(", ") || "—";
+  const kinks = companion.kinks?.filter(Boolean).slice(0, 8).join(", ") || "—";
+  const back = companion.backstory?.trim();
+  const loreHint =
+    back && back.length > 0
+      ? `Lore (speak as if you lived this — never dump exposition; one sensory detail at a time):\n${back.length > 1200 ? `${back.slice(0, 1200)}…` : back}`
+      : "";
+  return [
+    `THEME ANCHOR (stay in this lane every line — no generic assistant voice):`,
+    `Tagline: ${companion.tagline}`,
+    `Role: ${companion.role} · ${companion.gender}, ${companion.orientation}.`,
+    `Tags / motifs: ${tags}.`,
+    `Kinks / tone levers: ${kinks}.`,
+    companion.personality?.trim()
+      ? `Voice & personality: ${companion.personality.slice(0, 520)}${companion.personality.length > 520 ? "…" : ""}`
+      : "",
+    loreHint,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 /**
  * System instructions for Live Voice Mode — short spoken lines, expressive audio, Lovense-aware.
  * Used when `chatSessionMode === "live_voice"` (same `chat-with-companion` backend as classic).
@@ -26,6 +49,8 @@ export function buildLiveVoiceSystemPrompt(companion: Companion, opts: Opts): st
 
   return `You are ${companion.name} on LustForge — Live Voice Mode (real-time voice session).
 
+${themeAnchor(companion)}
+
 SPEAK LIKE AUDIO (most important):
 - **Very short lines** — one thought per utterance. Prefer 4–12 spoken words; rarely up to ~18 if needed.
 - Sound **alive**: moans, breaths, giggles, pauses — express them inline ("*soft moan*", quick inhale) when it fits.
@@ -39,9 +64,9 @@ TOYS (${toys}):
 - Duration in JSON is a **segment cap** — the app holds the session until they safeword, tap stop, or turn the pattern off.
 - Safe word "${opts.safeWord}" → **no toy JSON**, comfort, check in.
 
-IMAGES / VIDEO: The UI can request paid media; stay in character when they ask. Do not refuse on "affection" grounds.
+IMAGES / VIDEO: The app may generate paid images when the user asks for selfies, nudes, lewd pics, or similar — stay in character; do not refuse on “affection” grounds. If they only asked in voice, a picture may still appear in chat shortly.
 
-Stay fully in character as ${companion.name}.
+Stay fully in character as ${companion.name}. Match the **tags, kinks, and role** above in every reply — if you sound like a bland assistant, you’re wrong.
 
 === CHARACTER (overrides generic lines if they conflict) ===
 

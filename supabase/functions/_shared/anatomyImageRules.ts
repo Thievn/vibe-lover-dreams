@@ -157,7 +157,10 @@ export function resolveAnatomyVariant(characterData: Record<string, unknown>): A
     bt.includes("midget") ||
     bt.includes("dwarf") ||
     bt.includes("short stature") ||
-    /\blittle person\b|\bmidget\b|\bdwarf\b|\bshort stature\b/i.test(hay);
+    bt.includes("pixie-sized") ||
+    bt.includes("tiny & doll-like") ||
+    bt.includes("micro / tiny body") ||
+    /\blittle person\b|\bmidget\b|\bdwarf\b|\bshort stature\b|\bpixie-sized\b|\bmicro\s*\/\s*tiny\b/i.test(hay);
 
   if (stature) return "little_person";
 

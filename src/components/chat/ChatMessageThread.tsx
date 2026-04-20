@@ -66,7 +66,7 @@ export function ChatMessageThread({
   const rarity = normalizeCompanionRarity(companion.rarity);
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 md:px-5 md:py-4 space-y-3 scroll-pb-28 [-webkit-overflow-scrolling:touch]">
+    <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-2 md:px-4 md:py-3 space-y-2.5 scroll-pb-28 [-webkit-overflow-scrolling:touch] max-w-3xl mx-auto w-full">
       {messages.map((msg) => {
         const assistantDisplay =
           msg.role === "assistant" && !msg.imageUrl
@@ -79,7 +79,7 @@ export function ChatMessageThread({
           key={msg.id}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className={cn("flex gap-2", msg.role === "user" ? "justify-end" : "justify-start")}
+          className={cn("flex gap-1.5", msg.role === "user" ? "justify-end" : "justify-start")}
         >
           {msg.role === "assistant" ? (
             <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-visible rounded-full border border-white/10 bg-black/40 p-0.5">
@@ -117,7 +117,7 @@ export function ChatMessageThread({
 
           <div
             className={cn(
-              "max-w-[min(92%,28rem)] rounded-[1.35rem] px-3.5 py-3 text-[15px] leading-relaxed shadow-sm",
+              "max-w-[min(94%,32rem)] rounded-[1.35rem] px-3.5 py-3 text-[15px] leading-relaxed shadow-sm",
               msg.role === "user"
                 ? "bg-gradient-to-br from-primary to-[hsl(320_70%_38%)] text-primary-foreground rounded-br-md"
                 : assistantDisplay.signatureBeat

@@ -17,8 +17,6 @@ type Props = {
   imageSubmitTitle: string;
   safeWord: string;
   companionName: string;
-  autoSpendChatImages: boolean;
-  onAutoSpendChatImagesChange: (enabled: boolean) => void;
 };
 
 export function ChatComposer({
@@ -36,20 +34,9 @@ export function ChatComposer({
   imageSubmitTitle,
   safeWord,
   companionName,
-  autoSpendChatImages,
-  onAutoSpendChatImagesChange,
 }: Props) {
   return (
     <div className="border-t border-white/[0.07] bg-black/50 backdrop-blur-2xl px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shrink-0">
-      <label className="mb-2 flex cursor-pointer items-center gap-2.5 px-1 text-[12px] text-muted-foreground select-none">
-        <input
-          type="checkbox"
-          checked={autoSpendChatImages}
-          onChange={(e) => onAutoSpendChatImagesChange(e.target.checked)}
-          className="h-4 w-4 shrink-0 rounded border border-white/20 bg-black/40 accent-primary"
-        />
-        <span>Don&apos;t ask before spending tokens on images</span>
-      </label>
       <form
         onSubmit={(e) => {
           e.preventDefault();
