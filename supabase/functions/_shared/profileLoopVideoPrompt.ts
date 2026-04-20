@@ -47,6 +47,7 @@ export function buildMinimalProfileLoopVideoPrompt(row: Record<string, unknown>)
       tags ? `Themes: ${tags}.` : "",
       oneLine ? `Visual vibe: ${oneLine}` : "",
       "One cohesive motion arc; first and last frames match for looping; same camera and framing as the still; no new characters or props.",
+      "Anatomy: preserve limb count from the still — exactly two hands and two arms unless the source clearly shows otherwise; no floating, duplicated, or extra hands/arms; no ghost limbs on props, leashes, or clothing.",
       "Match the reference image; adult themes only if consistent with the still; provider policy applies.",
     ]
       .filter(Boolean)
@@ -103,6 +104,7 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>): strin
     "",
     "MOTION DIRECTION: Invent ONE cohesive performance arc that fits this character's theme, not generic idle sway. Examples: lean-in; hair tuck; soft laugh; half-smile; blowing a kiss; weight shift or sway that returns to center; fantasy beats (crown, ears, tail, wings, spell sparkles). Lewd or explicit beats are allowed when they match the character and the still, as long as the loop closes and the camera stays consistent.",
     "",
+    "ANATOMY (critical): Match the source still exactly for limbs — typically two arms and two hands visible in coherent poses; never add a third hand, floating disconnected hand, or duplicated appendage; if the still shows hands on a leash/reins/prop, do not invent an extra hand on the same prop.",
     "LOOP AND CAMERA: Seamless loop; first and last frames nearly identical; ease in and out; same camera angle, lens feel, and framing as the source image. No jump cuts, no new characters or objects, no text overlays.",
     "",
     "POLICY: The video provider enforces its own rules.",

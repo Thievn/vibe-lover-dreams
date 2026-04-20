@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -38,7 +38,8 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
-import CompanionCreator from "@/components/CompanionCreator";
+import CompanionCreator, { type CompanionCreatorHandle } from "@/components/CompanionCreator";
+import { AdminForgeSchedulePanel } from "@/components/admin/AdminForgeSchedulePanel";
 import CompanionManager from "@/components/admin/CompanionManager";
 import AdminForgeAssistant from "@/components/admin/AdminForgeAssistant";
 import XMarketingHub from "@/components/admin/XMarketingHub";
@@ -146,6 +147,7 @@ function labelFromDayKey(k: string): string {
 }
 
 function AdminShell() {
+  const forgeRef = useRef<CompanionCreatorHandle>(null);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [authLoading, setAuthLoading] = useState(true);
@@ -601,8 +603,18 @@ function AdminShell() {
                   <span className="text-xs text-muted-foreground uppercase tracking-widest">Admin · no token cost</span>
                 </div>
               </div>
-              <div className="p-4 md:p-6 min-h-0 max-h-[min(92dvh,1100px)] overflow-y-auto">
-                <CompanionCreator mode="admin" embedded onForged={() => goSection("characters")} />
+              <div className="p-4 md:p-6 min-h-0 max-h-[min(92dvh,1100px)] overflow-y-auto space-y-4">
+                <AdminForgeSchedulePanel
+                  onAutoForge={async (opts) => {
+                    await forgeRef.current?.runRandomRouletteAndForge(opts);
+                  }}
+                />
+                <CompanionCreator
+                  ref={forgeRef}
+                  mode="admin"
+                  embedded
+                  onForged={() => goSection("characters")}
+                />
               </div>
             </div>
           )}

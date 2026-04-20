@@ -1,5 +1,5 @@
-import { useState, useCallback, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAdminCompanions, mapSupabaseCustomCharacterRow, type DbCompanion } from "@/hooks/useCompanions";
 import { COMPANION_RARITIES, normalizeCompanionRarity } from "@/lib/companionRarity";
@@ -10,7 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Search, Save, RefreshCw, Plus, Eye, EyeOff, ChevronDown, ChevronUp,
-  Loader2, X, ImageIcon, Palette, ArrowLeft, Sparkles, Trash2, Waves, Video,
+  Loader2, X, ImageIcon, Palette, ArrowLeft, Sparkles, Trash2, Waves, Video, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminLoopingVideoBlock } from "@/components/admin/AdminLoopingVideoBlock";
@@ -372,6 +372,7 @@ const CompanionManager = () => {
     },
   });
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -389,6 +390,7 @@ const CompanionManager = () => {
   const [editOverride, setEditOverride] = useState<DbCompanion | null>(null);
   const [forgeEditLoadingId, setForgeEditLoadingId] = useState<string | null>(null);
   const [sectionBusy, setSectionBusy] = useState<Record<string, boolean>>({});
+  const lastUrlEditOpened = useRef<string | null>(null);
 
   // Auto-fill state
   const [autoFillPrompt, setAutoFillPrompt] = useState("");
@@ -717,10 +719,23 @@ const CompanionManager = () => {
     }
   };
 
+  const syncEditToUrl = useCallback((id: string | null) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (id) next.set("edit", id);
+        else next.delete("edit");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
+
   const openEdit = (id: string) => {
     setEditOverride(null);
     setEditingId(id);
     setViewMode("edit");
+    syncEditToUrl(id);
   };
 
   const openForgeAdminEdit = async (uuid: string) => {
@@ -736,7 +751,9 @@ const CompanionManager = () => {
       setEditOverride(mapped);
       setEditingId(mapped.id);
       setViewMode("edit");
+      syncEditToUrl(mapped.id);
     } catch (e: unknown) {
+      lastUrlEditOpened.current = null;
       toast.error(e instanceof Error ? e.message : "Could not load forge row");
     } finally {
       setForgeEditLoadingId(null);
@@ -753,7 +770,27 @@ const CompanionManager = () => {
     setViewMode("list");
     setEditingId(null);
     setEditOverride(null);
+    syncEditToUrl(null);
   };
+
+  useEffect(() => {
+    const raw = searchParams.get("edit");
+    if (!raw) {
+      lastUrlEditOpened.current = null;
+      return;
+    }
+    if (viewMode !== "list") return;
+    if (lastUrlEditOpened.current === raw) return;
+    lastUrlEditOpened.current = raw;
+    if (raw.startsWith("cc-")) {
+      void openForgeAdminEdit(raw.replace(/^cc-/, ""));
+    } else {
+      setEditOverride(null);
+      setEditingId(raw);
+      setViewMode("edit");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- URL-driven entry; avoid re-running on every render
+  }, [searchParams, viewMode]);
 
   const createCompanion = async () => {
     if (!createData.name.trim()) {
@@ -1124,6 +1161,16 @@ const CompanionManager = () => {
         </button>
         <div className="flex items-center gap-3 flex-wrap">
           <h2 className="text-lg font-bold text-foreground">{val("name") as string}</h2>
+          <Link
+            to={`/companions/${companion.id}`}
+            state={{
+              from: `/admin?section=characters&edit=${encodeURIComponent(companion.id)}`,
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-primary/35 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition-colors"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            View profile
+          </Link>
           {companion.id.startsWith("cc-") ? (
             <span className="px-2 py-0.5 rounded-full text-[10px] bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-500/35">
               Forge row
@@ -1156,9 +1203,9 @@ const CompanionManager = () => {
                 </button>
               </div>
 
-              {/* Portrait Preview */}
+              {/* Portrait Preview — clip to frame so tier halo / image align (no overflow bleed) */}
               <div className="flex items-start gap-4">
-                <div className="w-32 h-32 shrink-0 overflow-visible p-0.5">
+                <div className="relative w-36 h-36 shrink-0 rounded-xl overflow-hidden ring-1 ring-white/10 shadow-lg bg-black/40">
                   <TierHaloPortraitFrame
                     variant="compact"
                     frameStyle="clean"
@@ -1167,6 +1214,7 @@ const CompanionManager = () => {
                     gradientTo={String(val("gradient_to"))}
                     overlayUrl={(val("rarity_border_overlay_url") as string | null) ?? companion.rarity_border_overlay_url}
                     aspectClassName="aspect-square w-full h-full"
+                    className="h-full w-full"
                   >
                     <div
                       className="absolute inset-0 z-0"
@@ -1186,7 +1234,7 @@ const CompanionManager = () => {
                             companion.image_url)!
                         }
                         alt={companion.name}
-                        className="absolute inset-0 z-[1] h-full w-full object-cover"
+                        className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
                       />
                     ) : (
                       <span className="absolute inset-0 z-[2] flex items-center justify-center text-3xl font-bold text-white/80">

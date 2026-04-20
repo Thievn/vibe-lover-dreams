@@ -1,7 +1,6 @@
 import { motion } from "framer-motion";
 import { Flame, RefreshCw } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Link, useLocation } from "react-router-dom";
 import { useCompanions } from "@/hooks/useCompanions";
 import { companionImages } from "@/data/companionImages";
 import { companions } from "@/data/companions";
@@ -51,7 +50,6 @@ function fallbackFromAssets(): HeroCard[] {
 }
 
 export default function HeroSection({ onGetStarted }: HeroSectionProps) {
-  const location = useLocation();
   const { data: dbList, isLoading } = useCompanions();
   const [shuffled, setShuffled] = useState<HeroCard[]>([]);
   /** Portrait URLs that failed to load (expired signed links, etc.) — show gradient + initial instead. */
@@ -205,10 +203,8 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
                 whileHover={{ y: -4, transition: { type: "spring", stiffness: 500, damping: 12 } }}
                 className="h-full p-1 max-sm:p-0.5"
               >
-                <Link
-                  to={`/companions/${comp.id}`}
-                  state={{ from: `${location.pathname}${location.search}` }}
-                  className="block h-full rounded-2xl border border-white/[0.08] bg-card/75 backdrop-blur-md overflow-visible hover:border-primary/45 transition-all duration-300 shadow-lg shadow-black/25 hover:shadow-[0_12px_40px_rgba(255,45,123,0.12)] ring-1 ring-white/[0.04] group touch-manipulation"
+                <div
+                  className="block h-full rounded-2xl border border-white/[0.08] bg-card/75 backdrop-blur-md overflow-visible hover:border-primary/45 transition-all duration-300 shadow-lg shadow-black/25 hover:shadow-[0_12px_40px_rgba(255,45,123,0.12)] ring-1 ring-white/[0.04] group"
                 >
                   <TierHaloPortraitFrame
                     variant="card"
@@ -249,7 +245,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
                       <p className="text-[10px] sm:text-[11px] text-white/75 line-clamp-2 leading-snug">{comp.subtitle}</p>
                     </div>
                   </TierHaloPortraitFrame>
-                </Link>
+                </div>
               </motion.div>
             ))}
           </div>

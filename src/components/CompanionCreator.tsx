@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -17,6 +17,8 @@ import {
   Lock,
   Trash2,
   Upload,
+  Archive,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
+import { clearForgeStash, loadForgeStash, saveForgeStash, type ForgeStashPayload } from "@/lib/forgeDraftStash";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { formatSupabaseError } from "@/lib/supabaseError";
 import { fallbackForgeDisplayName } from "@/lib/forgeRandomName";
@@ -72,6 +75,11 @@ export interface CompanionCreatorProps {
   /** Admin: called after a successful forge so parent can switch tabs (e.g. Character management). */
   onForged?: () => void;
 }
+
+/** Imperative admin hooks (embedded forge + scheduled panel). */
+export type CompanionCreatorHandle = {
+  runRandomRouletteAndForge: (opts?: { forcePrivate?: boolean }) => Promise<void>;
+};
 
 const GENDERS = [
   "Female",
@@ -370,7 +378,10 @@ Seeds (mood only — do not concatenate these words into the name):
 Name vibe: avoid gratuitous host-product / neon vice clichés unless seeds demand it; vary etymology and cultural register.`;
 }
 
-export default function CompanionCreator({ mode = "user", embedded = false, onForged }: CompanionCreatorProps) {
+const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProps>(function CompanionCreator(
+  { mode = "user", embedded = false, onForged },
+  ref,
+) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isAdmin = mode === "admin";
@@ -410,6 +421,8 @@ export default function CompanionCreator({ mode = "user", embedded = false, onFo
   const [finalLoading, setFinalLoading] = useState(false);
   /** Last forged `cc-…` id in this session (admin) — for looping video tool */
   const [lastForgedCcId, setLastForgedCcId] = useState<string | null>(null);
+  /** Next admin save (scheduled / manual) forces private draft rows. */
+  const forcePrivateForgeRef = useRef(false);
 
   const [referenceNotes, setReferenceNotes] = useState("");
   const [referencePalette, setReferencePalette] = useState<string | null>(null);
@@ -1194,8 +1207,8 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
           gradient_to: NEON,
           image_url: portraitUrl,
           image_prompt: imagePromptOut,
-          is_public: isAdmin ? true : goPublic,
-          approved: isAdmin ? true : goPublic,
+          is_public: isAdmin && forcePrivateForgeRef.current ? false : isAdmin ? true : goPublic,
+          approved: isAdmin && forcePrivateForgeRef.current ? false : isAdmin ? true : goPublic,
           ...(isAdmin
             ? {
                 rarity: adminTier,
@@ -1260,7 +1273,28 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       void queryClient.invalidateQueries({ queryKey: ["vault-collection"] });
       void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
       if (isAdmin && insertedRows?.[0]?.id) {
-        setLastForgedCcId(`cc-${String(insertedRows[0].id)}`);
+        const ccFull = `cc-${String(insertedRows[0].id)}`;
+        setLastForgedCcId(ccFull);
+        void (async () => {
+          try {
+            toast.info("Generating looping profile video…", { duration: 5000 });
+            const { data: vidData, error: vidErr } = await supabase.functions.invoke("generate-profile-loop-video", {
+              body: { companionId: ccFull },
+            });
+            if (vidErr) throw new Error(await getEdgeFunctionInvokeMessage(vidErr, vidData));
+            if ((vidData as { error?: string })?.error) throw new Error(String((vidData as { error?: string }).error));
+            toast.success("Profile loop video saved — enable on profile if needed.");
+            void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
+            void queryClient.invalidateQueries({ queryKey: ["companions"] });
+          } catch (e) {
+            console.error(e);
+            toast.error(
+              e instanceof Error
+                ? `${e.message.slice(0, 200)} — generate video from Character management if needed.`
+                : "Loop video failed — use Character management → Generate looping video.",
+            );
+          }
+        })();
       }
       if (!isAdmin) clearForgePreview({ silent: true });
       if (isAdmin && onForged) onForged();
@@ -1271,6 +1305,20 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       setFinalLoading(false);
     }
   };
+
+  useImperativeHandle(ref, () => ({
+    async runRandomRouletteAndForge(opts?: { forcePrivate?: boolean }) {
+      if (!isAdmin) return;
+      forcePrivateForgeRef.current = Boolean(opts?.forcePrivate);
+      try {
+        await randomizeForgeCharacter();
+        await new Promise((r) => setTimeout(r, 400));
+        await runFinalCreate();
+      } finally {
+        forcePrivateForgeRef.current = false;
+      }
+    },
+  }));
 
   const panelClass =
     "rounded-2xl border border-white/[0.08] bg-black/45 backdrop-blur-2xl shadow-[0_0_60px_rgba(255,45,123,0.06),inset_0_1px_0_rgba(255,255,255,0.05)]";
@@ -1314,6 +1362,92 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       </div>
     </div>
   );
+
+  const stashCurrentForge = useCallback(() => {
+    const payload: ForgeStashPayload = {
+      savedAt: new Date().toISOString(),
+      name,
+      tagline,
+      gender,
+      personalitySelections: [...personalitySelections],
+      vibeThemeSelections: [...vibeThemeSelections],
+      artStyle,
+      sceneAtmosphere,
+      bodyType,
+      traits: [...traits],
+      orientation,
+      extraNotes,
+      narrativeAppearance,
+      chronicleBackstory,
+      hookBio,
+      charterSystemPrompt,
+      packshotPrompt,
+      rosterTags: [...rosterTags],
+      rosterKinks: [...rosterKinks],
+      fantasyStartersJson: JSON.stringify(fantasyStartersVault),
+      previewUrl,
+      previewCanonicalUrl,
+    };
+    saveForgeStash(payload);
+    toast.success("Forge stashed on this device — switch ideas or restore anytime.");
+  }, [
+    name,
+    tagline,
+    gender,
+    personalitySelections,
+    vibeThemeSelections,
+    artStyle,
+    sceneAtmosphere,
+    bodyType,
+    traits,
+    orientation,
+    extraNotes,
+    narrativeAppearance,
+    chronicleBackstory,
+    hookBio,
+    charterSystemPrompt,
+    packshotPrompt,
+    rosterTags,
+    rosterKinks,
+    fantasyStartersVault,
+    previewUrl,
+    previewCanonicalUrl,
+  ]);
+
+  const restoreStashedForge = useCallback(() => {
+    const p = loadForgeStash();
+    if (!p) {
+      toast.error("No stashed forge on this device.");
+      return;
+    }
+    setName(p.name);
+    setTagline(p.tagline);
+    setGender(p.gender);
+    setPersonalitySelections(p.personalitySelections?.length ? p.personalitySelections : [PERSONALITIES[0]!]);
+    setVibeThemeSelections(p.vibeThemeSelections?.length ? p.vibeThemeSelections : [VIBES[0]!]);
+    setArtStyle(normalizeForgeArtStyle(p.artStyle));
+    setSceneAtmosphere(normalizeForgeScene(p.sceneAtmosphere));
+    setBodyType(normalizeForgeBodyType(p.bodyType));
+    setTraits(p.traits?.length ? p.traits : pickRandom(TRAITS, randomTraitCount()));
+    setOrientation(p.orientation);
+    setExtraNotes(p.extraNotes ?? "");
+    setNarrativeAppearance(p.narrativeAppearance ?? "");
+    setChronicleBackstory(p.chronicleBackstory ?? "");
+    setHookBio(p.hookBio ?? "");
+    setCharterSystemPrompt(p.charterSystemPrompt ?? "");
+    setPackshotPrompt(p.packshotPrompt ?? "");
+    setRosterTags(Array.isArray(p.rosterTags) ? p.rosterTags : []);
+    setRosterKinks(Array.isArray(p.rosterKinks) ? p.rosterKinks : []);
+    try {
+      const st = JSON.parse(p.fantasyStartersJson || "[]") as { title: string; description: string }[];
+      if (Array.isArray(st)) setFantasyStartersVault(st);
+    } catch {
+      /* ignore */
+    }
+    setPreviewUrl(p.previewUrl);
+    setPreviewCanonicalUrl(p.previewCanonicalUrl);
+    toast.success("Restored stashed forge.");
+  }, []);
 
   if (loadingProfile) {
     return (
@@ -1374,6 +1508,38 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
                 </div>
               )}
             </div>
+
+            {isAdmin && embedded ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/35 px-3 py-2.5">
+                <Archive className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-[11px] text-muted-foreground mr-1">Park this mix and start another:</span>
+                <button
+                  type="button"
+                  onClick={() => stashCurrentForge()}
+                  className="text-xs font-semibold rounded-lg border border-primary/35 bg-primary/10 px-3 py-1.5 text-primary hover:bg-primary/15"
+                >
+                  Stash draft
+                </button>
+                <button
+                  type="button"
+                  onClick={() => restoreStashedForge()}
+                  className="text-xs font-semibold rounded-lg border border-white/15 px-3 py-1.5 text-foreground hover:bg-white/5 inline-flex items-center gap-1"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Restore stash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearForgeStash();
+                    toast.info("Stash cleared.");
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground px-2"
+                >
+                  Clear stash
+                </button>
+              </div>
+            ) : null}
 
             <motion.button
               type="button"
@@ -2287,4 +2453,6 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
   );
 
   return shell;
-}
+});
+
+export default CompanionCreator;
