@@ -3,7 +3,6 @@ import type { CompanionRarity } from "@/lib/companionRarity";
 import {
   defaultRarityBorderPath,
   rarityCardOverlayGlowFilter,
-  rarityGlitchLayerFilters,
   rarityProfileVectorGlowFilter,
 } from "@/lib/companionRarity";
 import type { ProfilePortraitFrameStyle } from "@/lib/profilePortraitTierHalo";
@@ -27,7 +26,7 @@ type Props = {
   className?: string;
   /** Extra wrapper class for Abyssal outer glow. */
   abyssal?: boolean;
-  /** Profile sheet — diagonal mask + chromatic glitch underlays + main vector rim. */
+  /** Profile sheet — diagonal mask + main vector rim (no duplicate glitch layers; avoids “floating” frame on 9:16). */
   profilePolish?: boolean;
   /** Companion accent colors for a sharp 135° diagonal split on the profile frame. */
   gradientFrom?: string;
@@ -48,8 +47,8 @@ export function RarityBorderOverlay({
 }: Props) {
   const src = (overlayUrl && overlayUrl.trim()) || defaultRarityBorderPath(rarity);
   const clean = frameStyle === "clean";
-  const profileFrameScale = "scale-[1.34]";
-  const [glitchFilterA, glitchFilterB] = rarityGlitchLayerFilters(rarity);
+  /** Keep rim aligned to the portrait box — extra scale was clipping the frame SVG and showed a “floating” corner. */
+  const profileFrameScale = "scale-100";
 
   const from = gradientFrom?.trim();
   const to = gradientTo?.trim();
@@ -87,28 +86,6 @@ export function RarityBorderOverlay({
               }}
             />
           ) : null}
-          <img
-            src={src}
-            alt=""
-            aria-hidden
-            className={cn(
-              "pointer-events-none absolute left-1/2 top-1/2 z-0 h-full w-full -translate-x-1/2 -translate-y-1/2 origin-center object-fill opacity-[0.42] mix-blend-screen motion-reduce:animate-none motion-reduce:opacity-0",
-              profileFrameScale,
-              "animate-[rarity-border-glitch-a_3.4s_ease-in-out_infinite]",
-            )}
-            style={{ filter: glitchFilterA }}
-          />
-          <img
-            src={src}
-            alt=""
-            aria-hidden
-            className={cn(
-              "pointer-events-none absolute left-1/2 top-1/2 z-0 h-full w-full -translate-x-1/2 -translate-y-1/2 origin-center object-fill opacity-[0.38] mix-blend-screen motion-reduce:animate-none motion-reduce:opacity-0",
-              profileFrameScale,
-              "animate-[rarity-border-glitch-b_3.7s_ease-in-out_infinite]",
-            )}
-            style={{ filter: glitchFilterB }}
-          />
           <img
             src={src}
             alt=""

@@ -31,6 +31,10 @@ export function CompanionGalleryGrid({
   const normalizedCurrent = currentPortraitUrl ? stablePortraitDisplayUrl(currentPortraitUrl) : null;
 
   const handleSetPortrait = async (row: CompanionGalleryRow) => {
+    if (row.is_video) {
+      toast.error("Videos can’t be used as profile portraits. Pick a still image.");
+      return;
+    }
     const url = stablePortraitDisplayUrl(row.image_url) ?? row.image_url;
     setSettingId(row.id);
     try {
@@ -83,7 +87,9 @@ export function CompanionGalleryGrid({
       >
         {images.map((row, i) => {
           const display = stablePortraitDisplayUrl(row.image_url) ?? row.image_url;
+          const isVideo = Boolean(row.is_video);
           const isActive =
+            !isVideo &&
             normalizedCurrent &&
             (stablePortraitDisplayUrl(row.image_url) === normalizedCurrent ||
               row.image_url.split("?")[0] === normalizedCurrent.split("?")[0]);
@@ -100,11 +106,21 @@ export function CompanionGalleryGrid({
                 onClick={() => setLightbox(row)}
                 className="absolute inset-0 z-0 block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
               >
-                <img
-                  src={display}
-                  alt=""
-                  className="h-full w-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.03]"
-                />
+                {isVideo ? (
+                  <video
+                    src={display}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    className="h-full w-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.03]"
+                  />
+                ) : (
+                  <img
+                    src={display}
+                    alt=""
+                    className="h-full w-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.03]"
+                  />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
               </button>
               {isActive ? (
@@ -112,10 +128,15 @@ export function CompanionGalleryGrid({
                   Portrait
                 </span>
               ) : null}
+              {isVideo ? (
+                <span className="absolute top-2 right-2 z-[2] rounded-full border border-white/20 bg-black/55 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/90">
+                  Video
+                </span>
+              ) : null}
               <div className="absolute bottom-0 left-0 right-0 z-[2] p-2 flex flex-col gap-1.5">
                 <button
                   type="button"
-                  disabled={settingId === row.id}
+                  disabled={settingId === row.id || isVideo}
                   onClick={(e) => {
                     e.stopPropagation();
                     void handleSetPortrait(row);
@@ -160,15 +181,29 @@ export function CompanionGalleryGrid({
                 <X className="h-5 w-5" />
               </button>
               <div className="w-full rounded-2xl border border-white/10 bg-black/30 overflow-hidden max-h-[min(78vh,800px)]">
-                <ZoomableImageViewport
-                  src={stablePortraitDisplayUrl(lightbox.image_url) ?? lightbox.image_url}
-                  alt=""
-                  className="min-h-[min(65vh,640px)]"
-                />
+                {lightbox.is_video ? (
+                  <video
+                    src={stablePortraitDisplayUrl(lightbox.image_url) ?? lightbox.image_url}
+                    controls
+                    playsInline
+                    autoPlay
+                    className="w-full max-h-[min(78vh,800px)] object-contain bg-black"
+                  />
+                ) : (
+                  <ZoomableImageViewport
+                    src={stablePortraitDisplayUrl(lightbox.image_url) ?? lightbox.image_url}
+                    alt=""
+                    className="min-h-[min(65vh,640px)]"
+                  />
+                )}
               </div>
-              <p className="text-[10px] text-center text-muted-foreground/90">
-                Pinch or scroll to zoom · double-click to reset
-              </p>
+              {lightbox.is_video ? (
+                <p className="text-[10px] text-center text-muted-foreground/90">Native video controls</p>
+              ) : (
+                <p className="text-[10px] text-center text-muted-foreground/90">
+                  Pinch or scroll to zoom · double-click to reset
+                </p>
+              )}
               <p className="text-xs text-muted-foreground italic line-clamp-3 text-center px-2">
                 {lightbox.prompt}
               </p>

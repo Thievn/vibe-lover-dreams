@@ -1,7 +1,7 @@
 import { Camera, Aperture, Sparkles, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Tier = "selfie_sfw" | "selfie_lewd" | "selfie_nude" | "nude_video";
+type Tier = "selfie_sfw" | "selfie_lewd" | "selfie_nude" | "lewd_video";
 
 type Props = {
   disabled?: boolean;
@@ -63,11 +63,11 @@ export function ChatMediaRequestBar({
       <button
         type="button"
         disabled={disabled || videoDisabled}
-        onClick={() => onRequest("nude_video")}
+        onClick={() => onRequest("lewd_video")}
         className="inline-flex items-center gap-1.5 rounded-xl border border-[#00ffd4]/35 bg-[#00ffd4]/10 px-2.5 py-1.5 text-[11px] font-semibold text-[#00ffd4] hover:bg-[#00ffd4]/16 disabled:opacity-40 touch-manipulation"
       >
         <Video className="h-3.5 w-3.5 shrink-0" />
-        Nude video
+        Lewd video
         <span className="text-[9px] text-[#00ffd4]/80 font-normal">({videoCostLabel})</span>
       </button>
     </div>

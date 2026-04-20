@@ -84,10 +84,10 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Fully nude NSFW selfie — completely nakedored,, explicit and uncens highly detailed beautiful anatomy. " +
+      "Fully nude NSFW selfie — completely naked, explicit and uncensored, highly detailed beautiful anatomy. " +
       "If female: perfect breasts, detailed pussy, tight anus, flushed skin, aroused expression. " +
       "If male: muscular chest, detailed cock, balls, tight anus, powerful physique, aroused expression. " +
-      "Random Sensual poses, cinematic erotic lighting, wetness or precum if appropriate, heavy breathing, extremely sensual and explicit.",
+      "Random sensual poses, cinematic erotic lighting, wetness or precum if appropriate, heavy breathing, extremely sensual and explicit.",
   },
 } as const;
 

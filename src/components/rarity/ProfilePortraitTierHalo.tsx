@@ -68,23 +68,22 @@ export function ProfilePortraitTierHalo({
           !isProfile && !isCleanCard && "shadow-[0_12px_32px_rgba(0,0,0,0.38)]",
         )}
       >
-        <div
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute left-1/2 top-1/2 aspect-square w-[165%] -translate-x-1/2 -translate-y-1/2 mix-blend-screen",
-            isProfile
-              ? "opacity-[0.2]"
-              : cn(
-                  "motion-reduce:opacity-40",
-                  rarity === "common" && "opacity-[0.38]",
-                  rarity === "rare" && "opacity-[0.52]",
-                  (rarity === "epic" || rarity === "legendary" || rarity === "mythic") && "opacity-[0.68]",
-                  rarity === "abyssal" && "opacity-[0.78]",
-                ),
-          )}
-        >
-          <div className="h-full w-full" style={{ background: sheen, transform: "rotate(42deg)" }} />
-        </div>
+        {/* Rotating conic sheen — skip on profile hero: on tall 9:16 cards the rotated square reads as a “floating” corner inside the portrait. */}
+        {!isProfile ? (
+          <div
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute left-1/2 top-1/2 aspect-square w-[165%] -translate-x-1/2 -translate-y-1/2 mix-blend-screen",
+              "motion-reduce:opacity-40",
+              rarity === "common" && "opacity-[0.38]",
+              rarity === "rare" && "opacity-[0.52]",
+              (rarity === "epic" || rarity === "legendary" || rarity === "mythic") && "opacity-[0.68]",
+              rarity === "abyssal" && "opacity-[0.78]",
+            )}
+          >
+            <div className="h-full w-full" style={{ background: sheen, transform: "rotate(42deg)" }} />
+          </div>
+        ) : null}
         <div
           aria-hidden
           className={cn(

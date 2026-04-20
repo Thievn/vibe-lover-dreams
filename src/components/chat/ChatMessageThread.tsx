@@ -2,6 +2,7 @@ import type { RefObject } from "react";
 import { motion } from "framer-motion";
 import { Zap, Volume2, Loader2 } from "lucide-react";
 import { ImageMessage } from "@/components/ImageMessage";
+import { ChatInlineVideo } from "@/components/chat/ChatInlineVideo";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { normalizeCompanionRarity } from "@/lib/companionRarity";
 import type { Companion } from "@/data/companions";
@@ -216,17 +217,23 @@ export function ChatMessageThread({
             )}
 
             {msg.videoUrl ? (
-              <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-black/50">
-                <video
-                  src={msg.videoUrl}
-                  controls
-                  playsInline
-                  className="max-h-[min(70vh,28rem)] w-full object-contain"
+              <div className="mt-2">
+                <ChatInlineVideo
+                  videoUrl={msg.videoUrl}
+                  companionName={companion.name}
+                  showGalleryHint={Boolean(msg.generatedImageId)}
+                  onSaveBackup={
+                    msg.generatedImageId && onSaveImageBackup
+                      ? () => onSaveImageBackup(msg.generatedImageId!)
+                      : undefined
+                  }
+                  backupSaved={msg.savedToPersonalGallery}
+                  backupBusy={Boolean(msg.generatedImageId && savingBackupImageId === msg.generatedImageId)}
                 />
               </div>
             ) : null}
 
-            {msg.imageUrl && msg.generatedImageId ? (
+            {(msg.imageUrl && msg.generatedImageId) || (msg.videoUrl && msg.generatedImageId) ? (
               <div className="mt-2 space-y-1">
                 <div className="px-3 py-2 rounded-xl bg-primary/10 border border-primary/25 text-primary text-xs">
                   ✓ In {companion.name}&apos;s gallery

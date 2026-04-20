@@ -59,5 +59,8 @@ verify_jwt = false
 [functions.grok-stt]
 verify_jwt = false
 
+[functions.grok-voice-client-secret]
+verify_jwt = false
+
 [functions.generate-chat-companion-video]
 verify_jwt = false

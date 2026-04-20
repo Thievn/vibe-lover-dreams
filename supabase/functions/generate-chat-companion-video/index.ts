@@ -224,14 +224,14 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: "No public portrait image for video source." }, 400);
     }
 
-    const chatPrompt = `${buildProfileLoopVideoPrompt(row)} Focus: sensual explicit motion for a paid chat clip — slow teasing, body-aware, loop-friendly.`;
+    const chatPrompt = `${buildProfileLoopVideoPrompt(row)} Focus: themed lewd vertical clip for chat — sensual, flirtatious, body-aware motion; intensity varies; loop-friendly. Not guaranteed to be fully nude — match outfit and setting.`;
 
     let startRes = await postVideoGeneration(apiKey, imageUrl, chatPrompt, PROFILE_LOOP_VIDEO_DURATION_SECONDS);
     let startText = await startRes.text();
     let startParsed = tryParseJsonRecord(startText);
 
     if (!startParsed) {
-      const minimal = `${buildMinimalProfileLoopVideoPrompt(row)} Sensual explicit teasing loop for chat.`;
+      const minimal = `${buildMinimalProfileLoopVideoPrompt(row)} Themed lewd teasing loop for chat — sensual motion, outfit-aware.`;
       startRes = await postVideoGeneration(apiKey, imageUrl, minimal, PROFILE_LOOP_VIDEO_FALLBACK_DURATION_SECONDS);
       startText = await startRes.text();
       startParsed = tryParseJsonRecord(startText);

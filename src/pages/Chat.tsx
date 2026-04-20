@@ -39,6 +39,9 @@ import {
   type ChatSessionMode,
 } from "@/lib/chatSessionMode";
 import { buildLiveVoiceSystemPrompt } from "@/lib/liveVoiceSystemPrompt";
+import { buildRampModeSystemAppend } from "@/lib/rampModePrompt";
+import type { RampPresetId } from "@/lib/rampModePresets";
+import { RAMP_PRESET_IDS } from "@/lib/rampModePresets";
 import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
 import {
   inferForgeBodyTypeFromAppearance,
@@ -146,8 +149,14 @@ const Chat = () => {
   const [sendingVibrationId, setSendingVibrationId] = useState<string | null>(null);
   const [livePatternId, setLivePatternId] = useState<string | null>(null);
   const sustainedToySessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
+  /** When TTS autoplay is on, queue here and run after playback starts in `handleTts` (avoids toy-before-voice). */
+  const pendingLovenseForTtsRef = useRef<{ messageId: string; command: unknown } | null>(null);
+  const executeDeviceCommandRef = useRef<(command: unknown) => Promise<void>>(async () => {});
   const [toyDriveActive, setToyDriveActive] = useState(false);
   const [sessionMode, setSessionMode] = useState<ChatSessionMode>(() => getChatSessionMode());
+  /** Live Voice — Ramp Mode (prompt + Lovense driver, see LiveVoicePanel). */
+  const [rampModeActive, setRampModeActive] = useState(false);
+  const [rampPreset, setRampPreset] = useState<RampPresetId>("gentle_tease");
   const [toyUtilityBusy, setToyUtilityBusy] = useState(false);
   const [historyReady, setHistoryReady] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -298,6 +307,43 @@ const Chat = () => {
     setLivePatternId(null);
     setToyDriveActive(false);
   }, []);
+
+  const prepareToyForRamp = useCallback(async () => {
+    await stopSustainedToy();
+  }, [stopSustainedToy]);
+
+  useEffect(() => {
+    if (!companion?.id) return;
+    try {
+      const raw = localStorage.getItem(`lustforge-ramp-preset:${companion.id}`);
+      if (raw && RAMP_PRESET_IDS.includes(raw as RampPresetId)) {
+        setRampPreset(raw as RampPresetId);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [companion?.id]);
+
+  const handleRampPresetChange = useCallback(
+    (p: RampPresetId) => {
+      setRampPreset(p);
+      if (companion?.id) {
+        try {
+          localStorage.setItem(`lustforge-ramp-preset:${companion.id}`, p);
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+    [companion?.id],
+  );
+
+  /** Ramp Mode only applies to Live Voice — clear it when switching to Classic so it doesn’t reappear as “on”. */
+  useEffect(() => {
+    if (sessionMode !== "live_voice") {
+      setRampModeActive(false);
+    }
+  }, [sessionMode]);
 
   useEffect(() => {
     return () => {
@@ -779,6 +825,8 @@ const Chat = () => {
               | null
               | undefined;
             const hasImage = Boolean(m.image_url && m.generated_image_id);
+            const hasVideoGallery = Boolean(m.video_url && m.generated_image_id);
+            const inGallery = hasImage || hasVideoGallery;
             return {
               id: m.id,
               role: m.role as "user" | "assistant",
@@ -790,10 +838,8 @@ const Chat = () => {
               imagePrompt: m.image_prompt ?? undefined,
               generatedImageId: m.generated_image_id ?? undefined,
               imageId: m.generated_image_id ?? undefined,
-              savedToCompanionGallery: hasImage
-                ? (gi?.saved_to_companion_gallery ?? true)
-                : undefined,
-              savedToPersonalGallery: hasImage ? Boolean(gi?.saved_to_personal_gallery) : undefined,
+              savedToCompanionGallery: inGallery ? (gi?.saved_to_companion_gallery ?? true) : undefined,
+              savedToPersonalGallery: inGallery ? Boolean(gi?.saved_to_personal_gallery) : undefined,
               videoUrl: m.video_url ?? undefined,
             };
           }),
@@ -825,12 +871,23 @@ const Chat = () => {
             .join("\n");
     const pct = parseInt(localStorage.getItem("lustforge-intensity") || "100", 10);
     if (sessionMode === "live_voice") {
-      return buildLiveVoiceSystemPrompt(companion, {
+      let live = buildLiveVoiceSystemPrompt(companion, {
         safeWord,
         connectedToysSummary: toyBlock,
         userToyIntensityPercent: Number.isFinite(pct) ? pct : 100,
         chatAffectionTier: relationship?.chat_affection_level ?? 1,
       });
+      if (rampModeActive) {
+        live +=
+          "\n\n" +
+          buildRampModeSystemAppend(companion, {
+            safeWord,
+            preset: rampPreset,
+            userToyIntensityPercent: Number.isFinite(pct) ? pct : 100,
+            connectedToysSummary: toyBlock,
+          });
+      }
+      return live;
     }
     return buildChatSystemPrompt(companion, {
       safeWord,
@@ -907,6 +964,8 @@ const Chat = () => {
       toast.error(err instanceof Error ? err.message : "Failed to send command to device");
     }
   };
+
+  executeDeviceCommandRef.current = executeDeviceCommand;
 
   const handleConnectToy = () => {
     void startLovensePairing();
@@ -1007,6 +1066,15 @@ const Chat = () => {
   const handleTts = useCallback(
     async (msg: ChatMessage) => {
       if (!user || msg.role !== "assistant" || !msg.content?.trim()) return;
+
+      /** Run queued Lovense command once, after we attempt to start audio (keeps toy aligned with voice). */
+      const flushPendingToyForMessage = async () => {
+        const pending = pendingLovenseForTtsRef.current;
+        if (!pending || pending.messageId !== msg.id) return;
+        pendingLovenseForTtsRef.current = null;
+        await executeDeviceCommandRef.current(pending.command);
+      };
+
       if (ttsAudioRef.current) {
         ttsAudioRef.current.pause();
         ttsAudioRef.current = null;
@@ -1024,7 +1092,13 @@ const Chat = () => {
           setTtsPlayingId(null);
           toast.error("Could not play audio");
         };
-        void a.play().catch(() => toast.error("Could not play audio"));
+        try {
+          await a.play();
+        } catch {
+          toast.error("Could not play audio");
+        } finally {
+          await flushPendingToyForMessage();
+        }
         return;
       }
       setTtsLoadingId(msg.id);
@@ -1053,10 +1127,17 @@ const Chat = () => {
           setTtsPlayingId(null);
           toast.error("Could not play audio");
         };
-        void a.play().catch(() => toast.error("Could not play audio"));
+        try {
+          await a.play();
+        } catch {
+          toast.error("Could not play audio");
+        } finally {
+          await flushPendingToyForMessage();
+        }
       } catch (e: unknown) {
         const raw = e instanceof Error ? e.message : "TTS failed";
         toast.error(raw.length > 120 ? `${raw.slice(0, 117)}…` : raw);
+        await flushPendingToyForMessage();
       } finally {
         setTtsLoadingId(null);
       }
@@ -1155,6 +1236,18 @@ const Chat = () => {
     return data.id as string;
   };
 
+  const handleVoiceAssistantTranscript = async (text: string) => {
+    const t = text.trim();
+    if (!t || !user || !companion) return;
+    try {
+      const id = await insertAssistantMessage(t, null);
+      setMessages((prev) => [...prev, { id, role: "assistant", content: t, timestamp: new Date() }]);
+    } catch (e) {
+      console.error(e);
+      toast.error("Could not save voice reply to chat");
+    }
+  };
+
   const insertAssistantImageMessage = async (args: {
     content: string;
     imageUrl: string;
@@ -1180,7 +1273,11 @@ const Chat = () => {
     return data.id as string;
   };
 
-  const insertAssistantVideoMessage = async (args: { content: string; videoUrl: string }): Promise<string> => {
+  const insertAssistantVideoMessage = async (args: {
+    content: string;
+    videoUrl: string;
+    generatedImageId?: string;
+  }): Promise<string> => {
     if (!user || !companion) throw new Error("Not ready");
     const { data, error } = await supabase
       .from("chat_messages")
@@ -1191,6 +1288,7 @@ const Chat = () => {
         content: args.content,
         lovense_command: null,
         video_url: args.videoUrl,
+        generated_image_id: args.generatedImageId ?? null,
       })
       .select("id")
       .single();
@@ -1218,10 +1316,38 @@ const Chat = () => {
       const url = data?.videoUrl;
       if (!url) throw new Error("No video returned");
       const caption = `*${companion.name} sent you a steamy clip…*`;
-      const rowId = await insertAssistantVideoMessage({ content: caption, videoUrl: url });
+      const clipPrompt =
+        "[LustForge chat] Themed lewd 9:16 vertical clip — sensual, flirtatious; exact content varies.";
+      const { data: giRow, error: giErr } = await supabase
+        .from("generated_images")
+        .insert({
+          user_id: user.id,
+          companion_id: companion.id,
+          image_url: url,
+          prompt: clipPrompt,
+          saved_to_companion_gallery: true,
+          is_video: true,
+        })
+        .select("id")
+        .single();
+      if (giErr || !giRow?.id) throw new Error(giErr?.message || "Could not save clip to companion gallery");
+      const rowId = await insertAssistantVideoMessage({
+        content: caption,
+        videoUrl: url,
+        generatedImageId: giRow.id,
+      });
       setMessages((prev) => [
         ...prev,
-        { id: rowId, role: "assistant", content: caption, videoUrl: url, timestamp: new Date() },
+        {
+          id: rowId,
+          role: "assistant",
+          content: caption,
+          videoUrl: url,
+          generatedImageId: giRow.id,
+          savedToCompanionGallery: true,
+          savedToPersonalGallery: false,
+          timestamp: new Date(),
+        },
       ]);
       if (typeof data?.newTokensBalance === "number") {
         setTokensBalance(data.newTokensBalance);
@@ -1230,6 +1356,7 @@ const Chat = () => {
         await fetchTokens(user.id);
       }
       toast.success("Video ready");
+      void queryClient.invalidateQueries({ queryKey: ["companion-generated-images", user.id, companion.id] });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Could not generate video");
     } finally {
@@ -1237,8 +1364,8 @@ const Chat = () => {
     }
   };
 
-  const handleMediaBarRequest = (tier: "selfie_sfw" | "selfie_lewd" | "selfie_nude" | "nude_video") => {
-    if (tier === "nude_video") {
+  const handleMediaBarRequest = (tier: "selfie_sfw" | "selfie_lewd" | "selfie_nude" | "lewd_video") => {
+    if (tier === "lewd_video") {
       void generateChatVideoClip();
       return;
     }
@@ -1594,7 +1721,11 @@ const Chat = () => {
         setMessages((prev) => [...prev, assistantMsg]);
 
         if (command && hasDevice) {
-          executeDeviceCommand(command);
+          if (ttsAutoplay) {
+            pendingLovenseForTtsRef.current = { messageId: asstId, command };
+          } else {
+            void executeDeviceCommand(command);
+          }
         }
 
         await deductTokens(user.id);
@@ -1885,7 +2016,19 @@ const Chat = () => {
           <LiveVoicePanel
             disabled={!isAdminUser && tokensBalance <= 0}
             busy={loading}
+            liveInstructions={composeGrokSystemPrompt()}
+            xaiVoice={uxVoiceToXaiVoice(effectiveUxVoice)}
+            onAssistantTranscriptDone={(text) => void handleVoiceAssistantTranscript(text)}
             onSendText={(text) => void sendMessage(text)}
+            rampModeActive={rampModeActive}
+            onRampModeActiveChange={setRampModeActive}
+            rampPreset={rampPreset}
+            onRampPresetChange={handleRampPresetChange}
+            hasDevice={hasDevice}
+            userId={user?.id}
+            primaryToyUid={primaryToyUid}
+            toyIntensityPercent={parseInt(localStorage.getItem("lustforge-intensity") || "100", 10) || 100}
+            prepareToyForRamp={prepareToyForRamp}
           />
         </div>
       ) : (

@@ -556,6 +556,7 @@ export type Database = {
           created_at: string
           id: string
           image_url: string
+          is_video: boolean
           original_prompt: string | null
           prompt: string
           saved_to_companion_gallery: boolean | null
@@ -569,6 +570,7 @@ export type Database = {
           created_at?: string
           id?: string
           image_url: string
+          is_video?: boolean
           original_prompt?: string | null
           prompt: string
           saved_to_companion_gallery?: boolean | null
@@ -582,6 +584,7 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string
+          is_video?: boolean
           original_prompt?: string | null
           prompt?: string
           saved_to_companion_gallery?: boolean | null
