@@ -33,6 +33,8 @@ type Props = {
   gradientTo?: string;
   /** Grid cards: single vector pass, no stacked Abyssal pulse on the wrapper. */
   frameStyle?: ProfilePortraitFrameStyle;
+  /** Profile 9:16 — vector frame art can sit inset; slight scale pulls the rim flush with the image edges. */
+  frameBleed?: boolean;
 };
 
 export function RarityBorderOverlay({
@@ -44,11 +46,12 @@ export function RarityBorderOverlay({
   frameStyle = "full",
   gradientFrom,
   gradientTo,
+  frameBleed,
 }: Props) {
   const src = (overlayUrl && overlayUrl.trim()) || defaultRarityBorderPath(rarity);
   const clean = frameStyle === "clean";
   /** Keep rim aligned to the portrait box — extra scale was clipping the frame SVG and showed a “floating” corner. */
-  const profileFrameScale = "scale-100";
+  const profileFrameScale = frameBleed ? "scale-[1.075]" : "scale-100";
 
   const from = gradientFrom?.trim();
   const to = gradientTo?.trim();

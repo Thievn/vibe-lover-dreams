@@ -118,6 +118,7 @@ const CompanionProfile = () => {
   const [profileTab, setProfileTab] = useState<"profile" | "gallery">("profile");
   /** Fade loop MP4 in over the still so we never flash an empty frame while the video buffers */
   const [loopVideoReady, setLoopVideoReady] = useState(false);
+  const [bioExpanded, setBioExpanded] = useState(false);
 
   const { data: vibrationPatterns = [], isLoading: vibrationPatternsLoading } = useCompanionVibrationPatterns(id);
 
@@ -447,6 +448,75 @@ const CompanionProfile = () => {
 
   const badge = RARITY_BADGE[rarity];
 
+  function ProfileDiscoverRow({ className }: { className?: string }) {
+    return (
+      <div
+        className={cn(
+          "flex flex-col gap-2 rounded-2xl border border-white/[0.08] bg-black/35 px-4 py-3 backdrop-blur-md sm:flex-row sm:flex-wrap sm:items-center",
+          className,
+        )}
+      >
+        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground shrink-0">
+          Discover
+        </span>
+        <div className="flex flex-wrap gap-2 sm:ml-auto">
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            disabled={voteBusy}
+            onClick={() => void submitVote(1)}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50",
+              myVote === 1
+                ? "border-primary/50 bg-primary/20 text-primary"
+                : "border-stone-400/20 bg-stone-400/[0.12] text-stone-200/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-primary/35 hover:bg-stone-400/[0.16] hover:text-white",
+            )}
+          >
+            {voteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsUp className="h-4 w-4 shrink-0" />}
+            Like
+          </motion.button>
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            disabled={voteBusy}
+            onClick={() => void submitVote(-1)}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50",
+              myVote === -1
+                ? "border-amber-500/45 bg-amber-500/15 text-amber-100"
+                : "border-stone-400/20 bg-stone-400/[0.12] text-stone-200/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-stone-300/30 hover:bg-stone-500/[0.14] hover:text-white",
+            )}
+          >
+            {voteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsDown className="h-4 w-4 shrink-0" />}
+            Meh
+          </motion.button>
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            disabled={pinBusy}
+            onClick={() => void togglePin()}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50",
+              pinned
+                ? "border-accent/45 bg-accent/15 text-accent"
+                : "border-stone-400/20 bg-stone-400/[0.12] text-stone-200/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-accent/35 hover:bg-stone-500/[0.14] hover:text-white",
+            )}
+          >
+            {pinBusy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Bookmark className={cn("h-4 w-4 shrink-0", pinned && "fill-current")} />
+            )}
+            {pinned ? "In my collection" : "Save to my collection"}
+          </motion.button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background relative overflow-x-hidden">
       <ParticleBackground />
@@ -579,12 +649,16 @@ const CompanionProfile = () => {
                     profilePolish
                     gradientFrom={companion.gradientFrom}
                     gradientTo={companion.gradientTo}
+                    frameBleed={loopVideoActive}
                     className={loopVideoActive ? "z-[4]" : undefined}
                   />
                   <RarityTierCaption rarity={rarity} />
                 </div>
               </PortraitViewLightbox>
             </ProfilePortraitTierHalo>
+            <div className="mt-6 hidden lg:block">
+              <ProfileDiscoverRow />
+            </div>
           </motion.div>
 
           {/* Copy + actions */}
@@ -633,46 +707,7 @@ const CompanionProfile = () => {
               </p>
             </div>
 
-            {backstoryParagraphs.length > 0 ? (
-              <section className="rounded-2xl border border-primary/20 bg-gradient-to-b from-black/55 via-black/40 to-black/35 p-5 sm:p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ring-1 ring-white/[0.06]">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-primary/85 mb-2">
-                  Chronicle
-                </p>
-                <h2 className="font-gothic text-xl sm:text-2xl font-bold text-foreground mb-4">Their story</h2>
-                <div className="space-y-4 text-sm sm:text-[15px] leading-relaxed text-muted-foreground/95 max-w-prose">
-                  {backstoryParagraphs.map((p, i) => (
-                    <p
-                      key={i}
-                      className="first-letter:text-primary first-letter:font-gothic first-letter:text-2xl sm:first-letter:text-3xl first-letter:float-left first-letter:mr-2 first-letter:leading-none"
-                    >
-                      {p}
-                    </p>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-
-            <div className="flex flex-wrap gap-3">
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleStartChat()}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-primary px-6 py-3.5 text-base font-bold text-primary-foreground shadow-lg shadow-primary/30 glow-pink touch-manipulation"
-              >
-                <MessageCircle className="h-5 w-5 shrink-0" />
-                Start chat
-              </motion.button>
-              <Link
-                to="/"
-                className="inline-flex items-center gap-2 rounded-xl border border-white/[0.1] bg-card/60 px-5 py-3.5 text-sm font-semibold text-muted-foreground backdrop-blur-md hover:border-primary/35 hover:text-primary transition-colors"
-              >
-                <Flame className="h-4 w-4" />
-                Browse forge
-              </Link>
-            </div>
-
-            <div className="flex rounded-2xl border border-white/[0.08] bg-black/45 p-1 gap-1 max-w-md">
+            <div className="flex rounded-2xl border border-white/[0.08] bg-black/45 p-1 gap-1 max-w-xl">
               <button
                 type="button"
                 onClick={() => setProfileTab("profile")}
@@ -699,6 +734,106 @@ const CompanionProfile = () => {
                 Gallery
               </button>
             </div>
+
+            <div className="flex flex-wrap gap-3">
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleStartChat()}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-primary px-6 py-3.5 text-base font-bold text-primary-foreground shadow-lg shadow-primary/30 glow-pink touch-manipulation"
+              >
+                <MessageCircle className="h-5 w-5 shrink-0" />
+                Start chat
+              </motion.button>
+              <Link
+                to="/"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/[0.1] bg-card/60 px-5 py-3.5 text-sm font-semibold text-muted-foreground backdrop-blur-md hover:border-primary/35 hover:text-primary transition-colors"
+              >
+                <Flame className="h-4 w-4" />
+                Browse forge
+              </Link>
+            </div>
+
+            {(companion.appearance?.trim() || companion.personality?.trim()) ? (
+              <section className="rounded-2xl border border-white/[0.08] bg-black/35 p-4 sm:p-5 ring-1 ring-white/[0.05] backdrop-blur-sm">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-primary/85">Look &amp; voice</p>
+                  <button
+                    type="button"
+                    onClick={() => setBioExpanded((v) => !v)}
+                    className="text-[11px] font-semibold text-primary/90 hover:underline touch-manipulation"
+                  >
+                    {bioExpanded ? "Show less" : "Show full"}
+                  </button>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
+                  <div>
+                    <h3 className="mb-1.5 flex items-center gap-1.5 font-gothic text-sm font-bold text-foreground">
+                      <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+                      Appearance
+                    </h3>
+                    <div
+                      className={cn(
+                        "space-y-2 text-[13px] leading-snug text-muted-foreground/92",
+                        !bioExpanded && "line-clamp-6",
+                      )}
+                    >
+                      {appearanceParagraphs.length > 0 ? (
+                        appearanceParagraphs.map((p, i) => (
+                          <p key={i}>{p}</p>
+                        ))
+                      ) : (
+                        <p>{companion.appearance}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="mb-1.5 flex items-center gap-1.5 font-gothic text-sm font-bold text-foreground">
+                      <Heart className="h-3.5 w-3.5 text-primary shrink-0" />
+                      Personality
+                    </h3>
+                    <div
+                      className={cn(
+                        "space-y-2 text-[13px] leading-snug text-muted-foreground/92",
+                        !bioExpanded && "line-clamp-6",
+                      )}
+                    >
+                      {personalityParagraphs.length > 0 ? (
+                        personalityParagraphs.map((p, i) => (
+                          <p key={i}>{p}</p>
+                        ))
+                      ) : (
+                        <p>{companion.personality}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
+            {backstoryParagraphs.length > 0 ? (
+              <details className="group rounded-2xl border border-primary/20 bg-gradient-to-b from-black/55 via-black/40 to-black/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ring-1 ring-white/[0.06] open:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_0_28px_rgba(168,85,247,0.06)]">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5 sm:p-6 [&::-webkit-details-marker]:hidden">
+                  <div className="min-w-0 text-left">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-primary/85 mb-1">Chronicle</p>
+                    <h2 className="font-gothic text-lg sm:text-xl font-bold text-foreground">Their story</h2>
+                    <p className="mt-1 text-xs text-muted-foreground/85 sm:hidden">Tap to expand</p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
+                </summary>
+                <div className="space-y-4 border-t border-white/[0.06] px-5 pb-5 pt-4 text-sm sm:text-[15px] leading-relaxed text-muted-foreground/95 sm:px-6 sm:pb-6 max-w-prose">
+                  {backstoryParagraphs.map((p, i) => (
+                    <p
+                      key={i}
+                      className="first-letter:text-primary first-letter:font-gothic first-letter:text-2xl sm:first-letter:text-3xl first-letter:float-left first-letter:mr-2 first-letter:leading-none"
+                    >
+                      {p}
+                    </p>
+                  ))}
+                </div>
+              </details>
+            ) : null}
 
             {profileTab === "gallery" ? (
               <section className="rounded-2xl border border-white/[0.08] bg-black/40 backdrop-blur-xl p-5 sm:p-6">
@@ -800,107 +935,8 @@ const CompanionProfile = () => {
               </section>
             )}
 
-            <div className="flex flex-col gap-2 rounded-2xl border border-white/[0.08] bg-black/35 px-4 py-3 backdrop-blur-md sm:flex-row sm:flex-wrap sm:items-center">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground shrink-0">
-                Discover
-              </span>
-              <div className="flex flex-wrap gap-2 sm:ml-auto">
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  disabled={voteBusy}
-                  onClick={() => void submitVote(1)}
-                  className={cn(
-                    "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50",
-                    myVote === 1
-                      ? "border-primary/50 bg-primary/20 text-primary"
-                      : "border-stone-400/20 bg-stone-400/[0.12] text-stone-200/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-primary/35 hover:bg-stone-400/[0.16] hover:text-white",
-                  )}
-                >
-                  {voteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsUp className="h-4 w-4 shrink-0" />}
-                  Like
-                </motion.button>
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  disabled={voteBusy}
-                  onClick={() => void submitVote(-1)}
-                  className={cn(
-                    "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50",
-                    myVote === -1
-                      ? "border-amber-500/45 bg-amber-500/15 text-amber-100"
-                      : "border-stone-400/20 bg-stone-400/[0.12] text-stone-200/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-stone-300/30 hover:bg-stone-500/[0.14] hover:text-white",
-                  )}
-                >
-                  {voteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsDown className="h-4 w-4 shrink-0" />}
-                  Meh
-                </motion.button>
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  disabled={pinBusy}
-                  onClick={() => void togglePin()}
-                  className={cn(
-                    "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50",
-                    pinned
-                      ? "border-accent/45 bg-accent/15 text-accent"
-                      : "border-stone-400/20 bg-stone-400/[0.12] text-stone-200/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-accent/35 hover:bg-stone-500/[0.14] hover:text-white",
-                  )}
-                >
-                  {pinBusy ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Bookmark className={cn("h-4 w-4 shrink-0", pinned && "fill-current")} />
-                  )}
-                  {pinned ? "In my collection" : "Save to my collection"}
-                </motion.button>
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2 items-start">
-              <div className="rounded-2xl border border-white/[0.08] bg-card/70 p-5 shadow-lg shadow-black/25 ring-1 ring-white/[0.04] backdrop-blur-xl">
-                <h3 className="mb-2 flex items-center gap-2 font-gothic text-lg font-bold text-foreground">
-                  <Sparkles className="h-4 w-4 text-primary shrink-0" />
-                  Appearance
-                </h3>
-                <div className="space-y-4">
-                  {appearanceParagraphs.length > 0 ? (
-                    appearanceParagraphs.map((p, i) => (
-                      <p
-                        key={i}
-                        className="text-sm leading-relaxed text-muted-foreground/90 first-letter:text-primary first-letter:font-gothic first-letter:text-2xl first-letter:float-left first-letter:mr-1.5 first-letter:leading-none"
-                      >
-                        {p}
-                      </p>
-                    ))
-                  ) : (
-                    <p className="text-sm leading-relaxed text-muted-foreground/90">{companion.appearance}</p>
-                  )}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-white/[0.08] bg-card/70 p-5 shadow-lg shadow-black/25 ring-1 ring-white/[0.04] backdrop-blur-xl">
-                <h3 className="mb-2 flex items-center gap-2 font-gothic text-lg font-bold text-foreground">
-                  <Heart className="h-4 w-4 text-primary shrink-0" />
-                  Personality
-                </h3>
-                <div className="space-y-4">
-                  {personalityParagraphs.length > 0 ? (
-                    personalityParagraphs.map((p, i) => (
-                      <p
-                        key={i}
-                        className="text-sm leading-relaxed text-muted-foreground/90 first-letter:text-primary first-letter:font-gothic first-letter:text-2xl first-letter:float-left first-letter:mr-1.5 first-letter:leading-none"
-                      >
-                        {p}
-                      </p>
-                    ))
-                  ) : (
-                    <p className="text-sm leading-relaxed text-muted-foreground/90">{companion.personality}</p>
-                  )}
-                </div>
-              </div>
+            <div className="lg:hidden">
+              <ProfileDiscoverRow />
             </div>
 
             <TcgProfilePanel stats={companion.tcgStats} />
@@ -985,7 +1021,7 @@ const CompanionProfile = () => {
         {profileTab === "profile" ? (
         <>
         {/* Fantasy starters */}
-        <section className="mt-12 sm:mt-14">
+        <section className="mt-8 sm:mt-10">
           <h2 className="font-gothic text-2xl sm:text-3xl font-bold text-foreground mb-2">Fantasy starters</h2>
           <p className="mb-8 max-w-2xl text-sm text-muted-foreground/88">
             Tap a scene — we open chat and send your opening line exactly as written, so the companion meets you in
@@ -1036,7 +1072,7 @@ const CompanionProfile = () => {
         </section>
 
         {/* Tags — merged for search (gender, orientation, role, forge tags) */}
-        <div className="mt-10 flex flex-wrap gap-2">
+        <div className="mt-6 flex flex-wrap gap-2">
           {profileSearchTags.map((tag) => (
             <span
               key={tag}

@@ -25,6 +25,7 @@ type Props = {
 export function ChatInlineVideo({
   videoUrl,
   companionName,
+  showGalleryHint,
   onSaveBackup,
   backupSaved,
   backupBusy,
