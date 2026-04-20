@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -9,6 +9,7 @@ import {
   Gem,
   Loader2,
   ScanEye,
+  Maximize2,
   Sparkles,
   Wand2,
   ImageIcon,
@@ -24,6 +25,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -38,6 +40,7 @@ import { formatSupabaseError } from "@/lib/supabaseError";
 import { fallbackForgeDisplayName } from "@/lib/forgeRandomName";
 import { pickOne, pickRandom, randomSelectionCount, randomTraitCount } from "@/lib/forgeRandomSeeds";
 import { cn } from "@/lib/utils";
+import { SITE_URL } from "@/config/auth";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { AdminLoopingVideoBlock } from "@/components/admin/AdminLoopingVideoBlock";
 import { stablePortraitDisplayUrl } from "@/lib/companionMedia";
@@ -343,7 +346,7 @@ ${forgeCompactStatureInstruction(o.bodyType)}1) name: Grok invents ONE highly un
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
 5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences). Bold NSFW when persona fits; never end with meta questions ("Are you ready?", "Want to start?") — close on dialogue or action.
 6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
-7) image_prompt: one dense SFW paragraph for a vertical portrait card. **Silhouette and stature must match "${o.bodyType}" first** — same forge body as the text; for compact-stature types, the shot must sell scale (props, furniture, lens) so it cannot be mistaken for a generic tall-human portrait. Then align art style "${o.artStyle}" and environment "${o.sceneAtmosphere}" (lighting, wardrobe, set pieces).
+7) image_prompt: one dense SFW paragraph for a vertical portrait card. **EXTREMELY IMPORTANT — OPEN WITH BODY TYPE "${o.bodyType}":** The very first words must lock silhouette/species/proportions for "${o.bodyType}"; do NOT default to a normal human model with small accessories. For non-human or hybrid labels, describe visible anatomy (fur, tail, digitigrade legs, extra limbs, slime mass, etc.) prominently. Then art style "${o.artStyle}" and scene "${o.sceneAtmosphere}" (lighting, wardrobe, set) — scene must not erase the body type. If "${o.sceneAtmosphere}" is "No Background", use cyclorama / neutral backdrop only.
 8) system_prompt: full chat charter for this persona.`;
 }
 
@@ -400,8 +403,8 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   const [vibeThemeSelections, setVibeThemeSelections] = useState<string[]>(() =>
     pickRandom(VIBE_THEME_POOL, randomSelectionCount()),
   );
-  const [artStyle, setArtStyle] = useState<string>(() => pickOne(FORGE_ART_STYLES));
-  const [sceneAtmosphere, setSceneAtmosphere] = useState<string>(() => pickOne(FORGE_SCENE_ATMOSPHERES));
+  const [artStyle, setArtStyle] = useState<string>(() => "Photorealistic");
+  const [sceneAtmosphere, setSceneAtmosphere] = useState<string>(() => "No Background");
   const [bodyType, setBodyType] = useState<string>(() => normalizeForgeBodyType(pickOne(FORGE_BODY_TYPES)));
   const [traits, setTraits] = useState<string[]>(() => pickRandom(TRAITS, randomTraitCount()));
   const [orientation, setOrientation] = useState<string>(() => pickOne(ORIENTATIONS));
@@ -477,6 +480,53 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     }
     return "rare";
   }, [isAdmin, adminAbyssalForge, adminForgeRarity]);
+
+  type ForgeOpKind = "info" | "ok" | "warn" | "err";
+  type ForgeOpLine = { id: string; t: number; text: string; kind: ForgeOpKind };
+  const [forgeOpLines, setForgeOpLines] = useState<ForgeOpLine[]>([]);
+  const [forgeRunStartedAt, setForgeRunStartedAt] = useState<number | null>(null);
+  const [forgeElapsedTick, setForgeElapsedTick] = useState(0);
+  const [previewExpandOpen, setPreviewExpandOpen] = useState(false);
+  const forgeOpScrollRef = useRef<HTMLDivElement>(null);
+
+  const pushForgeOp = useCallback(
+    (text: string, kind: ForgeOpKind = "info") => {
+      if (!isAdmin) return;
+      const rid =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      setForgeOpLines((prev) => [...prev, { id: rid, t: Date.now(), text, kind }].slice(-120));
+    },
+    [isAdmin],
+  );
+
+  const endFinalForgeLoading = useCallback(() => {
+    setFinalLoading(false);
+    setForgeRunStartedAt(null);
+  }, []);
+
+  useEffect(() => {
+    if (!finalLoading) return;
+    const id = window.setInterval(() => setForgeElapsedTick((x) => x + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [finalLoading]);
+
+  useEffect(() => {
+    if (!finalLoading) return;
+    const h = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [finalLoading]);
+
+  useEffect(() => {
+    const el = forgeOpScrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [forgeOpLines]);
 
   const loadProfile = useCallback(async () => {
     const {
@@ -764,6 +814,7 @@ User flavor notes: ${extraNotes || "none"}`;
 
   const randomizeForgeCharacter = async () => {
     setRouletteLoading(true);
+    if (isAdmin) pushForgeOp("Forge roulette: rolled local seeds; calling Grok for the full profile pack…", "info");
     const g = pick(GENDERS);
     const persCount = 1 + Math.floor(Math.random() * 3);
     const pers = [...PERSONALITIES].sort(() => Math.random() - 0.5).slice(0, persCount);
@@ -804,7 +855,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
 5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences). Bold NSFW when persona fits; never end with meta questions ("Are you ready?", "Want to start?") — close on dialogue or action.
 6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
-7) image_prompt: one dense SFW paragraph for a vertical portrait card. **Stature and silhouette must match "${bt}" first** (scale cues in-frame); then art style "${ar}" and environment "${sc}".
+7) image_prompt: one dense SFW paragraph for a vertical portrait card. **EXTREMELY IMPORTANT — OPEN WITH BODY TYPE "${bt}":** First sentences must lock "${bt}" for silhouette/species/proportions; forbidden: generic tall human with token props. Non-human / hybrid / extreme types need explicit visible anatomy. Then art "${ar}" and scene "${sc}"; scene must not override body type. If "${sc}" is "No Background", neutral cyclorama only.
 8) system_prompt: full chat charter for this persona.`;
 
     try {
@@ -828,7 +879,9 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       setRosterTags(Array.isArray(fields.tags) ? (fields.tags as string[]).map(String).slice(0, 24) : []);
       setRosterKinks(Array.isArray(fields.kinks) ? (fields.kinks as string[]).map(String).slice(0, 24) : []);
       setFantasyStartersVault(normalizeFantasyStartersFromFields(fields.fantasy_starters));
+      if (isAdmin) pushForgeOp("Roulette filled narrative, starters, tags, and portrait prompt.", "ok");
     } catch (e: unknown) {
+      if (isAdmin) pushForgeOp(e instanceof Error ? e.message : "Roulette failed", "err");
       toast.error(e instanceof Error ? e.message : "Roulette failed");
     } finally {
       setRouletteLoading(false);
@@ -845,9 +898,17 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
     const staturePrimary = isCompactStatureForgeBodyType(bodyType)
       ? `[Body-type priority: ${bodyType} — compact/short-stature adult proportions are the main visual subject; pose, wardrobe, and scene support that scale, not a generic tall-human default.] `
       : "";
+    const silCat = forgeBodyCategoryIdForType(bodyType);
+    const nonHumanVisual = ["anthro", "fantasy", "hybrid", "otherworldly", "hyper"].includes(silCat);
     const baseDesc = nar
       ? `${staturePrimary}${nar.slice(0, 900)}`
-      : `${staturePrimary}an original seductive character, ${gender}, ${bodyType}, ${traits.join(", ") || "clean aesthetic"}`;
+      : `${staturePrimary}Original character, ${gender}, authoritative body type "${bodyType}"${traits.length ? `, traits: ${traits.slice(0, 6).join(", ")}` : ""} — silhouette must match the forge label, not a default human model.`;
+    const clothingLine = nonHumanVisual
+      ? `Wardrobe and materials appropriate for ${bodyType} and ${artStyle} — species- and silhouette-first; avoid unrelated generic human runway looks unless clearly humanoid glam.`
+      : `Fashion and textures echoing ${sceneAtmosphere}, ${vibeThemeLabel}, ${artStyle} presentation`;
+    const poseLine = nonHumanVisual
+      ? `Pose that clearly sells "${bodyType}" — show correct limbs, tail, wings, hybrid junction, or non-human mass as implied; same forged identity, not a stock human substitute.`
+      : "three-quarter portrait, alluring confident pose";
     return {
       prompt: packshotPrompt.trim() || grokPrompt,
       userId,
@@ -859,15 +920,16 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
         artStyleLabel: artStyle,
         randomize: false,
         bodyType,
+        silhouetteCategory: silCat,
         ...(nar ? { appearance: nar.slice(0, 2500) } : {}),
         vibe: vibeThemeLabel,
         hair: `styled to match ${vibeThemeLabel} and ${artStyle}`,
         eyes: traits.includes("Glowing eyes") ? "striking glowing eyes" : "expressive, magnetic eyes",
-        clothing: `fashion and textures echoing ${sceneAtmosphere}, ${vibeThemeLabel}, ${artStyle} presentation`,
+        clothing: clothingLine,
         expression: `${personalityLabel} energy`,
         ethnicity: "any",
         ageRange: "young adult",
-        pose: "three-quarter portrait, alluring confident pose",
+        pose: poseLine,
         baseDescription: baseDesc,
         sceneAtmosphere,
         ...(referencePalette ? { referencePalette } : {}),
@@ -901,6 +963,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       }
     }
     setPreviewLoading(true);
+    if (isAdmin) pushForgeOp("Portrait: sending packshot to the image pipeline…", "info");
     try {
       const base = buildPortraitGeneratePayload();
       if (!base) throw new Error("Not signed in.");
@@ -914,6 +977,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       const display = stablePortraitDisplayUrl(data.imageUrl) ?? data.imageUrl;
       setPreviewUrl(display);
       setPreviewCanonicalUrl(canonical);
+      if (isAdmin) pushForgeOp("Portrait render finished — check Live preview.", "ok");
       if (typeof data.newTokensBalance === "number") setTokens(data.newTokensBalance);
       else if (!isAdmin) {
         const {
@@ -930,6 +994,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Preview failed";
+      if (isAdmin) pushForgeOp(`Portrait failed: ${msg}`, "err");
       toast.error(msg);
     } finally {
       setPreviewLoading(false);
@@ -1042,13 +1107,23 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       }
     }
     setFinalLoading(true);
+    setForgeRunStartedAt(Date.now());
+    setForgeElapsedTick(0);
+    if (isAdmin) {
+      pushForgeOp(
+        "Create companion started — the browser will warn if you try to leave before this finishes. You can still switch apps; just don’t close the tab.",
+        "info",
+      );
+    }
     try {
       const ok = await deductTokens(finalTotalCost);
       if (!isAdmin && !ok) {
         toast.error("Insufficient tokens.");
-        setFinalLoading(false);
+        endFinalForgeLoading();
         return;
       }
+
+      if (isAdmin) pushForgeOp("Validating copy, portrait, and DB payload…", "info");
 
       let effectiveChronicle = chronicleBackstory.trim();
       let effectiveHook = hookBio.trim();
@@ -1060,6 +1135,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
 
       if (effectiveChronicle.length < MIN_CHRONICLE_CHARS) {
         toast.info("Writing full chronicle & profile copy…");
+        if (isAdmin) pushForgeOp("Chronicle short — calling design lab to expand prose & starters…", "info");
         const seedPrompt = buildForgeDesignLabSeedPrompt({
           gender,
           personalitySelections,
@@ -1116,6 +1192,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
             setFantasyStartersVault(effectiveStartersVault);
           }
         }
+        if (isAdmin) pushForgeOp("Design lab pass finished — chronicle / starters updated.", "ok");
       }
 
       const portraitAppearanceForRow = effectiveNarrative || appearanceBlurb;
@@ -1135,6 +1212,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       const previewRaw = previewCanonicalUrl || previewUrl;
       let portraitUrl: string | null = stablePortraitDisplayUrl(previewRaw) ?? previewRaw;
       if (!portraitUrl) {
+        if (isAdmin) pushForgeOp("No preview still — generating portrait from prompts (same as user flow)…", "info");
         const payload = buildPortraitGeneratePayload(effectiveNarrative || undefined);
         if (payload) {
           const portraitBody = {
@@ -1149,11 +1227,15 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
             portraitUrl = canon;
             setPreviewUrl(stablePortraitDisplayUrl(genData.imageUrl) ?? genData.imageUrl);
             setPreviewCanonicalUrl(canon);
+            if (isAdmin) pushForgeOp("Inline portrait generation finished.", "ok");
           }
         }
       } else {
         portraitUrl = stablePortraitDisplayUrl(portraitUrl) ?? portraitUrl;
+        if (isAdmin) pushForgeOp("Using existing Live preview portrait for the row.", "info");
       }
+
+      if (isAdmin) pushForgeOp("Inserting custom_characters row(s)…", "info");
 
       const defaultBio = `${forgeName} is a ${gender.toLowerCase()} presence blending ${personalityLabel.toLowerCase()} energy with ${vibeThemeLabel.toLowerCase()} aesthetics, often imagined in ${sceneAtmosphere.toLowerCase()} light. ${tagline ? tagline + "." : ""} They move through the world with ${orientation.toLowerCase()} magnetism.`;
       const bioOut = effectiveHook || defaultBio;
@@ -1275,19 +1357,31 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       if (isAdmin && insertedRows?.[0]?.id) {
         const ccFull = `cc-${String(insertedRows[0].id)}`;
         setLastForgedCcId(ccFull);
+        pushForgeOp(
+          `Saved ${ccFull}. Open profile to review visuals, or chat to smoke-test behavior.`,
+          "ok",
+        );
         void (async () => {
           try {
             toast.info("Generating looping profile video…", { duration: 5000 });
+            pushForgeOp("Queued looping profile video (runs async; refresh Character management if needed).", "info");
             const { data: vidData, error: vidErr } = await supabase.functions.invoke("generate-profile-loop-video", {
               body: { companionId: ccFull },
             });
             if (vidErr) throw new Error(await getEdgeFunctionInvokeMessage(vidErr, vidData));
             if ((vidData as { error?: string })?.error) throw new Error(String((vidData as { error?: string }).error));
             toast.success("Profile loop video saved — enable on profile if needed.");
+            pushForgeOp("Profile loop video finished and saved.", "ok");
             void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
             void queryClient.invalidateQueries({ queryKey: ["companions"] });
           } catch (e) {
             console.error(e);
+            pushForgeOp(
+              e instanceof Error
+                ? `Loop video: ${e.message.slice(0, 160)}…`
+                : "Loop video failed — retry from Character management.",
+              "warn",
+            );
             toast.error(
               e instanceof Error
                 ? `${e.message.slice(0, 200)} — generate video from Character management if needed.`
@@ -1300,20 +1394,23 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       if (isAdmin && onForged) onForged();
       else if (!embedded && mode === "user") navigate("/dashboard", { state: { activeNav: "collection" } });
     } catch (e: unknown) {
+      if (isAdmin) pushForgeOp(formatSupabaseError(e), "err");
       toast.error(formatSupabaseError(e));
     } finally {
-      setFinalLoading(false);
+      endFinalForgeLoading();
     }
   };
 
   useImperativeHandle(ref, () => ({
     async runRandomRouletteAndForge(opts?: { forcePrivate?: boolean }) {
       if (!isAdmin) return;
+      pushForgeOp("Scheduled forge: roulette + create companion chain starting…", "info");
       forcePrivateForgeRef.current = Boolean(opts?.forcePrivate);
       try {
         await randomizeForgeCharacter();
         await new Promise((r) => setTimeout(r, 400));
         await runFinalCreate();
+        pushForgeOp("Scheduled forge chain finished successfully.", "ok");
       } finally {
         forcePrivateForgeRef.current = false;
       }
@@ -2218,7 +2315,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
           </div>
 
           {/* Preview — TCG-sized (~63×88mm), sticky right on desktop; on mobile shown above options */}
-          <div className="order-1 lg:order-2 w-full lg:w-[276px] xl:w-[288px] shrink-0 lg:sticky lg:top-20 lg:self-start space-y-4">
+          <div className="order-1 lg:order-2 w-full lg:w-[min(100%,380px)] xl:w-[400px] shrink-0 lg:sticky lg:top-20 lg:self-start space-y-4">
             <div className={cn(panelClass, "overflow-hidden")}>
               <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-white/10 bg-white/[0.03] backdrop-blur-md">
                 <span className="flex items-center gap-2 min-w-0">
@@ -2233,19 +2330,32 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
                     <span className="text-[9px] text-muted-foreground/80 hidden sm:block">Portrait + profile card</span>
                   </span>
                 </span>
-                {previewUrl && (
-                  <button
-                    type="button"
-                    onClick={() => clearForgePreview()}
-                    className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-black/50 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-white hover:border-white/25 transition-colors"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Reset
-                  </button>
-                )}
+                <span className="flex items-center gap-1.5 shrink-0">
+                  {previewUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewExpandOpen(true)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-black/50 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-white hover:border-primary/35 transition-colors"
+                      title="Expand portrait preview"
+                    >
+                      <Maximize2 className="h-3.5 w-3.5" />
+                      Expand
+                    </button>
+                  )}
+                  {previewUrl && (
+                    <button
+                      type="button"
+                      onClick={() => clearForgePreview()}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-black/50 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-white hover:border-white/25 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Reset
+                    </button>
+                  )}
+                </span>
               </div>
               <div className="p-4 sm:p-5">
-                <div className="w-full max-w-[252px] mx-auto lg:mx-0 overflow-visible p-1.5 max-sm:p-1">
+                <div className="w-full max-w-[min(100%,340px)] mx-auto lg:mx-0 overflow-visible p-1.5 max-sm:p-1">
                   <TierHaloPortraitFrame
                     variant="compact"
                     frameStyle="clean"
@@ -2264,7 +2374,9 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
                           src={previewUrl}
                           alt="Preview"
                           referrerPolicy="no-referrer"
-                          className="absolute inset-0 z-[1] w-full h-full object-cover"
+                          onClick={() => setPreviewExpandOpen(true)}
+                          className="absolute inset-0 z-[1] w-full h-full object-cover cursor-zoom-in outline-none ring-0"
+                          title="Click to expand preview"
                           onError={() => {
                             toast.error("Preview image failed to load — check Storage bucket is public, then try Live preview again.");
                           }}
@@ -2318,9 +2430,11 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
 
                 <div className="mt-3 rounded-xl border border-white/[0.12] bg-black/55 px-3 py-3 space-y-2">
                   <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Profile preview</p>
-                  <p className="font-gothic text-base text-white leading-snug line-clamp-2">{name.trim() || "—"}</p>
-                  <p className="text-[11px] text-[#ffb8d9]/90 line-clamp-2">{tagline.trim() || "—"}</p>
-                  <p className="text-[10px] text-white/70 leading-relaxed line-clamp-5">{profilePreviewBlurb}</p>
+                  <p className="font-gothic text-lg sm:text-xl text-white leading-snug line-clamp-3">{name.trim() || "—"}</p>
+                  <p className="text-[12px] sm:text-sm text-[#ffb8d9]/90 line-clamp-3">{tagline.trim() || "—"}</p>
+                  <p className="text-[11px] sm:text-xs text-white/70 leading-relaxed line-clamp-[14] whitespace-pre-wrap">
+                    {profilePreviewBlurb}
+                  </p>
                   <div className="flex flex-wrap gap-1 pt-0.5">
                     {[...personalitySelections.slice(0, 3), ...vibeThemeSelections.slice(0, 3)].map((x, i) => (
                       <span
@@ -2446,13 +2560,124 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
                 )}
               </p>
             </div>
+
+            {isAdmin && (
+              <div className="rounded-2xl border border-violet-500/30 bg-gradient-to-b from-violet-950/35 to-black/60 p-4 space-y-3 backdrop-blur-md">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-violet-200/95">Forge operator</p>
+                    <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                      Session milestone log (not a live AI). Scheduled runs and portrait / create steps append here so you can glance away
+                      and still see what finished.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setForgeOpLines([])}
+                    className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-white border border-white/10 rounded-lg px-2 py-1"
+                  >
+                    Clear
+                  </button>
+                </div>
+                {finalLoading && forgeRunStartedAt != null && (
+                  <p className="text-xs text-amber-200/95 tabular-nums">
+                    Elapsed {Math.max(0, Math.floor((Date.now() - forgeRunStartedAt) / 1000))}s
+                    <span className="sr-only">{forgeElapsedTick}</span>
+                    <span className="text-muted-foreground font-normal"> · stay on this tab until the create step finishes</span>
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={SITE_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] font-semibold uppercase tracking-wider rounded-lg border border-white/12 bg-black/40 px-2.5 py-1.5 text-violet-100 hover:border-violet-400/40"
+                  >
+                    Open site
+                  </a>
+                  <Link
+                    to="/admin?section=characters"
+                    className="text-[10px] font-semibold uppercase tracking-wider rounded-lg border border-white/12 bg-black/40 px-2.5 py-1.5 text-violet-100 hover:border-violet-400/40"
+                  >
+                    Character management
+                  </Link>
+                  {lastForgedCcId && (
+                    <>
+                      <Link
+                        to={`/companions/${lastForgedCcId}`}
+                        state={{ from: "/admin?section=characters" }}
+                        className="text-[10px] font-semibold uppercase tracking-wider rounded-lg border border-emerald-500/35 bg-emerald-950/40 px-2.5 py-1.5 text-emerald-100 hover:border-emerald-400/50"
+                      >
+                        Last forged · profile
+                      </Link>
+                      <Link
+                        to={`/chat/${lastForgedCcId}`}
+                        state={{ from: "/admin?section=characters" }}
+                        className="text-[10px] font-semibold uppercase tracking-wider rounded-lg border border-emerald-500/35 bg-emerald-950/40 px-2.5 py-1.5 text-emerald-100 hover:border-emerald-400/50"
+                      >
+                        Last forged · chat
+                      </Link>
+                    </>
+                  )}
+                </div>
+                <div
+                  ref={forgeOpScrollRef}
+                  className="max-h-[220px] overflow-y-auto rounded-xl border border-white/10 bg-black/50 p-3 space-y-2 text-left"
+                >
+                  {forgeOpLines.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground">No events yet — run roulette, portrait, or Create companion.</p>
+                  ) : (
+                    forgeOpLines.map((line) => (
+                      <div
+                        key={line.id}
+                        className={cn(
+                          "rounded-lg border px-2.5 py-2 text-[11px] leading-snug",
+                          line.kind === "ok" && "border-emerald-500/30 bg-emerald-950/25 text-emerald-50/95",
+                          line.kind === "warn" && "border-amber-500/35 bg-amber-950/25 text-amber-50/95",
+                          line.kind === "err" && "border-red-500/35 bg-red-950/30 text-red-50/95",
+                          line.kind === "info" && "border-white/10 bg-black/40 text-white/85",
+                        )}
+                      >
+                        <span className="text-[9px] font-mono text-muted-foreground/90">
+                          {new Date(line.t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                        </span>
+                        <span className="block mt-0.5 whitespace-pre-wrap">{line.text}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
     </div>
   );
 
-  return shell;
+  return (
+    <>
+      {shell}
+      <Dialog open={previewExpandOpen} onOpenChange={setPreviewExpandOpen}>
+        <DialogContent className="max-w-[min(96vw,560px)] border-white/10 bg-[#0a0810]/95 text-foreground">
+          <DialogHeader>
+            <DialogTitle className="font-gothic text-lg">Portrait preview</DialogTitle>
+          </DialogHeader>
+          {previewUrl ? (
+            <div className="space-y-4">
+              <div className="relative w-full max-h-[min(70vh,640px)] overflow-hidden rounded-xl border border-white/10 bg-black/60">
+                <img src={previewUrl} alt="" className="w-full h-full max-h-[min(70vh,640px)] object-contain" referrerPolicy="no-referrer" />
+              </div>
+              <div className="rounded-xl border border-white/10 bg-black/40 p-3 space-y-2">
+                <p className="font-gothic text-xl text-white">{name.trim() || "—"}</p>
+                <p className="text-sm text-[#ffb8d9]/90">{tagline.trim() || "—"}</p>
+                <p className="text-xs text-white/75 leading-relaxed whitespace-pre-wrap">{profilePreviewBlurb}</p>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 });
 
 export default CompanionCreator;

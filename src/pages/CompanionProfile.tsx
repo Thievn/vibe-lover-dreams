@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { usePortraitOverrideUrl } from "@/hooks/usePortraitOverride";
 import { useCompanionGeneratedImages } from "@/hooks/useCompanionGeneratedImages";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
+import { useForgeCompanionOverlay } from "@/hooks/useForgeCompanionOverlay";
 import { VAULT_COLLECTION_QUERY_KEY } from "@/hooks/useVaultCollection";
 import Navbar from "@/components/Navbar";
 import ParticleBackground from "@/components/ParticleBackground";
@@ -125,10 +126,7 @@ const CompanionProfile = () => {
 
   const { data: vibrationPatterns = [], isLoading: vibrationPatternsLoading } = useCompanionVibrationPatterns(id);
 
-  const dbComp = useMemo(
-    () => (dbCompanions || []).find((c) => c.id === id),
-    [dbCompanions, id],
-  );
+  const { dbComp, forgeLookupBusy: forgeRowFetching } = useForgeCompanionOverlay(id, dbCompanions, isLoading);
   const companion = dbComp ? dbToCompanion(dbComp) : null;
   const rarity: CompanionRarity = companion?.rarity ?? "common";
   const animatedPortrait = profileAnimatedPortraitUrl(dbComp);
@@ -401,7 +399,7 @@ const CompanionProfile = () => {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || forgeRowFetching) {
     return (
       <div className="min-h-[100dvh] flex flex-col bg-background">
         <Navbar />

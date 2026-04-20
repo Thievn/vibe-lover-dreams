@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
+import { useForgeCompanionOverlay } from "@/hooks/useForgeCompanionOverlay";
 import { usePortraitOverrideUrl } from "@/hooks/usePortraitOverride";
 import { useCompanionGeneratedImages } from "@/hooks/useCompanionGeneratedImages";
 import {
@@ -44,6 +45,7 @@ import type { RampPresetId } from "@/lib/rampModePresets";
 import { RAMP_PRESET_IDS } from "@/lib/rampModePresets";
 import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
 import {
+  forgeBodyCategoryIdForType,
   inferForgeBodyTypeFromAppearance,
   inferForgeBodyTypeFromTags,
   inferStylizedArtFromTags,
@@ -115,12 +117,8 @@ const SMART_FALLBACK = ["Tell me more…", "I want you closer.", "Surprise me."]
 const Chat = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: dbCompanions } = useCompanions();
-
-  const dbComp = useMemo(
-    () => (dbCompanions || []).find((c) => c.id === id),
-    [dbCompanions, id]
-  );
+  const { data: dbCompanions, isLoading: companionsLoading } = useCompanions();
+  const { dbComp, forgeLookupBusy } = useForgeCompanionOverlay(id, dbCompanions, companionsLoading);
   const companion = dbComp ? dbToCompanion(dbComp) : null;
   const basePortraitUrl = useMemo(() => galleryStaticPortraitUrl(dbComp, id), [dbComp, id]);
   const headerAnimated = useMemo(() => {
@@ -609,6 +607,23 @@ const Chat = () => {
         8000,
       );
 
+      const resolvedBodyType =
+        inferForgeBodyTypeFromTags(dbComp.tags ?? []) ??
+        inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
+        "Average Build";
+      const artLabel = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
+      const packSnap = (dbComp.image_prompt || "").trim().slice(0, 900);
+      const portraitConsistencyLock = [
+        `Roster identity lock: depict the SAME individual as ${companion.name} — not a different person, species, or unrelated stock model.`,
+        `Locked forge body type: ${resolvedBodyType}.`,
+        `Locked render style: ${artLabel}.`,
+        packSnap ? `Packshot / catalog intent (match discipline): ${packSnap}` : "",
+        `Appearance continuity (face, hair, skin or fur, silhouette): ${(companion.appearance || "").trim().slice(0, 1500)}`,
+        `Forbidden: drifting from the roster look (e.g. anime-style character → unrelated photoreal different body) unless the user's message explicitly requests that alternate.`,
+      ]
+        .filter(Boolean)
+        .join(" ");
+
       const { data, error } = await invokeGenerateImage({
         prompt,
         userId,
@@ -617,11 +632,10 @@ const Chat = () => {
         characterData: {
           companionId: companion.id,
           style: "chat-session",
-          artStyleLabel: inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic",
-          bodyType:
-            inferForgeBodyTypeFromTags(dbComp.tags ?? []) ??
-            inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
-            "Average Build",
+          artStyleLabel: artLabel,
+          bodyType: resolvedBodyType,
+          silhouetteCategory: forgeBodyCategoryIdForType(resolvedBodyType),
+          portraitConsistencyLock,
           tags: dbComp.tags ?? [],
           baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
           vibe: companion.personality,
@@ -675,6 +689,22 @@ const Chat = () => {
         8000,
       );
 
+      const resolvedBodyType =
+        inferForgeBodyTypeFromTags(dbComp.tags ?? []) ??
+        inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
+        "Average Build";
+      const artLabel = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
+      const packSnap = (dbComp.image_prompt || "").trim().slice(0, 900);
+      const portraitConsistencyLock = [
+        `Roster identity lock: depict the SAME individual as ${companion.name}.`,
+        `Locked forge body type: ${resolvedBodyType}.`,
+        `Locked render style: ${artLabel}.`,
+        packSnap ? `Packshot / catalog intent: ${packSnap}` : "",
+        `Appearance continuity: ${(companion.appearance || "").trim().slice(0, 1500)}`,
+      ]
+        .filter(Boolean)
+        .join(" ");
+
       const { data, error } = await invokeGenerateImage({
         prompt,
         userId: user.id,
@@ -683,11 +713,10 @@ const Chat = () => {
         characterData: {
           companionId: companion.id,
           style: "chat-session",
-          artStyleLabel: inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic",
-          bodyType:
-            inferForgeBodyTypeFromTags(dbComp.tags ?? []) ??
-            inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
-            "Average Build",
+          artStyleLabel: artLabel,
+          bodyType: resolvedBodyType,
+          silhouetteCategory: forgeBodyCategoryIdForType(resolvedBodyType),
+          portraitConsistencyLock,
           tags: dbComp.tags ?? [],
           baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
           vibe: companion.personality,
@@ -1854,18 +1883,21 @@ const Chat = () => {
     })();
   }, [user, companion, historyReady, loading, location.pathname, location.state, navigate, isAdminUser]);
 
-  if (!companion && dbCompanions) {
+  if (companionsLoading || forgeLookupBusy) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Companion not found.</p>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   if (!companion) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-3 px-4">
+        <p className="text-muted-foreground">Companion not found.</p>
+        <Link to="/" className="text-sm text-primary hover:underline">
+          Back to home
+        </Link>
       </div>
     );
   }

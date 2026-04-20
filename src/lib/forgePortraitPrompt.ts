@@ -3,7 +3,7 @@
  * Keep in sync with server `supabase/functions/_shared/forgePortraitAugmentation.ts` (duplicate for Deno).
  */
 
-import { forgePortraitStatureEmphasis } from "@/lib/forgeBodyTypes";
+import { forgePortraitBodyTypeContract } from "@/lib/forgeBodyTypes";
 
 export const FORGE_ART_STYLES = [
   "Photorealistic",
@@ -29,6 +29,7 @@ export const FORGE_ART_STYLES = [
 export type ForgeArtStyle = (typeof FORGE_ART_STYLES)[number];
 
 export const FORGE_SCENE_ATMOSPHERES = [
+  "No Background",
   "Dark Urban Alley",
   "Luxury Penthouse Bedroom",
   "Neon Cyberpunk Street",
@@ -150,7 +151,7 @@ export function normalizeForgeScene(input: string): ForgeSceneAtmosphere {
   const t = input.trim();
   if ((FORGE_SCENE_ATMOSPHERES as readonly string[]).includes(t)) return t as ForgeSceneAtmosphere;
   const hit = FORGE_SCENE_ATMOSPHERES.find((s) => s.toLowerCase() === t.toLowerCase());
-  return hit ?? "Sleek Modern Loft";
+  return hit ?? "No Background";
 }
 
 export function forgeArtDirectionHint(artStyle: string): string {
@@ -184,20 +185,24 @@ export function composeForgePortraitPrompt(a: ForgePortraitPromptArgs): string {
   const artHint = forgeArtDirectionHint(art);
   const sceneHint = forgeSceneAtmosphereHint(scene);
   const bt = a.bodyType?.trim() || "Average Build";
-  const statureExtra = forgePortraitStatureEmphasis(bt);
+  const bodyContract = forgePortraitBodyTypeContract(bt);
+  const appearance = (a.portraitAppearanceText || "").trim();
 
   return [
-    `Silhouette & stature (authoritative — primary physical read; theme everything else around this): ${bt}.${statureExtra}`,
-    `Portrait of ${a.name || "an original companion"}: ${a.portraitAppearanceText}.`,
-    `Personality blend (weave all): ${a.personalityLabel}.`,
-    a.vibeThemeLabel.trim()
-      ? `Secondary mood & genre tags (layer subtly — do not fight the primary scene): ${a.vibeThemeLabel}.`
-      : "",
+    bodyContract,
     `Primary art direction — ${art}: ${artHint}`,
     `Primary environment — ${scene}: ${sceneHint}`,
     "Composition: vertical 3:4 card, single clear focal plane, flattering portrait lens discipline, SFW pin-up / romance cover quality.",
+    appearance
+      ? `Character appearance prose (secondary — must conform to the BODY TYPE LOCK above; do not replace silhouette with a generic human that contradicts "${bt}"): Portrait of ${a.name || "an original companion"}: ${appearance}`
+      : `Portrait of ${a.name || "an original companion"} — no extra appearance paragraph; infer wardrobe and species only from the BODY TYPE LOCK and art/scene lines.`,
+    `Personality blend (weave subtly into pose/expression — do not override species or body type): ${a.personalityLabel}.`,
+    a.vibeThemeLabel.trim()
+      ? `Secondary mood & genre tags (do not fight body type or art style): ${a.vibeThemeLabel}.`
+      : "",
     a.extraNotes.trim() ? `Additional notes: ${a.extraNotes.trim()}` : "",
     a.referenceNotes.trim() ? `Reference direction (palette / mood, not likeness): ${a.referenceNotes.trim()}` : "",
+    `Silhouette reminder — body type "${bt}" must remain the dominant physical read in the final image.`,
   ]
     .filter(Boolean)
     .join(" ");

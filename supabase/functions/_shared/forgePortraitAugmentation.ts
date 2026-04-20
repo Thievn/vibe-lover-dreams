@@ -32,6 +32,8 @@ function artHint(art: string): string {
 
 function sceneHint(scene: string): string {
   const s: Record<string, string> = {
+    "No Background":
+      "Seamless neutral cyclorama or soft gradient only — no environment story; subject-forward portrait framing.",
     "Dark Urban Alley": "Wet asphalt reflections, neon bokeh, steam haze; street-level slightly low angle.",
     "Luxury Penthouse Bedroom": "City glow through glass, warm lamps, silk sheen; intimate medium shot.",
     "Neon Cyberpunk Street": "Vertical abstract glow, puddle mirrors, layered depth; mid-shot parallax.",

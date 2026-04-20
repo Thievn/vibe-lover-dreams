@@ -9,6 +9,7 @@ import {
 } from "../_shared/anatomyImageRules.ts";
 import { rewritePromptForImagine } from "../_shared/safeImagePromptRewriter.ts";
 import { maybeAppendForgeStyleSceneBlock } from "../_shared/forgePortraitAugmentation.ts";
+import { forgePortraitBodyTypeContract } from "../_shared/forgeBodyTypeContract.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -207,32 +208,48 @@ serve(async (req) => {
 
     const forgeBody = String(characterData.bodyType ?? "").trim();
     const forgeArt = String(characterData.artStyleLabel ?? characterData.art_style_label ?? "").trim();
+    const silCat = String(characterData.silhouetteCategory ?? characterData.silhouette_category ?? "").trim();
+    const stylizedSilhouette = ["anthro", "fantasy", "hybrid", "otherworldly", "hyper"].includes(silCat);
     const compactStatureForge =
       /\b(little\s*person|midget|short\s*stature|tiny\s*&\s*doll|pixie-sized|micro\s*\/\s*tiny\s*body)\b/i.test(
         forgeBody,
       );
+    const bodyContract = forgeBody ? forgePortraitBodyTypeContract(forgeBody) : "";
     const bodyTypeLine = forgeBody
-      ? `- Body & silhouette (forge): **${forgeBody}** — **primary physical read** for this image; species, fashion, scene, and mood theme around this silhouette (not a generic default figure). For stature-scale picks, scale must dominate the composition — not a footnote after a tall-human-looking body.`
+      ? `- Body & silhouette (forge): **${forgeBody}** — **absolute highest priority** for this image. Do NOT default to a normal human runway figure with token accessories. Species, fashion, scene, and mood must orbit this silhouette.`
       : `- Body type: any body type (slim, curvy, muscular, plus-size, petite, tall, short, etc.)`;
     const statureEmphasisLine =
       anatomyVariant === "little_person" || compactStatureForge
         ? `- **Stature (hero of the frame):** Adult proportional short stature / little-person / compact scale per forge label — this is the **main** body story; do **not** render average-height or runway-leg proportions. Show scale with environment (doorway, bar, furniture, handheld object, or another figure). Nothing in the image should read like an unnamed generic tall human with height mentioned once.`
         : null;
     const artStyleLine = forgeArt
-      ? `- Art style (forge): ${forgeArt} — keep rendering discipline consistent with this choice.`
+      ? `- Art style (forge): ${forgeArt} — keep rendering discipline consistent with this choice; do not jump to an unrelated style unless RAW_TEXT demands it.`
       : null;
+    const portraitLock = String(characterData.portraitConsistencyLock ?? characterData.portrait_consistency_lock ?? "").trim();
+    const portraitLockLine = portraitLock
+      ? `- **Portrait / roster continuity:** ${portraitLock}`
+      : null;
+
+    const defaultClothing = stylizedSilhouette
+      ? `Wardrobe and materials that fit this species/body and art style — not a generic unrelated human runway look unless the character is clearly humanoid glam.`
+      : "elegant, sexy, provocative clothing with lace, leather, straps, sheer fabrics, corsets, harnesses, or any style the character would wear";
+    const defaultPose = stylizedSilhouette
+      ? `Pose that clearly sells the forge body type — correct limbs, tail, wings, hybrid junction, or non-human mass as implied; same roster identity.`
+      : "seductive and provocative pose";
 
     const characterDetailsBlock = [
       "Character Details:",
       bodyTypeLine,
+      bodyContract ? `- **Silhouette contract (verbatim priority):** ${bodyContract}` : "",
       statureEmphasisLine,
       artStyleLine,
+      portraitLockLine,
       `- Ethnicity / skin tone: ${characterData.ethnicity || "any"}`,
       `- Age range: ${characterData.ageRange || "young adult"}`,
       `- Hair: ${characterData.hair || "any style and color"}`,
       `- Eyes: ${characterData.eyes || "expressive and beautiful"}`,
-      `- Clothing / outfit: ${characterData.clothing || "elegant, sexy, provocative clothing with lace, leather, straps, sheer fabrics, corsets, harnesses, or any style the character would wear"}`,
-      `- Pose: ${characterData.pose || "seductive and provocative pose"}`,
+      `- Clothing / outfit: ${characterData.clothing || defaultClothing}`,
+      `- Pose: ${characterData.pose || defaultPose}`,
       `- Expression / mood: ${characterData.expression || "seductive, confident, mysterious, or alluring"}`,
       `- Overall vibe: ${characterData.vibe || "extremely sexy and artistic"}`,
     ]
@@ -278,7 +295,8 @@ ${characterDetailsBlock}
 
 Visual rules:
 - No legible logos, watermarks, UI chrome, fake app branding, or readable product/store signage in-frame.
-${forgeBody ? `- **Forge body type** (Character Details) overrides conflicting silhouette or species wording in the scene text below.` : ""}
+${portraitLock ? `- **Portrait / roster continuity** (Character Details) wins over casual drift in PRIMARY SCENE — same character, same body-type label, same art style family unless RAW_TEXT explicitly requests a deliberate alternate.` : ""}
+${forgeBody ? `- **Forge body type + silhouette contract** (Character Details) override conflicting silhouette, species, or build wording in the scene text below.` : ""}
 - ${anatomyKeyRules}
 - Premium lighting, cinematic composition, flattering portrait discipline.
 ${refLines ? `${refLines}\n` : ""}

@@ -25,11 +25,13 @@ YOUR JOB: produce ONE final English image prompt (plain text only, no markdown, 
 
 3) Reads CONTEXT and weaves identity (species, gender presentation, era, subculture) naturally, matching the desired level of explicitness.
 
-4) Never instruct legible on-image text, logos, watermarks, fake app UI, shop signage, posters, or product/platform branding — the image stays environmental portraiture only.
+4) When CONTEXT includes a **forge body type**, **silhouetteCategory**, **artStyleLabel**, or **portraitConsistencyLock**, those fields are authoritative for silhouette, species, limb count, rendering style (e.g. anime vs photoreal), and continuity with the roster portrait — do **not** substitute a generic different human model, unrelated body trope, or style jump (e.g. anime roster → random photoreal different build) unless RAW_TEXT explicitly requests that deliberate alternate.
 
-5) Length: roughly 90–220 words. Dense, cinematic, art-directed — not a bullet list unless you need 2–3 short phrases for lighting + lens.
+5) Never instruct legible on-image text, logos, watermarks, fake app UI, shop signage, posters, or product/platform branding — the image stays environmental portraiture only.
 
-6) Output ONLY the prompt string. No preamble ("Here is"), no JSON.`;
+6) Length: roughly 90–220 words. Dense, cinematic, art-directed — not a bullet list unless you need 2–3 short phrases for lighting + lens.
+
+7) Output ONLY the prompt string. No preamble ("Here is"), no JSON.`;
 
 /** Catalog / card portraits only — must stay SFW for Grok Imagine (public roster art). */
 export const PORTRAIT_IMAGE_REWRITER_SYSTEM = `You are the visual director for **catalog card portraits** on an adults-only companion product.
@@ -44,7 +46,9 @@ YOUR JOB: produce ONE final English image prompt for Grok Imagine (plain text on
 
 3) Never instruct legible logos, watermarks, fake UI, or product/platform branding in-frame.
 
-4) Length: roughly 80–180 words. Output ONLY the prompt string.`;
+4) When CONTEXT includes forge **body type**, **silhouetteCategory**, **artStyleLabel**, or **silhouette contract** language, preserve that silhouette and rendering style — do not replace with an unrelated generic human stock model.
+
+5) Length: roughly 80–180 words. Output ONLY the prompt string.`;
 
 /** @deprecated Use CHAT_SESSION_IMAGE_REWRITER_SYSTEM */
 export const SAFE_IMAGE_REWRITER_SYSTEM = CHAT_SESSION_IMAGE_REWRITER_SYSTEM;
