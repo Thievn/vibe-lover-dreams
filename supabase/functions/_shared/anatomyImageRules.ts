@@ -314,7 +314,7 @@ export function buildAnatomyImagineKeyRules(variant: AnatomyVariant): string {
       ].join(" ");
     default:
       return [
-        "Anatomy: **Photoreal humanoid** — the **forge body type line in Character Details above is authoritative** for build and silhouette (every UI category: realistic builds, stature, mobility, anthro, hybrid, otherworldly, hyper-shape, etc.). Match that label; do not substitute a generic default figure. Detailed believable hands and feet; non-human cases follow the variant rules already injected.",
+        "Anatomy: **Photoreal humanoid** — the **forge body type line in Character Details above is authoritative** for build and silhouette (every UI category: realistic builds, stature, mobility, anthro, hybrid, creative meta styles, otherworldly, hyper-shape, etc.). Match that label; do not substitute a generic default figure. Detailed believable hands and feet; non-human cases follow the variant rules already injected.",
       ].join(" ");
   }
 }

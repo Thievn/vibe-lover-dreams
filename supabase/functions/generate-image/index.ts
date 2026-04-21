@@ -209,7 +209,9 @@ serve(async (req) => {
     const forgeBody = String(characterData.bodyType ?? "").trim();
     const forgeArt = String(characterData.artStyleLabel ?? characterData.art_style_label ?? "").trim();
     const silCat = String(characterData.silhouetteCategory ?? characterData.silhouette_category ?? "").trim();
-    const stylizedSilhouette = ["anthro", "fantasy", "hybrid", "otherworldly", "hyper"].includes(silCat);
+    const stylizedSilhouette = ["anthro", "fantasy", "hybrid", "otherworldly", "hyper", "creative"].includes(
+      silCat,
+    );
     const compactStatureForge =
       /\b(little\s*person|midget|short\s*stature|tiny\s*&\s*doll|pixie-sized|micro\s*\/\s*tiny\s*body)\b/i.test(
         forgeBody,

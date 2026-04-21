@@ -29,7 +29,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -61,6 +63,7 @@ import {
 import {
   FORGE_ART_STYLES,
   FORGE_SCENE_ATMOSPHERES,
+  FORGE_SCENE_GROUPS,
   composeForgePortraitPrompt,
   normalizeForgeArtStyle,
   normalizeForgeScene,
@@ -330,7 +333,7 @@ function buildForgeDesignLabSeedPrompt(o: {
   return `FORGE — treat the lines below as creative SEEDS only. Interpret into a cohesive original character. Do NOT paste the seed list into "appearance" or "backstory".
 
 Seeds:
-- gender leaning: ${o.gender}
+- gender leaning (${o.gender}): informs **face, voice, and personality presentation only** — **physique, species, scale, and silhouette come only from** body type "${o.bodyType}"; do not let gender imply a different default human build.
 - personality archetypes (fuse ALL into one voice): ${pers.join(" · ")}
 - vibe / theme fusion: ${vibes.join(" · ")}
 - art style: ${o.artStyle}
@@ -346,7 +349,7 @@ ${forgeCompactStatureInstruction(o.bodyType)}1) name: Grok invents ONE highly un
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
 5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences). Bold NSFW when persona fits; never end with meta questions ("Are you ready?", "Want to start?") — close on dialogue or action.
 6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
-7) image_prompt: one dense SFW paragraph for a vertical portrait card. **EXTREMELY IMPORTANT — OPEN WITH BODY TYPE "${o.bodyType}":** The very first words must lock silhouette/species/proportions for "${o.bodyType}"; do NOT default to a normal human model with small accessories. For non-human or hybrid labels, describe visible anatomy (fur, tail, digitigrade legs, extra limbs, slime mass, etc.) prominently. Then art style "${o.artStyle}" and scene "${o.sceneAtmosphere}" (lighting, wardrobe, set) — scene must not erase the body type. If "${o.sceneAtmosphere}" is "No Background", use cyclorama / neutral backdrop only.
+7) image_prompt: one dense SFW paragraph for a vertical portrait card. **The first tokens must be exactly this pattern:** \`A character, …\` followed by an explicit physique line that locks "${o.bodyType}" for silhouette/species/scale/material — never vague. Do NOT default to a normal human model with small accessories. For non-human or hybrid labels, describe visible anatomy (fur, tail, digitigrade legs, extra limbs, slime mass, pixel grid, etc.) prominently. Gender must not override body shape. Then art style "${o.artStyle}" and scene "${o.sceneAtmosphere}" (lighting, wardrobe, set) — scene must not erase the body type. If the scene is transparent / empty-set ("No Background", "No Background / Transparent"), use cyclorama, flat color, or clearly cut-out portrait only — no busy environment unless the body type requires scale props.
 8) system_prompt: full chat charter for this persona.`;
 }
 
@@ -404,7 +407,9 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     pickRandom(VIBE_THEME_POOL, randomSelectionCount()),
   );
   const [artStyle, setArtStyle] = useState<string>(() => "Photorealistic");
-  const [sceneAtmosphere, setSceneAtmosphere] = useState<string>(() => "No Background");
+  const [sceneAtmosphere, setSceneAtmosphere] = useState<string>(() =>
+    normalizeForgeScene("No Background / Transparent"),
+  );
   const [bodyType, setBodyType] = useState<string>(() => normalizeForgeBodyType(pickOne(FORGE_BODY_TYPES)));
   const [traits, setTraits] = useState<string[]>(() => pickRandom(TRAITS, randomTraitCount()));
   const [orientation, setOrientation] = useState<string>(() => pickOne(ORIENTATIONS));
@@ -622,7 +627,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
 
   const appearanceBlurb = useMemo(() => {
     const t = traits.length ? traits.join(", ") : "no listed special traits";
-    return `${bodyType} build; ${gender}; ${artStyle} look; scene: ${sceneAtmosphere}; ${t}. Archetypes: ${personalityLabel}. Mood tags: ${vibeThemeLabel}. ${extraNotes}`.trim();
+    return `${bodyType} silhouette (authoritative); gender/presentation (face & voice): ${gender}; ${artStyle} look; scene: ${sceneAtmosphere}; ${t}. Archetypes: ${personalityLabel}. Mood tags: ${vibeThemeLabel}. ${extraNotes}`.trim();
   }, [traits, bodyType, gender, artStyle, sceneAtmosphere, personalityLabel, vibeThemeLabel, extraNotes]);
 
   const portraitAppearanceText = useMemo(
@@ -635,6 +640,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       composeForgePortraitPrompt({
         name: name || "an original companion",
         bodyType,
+        genderPresentation: gender,
         portraitAppearanceText,
         personalityLabel,
         vibeThemeLabel,
@@ -646,6 +652,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     [
       name,
       bodyType,
+      gender,
       portraitAppearanceText,
       personalityLabel,
       vibeThemeLabel,
@@ -899,10 +906,12 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       ? `[Body-type priority: ${bodyType} — compact/short-stature adult proportions are the main visual subject; pose, wardrobe, and scene support that scale, not a generic tall-human default.] `
       : "";
     const silCat = forgeBodyCategoryIdForType(bodyType);
-    const nonHumanVisual = ["anthro", "fantasy", "hybrid", "otherworldly", "hyper"].includes(silCat);
+    const nonHumanVisual = ["anthro", "fantasy", "hybrid", "otherworldly", "hyper", "creative"].includes(
+      silCat,
+    );
     const baseDesc = nar
       ? `${staturePrimary}${nar.slice(0, 900)}`
-      : `${staturePrimary}Original character, ${gender}, authoritative body type "${bodyType}"${traits.length ? `, traits: ${traits.slice(0, 6).join(", ")}` : ""} — silhouette must match the forge label, not a default human model.`;
+      : `${staturePrimary}Original character — authoritative physique from forge body type "${bodyType}"${traits.length ? `; traits: ${traits.slice(0, 6).join(", ")}` : ""}. Gender (${gender}) affects face/voice/presentation only, not base silhouette. Silhouette must match the forge label, not a default human model.`;
     const clothingLine = nonHumanVisual
       ? `Wardrobe and materials appropriate for ${bodyType} and ${artStyle} — species- and silhouette-first; avoid unrelated generic human runway looks unless clearly humanoid glam.`
       : `Fashion and textures echoing ${sceneAtmosphere}, ${vibeThemeLabel}, ${artStyle} presentation`;
@@ -1199,6 +1208,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       const rowGrokPrompt = composeForgePortraitPrompt({
         name: name.trim() || "an original companion",
         bodyType,
+        genderPresentation: gender,
         portraitAppearanceText: portraitAppearanceForRow,
         personalityLabel,
         vibeThemeLabel,
@@ -1830,14 +1840,21 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
                           <SelectValue placeholder="Scene" />
                         </SelectTrigger>
                         <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
-                          {FORGE_SCENE_ATMOSPHERES.map((opt) => (
-                            <SelectItem
-                              key={opt}
-                              value={opt}
-                              className="focus:bg-white/10 focus:text-white cursor-pointer"
-                            >
-                              {opt}
-                            </SelectItem>
+                          {FORGE_SCENE_GROUPS.map((group) => (
+                            <SelectGroup key={group.id}>
+                              <SelectLabel className="px-2 py-1.5 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                                {group.label}
+                              </SelectLabel>
+                              {group.scenes.map((opt) => (
+                                <SelectItem
+                                  key={opt}
+                                  value={opt}
+                                  className="focus:bg-white/10 focus:text-white cursor-pointer"
+                                >
+                                  {opt}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
                           ))}
                         </SelectContent>
                       </Select>

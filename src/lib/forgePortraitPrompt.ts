@@ -1,9 +1,18 @@
 /**
  * Companion Forge — art style & scene presets for Grok Imagine portrait prompts.
- * Keep in sync with server `supabase/functions/_shared/forgePortraitAugmentation.ts` (duplicate for Deno).
+ * Keep server `supabase/functions/_shared/forgePortraitAugmentation.ts` in sync (scene keys + hints).
  */
 
+import {
+  FORGE_SCENE_ATMOSPHERES,
+  FORGE_SCENE_GROUPS,
+  forgeSceneAtmosphereHint,
+  normalizeForgeSceneInput,
+  type ForgeSceneAtmosphere,
+} from "@/lib/forgeScenePresets";
 import { forgePortraitBodyTypeContract } from "@/lib/forgeBodyTypes";
+
+export { FORGE_SCENE_ATMOSPHERES, FORGE_SCENE_GROUPS, type ForgeSceneAtmosphere };
 
 export const FORGE_ART_STYLES = [
   "Photorealistic",
@@ -27,27 +36,6 @@ export const FORGE_ART_STYLES = [
 ] as const;
 
 export type ForgeArtStyle = (typeof FORGE_ART_STYLES)[number];
-
-export const FORGE_SCENE_ATMOSPHERES = [
-  "No Background",
-  "Dark Urban Alley",
-  "Luxury Penthouse Bedroom",
-  "Neon Cyberpunk Street",
-  "Gothic Mansion Interior",
-  "Abandoned Warehouse",
-  "Misty Dark Forest",
-  "Elegant Marble Bathroom",
-  "Underground Neon Club",
-  "Moonlit Rooftop",
-  "Vintage Victorian Room",
-  "Sleek Modern Loft",
-  "Dimly Lit Jazz Bar",
-  "Post-Apocalyptic Ruins",
-  "Soft Sunset Balcony",
-  "Mysterious Foggy Library",
-] as const;
-
-export type ForgeSceneAtmosphere = (typeof FORGE_SCENE_ATMOSPHERES)[number];
 
 const LEGACY_ART_MAP: Record<string, ForgeArtStyle> = {
   Photorealistic: "Photorealistic",
@@ -102,40 +90,6 @@ const ART_DIRECTION_HINTS: Record<string, string> = {
     "Gritty texture layers, distressed denim/leather, mixed tungsten and sodium vapor, handheld intimacy — raw but composed.",
 };
 
-/** Scene blocks: environment, atmosphere, and default camera relationship to subject. */
-const SCENE_ATMOSPHERE_HINTS: Record<string, string> = {
-  "Dark Urban Alley":
-    "Wet asphalt reflections, distant neon bokeh, steam vent haze, subject framed in a shallow alcove — street-level camera slightly below eye line for presence.",
-  "Luxury Penthouse Bedroom":
-    "Floor-to-ceiling glass city glow, silk sheets and low warm lamps, champagne speculars — intimate medium shot with implied depth beyond the window.",
-  "Neon Cyberpunk Street":
-    "Vertical signage glow (abstract shapes, no readable brand text), puddle mirrors, crowd silhouette depth — mid-shot with layered parallax.",
-  "Gothic Mansion Interior":
-    "Carved stone, stained glass chroma cast, candle haze, long corridor perspective — portrait with architectural framing columns.",
-  "Abandoned Warehouse":
-    "God-rays through broken roof panels, dust motes, industrial texture — wide environmental portrait with subject as luminous anchor.",
-  "Misty Dark Forest":
-    "Volumetric moon shafts, wet bark sheen, ferns in soft foreground blur — slightly low angle for mythic scale.",
-  "Elegant Marble Bathroom":
-    "Steam-softened highlights, veined stone reflections, porcelain speculars — tasteful steam and towel drape, spa editorial framing.",
-  "Underground Neon Club":
-    "Laser haze slices, bass-rig silhouette bokeh, wet skin micro-contrast — club portrait with colored rim keys.",
-  "Moonlit Rooftop":
-    "Silver edge light, wind in hair/cloth, city sprawl bokeh below — three-quarter length against sky gradient.",
-  "Vintage Victorian Room":
-    "Floral wallpaper, tasseled lampshade glow, brass and mahogany bounce — seated or standing portrait with period props.",
-  "Sleek Modern Loft":
-    "Concrete and glass minimalism, single statement practical, long shadow geometry — architectural lines leading to the face.",
-  "Dimly Lit Jazz Bar":
-    "Warm tungsten pools, brass instrument glints, shallow stage depth — bar-top or booth intimacy, smoke optional subtle.",
-  "Post-Apocalyptic Ruins":
-    "Rust patina, dust storms softening sun, improvised couture — cinematic survival glamour without graphic violence.",
-  "Soft Sunset Balcony":
-    "Rose-gold rim, gauze curtains in motion, ocean or skyline melt — golden-hour beauty dish in open air.",
-  "Mysterious Foggy Library":
-    "Floor-to-ceiling tomes, green-shade lamp pool, drifting dust in light cones — scholar seduction tableau.",
-};
-
 export function normalizeForgeArtStyle(input: string): ForgeArtStyle {
   const t = input.trim();
   if ((FORGE_ART_STYLES as readonly string[]).includes(t)) return t as ForgeArtStyle;
@@ -148,24 +102,23 @@ export function normalizeForgeArtStyle(input: string): ForgeArtStyle {
 }
 
 export function normalizeForgeScene(input: string): ForgeSceneAtmosphere {
-  const t = input.trim();
-  if ((FORGE_SCENE_ATMOSPHERES as readonly string[]).includes(t)) return t as ForgeSceneAtmosphere;
-  const hit = FORGE_SCENE_ATMOSPHERES.find((s) => s.toLowerCase() === t.toLowerCase());
-  return hit ?? "No Background";
+  return normalizeForgeSceneInput(input);
 }
 
 export function forgeArtDirectionHint(artStyle: string): string {
   return ART_DIRECTION_HINTS[artStyle] ?? `Cohesive ${artStyle} rendering with clear focal hierarchy and premium portrait finish.`;
 }
 
-export function forgeSceneAtmosphereHint(scene: string): string {
-  return SCENE_ATMOSPHERE_HINTS[scene] ?? `Environment: ${scene} — integrate subject with motivated light and atmospheric depth.`;
-}
+export { forgeSceneAtmosphereHint };
 
 export type ForgePortraitPromptArgs = {
   name: string;
-  /** Forge body type label (authoritative for silhouette / species / stature). */
+  /** Forge body type label (authoritative for silhouette / species / stature / material). */
   bodyType: string;
+  /**
+   * Gender / identity from UI — **face, voice, presentation cues only**; must not imply a different base body than `bodyType`.
+   */
+  genderPresentation?: string;
   portraitAppearanceText: string;
   personalityLabel: string;
   vibeThemeLabel: string;
@@ -175,9 +128,12 @@ export type ForgePortraitPromptArgs = {
   referenceNotes: string;
 };
 
+const GENDER_SCOPE_LINE = (label: string) =>
+  `Gender & identity presentation (${label}): applies to facial styling (within the allowed species for the locked body type), hairstyle/hairline framing, makeup or markings, implied vocal character, and attitude — NOT to overall height scale, limb count, skeleton, species silhouette, or body material; those come **only** from the body-type opening above.`;
+
 /**
  * Single string sent to Imagine (via packshot prompt or composed default).
- * Weaves appearance + personality + optional mood tags + explicit art & scene direction.
+ * Body contract already opens with `A character, …`; scene does not impose a site-wide dark theme unless chosen.
  */
 export function composeForgePortraitPrompt(a: ForgePortraitPromptArgs): string {
   const art = normalizeForgeArtStyle(a.artStyle);
@@ -187,16 +143,18 @@ export function composeForgePortraitPrompt(a: ForgePortraitPromptArgs): string {
   const bt = a.bodyType?.trim() || "Average Build";
   const bodyContract = forgePortraitBodyTypeContract(bt);
   const appearance = (a.portraitAppearanceText || "").trim();
+  const genderLabel = (a.genderPresentation ?? "").trim();
 
   return [
     bodyContract,
+    genderLabel ? GENDER_SCOPE_LINE(genderLabel) : "",
     `Primary art direction — ${art}: ${artHint}`,
     `Primary environment — ${scene}: ${sceneHint}`,
-    "Composition: vertical 3:4 card, single clear focal plane, flattering portrait lens discipline, SFW pin-up / romance cover quality.",
+    "Composition: vertical 3:4 or 9:16 card, single clear focal plane, flattering portrait lens discipline, SFW pin-up / romance cover quality. Scene and wardrobe **frame** the forge body — they never replace or erase it.",
     appearance
       ? `Character appearance prose (secondary — must conform to the BODY TYPE LOCK above; do not replace silhouette with a generic human that contradicts "${bt}"): Portrait of ${a.name || "an original companion"}: ${appearance}`
-      : `Portrait of ${a.name || "an original companion"} — no extra appearance paragraph; infer wardrobe and species only from the BODY TYPE LOCK and art/scene lines.`,
-    `Personality blend (weave subtly into pose/expression — do not override species or body type): ${a.personalityLabel}.`,
+      : `Portrait of ${a.name || "an original companion"} — no extra appearance paragraph; infer wardrobe and texture only from the body-type opening, gender scope, and art/scene lines.`,
+    `Personality blend (weave subtly into pose/expression — does not override species, material, or body type): ${a.personalityLabel}.`,
     a.vibeThemeLabel.trim()
       ? `Secondary mood & genre tags (do not fight body type or art style): ${a.vibeThemeLabel}.`
       : "",

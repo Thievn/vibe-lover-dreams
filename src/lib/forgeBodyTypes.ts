@@ -1,5 +1,7 @@
 /** Forge UI body types — grouped for Companion Creator; keep substrings aligned with `anatomyImageRules.ts` (Edge). */
 
+import { FORGE_BODY_IMAGINE_LEADS, fallbackImagineLeadForCategory } from "@/lib/forgeBodyImagineLeads";
+
 const HUMANOID_REALISTIC = [
   "Average Build",
   "Tall & Statuesque",
@@ -19,6 +21,7 @@ const STATURE_SCALE = [
   "Giantess",
   "Micro / Tiny Body",
   "Giant Body",
+  "Giant / Gargantuan",
   "Kaiju-Scale Humanoid",
 ] as const;
 
@@ -54,6 +57,13 @@ const FANTASY_SPECIES = [
   "Dragon-Scaled",
 ] as const;
 
+const CREATIVE_META = [
+  "Cartoon Caricature",
+  "Celebrity Caricature",
+  "Chibi",
+  "Pixel Art Character",
+] as const;
+
 const HYBRID_FORMS = [
   "Tentacle Hybrid",
   "Mermaid Lower Body",
@@ -69,6 +79,7 @@ const OTHERWORLDLY = [
   "Living Doll",
   "Inflatable / Squishy",
   "Goo / Slime Body",
+  "Gelatinous Slime / Blob",
   "Crystal / Gemstone Skin",
   "Ghostly Translucent",
   "Latex / Shiny Skin",
@@ -89,6 +100,7 @@ const OTHERWORLDLY = [
   "Ash / Ember Skin",
   "Lightning-Touched",
   "Water-Formed",
+  "Living Object (Sentient)",
 ] as const;
 
 const HYPER_SHAPE = [
@@ -108,6 +120,7 @@ export const FORGE_BODY_TYPES = [
   ...ANTHRO_ANIMAL,
   ...FANTASY_SPECIES,
   ...HYBRID_FORMS,
+  ...CREATIVE_META,
   ...OTHERWORLDLY,
   ...HYPER_SHAPE,
 ] as const;
@@ -126,6 +139,7 @@ export const FORGE_BODY_GROUPS: readonly {
   { id: "anthro", label: "Anthro & monster-person", types: ANTHRO_ANIMAL },
   { id: "fantasy", label: "Fantasy species", types: FANTASY_SPECIES },
   { id: "hybrid", label: "Hybrid & multi-form", types: HYBRID_FORMS },
+  { id: "creative", label: "Cartoon, chibi & meta style", types: CREATIVE_META },
   { id: "otherworldly", label: "Elemental, construct & surreal", types: OTHERWORLDLY },
   { id: "hyper", label: "Hyper shape", types: HYPER_SHAPE },
 ];
@@ -221,6 +235,14 @@ export function normalizeForgeBodyType(input: string): ForgeBodyType {
     }
   }
   return "Average Build";
+}
+
+/**
+ * Strongest physique line for image prompts — always used immediately after `"A character, "`.
+ */
+export function forgeBodyTypeImagineLead(bodyType: string): string {
+  const bt = normalizeForgeBodyType(bodyType);
+  return FORGE_BODY_IMAGINE_LEADS[bt] ?? fallbackImagineLeadForCategory(forgeBodyCategoryIdForType(bt), bt);
 }
 
 /** Default category id for a body type (for grouped picker). */
@@ -321,23 +343,27 @@ export function forgePortraitStatureEmphasis(bodyType: string): string {
 }
 
 const BODY_TYPE_LOCK_HEAD =
-  'EXTREMELY IMPORTANT — BODY TYPE LOCK: The character MUST match the forge body type below for silhouette, species, limb count, and proportions. Do NOT default to a generic tall human runway model, stock "beautiful stranger," or unrelated build. If any other prose in this prompt conflicts with the body type label, the body type wins.';
+  'EXTREMELY IMPORTANT — BODY TYPE LOCK: The character MUST match the forge body type below for silhouette, species, limb count, material, and proportions. Do NOT default to a generic tall human runway model, stock "beautiful stranger," or unrelated build. If any other prose in this prompt conflicts with the body type label, the body type wins.';
 
 /**
  * Dense, Imagine-oriented contract for portrait / packshot prompts (Forge + edge `generate-image`).
+ * Opens with `A character, …` so physique is the first token the model sees.
  * Keep in sync with `supabase/functions/_shared/forgeBodyTypeContract.ts`.
  */
 export function forgePortraitBodyTypeContract(bodyType: string): string {
   const bt = normalizeForgeBodyType(bodyType);
   const cat = forgeBodyCategoryIdForType(bt);
+  const lead = forgeBodyTypeImagineLead(bodyType);
   const statureExtra = forgePortraitStatureEmphasis(bt).trim();
+
+  const open = `A character, ${lead}.`;
 
   const tailHumanoid = `Humanoid adult build matching "${bt}" — height, shoulder/hip ratio, musculature or softness must read as this label, not a different stock body.`;
 
   const tailStature = (() => {
     let s = `Scale and proportion are the dominant read for "${bt}" — use in-frame scale cues (furniture, doorway, bar, handheld prop, horizon, another figure) so the viewer cannot read this as an average-height default human.`;
     if (statureExtra) s += ` ${statureExtra}`;
-    else if (/\b(Giantess|Giant Body|Kaiju)/i.test(bt)) {
+    else if (/\b(Giantess|Giant Body|Giant \/ Gargantuan|Kaiju)/i.test(bt)) {
       s += ` Show massive scale vs environment — limbs and mass clearly oversized; not a normal human with a wide-angle trick only.`;
     }
     return s;
@@ -351,7 +377,9 @@ export function forgePortraitBodyTypeContract(bodyType: string): string {
 
   const tailHybrid = `Hybrid / multi-region body for "${bt}" — correct junction between regions (e.g. centaur, naga, harpy, arachnid); all named segments visible and anatomically consistent; never collapse to human-only.`;
 
-  const tailOther = `Non-standard or stylized body for "${bt}" — slime/gel mass, crystal planes, stone, wireframe, doll joints, elemental glow, etc.; keep a readable character silhouette without reverting to generic human skin unless the label is humanoid glam.`;
+  const tailCreative = `Meta / stylized rendering physics for "${bt}" — keep exaggeration or pixel/chibi/caricature rules locked across the entire figure; do not collapse to a generic photoreal tall human unless the label explicitly demands photoreal caricature.`;
+
+  const tailOther = `Non-standard or stylized body for "${bt}" — slime/gel mass, crystal planes, stone, wireframe, doll joints, elemental glow, sentient object volume, etc.; keep a readable character silhouette without reverting to generic human skin unless the label is humanoid glam.`;
 
   const tailHyper = `Exaggerated proportions for "${bt}" — push the named exaggeration clearly and consistently; do not swap in a different trope (e.g. unrelated weight or species).`;
 
@@ -368,11 +396,13 @@ export function forgePortraitBodyTypeContract(bodyType: string): string {
               ? tailFantasy
               : cat === "hybrid"
                 ? tailHybrid
-                : cat === "otherworldly"
-                  ? tailOther
-                  : cat === "hyper"
-                    ? tailHyper
-                    : tailHumanoid;
+                : cat === "creative"
+                  ? tailCreative
+                  : cat === "otherworldly"
+                    ? tailOther
+                    : cat === "hyper"
+                      ? tailHyper
+                      : tailHumanoid;
 
-  return `${BODY_TYPE_LOCK_HEAD} Body type label: "${bt}". ${body}`;
+  return `${open} ${BODY_TYPE_LOCK_HEAD} Body type label: "${bt}". ${body}`;
 }

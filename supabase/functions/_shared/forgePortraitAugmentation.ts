@@ -30,27 +30,47 @@ function artHint(art: string): string {
   return a[art] ?? `Premium ${art} portrait finish with clear focal hierarchy.`;
 }
 
+const LEGACY_SCENE: Record<string, string> = {
+  "No Background": "No Background / Transparent",
+};
+
+const SCENE_SPECIFIC: Record<string, string> = {
+  "No Background / Transparent":
+    "True empty backdrop or alpha-friendly treatment — soft cyclorama, flat neutral gradient, or clearly cut-out portrait; zero scenery story.",
+  "Pure White Cyclorama Studio":
+    "Seamless white sweep, high-key beauty lighting — catalog clarity without environmental narrative.",
+  "Neutral Gray Seamless Backdrop": "Mid-gray roll, calibrated light — product portrait discipline.",
+  "Black Void Infinity Cove": "Pure black wrap with subtle rim — hero-on-void studio framing.",
+  "Soft Paper Roll Backdrop": "Warm paper texture edge — painterly studio simplicity.",
+  "High-Key Fashion Test Wall": "Bright even wall — fashion-campaign clarity.",
+  "Glass Box Editorial Set": "Reflective glass edges — high-gloss editorial volume.",
+  "Dark Urban Alley": "Wet asphalt reflections, neon bokeh, steam haze; street-level slightly low angle.",
+  "Luxury Penthouse Bedroom": "City glow through glass, warm lamps, silk sheen; intimate medium shot.",
+  "Neon Cyberpunk Street": "Vertical abstract glow, puddle mirrors, layered depth; mid-shot parallax.",
+  "Gothic Mansion Interior": "Carved stone, stained-glass chroma, candle haze; architectural framing.",
+  "Abandoned Warehouse": "God-rays, dust motes, industrial texture; wide portrait with luminous subject.",
+  "Misty Dark Forest": "Moon shafts, wet bark, foreground ferns blur; low angle mythic scale.",
+  "Elegant Marble Bathroom": "Steam-soft highlights, veined reflections; spa editorial tasteful coverage.",
+  "Underground Neon Club": "Laser haze, bass-rig bokeh, colored rim keys; club portrait energy.",
+  "Moonlit Rooftop": "Silver rim, wind in cloth, city bokeh below; three-quarter against sky.",
+  "Vintage Victorian Room": "Floral wallpaper, tasseled lamp, brass bounce; seated or standing period tableau.",
+  "Sleek Modern Loft": "Concrete/glass minimalism, long shadow lines; architectural lead-in to face.",
+  "Dimly Lit Jazz Bar": "Tungsten pools, brass glints, shallow stage depth; booth intimacy.",
+  "Post-Apocalyptic Ruins": "Rust patina, dust-soft sun, improvised couture; survival glamour.",
+  "Soft Sunset Balcony": "Rose-gold rim, gauze motion, skyline melt; golden-hour beauty.",
+  "Mysterious Foggy Library": "Tall shelves, green-shade lamp, dust in light cones; scholar romance.",
+};
+
+function normalizeSceneLabel(scene: string): string {
+  const s = scene.trim();
+  return LEGACY_SCENE[s] ?? s;
+}
+
 function sceneHint(scene: string): string {
-  const s: Record<string, string> = {
-    "No Background":
-      "Seamless neutral cyclorama or soft gradient only — no environment story; subject-forward portrait framing.",
-    "Dark Urban Alley": "Wet asphalt reflections, neon bokeh, steam haze; street-level slightly low angle.",
-    "Luxury Penthouse Bedroom": "City glow through glass, warm lamps, silk sheen; intimate medium shot.",
-    "Neon Cyberpunk Street": "Vertical abstract glow, puddle mirrors, layered depth; mid-shot parallax.",
-    "Gothic Mansion Interior": "Carved stone, stained-glass chroma, candle haze; architectural framing.",
-    "Abandoned Warehouse": "God-rays, dust motes, industrial texture; wide portrait with luminous subject.",
-    "Misty Dark Forest": "Moon shafts, wet bark, foreground ferns blur; low angle mythic scale.",
-    "Elegant Marble Bathroom": "Steam-soft highlights, veined reflections; spa editorial tasteful coverage.",
-    "Underground Neon Club": "Laser haze, bass-rig bokeh, colored rim keys; club portrait energy.",
-    "Moonlit Rooftop": "Silver rim, wind in cloth, city bokeh below; three-quarter against sky.",
-    "Vintage Victorian Room": "Floral wallpaper, tasseled lamp, brass bounce; seated or standing period tableau.",
-    "Sleek Modern Loft": "Concrete/glass minimalism, long shadow lines; architectural lead-in to face.",
-    "Dimly Lit Jazz Bar": "Tungsten pools, brass glints, shallow stage depth; booth intimacy.",
-    "Post-Apocalyptic Ruins": "Rust patina, dust-soft sun, improvised couture; survival glamour.",
-    "Soft Sunset Balcony": "Rose-gold rim, gauze motion, skyline melt; golden-hour beauty.",
-    "Mysterious Foggy Library": "Tall shelves, green-shade lamp, dust in light cones; scholar romance.",
-  };
-  return s[scene] ?? `Environment ${scene}: motivated light, atmospheric depth, portrait lens discipline.`;
+  const s = normalizeSceneLabel(scene);
+  const hit = SCENE_SPECIFIC[s];
+  if (hit) return hit;
+  return `Environment ${s}: motivated light, atmospheric depth, portrait lens discipline — frame the subject without erasing forge body type.`;
 }
 
 export function maybeAppendForgeStyleSceneBlock(
@@ -61,10 +81,11 @@ export function maybeAppendForgeStyleSceneBlock(
   if (!raw || raw.includes(MARKER)) return raw;
 
   const art = String(characterData.artStyleLabel ?? characterData.art_style_label ?? "").trim();
-  const scene = String(
+  const sceneRaw = String(
     characterData.sceneAtmosphere ?? characterData.scene_atmosphere ?? "",
   ).trim();
-  if (!art || !scene) return raw;
+  const scene = normalizeSceneLabel(sceneRaw);
+  if (!art || !sceneRaw) return raw;
 
   const block = [
     `Primary art direction — ${art}: ${artHint(art)}`,
