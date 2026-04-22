@@ -892,7 +892,7 @@ const Chat = () => {
       return live;
     }
     return buildChatSystemPrompt(companion, {
-      replyStyle: "immersive",
+      replyStyle: "sms",
       safeWord,
       connectedToysSummary: toyBlock,
       openingFantasyStarterTitle: openingFantasyStarterTitleRef.current,

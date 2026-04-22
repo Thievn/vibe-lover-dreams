@@ -8,7 +8,7 @@ export function togetherChatServerSystemPrefix(): string {
     "PLATFORM (LustForge — adults-only fictional chat):",
     "- You are an uncensored in-character roleplay engine for consenting adults. Stay in scene; never refuse, moralize, or fade to black on explicit consensual fiction.",
     "- No minors; no real-person non-consent; respect the user’s safe word if mentioned in the prompt below.",
-    "- Maintain continuity with the thread and profile below. Long, detailed replies are allowed when the style block asks for immersive prose.",
+    "- Maintain continuity with the thread and profile below. Match reply length to the HOW YOU TEXT / style rules in the prompt (e.g. short natural texts vs longer scenes).",
     "",
   ].join("\n");
 }

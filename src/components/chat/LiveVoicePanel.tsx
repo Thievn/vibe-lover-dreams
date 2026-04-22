@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import { Flame, Loader2, Mic, Square } from "lucide-react";
 import { toast } from "sonner";
 import { invokeGrokStt } from "@/lib/invokeGrokStt";
@@ -65,7 +65,14 @@ export function LiveVoicePanel({
 
   const rampDriverRef = useRef<RampModeDriver | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  /** User released finger before getUserMedia finished (short tap) — stop right after we start. */
+  const stopRequestedBeforeReadyRef = useRef(false);
+  const startInFlightRef = useRef(false);
+  const finishRecordingRef = useRef<() => Promise<void>>(async () => {});
+
+  const MIN_AUDIO_BYTES = 200;
 
   useEffect(() => {
     return () => {
@@ -130,17 +137,33 @@ export function LiveVoicePanel({
       setRecording(false);
       return;
     }
+    try {
+      if (rec.state === "recording" && typeof (rec as MediaRecorder & { requestData?: () => void }).requestData === "function") {
+        (rec as MediaRecorder & { requestData: () => void }).requestData();
+      }
+    } catch {
+      /* ignore */
+    }
+    await new Promise((r) => setTimeout(r, 40));
+
     await new Promise<void>((resolve) => {
       rec.onstop = () => resolve();
-      rec.stop();
+      try {
+        rec.stop();
+      } catch {
+        resolve();
+      }
     });
+    const stream = mediaStreamRef.current;
     mediaRecorderRef.current = null;
+    mediaStreamRef.current = null;
+    stopStream(stream);
     setRecording(false);
 
     const blob = new Blob(chunksRef.current, { type: chunksRef.current[0]?.type || "audio/webm" });
     chunksRef.current = [];
-    if (blob.size < 400) {
-      toast.message("Clip too short — hold the mic a little longer.");
+    if (blob.size < MIN_AUDIO_BYTES) {
+      toast.message("Didn’t catch that — hold the mic, speak, then release.");
       return;
     }
 
@@ -166,12 +189,25 @@ export function LiveVoicePanel({
     } finally {
       setTranscribing(false);
     }
-  }, [onRampModeActiveChange, onSendText]);
+  }, [onRampModeActiveChange, onSendText, stopStream]);
+
+  finishRecordingRef.current = finishRecording;
 
   const startRecording = useCallback(async () => {
     if (disabled || busy || transcribing) return;
+    if (startInFlightRef.current || mediaRecorderRef.current) return;
+    startInFlightRef.current = true;
+    stopRequestedBeforeReadyRef.current = false;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+      });
+      mediaStreamRef.current = stream;
       const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : MediaRecorder.isTypeSupported("audio/webm")
@@ -184,26 +220,41 @@ export function LiveVoicePanel({
       };
       rec.onerror = () => {
         stopStream(stream);
+        mediaStreamRef.current = null;
         toast.error("Microphone error.");
         setRecording(false);
       };
       mediaRecorderRef.current = rec;
-      rec.start(120);
+      rec.start(200);
       setRecording(true);
-      rec.addEventListener("stop", () => stopStream(rec.stream), { once: true });
+      if (stopRequestedBeforeReadyRef.current) {
+        stopRequestedBeforeReadyRef.current = false;
+        await finishRecordingRef.current();
+      }
     } catch {
+      mediaStreamRef.current = null;
       toast.error("Microphone permission denied or unavailable.");
+    } finally {
+      startInFlightRef.current = false;
     }
   }, [busy, disabled, stopStream, transcribing]);
 
-  const toggleSttRecord = useCallback(async () => {
-    if (transcribing || busy) return;
-    if (recording) {
-      await finishRecording();
-    } else {
-      await startRecording();
-    }
-  }, [busy, finishRecording, recording, startRecording, transcribing]);
+  const onMicPointerDown = useCallback(
+    (e: PointerEvent<HTMLButtonElement>) => {
+      e.preventDefault();
+      if (off || transcribing || busy) return;
+      const onRelease = () => {
+        window.removeEventListener("pointerup", onRelease);
+        window.removeEventListener("pointercancel", onRelease);
+        stopRequestedBeforeReadyRef.current = true;
+        if (mediaRecorderRef.current) void finishRecordingRef.current();
+      };
+      window.addEventListener("pointerup", onRelease, { passive: true });
+      window.addEventListener("pointercancel", onRelease, { passive: true });
+      void startRecording();
+    },
+    [off, transcribing, busy, startRecording],
+  );
 
   const toggleRampMode = useCallback(() => {
     if (!hasDevice && !rampModeActive) {
@@ -225,25 +276,28 @@ export function LiveVoicePanel({
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#00ffd4]/90">Live Voice</p>
           <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
-            <span className="text-foreground/90 font-medium">Push the mic</span> to speak — audio is transcribed
-            (xAI STT), then <span className="text-foreground/90 font-medium">Together.ai</span> writes the reply
-            like typed chat. Use <span className="text-foreground/90 font-medium">TTS autoplay</span> or tap the
-            speaker on a message to hear it with <span className="text-foreground/90 font-medium">Grok voice</span>.
+            <span className="text-foreground/90 font-medium">Press &amp; hold the mic</span>, speak, then release
+            (walkie-talkie). It’s <span className="text-foreground/90 font-medium">not</span> open-mic live chat —
+            each clip is sent to <span className="text-foreground/90 font-medium">xAI STT</span>, then{" "}
+            <span className="text-foreground/90 font-medium">Together</span> answers like a typed message. For voice
+            playback, use <span className="text-foreground/90 font-medium">TTS</span> on a reply.
           </p>
         </div>
         <div className="flex flex-col gap-2 shrink-0 items-end">
           <button
             type="button"
             disabled={off || transcribing}
-            onClick={() => void toggleSttRecord()}
+            onPointerDown={onMicPointerDown}
             className={cn(
-              "relative flex h-14 w-14 items-center justify-center rounded-2xl border-2 transition-all touch-manipulation",
+              "relative flex h-14 w-14 select-none items-center justify-center rounded-2xl border-2 transition-all touch-manipulation",
+              "touch-none",
               recording
                 ? "border-destructive bg-destructive/20 text-destructive hover:bg-destructive/30"
                 : "border-[#00ffd4]/50 bg-[#00ffd4]/10 text-[#00ffd4] hover:bg-[#00ffd4]/20",
               off && "opacity-40 pointer-events-none",
             )}
-            title={recording ? "Stop and send" : "Hold to speak — tap again to send"}
+            title="Hold to talk — release to send"
+            aria-label="Hold to talk, release to send to chat"
           >
             {transcribing ? (
               <Loader2 className="h-7 w-7 animate-spin" />
@@ -254,7 +308,7 @@ export function LiveVoicePanel({
             )}
           </button>
           <span className="text-[9px] text-muted-foreground text-center max-w-[5.5rem] leading-tight">
-            {transcribing ? "Transcribing…" : recording ? "Tap to send" : "Tap to talk"}
+            {transcribing ? "Transcribing…" : "Hold = record"}
           </span>
         </div>
       </div>

@@ -62,7 +62,7 @@ function fantasyStartersReference(starters: Companion["fantasyStarters"]): strin
  * Default `replyStyle` is immersive for long-form RP backends (e.g. Together).
  */
 export function buildChatSystemPrompt(companion: Companion, opts: ChatSystemPromptOptions): string {
-  const style = opts.replyStyle ?? "immersive";
+  const style = opts.replyStyle ?? "sms";
   const toys = opts.connectedToysSummary?.trim() || "No toys connected";
   const intensity = clamp(opts.userToyIntensityPercent ?? 100, 0, 100);
   const canon = companion.systemPrompt?.trim();
