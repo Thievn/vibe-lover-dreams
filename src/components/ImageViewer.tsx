@@ -8,7 +8,8 @@ interface ImageViewerProps {
   imageUrl: string;
   imageId: string;
   companionName: string;
-  prompt: string;
+  /** Optional; we do not show raw diffusion text in the viewer (keeps roleplay clean). */
+  prompt?: string;
   /** Chat images are auto-saved to the companion gallery — hide redundant save. */
   companionGalleryAutoSaved?: boolean;
   onSaveToCompanionGallery: (imageId: string) => Promise<void>;
@@ -20,7 +21,6 @@ export const ImageViewer = ({
   imageUrl,
   imageId,
   companionName,
-  prompt,
   companionGalleryAutoSaved,
   onSaveToCompanionGallery,
   onSaveToPersonalGallery,
@@ -113,13 +113,6 @@ export const ImageViewer = ({
 
             {/* Themed meta + actions */}
             <div className="shrink-0 space-y-4 border-t border-white/[0.08] bg-gradient-to-b from-zinc-950/98 to-zinc-950 p-5 sm:p-6">
-              <div className="rounded-xl border border-primary/15 bg-primary/[0.04] px-4 py-3 backdrop-blur-sm">
-                <p className="font-gothic text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/75">Generated from</p>
-                <p className="mt-2 max-h-28 overflow-y-auto font-mono text-xs leading-relaxed text-zinc-200/95 sm:text-sm">
-                  {prompt}
-                </p>
-              </div>
-
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <button
                   type="button"

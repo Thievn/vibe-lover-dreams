@@ -182,8 +182,15 @@ const Chat = () => {
   const tokensBalanceRef = useRef(0);
   const messagesRef = useRef<ChatMessage[]>([]);
   const sendMessageRef = useRef<(text?: string, opts?: SendMessageOptions) => Promise<void>>(async () => {});
+  /** Stable: avoids re-running LiveVoice STT / finishRecording when `sendMessage` identity changes each render. */
   /** Live Voice panel registers this to nudge Ramp Mode from Together assistant text. */
   const liveRampAssistFeedRef = useRef<((text: string) => void) | null>(null);
+  const liveVoiceSendText = useCallback((text: string) => {
+    void sendMessageRef.current(text);
+  }, []);
+  const registerLiveRampAssistFeed = useCallback((fn: ((text: string) => void) | null) => {
+    liveRampAssistFeedRef.current = fn;
+  }, []);
   const openingFantasyStarterTitleRef = useRef<string | null>(null);
   const location = useLocation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -592,6 +599,7 @@ const Chat = () => {
         isPortrait: false,
         tokenCost,
         ...(referenceImageUrl ? { referenceImageUrl } : {}),
+        ...(referenceImageUrl && explicit ? { denoisingStrength: 0.74 } : {}),
         characterData: {
           companionId: companion.id,
           style: "chat-session",
@@ -674,12 +682,14 @@ const Chat = () => {
         .filter(Boolean)
         .join(" ");
 
+      const rewardExplicit = kind === "nude" || (kind === "lewd" && isExplicitImageRequest(tierPrompt));
       const { data, error } = await invokeGenerateImage({
         prompt,
         userId: user.id,
         isPortrait: false,
         tokenCost: 0,
         ...(referenceImageUrl ? { referenceImageUrl } : {}),
+        ...(referenceImageUrl && rewardExplicit ? { denoisingStrength: 0.74 } : {}),
         characterData: {
           companionId: companion.id,
           style: "chat-session",
@@ -2134,10 +2144,8 @@ const Chat = () => {
           <LiveVoicePanel
             disabled={!isAdminUser && tokensBalance <= 0}
             busy={loading}
-            onRegisterRampAssistFeed={(fn) => {
-              liveRampAssistFeedRef.current = fn;
-            }}
-            onSendText={(text) => void sendMessage(text)}
+            onRegisterRampAssistFeed={registerLiveRampAssistFeed}
+            onSendText={liveVoiceSendText}
             rampModeActive={rampModeActive}
             onRampModeActiveChange={setRampModeActive}
             rampPreset={rampPreset}

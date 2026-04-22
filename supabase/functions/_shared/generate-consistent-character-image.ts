@@ -58,7 +58,13 @@ export async function generateConsistentCharacterImage(args: {
   } = args;
 
   const clampedDenoise = Math.max(0.1, Math.min(0.85, denoisingStrength));
-  const finalPrompt = `${buildIdentityLockBlock(characterData)}\n\nRequested variation:\n${prompt}`.trim();
+  const nsfwOk = /\b(nude|naked|nsfw|explicit|uncensored|unfiltered|porn|xxx|genital|pussy|dick|cock|penis|topless|lingerie|lewd\s*selfie|nude\s*selfie|send nudes?)\b/i.test(
+    prompt,
+  );
+  const adultGate = nsfwOk
+    ? "The following request may be explicit adult content. Remove clothing from the reference when asked; do not default to a modest or SFW crop — match the user’s NSFW brief.\n\n"
+    : "";
+  const finalPrompt = `${buildIdentityLockBlock(characterData)}\n\n${adultGate}Requested variation:\n${prompt}`.trim();
 
   const { jobId } = await submitTensorImageJob({
     apiKey,

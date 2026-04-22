@@ -239,10 +239,13 @@ export function LiveVoicePanel({
     }
   }, [busy, disabled, stopStream, transcribing]);
 
+  const off = Boolean(disabled || busy);
+
   const onMicPointerDown = useCallback(
     (e: PointerEvent<HTMLButtonElement>) => {
       e.preventDefault();
-      if (off || transcribing || busy) return;
+      // Use `disabled`/`busy` here (not a derived alias) so this callback never hits TDZ if declaration order changes.
+      if (disabled || busy || transcribing) return;
       const onRelease = () => {
         window.removeEventListener("pointerup", onRelease);
         window.removeEventListener("pointercancel", onRelease);
@@ -253,7 +256,7 @@ export function LiveVoicePanel({
       window.addEventListener("pointercancel", onRelease, { passive: true });
       void startRecording();
     },
-    [off, transcribing, busy, startRecording],
+    [disabled, busy, transcribing, startRecording],
   );
 
   const toggleRampMode = useCallback(() => {
@@ -262,8 +265,6 @@ export function LiveVoicePanel({
     }
     onRampModeActiveChange(!rampModeActive);
   }, [hasDevice, onRampModeActiveChange, rampModeActive]);
-
-  const off = Boolean(disabled || busy);
 
   return (
     <div

@@ -66,7 +66,19 @@ function tensorPhysiqueHint(bodyType: string): string {
   return "Physique: follow the main prompt's silhouette — never paint category names, slashes, or UI picker text on the image.";
 }
 
+/** Heuristic: explicit / NSFW chat asks — do not prepend conflicting SFW “outfit” or bury the user line under long defaults. */
+function isLikelyExplicitUserPrompt(p: string): boolean {
+  const t = p.toLowerCase();
+  return (
+    /\b(nude|naked|nsfw|xxx|uncensored|unfiltered|no\s*censor|explicit|hardcore|porn|erotic\s*selfie|genital|pussy|dick|cock|penis|tits?|boobs?|lingerie|topless|bottomless|bare|no\s*clothes|undressed|fetish|lewd\s*selfie|nude\s*selfie)\b/.test(
+      t,
+    ) || /\b(send nudes?|show\s*me\s*everything)\b/.test(t)
+  );
+}
+
 function buildTensorPrompt(prompt: string, characterData: Record<string, unknown>, isPortrait: boolean): string {
+  const style = String(characterData.style ?? "").trim();
+  const isChatSession = style === "chat-session";
   const baseDescription = String(characterData.baseDescription ?? "").trim();
   const bodyType = String(characterData.bodyType ?? "").trim();
   const artStyle = String(characterData.artStyleLabel ?? characterData.style ?? "").trim();
@@ -74,6 +86,25 @@ function buildTensorPrompt(prompt: string, characterData: Record<string, unknown
   const clothing = String(characterData.clothing ?? "").trim();
   const pose = String(characterData.pose ?? "").trim();
   const scene = String(characterData.sceneAtmosphere ?? "").trim();
+  const explicit = isLikelyExplicitUserPrompt(prompt);
+  const skipOutfit = isChatSession && explicit;
+
+  if (isChatSession && !isPortrait) {
+    const head =
+      "Chat still: 3:4 vertical phone-style portrait. No watermarks, logos, or overlay text. " +
+      "The first block below states the user request and character — follow it; it overrides generic defaults that follow.";
+    const lockLines = [
+      baseDescription ? `Character baseline: ${baseDescription}` : "",
+      bodyType ? tensorPhysiqueHint(bodyType) : "",
+      artStyle ? `Art style: ${artStyle}` : "",
+      vibe && !explicit ? `Mood: ${vibe}` : "",
+      !skipOutfit && clothing ? `Outfit / styling: ${clothing}` : "",
+      pose ? `Pose direction: ${pose}` : "",
+      scene ? `Scene direction: ${scene}` : "",
+      "Keep identity coherent with any supplied reference image; change wardrobe/pose to match the user request when it conflicts with the reference.",
+    ];
+    return [head, prompt, ...lockLines.filter(Boolean)].join("\n");
+  }
 
   const lines = [
     isPortrait

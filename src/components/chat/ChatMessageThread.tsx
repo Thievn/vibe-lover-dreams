@@ -143,7 +143,6 @@ export function ChatMessageThread({
             {msg.imageUrl ? (
               <ImageMessage
                 imageUrl={msg.imageUrl}
-                prompt={msg.imagePrompt || "Generated image"}
                 onImageClick={() => onImageClick(msg)}
                 companionName={companion.name}
                 onSaveBackup={

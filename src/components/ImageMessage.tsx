@@ -3,7 +3,7 @@ import { Bookmark, Expand, Loader2 } from "lucide-react";
 
 interface ImageMessageProps {
   imageUrl: string;
-  prompt: string;
+  prompt?: string;
   onImageClick: () => void;
   companionName: string;
   /** Optional: save to personal gallery backup (manual). */
@@ -14,7 +14,6 @@ interface ImageMessageProps {
 
 export const ImageMessage = ({
   imageUrl,
-  prompt,
   onImageClick,
   companionName,
   onSaveBackup,
@@ -55,11 +54,6 @@ export const ImageMessage = ({
           </motion.div>
         </div>
       </div>
-
-      {/* Prompt Text */}
-      <p className="text-xs text-muted-foreground italic max-w-[400px]">
-        ✨ Generated: "{prompt}"
-      </p>
 
       <div className="flex flex-wrap items-center gap-2">
         {onSaveBackup ? (

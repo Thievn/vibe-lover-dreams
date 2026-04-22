@@ -56,8 +56,8 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Beautiful SFW casual selfie, fully clothed, flattering lighting, natural pose, " +
-      "looking at camera with soft smile or playful expression, high detail portrait, cinematic soft lighting.",
+      "SFW phone selfie, fully clothed, same person as the character, flattering light, looking at camera, " +
+      "soft natural look — not a nude or lingerie shot.",
   },
 
   lewd: {
@@ -70,8 +70,8 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Lewd selfie — wearing lingerie, sheer clothing, partially undressed or topless, seductive teasing pose, " +
-      "bedroom eyes,random sensual poses, sensual body language, highly detailed, erotic lighting, seductive and playful.",
+      "Lewd teasing phone selfie, same person as the character, lingerie / sheer / undressing / topless as fits the pose, " +
+      "flirty eye contact, warm intimate lighting, photoreal — not a chaste SFW headshot unless that matches the look.",
   },
 
   nude: {
@@ -84,10 +84,8 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Fully nude NSFW selfie — completely naked, explicit and uncensored, highly detailed beautiful anatomy. " +
-      "If female: perfect breasts, detailed pussy, tight anus, flushed skin, aroused expression. " +
-      "If male: muscular chest, detailed cock, balls, tight anus, powerful physique, aroused expression. " +
-      "Random sensual poses, cinematic erotic lighting, wetness or precum if appropriate, heavy breathing, extremely sensual and explicit.",
+      "NSFW nude phone selfie, full nudity, same person and body type as the character, photoreal, explicit adult framing, " +
+      "uncensored — match the subject’s real anatomy and sex. Natural pose and light; no modesty bar, no censorship, no SFW cutaway.",
   },
 } as const;
 
