@@ -7,6 +7,7 @@ import { requireAdminUser } from "../_shared/requireSessionUser.ts";
 import { hasTamsRsaCredentials } from "../_shared/tamsRsaAuth.ts";
 import {
   DEFAULT_TENSOR_VIDEO_MODEL,
+  sourceImageUrlForTamsUpload,
   submitTensorImageToVideoJob,
   waitForTensorJobResult,
 } from "../_shared/tensorClient.ts";
@@ -21,20 +22,6 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-function stablePublicImageUrl(url: string | null | undefined): string | null {
-  if (!url?.trim()) return null;
-  const u = url.trim();
-  if (u.startsWith("data:") || u.startsWith("blob:")) return null;
-  if (u.startsWith("/")) return null;
-  if (u.includes("/object/public/")) return u.split("?")[0] ?? u;
-  const signMatch = u.match(/^(https?:\/\/[^/]+)\/storage\/v1\/object\/sign\/([^/]+)\/([^?]+)/i);
-  if (signMatch) {
-    const [, origin, bucket, pathPart] = signMatch;
-    return `${origin}/storage/v1/object/public/${bucket}/${pathPart}`;
-  }
-  return u.split("?")[0] ?? u;
-}
 
 function jsonResponse(obj: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(obj), {
@@ -104,7 +91,7 @@ Deno.serve(async (req) => {
       (typeof row.image_url === "string" && row.image_url) ||
       (typeof row.avatar_url === "string" && row.avatar_url) ||
       null;
-    imageUrl = stablePublicImageUrl(raw);
+    imageUrl = sourceImageUrlForTamsUpload(raw);
   } else {
     table = "companions";
     rowPk = companionId;
@@ -116,7 +103,7 @@ Deno.serve(async (req) => {
       (typeof row.static_image_url === "string" && row.static_image_url) ||
       (typeof row.image_url === "string" && row.image_url) ||
       null;
-    imageUrl = stablePublicImageUrl(raw);
+    imageUrl = sourceImageUrlForTamsUpload(raw);
   }
 
   if (!imageUrl) {

@@ -67,6 +67,85 @@ type TensorUploadAddress = {
   headers?: Record<string, string>;
 };
 
+/**
+ * URL passed to TAMS `uploadTensorImageResource` must be fetchable from Supabase Edge.
+ * Preserves **signed** Supabase storage URLs (private buckets). Strips cache-busting `?` on public URLs.
+ */
+export function sourceImageUrlForTamsUpload(stored: string | null | undefined): string | null {
+  if (!stored?.trim()) return null;
+  const u = stored.trim();
+  if (u.startsWith("data:") || u.startsWith("blob:") || u.startsWith("/")) return null;
+  if (u.includes("/storage/v1/object/sign/")) {
+    return (u.split("#")[0] ?? u).trim() || null;
+  }
+  if (u.includes("/object/public/")) {
+    return (u.split("?")[0] ?? u).trim() || null;
+  }
+  return u;
+}
+
+/** I2V jobs can sit in queue; TAMS `short-term` EOS objects must not expire before the worker runs. */
+function tensorI2VResourceExpireSec(): number {
+  const raw = (Deno.env.get("TENSOR_I2V_RESOURCE_EXPIRE_SEC") ?? "604800").trim();
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n < 0) return 604800;
+  return Math.max(3_600, Math.min(2_592_000, n));
+}
+
+/**
+ * TAMS may return the upload address at the top level or under `data` (API version / gateway).
+ * Missing fields here cause PUTs to omit required OSS headers (e.g. `X-Oss-Callback`) or wrong ids.
+ */
+function extractTamsResourceImageAddress(body: unknown): TensorUploadAddress | null {
+  const tryAddr = (o: unknown): TensorUploadAddress | null => {
+    if (!o || typeof o !== "object") return null;
+    const p = o as Record<string, unknown>;
+    const resourceId = p.resourceId;
+    const putUrl = p.putUrl;
+    if (typeof resourceId !== "string" || !resourceId.trim() || typeof putUrl !== "string" || !putUrl.trim()) {
+      return null;
+    }
+    const h = p.headers;
+    if (h != null && typeof h === "object" && !Array.isArray(h)) {
+      const headers: Record<string, string> = {};
+      for (const [k, v] of Object.entries(h as Record<string, unknown>)) {
+        if (v == null) continue;
+        headers[k] = typeof v === "string" ? v : String(v);
+      }
+      return { resourceId, putUrl, headers: Object.keys(headers).length ? headers : undefined };
+    }
+    return { resourceId, putUrl };
+  };
+
+  const top = tryAddr(body);
+  if (top) return top;
+  if (body && typeof body === "object") {
+    const o = body as Record<string, unknown>;
+    for (const k of ["data", "result"] as const) {
+      if (o[k] != null) {
+        const inner = tryAddr(o[k]);
+        if (inner) return inner;
+      }
+    }
+  }
+  return null;
+}
+
+function buildPutHeadersFromTams(
+  fromApi: Record<string, string> | undefined,
+): Headers {
+  const h = new Headers();
+  if (fromApi) {
+    for (const [k, v] of Object.entries(fromApi)) {
+      if (v != null && v !== "") h.set(k, v);
+    }
+  }
+  if (!h.has("content-type")) {
+    h.set("Content-Type", "application/octet-stream");
+  }
+  return h;
+}
+
 function tensorBaseUrl(): string {
   return (Deno.env.get("TENSOR_API_BASE_URL") ?? DEFAULT_TENSOR_BASE_URL).replace(/\/+$/, "");
 }
@@ -197,11 +276,21 @@ function diffusionQualityParams(): {
 }
 
 async function fetchImageBytes(url: string): Promise<Uint8Array> {
-  const res = await fetch(url);
+  const res = await fetch(url, {
+    redirect: "follow",
+    headers: {
+      Accept: "image/*,application/octet-stream,*/*;q=0.8",
+      "User-Agent": "LustForge/Supabase-Edge (tensor upload)",
+    },
+  });
   if (!res.ok) {
     throw new Error(`Could not fetch source image for img2img: HTTP ${res.status}`);
   }
-  return new Uint8Array(await res.arrayBuffer());
+  const out = new Uint8Array(await res.arrayBuffer());
+  if (!out.byteLength) {
+    throw new Error("Source image for Tensor upload is empty (0 bytes).");
+  }
+  return out;
 }
 
 export async function uploadTensorImageResource(opts: {
@@ -220,28 +309,26 @@ export async function uploadTensorImageResource(opts: {
     body: resourceBody,
   });
 
-  const { parsed, raw } = await parseJsonSafe<TensorUploadAddress>(createRes);
-  if (!createRes.ok || !parsed?.resourceId || !parsed.putUrl) {
+  const { parsed, raw } = await parseJsonSafe<unknown>(createRes);
+  const address = extractTamsResourceImageAddress(parsed);
+  if (!createRes.ok || !address?.resourceId || !address.putUrl) {
     throw new Error(formatTensorApiFailure(createRes.status, raw));
   }
 
   const bytes = await fetchImageBytes(sourceImageUrl);
-  const putHeaders: HeadersInit = parsed.headers ?? { "Content-Type": "application/octet-stream" };
-  if (!("Content-Type" in putHeaders)) {
-    (putHeaders as Record<string, string>)["Content-Type"] = "application/octet-stream";
-  }
+  const putHeaders = buildPutHeadersFromTams(address.headers);
 
-  const putRes = await fetch(parsed.putUrl, {
+  const putRes = await fetch(address.putUrl, {
     method: "PUT",
     headers: putHeaders,
     body: bytes,
   });
   if (!putRes.ok) {
-    const body = await putRes.text();
-    throw new Error(`Tensor image upload failed (${putRes.status}): ${body.slice(0, 500)}`);
+    const errBody = await putRes.text();
+    throw new Error(`Tensor image upload failed (${putRes.status}): ${errBody.slice(0, 500)}`);
   }
 
-  return parsed.resourceId;
+  return address.resourceId;
 }
 
 type SubmitTensorImageJobArgs = {
@@ -356,7 +443,11 @@ export async function submitTensorImageToVideoJob(args: {
   const clampedDuration = Math.max(5, Math.min(10, Math.round(durationSeconds)));
   const totalFrames = clampedDuration * 8;
 
-  const imageResourceId = await uploadTensorImageResource({ apiKey, sourceImageUrl });
+  const imageResourceId = await uploadTensorImageResource({
+    apiKey,
+    sourceImageUrl,
+    expireSec: tensorI2VResourceExpireSec(),
+  });
 
   const payload = {
     requestId: crypto.randomUUID(),
