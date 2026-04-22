@@ -57,6 +57,12 @@ export async function togetherChatCompletion(
       typeof raw === "object" && raw !== null && "error" in raw
         ? JSON.stringify((raw as { error?: unknown }).error)
         : rawText.slice(0, 400);
+    if (res.status === 401) {
+      throw new Error(
+        "Together rejected the API key (401). In Supabase → Edge Functions → Secrets, set TOGETHER_API_KEY to the " +
+          "key from https://api.together.xyz/settings/api-keys only (no word Bearer, no quotes). Redeploy functions after changing secrets.",
+      );
+    }
     throw new Error(`Together API HTTP ${res.status}: ${errMsg}`);
   }
 
@@ -71,7 +77,21 @@ export function defaultTogetherChatModel(): string {
   return (Deno.env.get("TOGETHER_CHAT_MODEL") ?? "Qwen/Qwen2.5-72B-Instruct").trim();
 }
 
+/**
+ * Supabase secrets are sometimes pasted with quotes, a `Bearer ` prefix, or newlines — Together rejects those with 401.
+ */
+export function normalizeTogetherApiKey(raw: string): string {
+  let k = raw.replace(/\r\n/g, "\n").trim();
+  if ((k.startsWith('"') && k.endsWith('"')) || (k.startsWith("'") && k.endsWith("'"))) {
+    k = k.slice(1, -1).trim();
+  }
+  if (/^bearer\s+/i.test(k)) {
+    k = k.replace(/^bearer\s+/i, "").trim();
+  }
+  return k;
+}
+
 export function requireTogetherApiKey(): string | null {
-  const k = (Deno.env.get("TOGETHER_API_KEY") ?? "").trim();
+  const k = normalizeTogetherApiKey(Deno.env.get("TOGETHER_API_KEY") ?? "");
   return k || null;
 }
