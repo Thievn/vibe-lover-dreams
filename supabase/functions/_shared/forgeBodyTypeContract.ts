@@ -6,7 +6,7 @@
 import { FORGE_BODY_IMAGINE_LEADS, fallbackImagineLeadForCategory } from "./forgeBodyImagineLeads.ts";
 
 const BODY_TYPE_LOCK_HEAD =
-  'EXTREMELY IMPORTANT — BODY TYPE LOCK: The character MUST match the forge body type below for silhouette, species, limb count, material, and proportions. Do NOT default to a generic tall human runway model, stock "beautiful stranger," or unrelated build. If any other prose in this prompt conflicts with the body type label, the body type wins.';
+  'EXTREMELY IMPORTANT — BODY TYPE LOCK: The character MUST match the forge physique described in the opening line for silhouette, species, limb count, material, and proportions. Do NOT default to a generic tall human runway model, stock "beautiful stranger," or unrelated build. If any other prose in this prompt conflicts with that physique, the physique lock wins. Never render picker/category names, slashes, watermarks, or typographic "type lines" as visible text on the image — embody the archetype visually only.';
 
 function forgeBodyCategoryIdEdge(bodyType: string): string {
   const t = bodyType.trim().toLowerCase();
@@ -78,10 +78,12 @@ export function forgePortraitBodyTypeContract(bodyType: string): string {
 
   const open = `A character, ${lead}.`;
 
-  const tailHumanoid = `Humanoid adult build matching "${bt}" — height, shoulder/hip ratio, musculature or softness must read as this label, not a different stock body.`;
+  const tailHumanoid =
+    "Humanoid adult build matching this physique — height, shoulder/hip ratio, musculature or softness must read as the archetype above, not a different stock body.";
 
   const tailStature = (() => {
-    let s = `Scale and proportion are the dominant read for "${bt}" — use in-frame scale cues (furniture, doorway, bar, handheld prop, horizon, another figure) so the viewer cannot read this as an average-height default human.`;
+    let s =
+      "Scale and proportion are the dominant read for this character — use in-frame scale cues (furniture, doorway, bar, handheld prop, horizon, another figure) so the viewer cannot read this as an average-height default human.";
     if (statureExtra) s += ` ${statureExtra}`;
     else if (/\b(Giantess|Giant Body|Giant\s*\/\s*Gargantuan|Kaiju)/i.test(bt)) {
       s += ` Show massive scale vs environment — limbs and mass clearly oversized; not a normal human with a wide-angle trick only.`;
@@ -89,19 +91,26 @@ export function forgePortraitBodyTypeContract(bodyType: string): string {
     return s;
   })();
 
-  const tailMobility = `Respect "${bt}" with coherent adaptive anatomy — wheelchair, limb difference, or prosthetics as the label implies; dignified, accurate, not erased into a generic able-bodied silhouette.`;
+  const tailMobility =
+    "Respect the specified mobility or limb difference with coherent adaptive anatomy — wheelchair, prosthetics, or limb variation as implied above; dignified, accurate, not erased into a generic able-bodied silhouette.";
 
-  const tailAnthro = `Non-human anthropomorphic body for "${bt}" — species-appropriate skull/face, ears, fur/feathers/scales, tail placement, digitigrade or plantigrade stance as fits the label; limb count correct. Forbidden: a human cosplayer with minimal ears/tail only.`;
+  const tailAnthro =
+    "Non-human anthropomorphic body — species-appropriate skull/face, ears, fur/feathers/scales, tail placement, digitigrade or plantigrade stance as the opening line implies; limb count correct. Forbidden: a human cosplayer with minimal ears/tail only.";
 
-  const tailFantasy = `Fantasy-species anatomy for "${bt}" — horns, wings, tail, skin texture, ears, and silhouette must match the archetype, not a plain human with jewelry.`;
+  const tailFantasy =
+    "Fantasy-species anatomy — horns, wings, tail, skin texture, ears, and silhouette must match the archetype established in the opening line, not a plain human with jewelry.";
 
-  const tailHybrid = `Hybrid / multi-region body for "${bt}" — correct junction between regions (e.g. centaur, naga, harpy, arachnid); all named segments visible and anatomically consistent; never collapse to human-only.`;
+  const tailHybrid =
+    "Hybrid / multi-region body — correct junction between regions (e.g. centaur, naga, harpy, arachnid); all segments visible and anatomically consistent; never collapse to human-only.";
 
-  const tailCreative = `Meta / stylized rendering physics for "${bt}" — keep exaggeration or pixel/chibi/caricature rules locked across the entire figure; do not collapse to a generic photoreal tall human unless the label explicitly demands photoreal caricature.`;
+  const tailCreative =
+    "Meta / stylized rendering physics — keep exaggeration or pixel/chibi/caricature rules locked across the entire figure; do not collapse to a generic photoreal tall human unless the opening line explicitly demands photoreal caricature.";
 
-  const tailOther = `Non-standard or stylized body for "${bt}" — slime/gel mass, crystal planes, stone, wireframe, doll joints, elemental glow, sentient object volume, etc.; keep a readable character silhouette without reverting to generic human skin unless the label is humanoid glam.`;
+  const tailOther =
+    "Non-standard or stylized body — slime/gel mass, crystal planes, stone, wireframe, doll joints, elemental glow, sentient object volume, etc.; keep a readable character silhouette without reverting to generic human skin unless the archetype is humanoid glam.";
 
-  const tailHyper = `Exaggerated proportions for "${bt}" — push the named exaggeration clearly and consistently; do not swap in a different trope (e.g. unrelated weight or species).`;
+  const tailHyper =
+    "Exaggerated proportions — push the exaggeration from the opening line clearly and consistently; do not swap in a different trope (e.g. unrelated weight or species).";
 
   const body =
     cat === "humanoid"
@@ -124,5 +133,5 @@ export function forgePortraitBodyTypeContract(bodyType: string): string {
                       ? tailHyper
                       : tailHumanoid;
 
-  return `${open} ${BODY_TYPE_LOCK_HEAD} Body type label: "${bt}". ${body}`;
+  return `${open} ${BODY_TYPE_LOCK_HEAD} ${body}`;
 }

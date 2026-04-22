@@ -280,9 +280,9 @@ ${characterDetailsBlock}
 Key Rules:
 - Strictly SFW — no nudity, no visible genitals, no explicit sex acts
 - Extremely sexy and provocative but tasteful and artistic
-${forgeBody ? `- **Forge body type** (Character Details) overrides any conflicting silhouette or species wording in the primary scene text below — match the UI label for every category (human builds, stature, mobility, anthro, hybrid, elemental, hyper-shape, etc.).` : ""}
+${forgeBody ? `- **Forge body type** (Character Details) overrides any conflicting silhouette or species wording in the primary scene text below — match the physique spec (human builds, stature, mobility, anthro, hybrid, elemental, hyper-shape, etc.); never paint that spec as legible text on the image.` : ""}
 - ${anatomyKeyRules}
-- Highly detailed, cinematic lighting, premium quality, vertical portrait composition suitable for TCG-style card
+- Highly detailed, cinematic lighting, premium quality, vertical portrait composition — collectible quality without any printed titles, category names, or typography on the canvas
 ${refLines ? `${refLines}\n` : ""}
 
 PRIMARY SCENE DIRECTION (follow this closely — premium, cinematic, maximum sensual tension through pose, gaze, fabric, and light; do not depict anything that violates SFW rules):

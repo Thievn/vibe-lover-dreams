@@ -1,12 +1,22 @@
+import { buildTamsRsaAuthorization, hasTamsRsaCredentials, readTamsAppIdFromEnv, readTamsPrivateKeyFromEnv } from "./tamsRsaAuth.ts";
+
 const DEFAULT_TENSOR_BASE_URL = "https://ap-east-1.tensorart.cloud";
 
-export const DEFAULT_TENSOR_IMAGE_MODEL = "black-forest-labs/FLUX.2-dev";
-export const DEFAULT_TENSOR_VIDEO_MODEL = "WAN_2_1";
+/**
+ * TAMS `sdModel` must be the numeric ID from the model page URL, e.g.
+ * `https://tensor.art/models/935697227794352937` → use `935697227794352937`.
+ * Override with secret `TENSOR_IMAGE_MODEL` if you switch checkpoints.
+ *
+ * @see https://tams-docs.tensor.art/docs/api/guide/how-to-get-the-model-id
+ */
+export const DEFAULT_TENSOR_IMAGE_MODEL = "935697227794352937";
+/** Image-to-video checkpoint id from TAMS workspace example; override with `TENSOR_VIDEO_MODEL`. */
+export const DEFAULT_TENSOR_VIDEO_MODEL = "834845658683829748";
 
 export const LUSTFORGE_IMAGE_WIDTH = 768;
 export const LUSTFORGE_IMAGE_HEIGHT = 1024;
 
-type TensorPrompt = { text: string; weight?: number };
+type TensorPrompt = { text?: string; weight?: number };
 
 type TensorJobStatus = "CREATED" | "PENDING" | "RUNNING" | "WAITING" | "SUCCESS" | "FAILED" | "CANCELED";
 
@@ -22,7 +32,8 @@ type TensorVideoInfo = {
 
 type TensorJobEnvelope = {
   job?: {
-    id?: number;
+    /** TAMS returns large uint64 ids as JSON strings (unsafe as JS number). */
+    id?: number | string;
     status?: TensorJobStatus;
     failedInfo?: { reason?: string; code?: string };
     successInfo?: {
@@ -31,6 +42,19 @@ type TensorJobEnvelope = {
     };
   };
 };
+
+/** Normalize job id for URLs — never use Number() on TAMS ids (precision loss). */
+function normalizeTamsJobId(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "string") {
+    const t = raw.trim();
+    return /^\d+$/.test(t) ? t : null;
+  }
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return String(Math.trunc(raw));
+  }
+  return null;
+}
 
 type TensorUploadAddress = {
   resourceId?: string;
@@ -42,9 +66,32 @@ function tensorBaseUrl(): string {
   return (Deno.env.get("TENSOR_API_BASE_URL") ?? DEFAULT_TENSOR_BASE_URL).replace(/\/+$/, "");
 }
 
-function authHeaders(apiKey: string): HeadersInit {
+/**
+ * TAMS supports (1) Bearer token from app settings, or (2) RSA signature (production).
+ * Path must be the URL path only (e.g. `/v1/jobs`), matching the signing spec.
+ */
+async function tensorAuthHeaders(
+  method: string,
+  pathOnly: string,
+  body: string,
+  bearerToken: string,
+): Promise<HeadersInit> {
+  if (hasTamsRsaCredentials()) {
+    const appId = readTamsAppIdFromEnv();
+    const pem = readTamsPrivateKeyFromEnv();
+    const auth = await buildTamsRsaAuthorization(method, pathOnly, body, appId, pem);
+    const h: Record<string, string> = { Authorization: auth, Accept: "application/json" };
+    if (method !== "GET" && method !== "HEAD") {
+      h["Content-Type"] = "application/json";
+    }
+    return h;
+  }
+  const t = bearerToken.replace(/^Bearer\s+/i, "").trim();
+  if (!t) {
+    throw new Error("Missing TENSOR_API_KEY, or set TAMS_APP_ID + TAMS_PRIVATE_KEY for RSA auth.");
+  }
   return {
-    Authorization: `Bearer ${apiKey}`,
+    Authorization: `Bearer ${t}`,
     "Content-Type": "application/json",
     Accept: "application/json",
   };
@@ -57,6 +104,91 @@ async function parseJsonSafe<T>(res: Response): Promise<{ parsed: T | null; raw:
   } catch {
     return { parsed: null, raw };
   }
+}
+
+function tamsDetailMessages(details: unknown): string[] {
+  if (!Array.isArray(details)) return [];
+  const out: string[] = [];
+  for (const item of details) {
+    if (item && typeof item === "object" && "message" in item) {
+      const m = String((item as Record<string, unknown>).message ?? "").trim();
+      if (m) out.push(m);
+    }
+  }
+  return out;
+}
+
+/** Human-readable TAMS error for logs and client toasts. */
+export function formatTensorApiFailure(status: number, raw: string): string {
+  const trimmed = raw.trim().slice(0, 1200);
+  let parsed: { code?: number; message?: string; tips?: string; details?: unknown } | null = null;
+  try {
+    parsed = JSON.parse(raw) as { code?: number; message?: string; tips?: string; details?: unknown };
+  } catch {
+    /* ignore */
+  }
+
+  const detailMsgs = parsed ? tamsDetailMessages(parsed.details) : [];
+  const creditsLow = detailMsgs.some((m) => /credit[s]?\s*not\s*enough/i.test(m));
+  if (creditsLow) {
+    return (
+      `Tensor TAMS: not enough API compute credits on your Tensor application (HTTP ${status}). ` +
+      `Top up at https://tams.tensor.art/app → open your app → Info / Top Up (TAMS credits are separate from LustForge forge credits in this app).`
+    );
+  }
+
+  if (parsed?.tips === "app not found" || /app not found/i.test(String(parsed?.tips ?? ""))) {
+    return (
+      `Tensor TAMS could not resolve your app (HTTP ${status}, app not found). ` +
+      `1) Open https://tams.tensor.art/app → your app → copy the exact API base URL into Supabase secret TENSOR_API_BASE_URL ` +
+      `(default is ${DEFAULT_TENSOR_BASE_URL}; wrong region/host causes this). ` +
+      `2) Use the app's Bearer token in TENSOR_API_KEY (not a random site key). ` +
+      `3) If your app uses RSA signing instead of Bearer, set TAMS_APP_ID and TAMS_PRIVATE_KEY (PKCS#8 PEM) and you can omit TENSOR_API_KEY.`
+    );
+  }
+
+  const topMsg = String(parsed?.message ?? "").trim();
+  const uselessTop = /^params\s*valid$/i.test(topMsg);
+
+  if (detailMsgs.length) {
+    const joined = detailMsgs.join("; ");
+    if (topMsg && !uselessTop) {
+      return `Tensor API error (${status}): ${topMsg} — ${joined}`;
+    }
+    return `Tensor API error (${status}): ${joined}`;
+  }
+
+  if (parsed?.message) {
+    const detailStr =
+      parsed.details === undefined
+        ? ""
+        : typeof parsed.details === "string"
+          ? parsed.details
+          : JSON.stringify(parsed.details);
+    const bits = [parsed.message, parsed.tips, detailStr].filter(Boolean).join(" — ");
+    return `Tensor API error (${status}): ${bits}`;
+  }
+  return `Tensor API error (${status}): ${trimmed || "empty response"}`;
+}
+
+/** TAMS tightened validation: sampler + sdVae are required (see tams-signature-demo). */
+function diffusionQualityParams(): {
+  sampler: string;
+  sdVae: string;
+  clipSkip: number;
+  modelAccessKey?: string;
+} {
+  const sampler = (Deno.env.get("TENSOR_SAMPLER") ?? "DPM++ 2M Karras").trim() || "DPM++ 2M Karras";
+  const sdVae = (Deno.env.get("TENSOR_SD_VAE") ?? "Automatic").trim() || "Automatic";
+  const clipSkipRaw = Deno.env.get("TENSOR_CLIP_SKIP");
+  const clipSkip = clipSkipRaw != null && clipSkipRaw !== "" ? Math.max(0, Math.min(4, Number(clipSkipRaw))) : 2;
+  const modelAccessKey = (Deno.env.get("TENSOR_MODEL_ACCESS_KEY") ?? "").trim();
+  return {
+    sampler,
+    sdVae,
+    clipSkip: Number.isFinite(clipSkip) ? clipSkip : 2,
+    ...(modelAccessKey ? { modelAccessKey } : {}),
+  };
 }
 
 async function fetchImageBytes(url: string): Promise<Uint8Array> {
@@ -75,18 +207,17 @@ export async function uploadTensorImageResource(opts: {
   const { apiKey, sourceImageUrl } = opts;
   const expireSec = Number.isFinite(opts.expireSec) ? Math.max(60, Math.floor(opts.expireSec!)) : 3600;
   const base = tensorBaseUrl();
+  const resourceBody = JSON.stringify({ expireSec });
 
   const createRes = await fetch(`${base}/v1/resource/image`, {
     method: "POST",
-    headers: authHeaders(apiKey),
-    body: JSON.stringify({ expireSec }),
+    headers: await tensorAuthHeaders("POST", "/v1/resource/image", resourceBody, apiKey),
+    body: resourceBody,
   });
 
   const { parsed, raw } = await parseJsonSafe<TensorUploadAddress>(createRes);
   if (!createRes.ok || !parsed?.resourceId || !parsed.putUrl) {
-    throw new Error(
-      `Tensor resource upload address failed (${createRes.status}): ${raw.slice(0, 500) || "empty response"}`,
-    );
+    throw new Error(formatTensorApiFailure(createRes.status, raw));
   }
 
   const bytes = await fetchImageBytes(sourceImageUrl);
@@ -121,7 +252,7 @@ type SubmitTensorImageJobArgs = {
   referenceImageUrl?: string;
 };
 
-export async function submitTensorImageJob(args: SubmitTensorImageJobArgs): Promise<{ jobId: number }> {
+export async function submitTensorImageJob(args: SubmitTensorImageJobArgs): Promise<{ jobId: string }> {
   const {
     apiKey,
     prompt,
@@ -141,6 +272,10 @@ export async function submitTensorImageJob(args: SubmitTensorImageJobArgs): Prom
     imageResourceId = await uploadTensorImageResource({ apiKey, sourceImageUrl: referenceImageUrl.trim() });
   }
 
+  const dq = diffusionQualityParams();
+  const negText = negativePrompt?.trim() ?? "";
+  const neg: TensorPrompt[] = [{ text: negText }];
+
   const payload = {
     requestId: crypto.randomUUID(),
     stages: [
@@ -158,8 +293,12 @@ export async function submitTensorImageJob(args: SubmitTensorImageJobArgs): Prom
           width,
           height,
           prompts: [{ text: prompt } satisfies TensorPrompt],
-          ...(negativePrompt?.trim() ? { negativePrompts: [{ text: negativePrompt.trim() } satisfies TensorPrompt] } : {}),
+          negativePrompts: neg,
           sdModel: model,
+          sampler: dq.sampler,
+          sdVae: dq.sdVae,
+          clipSkip: dq.clipSkip,
+          ...(dq.modelAccessKey ? { modelAccessKey: dq.modelAccessKey } : {}),
           steps,
           cfgScale,
           ...(imageResourceId
@@ -175,16 +314,17 @@ export async function submitTensorImageJob(args: SubmitTensorImageJobArgs): Prom
     ],
   };
 
+  const jobBody = JSON.stringify(payload);
   const res = await fetch(`${base}/v1/jobs`, {
     method: "POST",
-    headers: authHeaders(apiKey),
-    body: JSON.stringify(payload),
+    headers: await tensorAuthHeaders("POST", "/v1/jobs", jobBody, apiKey),
+    body: jobBody,
   });
 
   const { parsed, raw } = await parseJsonSafe<TensorJobEnvelope>(res);
-  const jobId = parsed?.job?.id;
-  if (!res.ok || typeof jobId !== "number") {
-    throw new Error(`Tensor image submit failed (${res.status}): ${raw.slice(0, 600) || "empty response"}`);
+  const jobId = normalizeTamsJobId(parsed?.job?.id);
+  if (!res.ok || !jobId) {
+    throw new Error(`Tensor image submit failed: ${formatTensorApiFailure(res.status, raw)}`);
   }
   return { jobId };
 }
@@ -197,7 +337,7 @@ export async function submitTensorImageToVideoJob(args: {
   durationSeconds?: number;
   width?: number;
   height?: number;
-}): Promise<{ jobId: number }> {
+}): Promise<{ jobId: string }> {
   const {
     apiKey,
     prompt,
@@ -234,27 +374,29 @@ export async function submitTensorImageToVideoJob(args: {
           fps: 8,
           totalFrames,
           prompts: [{ text: prompt } satisfies TensorPrompt],
+          negativePrompts: [{ text: "" }],
         },
       },
     ],
   };
 
+  const videoJobBody = JSON.stringify(payload);
   const res = await fetch(`${base}/v1/jobs`, {
     method: "POST",
-    headers: authHeaders(apiKey),
-    body: JSON.stringify(payload),
+    headers: await tensorAuthHeaders("POST", "/v1/jobs", videoJobBody, apiKey),
+    body: videoJobBody,
   });
   const { parsed, raw } = await parseJsonSafe<TensorJobEnvelope>(res);
-  const jobId = parsed?.job?.id;
-  if (!res.ok || typeof jobId !== "number") {
-    throw new Error(`Tensor video submit failed (${res.status}): ${raw.slice(0, 600) || "empty response"}`);
+  const jobId = normalizeTamsJobId(parsed?.job?.id);
+  if (!res.ok || !jobId) {
+    throw new Error(`Tensor video submit failed: ${formatTensorApiFailure(res.status, raw)}`);
   }
   return { jobId };
 }
 
 export async function waitForTensorJobResult(args: {
   apiKey: string;
-  jobId: number;
+  jobId: string;
   timeoutMs?: number;
   pollIntervalMs?: number;
 }): Promise<{ imageUrl?: string; videoUrl?: string }> {
@@ -264,15 +406,13 @@ export async function waitForTensorJobResult(args: {
 
   let lastStatus = "UNKNOWN";
   while (Date.now() < deadline) {
+    const pollPath = `/v1/jobs/${jobId}`;
     const res = await fetch(`${base}/v1/jobs/${jobId}`, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
-      },
+      headers: await tensorAuthHeaders("GET", pollPath, "", apiKey),
     });
     const { parsed, raw } = await parseJsonSafe<TensorJobEnvelope>(res);
     if (!res.ok || !parsed?.job) {
-      throw new Error(`Tensor poll failed (${res.status}): ${raw.slice(0, 400)}`);
+      throw new Error(`Tensor poll failed: ${formatTensorApiFailure(res.status, raw)}`);
     }
 
     const status = parsed.job.status ?? "UNKNOWN";

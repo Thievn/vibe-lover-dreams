@@ -9,6 +9,16 @@ export const PROFILE_LOOP_VIDEO_DURATION_SECONDS = 10;
 /** Shorter fallback if the full themed prompt hits provider limits. */
 export const PROFILE_LOOP_VIDEO_FALLBACK_DURATION_SECONDS = 8;
 
+/**
+ * Image-to-video clips are shown with separate audio; avoid lip-sync / speech-like mouth so the face does not look like it is talking.
+ */
+export const I2V_MOUTH_STILL_DIRECTIVE =
+  "Mouth (critical): lips stay relaxed and essentially still — no talking, lip-sync, mouthing words, or conversational jaw/lip animation. Put energy into silent dance, tease, and pose: eyes, brows, head tilt, hair, fabric, torso, hips, arms, hands. Optional tiny closed-mouth smile only; no visible speech motion.";
+
+/** Compact variant for minimal prompts. */
+export const I2V_MOUTH_STILL_DIRECTIVE_SHORT =
+  "No lip-sync or speech-like mouth; lips neutral; motion from body, hair, fabric, pose, eyes — silent dance/tease.";
+
 function sliceStr(v: unknown, max: number): string {
   if (typeof v !== "string") return "";
   const t = v.trim();
@@ -47,6 +57,7 @@ export function buildMinimalProfileLoopVideoPrompt(row: Record<string, unknown>)
       tags ? `Themes: ${tags}.` : "",
       oneLine ? `Visual vibe: ${oneLine}` : "",
       "One cohesive motion arc; first and last frames match for looping; same camera and framing as the still; no new characters or props.",
+      I2V_MOUTH_STILL_DIRECTIVE_SHORT,
       "Anatomy: preserve limb count from the still — exactly two hands and two arms unless the source clearly shows otherwise; no floating, duplicated, or extra hands/arms; no ghost limbs on props, leashes, or clothing.",
       "Match the reference image; adult themes only if consistent with the still; provider policy applies.",
     ]
@@ -99,10 +110,12 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>): strin
     "Same person and same overall scene as the source image: lighting, environment, and character identity. Do not invent a new character, new location, or new props that are not implied by the frame.",
     "If you show wardrobe or intimacy beats (tease, undress/redress, explicit or nude content), they must be grounded in what the still already shows or strongly implies, and the clip must return to a matching start state so the loop is seamless: first and last frames nearly identical. Examples: slowly lifting a hem or shirt then lowering it back; unbuttoning and re-buttoning; slipping a strap off and back; turning away and back to camera; a slow caress that ends where it began. The runtime allows a full tease-out and tease-back.",
     "",
+    I2V_MOUTH_STILL_DIRECTIVE,
+    "",
     "CHARACTER CONTEXT (motion and mood only; do not replace the shot with a different scene):",
     themeBlock,
     "",
-    "MOTION DIRECTION: Invent ONE cohesive performance arc that fits this character's theme, not generic idle sway. Examples: lean-in; hair tuck; soft laugh; half-smile; blowing a kiss; weight shift or sway that returns to center; fantasy beats (crown, ears, tail, wings, spell sparkles). Lewd or explicit beats are allowed when they match the character and the still, as long as the loop closes and the camera stays consistent.",
+    "MOTION DIRECTION: Invent ONE cohesive performance arc that fits this character's theme, not generic idle sway — favor silent dance, tease, and pose (not conversational face). Examples: lean-in; hair tuck; slow blink and expressive eyes; weight shift, hip sway, or torso roll that returns to center; hand-on-hip or fabric play; fantasy beats (crown, ears, tail, wings, spell sparkles). Lewd or explicit beats are allowed when they match the character and the still, as long as the loop closes, the camera stays consistent, and the mouth-still rule above is respected.",
     "",
     "ANATOMY (critical): Match the source still exactly for limbs — typically two arms and two hands visible in coherent poses; never add a third hand, floating disconnected hand, or duplicated appendage; if the still shows hands on a leash/reins/prop, do not invent an extra hand on the same prop.",
     "LOOP AND CAMERA: Seamless loop; first and last frames nearly identical; ease in and out; same camera angle, lens feel, and framing as the source image. No jump cuts, no new characters or objects, no text overlays.",

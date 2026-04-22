@@ -6,6 +6,8 @@ export type ForgeStashPayload = {
   name: string;
   tagline: string;
   gender: string;
+  /** Ancestry / complexion forge choice; absent in older stashes → treated as open. */
+  ethnicity?: string;
   personalitySelections: string[];
   vibeThemeSelections: string[];
   artStyle: string;

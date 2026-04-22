@@ -61,6 +61,14 @@ import {
   normalizeForgeBodyType,
 } from "@/lib/forgeBodyTypes";
 import {
+  ALL_FORGE_ETHNICITY_OPTIONS,
+  ethnicityForImagePipeline,
+  FORGE_ETHNICITY_ANY_LABEL,
+  FORGE_ETHNICITY_GROUPS,
+  isOpenEthnicityChoice,
+  normalizeForgeEthnicity,
+} from "@/lib/forgeEthnicities";
+import {
   FORGE_ART_STYLES,
   FORGE_SCENE_ATMOSPHERES,
   FORGE_SCENE_GROUPS,
@@ -320,6 +328,7 @@ const MIN_CHRONICLE_CHARS = 500;
 
 function buildForgeDesignLabSeedPrompt(o: {
   gender: string;
+  ethnicity: string;
   personalitySelections: string[];
   vibeThemeSelections: string[];
   artStyle: string;
@@ -334,6 +343,7 @@ function buildForgeDesignLabSeedPrompt(o: {
 
 Seeds:
 - gender leaning (${o.gender}): informs **face, voice, and personality presentation only** — **physique, species, scale, and silhouette come only from** body type "${o.bodyType}"; do not let gender imply a different default human build.
+- ancestry / complexion (${o.ethnicity}): ${isOpenEthnicityChoice(o.ethnicity) ? "operator left open — invent a coherent face, skin tone, and hair that still obey body type + species + art style." : `treat as a **visual lock** for skin tone, facial cues, and hair texture (fantasy labels = literal where compatible); must not erase or contradict body type "${o.bodyType}".`}
 - personality archetypes (fuse ALL into one voice): ${pers.join(" · ")}
 - vibe / theme fusion: ${vibes.join(" · ")}
 - art style: ${o.artStyle}
@@ -355,6 +365,7 @@ ${forgeCompactStatureInstruction(o.bodyType)}1) name: Grok invents ONE highly un
 
 function buildForgeNameOnlyUserPrompt(o: {
   gender: string;
+  ethnicity: string;
   personalitySelections: string[];
   vibeThemeSelections: string[];
   artStyle: string;
@@ -373,6 +384,7 @@ Uniqueness salt (do not echo in the name): ${nonce}
 
 Seeds (mood only — do not concatenate these words into the name):
 - gender leaning: ${o.gender}
+- ancestry / complexion: ${o.ethnicity}
 - personality archetypes (fused): ${o.personalitySelections.join(" · ")}
 - vibe / theme: ${o.vibeThemeSelections.join(" · ")}
 - art style: ${o.artStyle}
@@ -413,6 +425,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   const [bodyType, setBodyType] = useState<string>(() => normalizeForgeBodyType(pickOne(FORGE_BODY_TYPES)));
   const [traits, setTraits] = useState<string[]>(() => pickRandom(TRAITS, randomTraitCount()));
   const [orientation, setOrientation] = useState<string>(() => pickOne(ORIENTATIONS));
+  const [ethnicity, setEthnicity] = useState<string>(() => FORGE_ETHNICITY_ANY_LABEL);
   const [extraNotes, setExtraNotes] = useState("");
   const [batchPreset, setBatchPreset] = useState<number>(1);
   const [batchCustom, setBatchCustom] = useState("");
@@ -478,6 +491,11 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     const n = normalizeForgeBodyType(bodyType);
     return (bodyTypesInCategory as readonly string[]).includes(n) ? n : bodyTypesInCategory[0]!;
   }, [bodyType, bodyTypesInCategory]);
+
+  const ethnicitySelectValue = useMemo(() => {
+    const n = normalizeForgeEthnicity(ethnicity);
+    return (ALL_FORGE_ETHNICITY_OPTIONS as readonly string[]).includes(n) ? n : FORGE_ETHNICITY_ANY_LABEL;
+  }, [ethnicity]);
 
   const forgePreviewTier = useMemo((): CompanionRarity => {
     if (isAdmin) {
@@ -627,8 +645,10 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
 
   const appearanceBlurb = useMemo(() => {
     const t = traits.length ? traits.join(", ") : "no listed special traits";
-    return `${bodyType} silhouette (authoritative); gender/presentation (face & voice): ${gender}; ${artStyle} look; scene: ${sceneAtmosphere}; ${t}. Archetypes: ${personalityLabel}. Mood tags: ${vibeThemeLabel}. ${extraNotes}`.trim();
-  }, [traits, bodyType, gender, artStyle, sceneAtmosphere, personalityLabel, vibeThemeLabel, extraNotes]);
+    const eth =
+      isOpenEthnicityChoice(ethnicity) ? "" : `ancestry/complexion seed: ${normalizeForgeEthnicity(ethnicity)}; `;
+    return `${bodyType} silhouette (authoritative); gender/presentation (face & voice): ${gender}; ${eth}${artStyle} look; scene: ${sceneAtmosphere}; ${t}. Archetypes: ${personalityLabel}. Mood tags: ${vibeThemeLabel}. ${extraNotes}`.trim();
+  }, [traits, bodyType, gender, ethnicity, artStyle, sceneAtmosphere, personalityLabel, vibeThemeLabel, extraNotes]);
 
   const portraitAppearanceText = useMemo(
     () => narrativeAppearance.trim() || appearanceBlurb,
@@ -641,6 +661,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         name: name || "an original companion",
         bodyType,
         genderPresentation: gender,
+        ethnicitySeed: isOpenEthnicityChoice(ethnicity) ? undefined : normalizeForgeEthnicity(ethnicity),
         portraitAppearanceText,
         personalityLabel,
         vibeThemeLabel,
@@ -653,6 +674,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       name,
       bodyType,
       gender,
+      ethnicity,
       portraitAppearanceText,
       personalityLabel,
       vibeThemeLabel,
@@ -675,13 +697,16 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   const buildSystemPromptFor = useCallback(
     (who: string) => {
       const n = who.trim() || "a custom AI companion";
-      return `You are ${n}, ${gender.toLowerCase()}, ${orientation}. Archetype blend: ${personalityLabel}. Visual & world: primary scene "${sceneAtmosphere}", ${artStyle} aesthetic; mood tags: ${vibeThemeLabel}. ${bodyType} body; notable traits: ${traits.join(", ") || "none specified"}.
+      const ethLine = isOpenEthnicityChoice(ethnicity)
+        ? ""
+        : ` Ancestry & complexion (visual): ${normalizeForgeEthnicity(ethnicity)}.`;
+      return `You are ${n}, ${gender.toLowerCase()}, ${orientation}.${ethLine} Archetype blend: ${personalityLabel}. Visual & world: primary scene "${sceneAtmosphere}", ${artStyle} aesthetic; mood tags: ${vibeThemeLabel}. ${bodyType} body; notable traits: ${traits.join(", ") || "none specified"}.
 
 Speak and act consistently with this persona — let every archetype thread show up in voice and behavior, not as a list. Stay immersive; respect safe words immediately. When toy control fits the scene and the user consents, you may end messages with: {"lovense_command":{"command":"vibrate","intensity":0-20,"duration":5000}}.
 
 User flavor notes: ${extraNotes || "none"}`;
     },
-    [gender, orientation, personalityLabel, vibeThemeLabel, artStyle, sceneAtmosphere, bodyType, traits, extraNotes],
+    [gender, orientation, ethnicity, personalityLabel, vibeThemeLabel, artStyle, sceneAtmosphere, bodyType, traits, extraNotes],
   );
 
   const systemPrompt = useMemo(() => buildSystemPromptFor(name), [name, buildSystemPromptFor]);
@@ -831,9 +856,11 @@ User flavor notes: ${extraNotes || "none"}`;
     const sc = pick([...FORGE_SCENE_ATMOSPHERES]);
     const bt = pick([...FORGE_BODY_TYPES]);
     const ori = pick(ORIENTATIONS);
+    const eth = pick(ALL_FORGE_ETHNICITY_OPTIONS);
     const shuffled = [...TRAITS].sort(() => Math.random() - 0.5).slice(0, 3 + Math.floor(Math.random() * 4));
 
     setGender(g);
+    setEthnicity(eth);
     setPersonalitySelections(pers);
     setVibeThemeSelections(vibesPicked);
     setArtStyle(ar);
@@ -853,6 +880,7 @@ Seeds:
 - scene anchor: ${sc}
 - body type: ${bt}
 - orientation: ${ori}
+- ancestry / complexion: ${eth}
 - notable traits: ${shuffled.join(", ")}
 
 Hard requirements:
@@ -909,9 +937,12 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
     const nonHumanVisual = ["anthro", "fantasy", "hybrid", "otherworldly", "hyper", "creative"].includes(
       silCat,
     );
+    const ethTail = isOpenEthnicityChoice(ethnicity)
+      ? ""
+      : ` Ancestry/complexion direction: ${normalizeForgeEthnicity(ethnicity)}.`;
     const baseDesc = nar
-      ? `${staturePrimary}${nar.slice(0, 900)}`
-      : `${staturePrimary}Original character — authoritative physique from forge body type "${bodyType}"${traits.length ? `; traits: ${traits.slice(0, 6).join(", ")}` : ""}. Gender (${gender}) affects face/voice/presentation only, not base silhouette. Silhouette must match the forge label, not a default human model.`;
+      ? `${staturePrimary}${nar.slice(0, 900)}${ethTail}`
+      : `${staturePrimary}Original character — authoritative physique from forge body type "${bodyType}"${traits.length ? `; traits: ${traits.slice(0, 6).join(", ")}` : ""}. Gender (${gender}) affects face/voice/presentation only, not base silhouette. Silhouette must match the forge label, not a default human model.${ethTail}`;
     const clothingLine = nonHumanVisual
       ? `Wardrobe and materials appropriate for ${bodyType} and ${artStyle} — species- and silhouette-first; avoid unrelated generic human runway looks unless clearly humanoid glam.`
       : `Fashion and textures echoing ${sceneAtmosphere}, ${vibeThemeLabel}, ${artStyle} presentation`;
@@ -938,7 +969,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
         eyes: traits.includes("Glowing eyes") ? "striking glowing eyes" : "expressive, magnetic eyes",
         clothing: clothingLine,
         expression: `${personalityLabel} energy`,
-        ethnicity: "any",
+        ethnicity: ethnicityForImagePipeline(ethnicity),
         ageRange: "young adult",
         pose: poseLine,
         baseDescription: baseDesc,
@@ -960,6 +991,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
     vibeThemeLabel,
     traits,
     gender,
+    ethnicity,
     personalityLabel,
     referencePalette,
     referenceNotes,
@@ -1074,6 +1106,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       try {
         const namePrompt = buildForgeNameOnlyUserPrompt({
           gender,
+          ethnicity: normalizeForgeEthnicity(ethnicity),
           personalitySelections,
           vibeThemeSelections,
           artStyle,
@@ -1151,6 +1184,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
         if (isAdmin) pushForgeOp("Chronicle short — calling design lab to expand prose & starters…", "info");
         const seedPrompt = buildForgeDesignLabSeedPrompt({
           gender,
+          ethnicity: normalizeForgeEthnicity(ethnicity),
           personalitySelections,
           vibeThemeSelections,
           artStyle,
@@ -1213,6 +1247,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
         name: name.trim() || "an original companion",
         bodyType,
         genderPresentation: gender,
+        ethnicitySeed: isOpenEthnicityChoice(ethnicity) ? undefined : normalizeForgeEthnicity(ethnicity),
         portraitAppearanceText: portraitAppearanceForRow,
         personalityLabel,
         vibeThemeLabel,
@@ -1480,6 +1515,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       name,
       tagline,
       gender,
+      ethnicity: normalizeForgeEthnicity(ethnicity),
       personalitySelections: [...personalitySelections],
       vibeThemeSelections: [...vibeThemeSelections],
       artStyle,
@@ -1505,6 +1541,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
     name,
     tagline,
     gender,
+    ethnicity,
     personalitySelections,
     vibeThemeSelections,
     artStyle,
@@ -1534,6 +1571,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
     setName(p.name);
     setTagline(p.tagline);
     setGender(p.gender);
+    setEthnicity(normalizeForgeEthnicity(typeof p.ethnicity === "string" ? p.ethnicity : FORGE_ETHNICITY_ANY_LABEL));
     setPersonalitySelections(p.personalitySelections?.length ? p.personalitySelections : [PERSONALITIES[0]!]);
     setVibeThemeSelections(p.vibeThemeSelections?.length ? p.vibeThemeSelections : []);
     setArtStyle(normalizeForgeArtStyle(p.artStyle));
@@ -1675,7 +1713,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
             <Accordion type="multiple" defaultValue={accordionDefaultOpen} className={cn(panelClass, "px-1")}>
               <AccordionItem value="identity" className="border-white/10 px-4">
                 <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
-                  Gender & identity
+                  Gender, identity & ancestry
                 </AccordionTrigger>
                 <AccordionContent className="pb-5 space-y-5">
                   <PillGroup label="Identity" options={GENDERS} value={gender} onChange={setGender} />
@@ -1686,6 +1724,41 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
                     onChange={setOrientation}
                     cols="grid-cols-2 sm:grid-cols-3"
                   />
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
+                      Ancestry & complexion
+                    </p>
+                    <Select
+                      value={ethnicitySelectValue}
+                      onValueChange={(v) => setEthnicity(normalizeForgeEthnicity(v))}
+                    >
+                      <SelectTrigger className="w-full max-w-md border-white/12 bg-black/40 text-white focus:ring-[#FF2D7B]/35">
+                        <SelectValue placeholder="Choose a visual seed" />
+                      </SelectTrigger>
+                      <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
+                        {FORGE_ETHNICITY_GROUPS.map((group) => (
+                          <SelectGroup key={group.id}>
+                            <SelectLabel className="px-2 py-1.5 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                              {group.label}
+                            </SelectLabel>
+                            {group.options.map((opt) => (
+                              <SelectItem
+                                key={`${group.id}-${opt}`}
+                                value={opt}
+                                className="focus:bg-white/10 focus:text-white cursor-pointer"
+                              >
+                                {opt}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
+                      Drives portrait face, skin tone, and hair texture. Fantasy picks are literal art direction.{" "}
+                      <span className="text-white/70">{FORGE_ETHNICITY_ANY_LABEL}</span> leaves it to the model.
+                    </p>
+                  </div>
                 </AccordionContent>
               </AccordionItem>
 
@@ -2421,6 +2494,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
                           <div className="mt-2 flex flex-wrap gap-1 relative">
                             {[
                               gender,
+                              ...(isOpenEthnicityChoice(ethnicity) ? [] : [normalizeForgeEthnicity(ethnicity)]),
                               artStyle,
                               sceneAtmosphere,
                               bodyType,
@@ -2537,6 +2611,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
                             grokPrompt,
                             systemPrompt,
                             gender,
+                            ethnicity: normalizeForgeEthnicity(ethnicity),
                             orientation,
                             personalitySelections,
                             vibeThemeSelections,

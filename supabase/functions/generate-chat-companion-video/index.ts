@@ -227,20 +227,20 @@ Deno.serve(async (req) => {
     const motionBeats = [
       "slow sensual hip sway and weight shift returning to center",
       "teasing fabric adjustment — strap, hem, or neckline — then settling back",
-      "breath and lip bite with chest rise; intimate eye contact with camera",
+      "slow breath with chest rise; intimate eye contact — mouth still, no speech-like motion",
       "hands tracing collarbone or thigh then resting where the still began",
       "turn-away and look-back over shoulder, ending facing front as in the still",
       "arched back stretch then soft collapse to original pose",
     ];
     const beat = motionBeats[Math.floor(Math.random() * motionBeats.length)] ?? motionBeats[0];
-    const chatPrompt = `${buildProfileLoopVideoPrompt(row)} Focus: **chat lewd clip** — same identity as the reference portrait (face, hair, body type, outfit). Primary motion beat for this request: ${beat}. Prefer sensual, NSFW-leaning performance that still matches the still (not a generic portrait zoom or idle blink). Vary gesture each generation; loop-friendly. Provider policy applies.`;
+    const chatPrompt = `${buildProfileLoopVideoPrompt(row)} Focus: **chat lewd clip** — same identity as the reference portrait (face, hair, body type, outfit). Primary motion beat for this request: ${beat}. Prefer sensual, NSFW-leaning performance that still matches the still (not a generic portrait zoom or idle blink). Vary gesture each generation; loop-friendly. Audio is separate — keep lips/jaw still (no talking or lip-sync). Provider policy applies.`;
 
     let startRes = await postVideoGeneration(apiKey, imageUrl, chatPrompt, PROFILE_LOOP_VIDEO_DURATION_SECONDS);
     let startText = await startRes.text();
     let startParsed = tryParseJsonRecord(startText);
 
     if (!startParsed) {
-      const minimal = `${buildMinimalProfileLoopVideoPrompt(row)} Chat lewd loop — match reference identity; motion: ${beat}; sensual, NSFW-leaning if consistent with the still.`;
+      const minimal = `${buildMinimalProfileLoopVideoPrompt(row)} Chat lewd loop — match reference identity; motion: ${beat}; sensual, NSFW-leaning if consistent with the still. Mouth still — no lip-sync or speech-like motion (audio is separate).`;
       startRes = await postVideoGeneration(apiKey, imageUrl, minimal, PROFILE_LOOP_VIDEO_FALLBACK_DURATION_SECONDS);
       startText = await startRes.text();
       startParsed = tryParseJsonRecord(startText);

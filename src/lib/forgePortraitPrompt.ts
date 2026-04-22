@@ -119,6 +119,10 @@ export type ForgePortraitPromptArgs = {
    * Gender / identity from UI — **face, voice, presentation cues only**; must not imply a different base body than `bodyType`.
    */
   genderPresentation?: string;
+  /**
+   * Ancestry / complexion seed from forge UI — face, skin tone, hair texture; must not override `bodyType` species or silhouette.
+   */
+  ethnicitySeed?: string;
   portraitAppearanceText: string;
   personalityLabel: string;
   vibeThemeLabel: string;
@@ -144,13 +148,17 @@ export function composeForgePortraitPrompt(a: ForgePortraitPromptArgs): string {
   const bodyContract = forgePortraitBodyTypeContract(bt);
   const appearance = (a.portraitAppearanceText || "").trim();
   const genderLabel = (a.genderPresentation ?? "").trim();
+  const eth = (a.ethnicitySeed ?? "").trim();
 
   return [
     bodyContract,
     genderLabel ? GENDER_SCOPE_LINE(genderLabel) : "",
+    eth
+      ? `Ancestry & complexion seed (${eth}): inform skin tone, facial structure cues, and hair texture **within** the body-type and species lock above; treat fantasy or game-inspired labels as literal visual cues, not metaphors. Do not replace silhouette with a default human that contradicts the forge body type.`
+      : "",
     `Primary art direction — ${art}: ${artHint}`,
     `Primary environment — ${scene}: ${sceneHint}`,
-    "Composition: vertical 3:4 or 9:16 card, single clear focal plane, flattering portrait lens discipline, SFW pin-up / romance cover quality. Scene and wardrobe **frame** the forge body — they never replace or erase it.",
+    "Composition: vertical 3:4 or 9:16 portrait, single clear focal plane, flattering portrait lens discipline, SFW pin-up / romance cover quality — no typographic footer, category slug, or printed type line on the artwork. Scene and wardrobe **frame** the forge body — they never replace or erase it.",
     appearance
       ? `Character appearance prose (secondary — must conform to the BODY TYPE LOCK above; do not replace silhouette with a generic human that contradicts "${bt}"): Portrait of ${a.name || "an original companion"}: ${appearance}`
       : `Portrait of ${a.name || "an original companion"} — no extra appearance paragraph; infer wardrobe and texture only from the body-type opening, gender scope, and art/scene lines.`,

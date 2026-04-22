@@ -1,3 +1,4 @@
+import { FORGE_BODY_IMAGINE_LEADS } from "./forgeBodyImagineLeads.ts";
 import {
   DEFAULT_TENSOR_IMAGE_MODEL,
   LUSTFORGE_IMAGE_HEIGHT,
@@ -7,6 +8,16 @@ import {
 } from "./tensorClient.ts";
 
 const DEFAULT_DENOISE = 0.45;
+
+function tensorIdentityPhysiqueLine(bodyType: string): string {
+  const t = bodyType.trim();
+  if (!t) return "";
+  const lead = (FORGE_BODY_IMAGINE_LEADS as Record<string, string>)[t];
+  if (lead) {
+    return `- Preserve silhouette consistent with this physique (visual only — never render as text): ${lead}`;
+  }
+  return "- Preserve silhouette from the reference; never paint category names or UI labels as typography.";
+}
 
 function buildIdentityLockBlock(characterData: Record<string, unknown>): string {
   const bodyType = String(characterData.bodyType ?? "").trim();
@@ -19,7 +30,7 @@ function buildIdentityLockBlock(characterData: Record<string, unknown>): string 
   return [
     "Identity lock:",
     "- Keep the same person as the reference image: same face structure, same body proportions, same skin/fur tone, and same recognizable identity.",
-    bodyType ? `- Locked body type and silhouette: ${bodyType}.` : "",
+    bodyType ? tensorIdentityPhysiqueLine(bodyType) : "",
     artStyle ? `- Locked render style family: ${artStyle}.` : "",
     portraitConsistencyLock ? `- Continuity lock: ${portraitConsistencyLock}` : "",
     appearance ? `- Appearance continuity hints: ${appearance.slice(0, 1500)}` : "",

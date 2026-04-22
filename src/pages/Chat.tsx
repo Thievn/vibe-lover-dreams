@@ -601,7 +601,7 @@ const Chat = () => {
       const useFreeNsfwSlot = explicit && freeUsed < FREE_NSFW_CHAT_IMAGES;
       const tokenCost = isAdminUser ? 0 : useFreeNsfwSlot ? 0 : IMAGE_TOKEN_COST;
 
-      /** Raw desire text — `generate-image` uses chat-session rewrite + non–card Imagine prompt (explicit ok; xAI enforces limits). */
+      /** Raw desire text — `generate-image-tensor` (Tensor) builds the final diffusion prompt; explicit chat requests are allowed within Tensor / product rules. */
       const prompt = `${userRequest}\n\n(Character: ${companion.name}, ${companion.gender}. ${companion.appearance})`.slice(
         0,
         8000,

@@ -58,6 +58,7 @@ export function LiveVoicePanel({
   liveInstructions,
   xaiVoice,
   onAssistantTranscriptDone,
+  onUserSpeechTranscript,
   onSendText,
   rampModeActive,
   onRampModeActiveChange,

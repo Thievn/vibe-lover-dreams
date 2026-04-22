@@ -63,12 +63,32 @@ function sessionUpdatePayload(instructions: string, voice: XaiVoiceId) {
 function extractUserTranscriptFromRealtimeEvent(event: Record<string, unknown>): string | null {
   const type = typeof event.type === "string" ? event.type : "";
   if (type !== "conversation.item.input_audio_transcription.completed") return null;
-  const direct = typeof event.transcript === "string" ? event.transcript.trim() : "";
-  if (direct) return direct;
+
+  const top =
+    (typeof event.transcript === "string" && event.transcript.trim()) ||
+    (typeof event.text === "string" && event.text.trim()) ||
+    "";
+  if (top) return top;
+
   const item = event.item;
   if (item && typeof item === "object" && item !== null) {
-    const tr = (item as { transcript?: string }).transcript;
+    const o = item as Record<string, unknown>;
+    const tr = o.transcript;
     if (typeof tr === "string" && tr.trim()) return tr.trim();
+    const tx = o.text;
+    if (typeof tx === "string" && tx.trim()) return tx.trim();
+    const content = o.content;
+    if (Array.isArray(content)) {
+      for (const c of content) {
+        if (!c || typeof c !== "object") continue;
+        const co = c as Record<string, unknown>;
+        const piece =
+          (typeof co.transcript === "string" && co.transcript.trim()) ||
+          (typeof co.text === "string" && co.text.trim()) ||
+          "";
+        if (piece) return piece;
+      }
+    }
   }
   return null;
 }
@@ -216,7 +236,13 @@ export function startGrokRealtimeVoiceSession(opts: GrokRealtimeVoiceOptions): {
         }
 
         const userLine = extractUserTranscriptFromRealtimeEvent(event);
-        if (userLine) opts.onUserTranscriptDone?.(userLine);
+        if (userLine) {
+          try {
+            opts.onUserTranscriptDone?.(userLine);
+          } catch (e) {
+            opts.onError?.(e instanceof Error ? e : new Error(String(e)));
+          }
+        }
 
         if (type === "error") {
           const msg =

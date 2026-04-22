@@ -1,8 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireSessionUser } from "../_shared/requireSessionUser.ts";
+import { hasTamsRsaCredentials } from "../_shared/tamsRsaAuth.ts";
 import { generateConsistentCharacterImage } from "../_shared/generate-consistent-character-image.ts";
+import { FORGE_BODY_IMAGINE_LEADS } from "../_shared/forgeBodyImagineLeads.ts";
+import { I2V_MOUTH_STILL_DIRECTIVE } from "../_shared/profileLoopVideoPrompt.ts";
 import {
   DEFAULT_TENSOR_IMAGE_MODEL,
+  DEFAULT_TENSOR_VIDEO_MODEL,
   LUSTFORGE_IMAGE_HEIGHT,
   LUSTFORGE_IMAGE_WIDTH,
   submitTensorImageJob,
@@ -64,6 +68,17 @@ function toOptionalUrl(v: unknown): string | undefined {
   return t;
 }
 
+/** Tensor models often paint UI slug strings if we echo "Locked body type: Orc / …" — use prose leads only. */
+function tensorPhysiqueHint(bodyType: string): string {
+  const t = bodyType.trim();
+  if (!t) return "";
+  const lead = (FORGE_BODY_IMAGINE_LEADS as Record<string, string>)[t];
+  if (lead) {
+    return `Physique (embed visually only — never render as typography, captions, or footer labels): ${lead}`;
+  }
+  return "Physique: follow the main prompt's silhouette — never paint category names, slashes, or UI picker text on the image.";
+}
+
 function buildTensorPrompt(prompt: string, characterData: Record<string, unknown>, isPortrait: boolean): string {
   const baseDescription = String(characterData.baseDescription ?? "").trim();
   const bodyType = String(characterData.bodyType ?? "").trim();
@@ -75,10 +90,10 @@ function buildTensorPrompt(prompt: string, characterData: Record<string, unknown
 
   const lines = [
     isPortrait
-      ? "LustForge portrait card render. Maintain 3:4 vertical composition and premium card framing."
-      : "LustForge chat/gallery render. Maintain 3:4 vertical composition and premium portrait quality.",
+      ? "Catalog-style portrait render. Maintain 3:4 vertical composition and premium framing. No logos, watermarks, typographic footers, or legible text in the frame."
+      : "Chat or gallery portrait render. Maintain 3:4 vertical composition and premium portrait quality. No logos, watermarks, or unrelated typographic overlays.",
     baseDescription ? `Character baseline: ${baseDescription}` : "",
-    bodyType ? `Locked body type: ${bodyType}` : "",
+    bodyType ? tensorPhysiqueHint(bodyType) : "",
     artStyle ? `Art style: ${artStyle}` : "",
     vibe ? `Mood: ${vibe}` : "",
     clothing ? `Outfit direction: ${clothing}` : "",
@@ -120,6 +135,18 @@ function clampVideoDuration(seconds: unknown): number {
   return Math.max(5, Math.min(10, Math.round(seconds)));
 }
 
+/** TAMS expects `sdModel` as digits-only Tensor.art checkpoint id. */
+function assertTensorSdModelId(model: string, envName: string): string {
+  const t = model.trim();
+  if (!/^\d{10,24}$/.test(t)) {
+    throw new Error(
+      `Invalid ${envName} "${t}". TAMS requires the numeric model ID from the model page URL ` +
+        `(e.g. https://tensor.art/models/757279507095956705), not a Hugging Face repo name.`,
+    );
+  }
+  return t;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -137,11 +164,13 @@ Deno.serve(async (req) => {
     }
 
     const tensorApiKey = (Deno.env.get("TENSOR_API_KEY") ?? "").trim();
-    if (!tensorApiKey) {
+    if (!tensorApiKey && !hasTamsRsaCredentials()) {
       return jsonResponse(
         {
           success: false,
-          error: "TENSOR_API_KEY is missing on Edge Function secrets.",
+          error:
+            "Tensor auth not configured: set Supabase secret TENSOR_API_KEY (Bearer from https://tams.tensor.art/app) " +
+            "or set TAMS_APP_ID + TAMS_PRIVATE_KEY for RSA signing. Wrong API host also causes “app not found” — copy TENSOR_API_BASE_URL from your app info.",
         },
         503,
       );
@@ -213,7 +242,14 @@ Deno.serve(async (req) => {
       tokensCharged = true;
     }
 
-    const model = (Deno.env.get("TENSOR_IMAGE_MODEL") ?? DEFAULT_TENSOR_IMAGE_MODEL).trim();
+    const model = assertTensorSdModelId(
+      (Deno.env.get("TENSOR_IMAGE_MODEL") ?? DEFAULT_TENSOR_IMAGE_MODEL).trim(),
+      "TENSOR_IMAGE_MODEL",
+    );
+    const videoModel = assertTensorSdModelId(
+      (Deno.env.get("TENSOR_VIDEO_MODEL") ?? DEFAULT_TENSOR_VIDEO_MODEL).trim(),
+      "TENSOR_VIDEO_MODEL",
+    );
     const tensorPrompt = buildTensorPrompt(prompt, characterData, isPortrait);
 
     console.log("generate-image-tensor: submitting image job", {
@@ -298,12 +334,13 @@ Deno.serve(async (req) => {
       }
       console.log("generate-image-tensor: submitting video job", { userId, duration: videoDurationSeconds });
 
-      const videoPrompt = `${tensorPrompt}\n\nCreate a seamless ${videoDurationSeconds}s looping motion clip from this image.`;
+      const videoPrompt = `${tensorPrompt}\n\nCreate a seamless ${videoDurationSeconds}s looping motion clip from this image. Silent body-forward performance (dance, tease, pose) — not a speaking shot.\n${I2V_MOUTH_STILL_DIRECTIVE}`;
       const { jobId } = await submitTensorImageToVideoJob({
         apiKey: tensorApiKey,
         prompt: videoPrompt,
         sourceImageUrl: baseVideoSource,
         durationSeconds: videoDurationSeconds,
+        model: videoModel,
       });
       const videoResult = await waitForTensorJobResult({ apiKey: tensorApiKey, jobId, timeoutMs: 12 * 60_000 });
       if (!videoResult.videoUrl) throw new Error("Tensor video job did not return a video URL.");
