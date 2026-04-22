@@ -7,6 +7,8 @@ export type GenerateImageResponse = {
   imageUrl?: string;
   /** Canonical storage public URL — persist this in DB / forge rows. */
   publicImageUrl?: string;
+  /** Present when a short loop was requested. */
+  videoUrl?: string;
   imageId?: string | null;
   error?: string;
   code?: string;
@@ -34,7 +36,7 @@ function parseErrorMessage(status: number, text: string): string {
 }
 
 /**
- * Calls `generate-image` with plain fetch so Authorization is exactly one Bearer token.
+ * Calls `generate-image-tensor` with plain fetch so Authorization is exactly one Bearer token.
  * The shared Supabase fetch wrapper skips injecting a fresh JWT if `Authorization` is already
  * set (e.g. from a stale `invoke` header); this path avoids that class of "Invalid JWT" bugs.
  *
@@ -49,7 +51,7 @@ export async function invokeGenerateImage(
     return { data: null, error: new Error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY") };
   }
 
-  const url = `${base}/functions/v1/generate-image`;
+  const url = `${base}/functions/v1/generate-image-tensor`;
 
   const post = (bearer: string) =>
     fetch(url, {

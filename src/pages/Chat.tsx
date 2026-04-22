@@ -613,6 +613,12 @@ const Chat = () => {
         "Average Build";
       const artLabel = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
       const packSnap = (dbComp.image_prompt || "").trim().slice(0, 900);
+      const referenceImageUrl =
+        (typeof (dbComp as Record<string, unknown>).static_image_url === "string" &&
+          ((dbComp as Record<string, unknown>).static_image_url as string)) ||
+        (typeof (dbComp as Record<string, unknown>).image_url === "string" &&
+          ((dbComp as Record<string, unknown>).image_url as string)) ||
+        null;
       const portraitConsistencyLock = [
         `Roster identity lock: depict the SAME individual as ${companion.name} — not a different person, species, or unrelated stock model.`,
         `Locked forge body type: ${resolvedBodyType}.`,
@@ -629,6 +635,7 @@ const Chat = () => {
         userId,
         isPortrait: false,
         tokenCost,
+        ...(referenceImageUrl ? { referenceImageUrl } : {}),
         characterData: {
           companionId: companion.id,
           style: "chat-session",
@@ -695,6 +702,12 @@ const Chat = () => {
         "Average Build";
       const artLabel = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
       const packSnap = (dbComp.image_prompt || "").trim().slice(0, 900);
+      const referenceImageUrl =
+        (typeof (dbComp as Record<string, unknown>).static_image_url === "string" &&
+          ((dbComp as Record<string, unknown>).static_image_url as string)) ||
+        (typeof (dbComp as Record<string, unknown>).image_url === "string" &&
+          ((dbComp as Record<string, unknown>).image_url as string)) ||
+        null;
       const portraitConsistencyLock = [
         `Roster identity lock: depict the SAME individual as ${companion.name}.`,
         `Locked forge body type: ${resolvedBodyType}.`,
@@ -710,6 +723,7 @@ const Chat = () => {
         userId: user.id,
         isPortrait: false,
         tokenCost: 0,
+        ...(referenceImageUrl ? { referenceImageUrl } : {}),
         characterData: {
           companionId: companion.id,
           style: "chat-session",

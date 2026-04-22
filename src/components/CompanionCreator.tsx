@@ -918,12 +918,14 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
     const poseLine = nonHumanVisual
       ? `Pose that clearly sells "${bodyType}" — show correct limbs, tail, wings, hybrid junction, or non-human mass as implied; same forged identity, not a stock human substitute.`
       : "three-quarter portrait, alluring confident pose";
+    const referenceImageUrl = stablePortraitDisplayUrl(previewCanonicalUrl ?? previewUrl) ?? undefined;
     return {
       prompt: packshotPrompt.trim() || grokPrompt,
       userId,
       isPortrait: true,
       name: name || "Custom Companion",
       subtitle: tagline || "LustForge forged",
+      ...(referenceImageUrl ? { referenceImageUrl } : {}),
       characterData: {
         style: artStyle.toLowerCase().replace(/\s+/g, "-"),
         artStyleLabel: artStyle,
@@ -961,6 +963,8 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
     personalityLabel,
     referencePalette,
     referenceNotes,
+    previewCanonicalUrl,
+    previewUrl,
   ]);
 
   const runPreview = async () => {
@@ -1531,7 +1535,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
     setTagline(p.tagline);
     setGender(p.gender);
     setPersonalitySelections(p.personalitySelections?.length ? p.personalitySelections : [PERSONALITIES[0]!]);
-    setVibeThemeSelections(p.vibeThemeSelections?.length ? p.vibeThemeSelections : [VIBES[0]!]);
+    setVibeThemeSelections(p.vibeThemeSelections?.length ? p.vibeThemeSelections : []);
     setArtStyle(normalizeForgeArtStyle(p.artStyle));
     setSceneAtmosphere(normalizeForgeScene(p.sceneAtmosphere));
     setBodyType(normalizeForgeBodyType(p.bodyType));
@@ -1753,7 +1757,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
                   </p>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                      Pick 1–3 · optional genre / flavor tags
+                      Pick 0–3 · optional genre / flavor tags
                     </p>
                     <button
                       type="button"
@@ -1775,7 +1779,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
                           type="button"
                           onClick={() =>
                             setVibeThemeSelections((prev) =>
-                              toggleLimited(prev, opt, { min: 1, max: 3, noun: "vibe / theme picks" }),
+                              toggleLimited(prev, opt, { min: 0, max: 3, noun: "vibe / theme picks" }),
                             )
                           }
                           className={cn(

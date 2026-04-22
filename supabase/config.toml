@@ -6,6 +6,9 @@ project_id = "tyaplrrlirlbqrfjqryo"
 [functions.generate-image]
 verify_jwt = false
 
+[functions.generate-image-tensor]
+verify_jwt = false
+
 # Newer Supabase projects may issue ES256 session JWTs; Kong verification can fail with "Unsupported JWT algorithm".
 # These functions validate the Authorization bearer inside Deno instead (see _shared/requireSessionUser.ts).
 [functions.admin-companion-chat]

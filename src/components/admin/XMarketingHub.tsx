@@ -710,6 +710,14 @@ export default function XMarketingHub() {
       const scene = marketingScene.trim() || defaultByTier;
       const prompt =
         `${scene}\n\n(Character: ${selected.name}, ${selected.gender}. ${selected.appearance})`.slice(0, 8000);
+      const referenceImageUrl =
+        (typeof (selected as Record<string, unknown>).static_image_url === "string" &&
+          ((selected as Record<string, unknown>).static_image_url as string)) ||
+        (typeof (selected as Record<string, unknown>).image_url === "string" &&
+          ((selected as Record<string, unknown>).image_url as string)) ||
+        (typeof (selected as Record<string, unknown>).avatar_url === "string" &&
+          ((selected as Record<string, unknown>).avatar_url as string)) ||
+        undefined;
       const { data, error } = await invokeGenerateImage({
         prompt,
         userId: uid,
@@ -717,6 +725,7 @@ export default function XMarketingHub() {
         tokenCost: isAdminSession ? 0 : MARKETING_IMAGE_TOKEN_COST,
         name: selected.name,
         subtitle: selected.tagline,
+        ...(referenceImageUrl ? { referenceImageUrl } : {}),
         characterData: {
           companionId: selected.id,
           style: "x-marketing",
