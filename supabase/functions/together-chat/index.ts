@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
       return json(
         {
           error:
-            "Together API not configured. Set Edge Function secret TOGETHER_API_KEY (https://api.together.xyz/).",
+            "Together API not configured. Set Edge Function secret TOGETHER_API_KEY (create a key in Together’s dashboard; same account works with api.together.xyz).",
         },
         503,
       );

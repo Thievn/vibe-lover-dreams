@@ -20,7 +20,19 @@ export type TogetherChatCompletionResult = {
   raw: unknown;
 };
 
-const TOGETHER_URL = "https://api.together.xyz/v1/chat/completions";
+/**
+ * Official inference API is `https://api.together.xyz/v1` (docs.together.ai). The marketing site
+ * uses together.ai; API keys from the dashboard work against this host.
+ * Override only if Together support points you elsewhere: secret `TOGETHER_API_BASE_URL` (no trailing slash).
+ */
+export function togetherChatCompletionsUrl(): string {
+  let base = (Deno.env.get("TOGETHER_API_BASE_URL") ?? "https://api.together.xyz/v1").trim();
+  base = base.replace(/\uFEFF/g, "").replace(/\/+$/, "");
+  if (!/^https?:\/\//i.test(base)) {
+    base = "https://api.together.xyz/v1";
+  }
+  return `${base}/chat/completions`;
+}
 
 export async function togetherChatCompletion(
   args: TogetherChatCompletionArgs,
@@ -29,7 +41,7 @@ export async function togetherChatCompletion(
   const temperature = args.temperature ?? 0.92;
   const top_p = args.top_p ?? 0.92;
 
-  const res = await fetch(TOGETHER_URL, {
+  const res = await fetch(togetherChatCompletionsUrl(), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${args.apiKey}`,
@@ -59,8 +71,10 @@ export async function togetherChatCompletion(
         : rawText.slice(0, 400);
     if (res.status === 401) {
       throw new Error(
-        "Together rejected the API key (401). In Supabase → Edge Functions → Secrets, set TOGETHER_API_KEY to the " +
-          "key from https://api.together.xyz/settings/api-keys only (no word Bearer, no quotes). Redeploy functions after changing secrets.",
+        "Together rejected the API key (401). The inference host is still api.together.xyz (even if the website " +
+          "redirects you to together.ai — same login, same key). In the Supabase project that matches your app " +
+          "URL → Edge Functions → Secrets: name must be exactly TOGETHER_API_KEY; paste only the key (no Bearer, no quotes). " +
+          "If it still fails, create a new key in Together’s API key settings and replace the secret.",
       );
     }
     throw new Error(`Together API HTTP ${res.status}: ${errMsg}`);
@@ -84,7 +98,7 @@ export function defaultTogetherChatModel(): string {
  * Supabase secrets are sometimes pasted with quotes, a `Bearer ` prefix, or newlines — Together rejects those with 401.
  */
 export function normalizeTogetherApiKey(raw: string): string {
-  let k = raw.replace(/\r\n/g, "\n").trim();
+  let k = raw.replace(/\uFEFF/g, "").replace(/\u00a0/g, " ").replace(/\r\n/g, "\n").trim();
   if ((k.startsWith('"') && k.endsWith('"')) || (k.startsWith("'") && k.endsWith("'"))) {
     k = k.slice(1, -1).trim();
   }
