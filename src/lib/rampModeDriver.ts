@@ -55,7 +55,7 @@ export type RampModeDriver = {
 
 /**
  * Sends repeating vibrate commands with preset-shaped intensity while Ramp Mode is active.
- * Independent from chat JSON — pairs with realtime voice + Ramp prompt.
+ * Independent from chat JSON — pairs with Live Voice + Ramp prompt; nudged by Together assistant text.
  */
 export function startRampModeDriver(opts: {
   userId: string;

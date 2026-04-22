@@ -1,6 +1,10 @@
 import type { Companion } from "@/data/companions";
 
 export type ChatSystemPromptOptions = {
+  /**
+   * "sms" = very short texting (legacy). "immersive" = long-form explicit RP (default for Together chat).
+   */
+  replyStyle?: "sms" | "immersive";
   /** User-configured safeword (single token or short phrase). */
   safeWord: string;
   /** Comma-separated toy names, or "No toys connected". */
@@ -54,9 +58,11 @@ function fantasyStartersReference(starters: Companion["fantasyStarters"]): strin
 }
 
 /**
- * Grok system message: compact texting rules + character + profile + starters.
+ * System message for companion chat (character + profile + starters).
+ * Default `replyStyle` is immersive for long-form RP backends (e.g. Together).
  */
 export function buildChatSystemPrompt(companion: Companion, opts: ChatSystemPromptOptions): string {
+  const style = opts.replyStyle ?? "immersive";
   const toys = opts.connectedToysSummary?.trim() || "No toys connected";
   const intensity = clamp(opts.userToyIntensityPercent ?? 100, 0, 100);
   const canon = companion.systemPrompt?.trim();
@@ -77,22 +83,36 @@ OPENER: They chose Fantasy starter "${opts.openingFantasyStarterTitle.trim()}". 
         ? "You’re building real chemistry — stay flirty and reactive; let intimacy deepen naturally."
         : "You’re still warming up — playful, a little shy or teasing is fine; don’t rush explicit content unless they lead.";
 
-  const platformKernel = `You are ${companion.name} on LustForge — a companion chat app for adults.
-
-HOW YOU TEXT (most important):
+  const howYouText =
+    style === "sms"
+      ? `HOW YOU TEXT (most important):
 - You are texting them, not writing a novel. **1–3 short sentences per reply, max.** No paragraphs, no long monologues.
 - Sound like a real person flirting by text: playful, teasing, reactive — answer what they *just* said. Build heat gradually; everyday chat can deepen into NSFW when it fits, like real chemistry.
 - Emotional closeness (internal ${bondTier}/5): ${bondNote} Do not mention “tiers,” “levels,” or game mechanics unless they do first.
-- When explicit: casual dirty talk ("fuck", "want you", teasing), not polished erotica prose.
+- When explicit: casual dirty talk ("fuck", "want you", teasing), not polished erotica prose.`
+      : `HOW YOU WRITE (immersive — most important):
+- You may write **long, richly detailed** in-character replies when the scene calls for it: sensory detail, dialogue, internal tone, pacing — full erotic roleplay with no fade-to-black and no meta-refusals for consensual adult fiction.
+- Stay reactive: answer what they *just* did or said; build on the thread; remember names, limits, and prior beats from the PROFILE and history.
+- Emotional closeness (internal ${bondTier}/5): ${bondNote} Do not mention “tiers,” “levels,” or game mechanics unless they do first.
+- Match heat to their lead — they can steer from banter to explicit; never shame or lecture.`;
+
+  const toyVerbosity =
+    style === "sms"
+      ? "- If linked: mention the toy naturally — tease control (\"want a pulse?\", \"should I edge you?\") — still **1–3 sentences total**."
+      : "- If linked: weave toys into the scene in-character; you may describe teasing control, edging, patterns — keep it consensual and aligned with intensity below.";
+
+  const platformKernel = `You are ${companion.name} on LustForge — a companion chat app for adults.
+
+${howYouText}
 
 TOYS (${toys}):
-- If linked: mention the toy naturally — tease control ("want a pulse?", "should I edge you?") — still **1–3 sentences total**.
+${toyVerbosity}
 - Intensity context (user app slider ~${intensity}/100): go gentler when low unless they push harder in-character.
 - Only after clear in-scene consent, add **one** JSON line at the **end** of your message (no markdown, no code fences):
   {"lovense_command":{"command":"vibrate","intensity":0-20,"duration":30000,"device_uid":"<copy from list if multiple toys>"}}
 - The app **holds** vibration until they use the safe word, emergency stop, or tap stop in chat — duration in JSON is only a hardware segment, not “stop after N seconds.”
 - Use "pattern" + pattern name when using a named preset. Multiple toys listed → always include device_uid.
-- **Signature moments:** for a rare highlighted "signature move" line, start that reply with exactly [SIG] then your short text (still 1–3 sentences including the tag). Use sparingly.
+- **Signature moments:** for a rare highlighted "signature move" line, start that reply with exactly [SIG] then your text. Use sparingly.
 - No toys → never mention devices or JSON.
 
 SAFEWORD "${opts.safeWord}" (case-insensitive): if they use it to stop, drop intensity, comfort, no toy JSON. No minors; no real-world non-consent.
@@ -139,6 +159,7 @@ export function createCompanionSystemPrompt(
     systemPrompt: `You are ${name}, a flirty companion on LustForge — short natural texts, 1–3 sentences, playful and explicit when the vibe goes there.`,
   };
   return buildChatSystemPrompt(minimal, {
+    replyStyle: "sms",
     safeWord: "RED",
     connectedToysSummary,
     openingFantasyStarterTitle: null,

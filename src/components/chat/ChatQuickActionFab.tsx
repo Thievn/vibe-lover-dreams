@@ -1,17 +1,5 @@
 import { useState } from "react";
-import {
-  Camera,
-  Heart,
-  Flame,
-  Mic,
-  Sparkles,
-  Zap,
-  Baby,
-  Plus,
-  X,
-  Images,
-  Aperture,
-} from "lucide-react";
+import { Heart, Flame, Mic, Sparkles, Zap, Baby, Plus, X, Images } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -31,9 +19,6 @@ type Item = { id: FabActionId; label: string; icon: typeof Heart; disabled?: boo
 
 const ITEMS: Item[] = [
   { id: "gallery", label: "Open companion gallery", icon: Images },
-  { id: "selfie_sfw", label: "SFW selfie (casual picture)", icon: Camera },
-  { id: "selfie_lewd", label: "Lewd selfie (teasing / lingerie)", icon: Aperture },
-  { id: "selfie_nude", label: "Nude selfie (explicit)", icon: Sparkles },
   { id: "vibration", label: "Signature pattern (tap again to stop)", icon: Zap },
   { id: "praise", label: "Praise Me", icon: Heart },
   { id: "tease", label: "Tease Me", icon: Sparkles },

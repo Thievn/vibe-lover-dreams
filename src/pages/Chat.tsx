@@ -79,9 +79,9 @@ import {
   getChatAutoSpendImages,
   getFreeNsfwImagesUsed,
   incrementFreeNsfwImagesUsed,
-  inferChatImageGenerationPrompt,
   isExplicitImageRequest,
-  isImageRequestText,
+  resolveChatImagePromptForTensor,
+  wantsChatImageFromText,
   resolveFabDisplay,
   setChatAutoSpendImages,
 } from "@/lib/chatImageSettings";
@@ -89,7 +89,6 @@ import { invokeGenerateChatVideo } from "@/lib/invokeGenerateChatVideo";
 import { ChatModeToggle } from "@/components/chat/ChatModeToggle";
 import { LiveVoicePanel } from "@/components/chat/LiveVoicePanel";
 import { ChatMediaRequestBar } from "@/components/chat/ChatMediaRequestBar";
-import { ChatAutoSpendImagesToggle } from "@/components/chat/ChatAutoSpendImagesToggle";
 import {
   advanceChatAffectionState,
   buildAffectionLevelUpCopy,
@@ -174,6 +173,8 @@ const Chat = () => {
   const tokensBalanceRef = useRef(0);
   const messagesRef = useRef<ChatMessage[]>([]);
   const sendMessageRef = useRef<(text?: string, opts?: SendMessageOptions) => Promise<void>>(async () => {});
+  /** Live Voice panel registers this to nudge Ramp Mode from Together assistant text. */
+  const liveRampAssistFeedRef = useRef<((text: string) => void) | null>(null);
   const openingFantasyStarterTitleRef = useRef<string | null>(null);
   const location = useLocation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -538,60 +539,6 @@ const Chat = () => {
     tokensBalanceRef.current = newBalance;
   };
 
-  const lastLiveUserTranscriptRef = useRef<{ t: string; at: number } | null>(null);
-  /** Persist user speech to the thread; image-like lines also run the image pipeline (no duplicate user row). */
-  const handleLiveUserTranscript = useCallback((text: string) => {
-    void (async () => {
-      const trimmed = text.trim();
-      if (!trimmed || !user?.id || !companion) return;
-
-      const now = Date.now();
-      const prev = lastLiveUserTranscriptRef.current;
-      if (prev && prev.t === trimmed && now - prev.at < 2800) return;
-      lastLiveUserTranscriptRef.current = { t: trimmed, at: now };
-
-      try {
-        const { data: insertedUserRow, error: userInsertError } = await supabase
-          .from("chat_messages")
-          .insert({
-            user_id: user.id,
-            companion_id: companion.id,
-            role: "user",
-            content: trimmed,
-          })
-          .select("id")
-          .single();
-
-        if (userInsertError || !insertedUserRow?.id) {
-          console.error(userInsertError);
-          return;
-        }
-
-        const uid = insertedUserRow.id as string;
-        const userMsg: ChatMessage = {
-          id: uid,
-          role: "user",
-          content: trimmed,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, userMsg]);
-        messagesRef.current = [...messagesRef.current, userMsg];
-
-        const wantsImage =
-          isImageRequestText(trimmed) || Boolean(inferChatImageGenerationPrompt(trimmed));
-        if (wantsImage) {
-          await sendMessageRef.current(trimmed, {
-            skipUserMessageInsert: true,
-            existingUserMessageId: uid,
-            bypassImageConfirmation: true,
-          });
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    })();
-  }, [user?.id, companion?.id]);
-
   const generateImage = async (userRequest: string, userId: string): Promise<any> => {
     if (!companion || !dbComp) return null;
 
@@ -945,6 +892,7 @@ const Chat = () => {
       return live;
     }
     return buildChatSystemPrompt(companion, {
+      replyStyle: "immersive",
       safeWord,
       connectedToysSummary: toyBlock,
       openingFantasyStarterTitle: openingFantasyStarterTitleRef.current,
@@ -1277,34 +1225,6 @@ const Chat = () => {
     return data.id as string;
   };
 
-  const handleVoiceAssistantTranscript = async (text: string) => {
-    const t = text.trim();
-    if (!t || !user || !companion) return;
-    const { cleanText, command } = parseLovenseChatCommand(t);
-    const displayContent = cleanText.trim() ? cleanText : "*Toy command sent.*";
-    try {
-      const id = await insertAssistantMessage(displayContent, command);
-      const assistantMsg: ChatMessage = {
-        id,
-        role: "assistant",
-        content: displayContent,
-        lovenseCommand: command ?? undefined,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
-      if (command && hasDevice) {
-        if (ttsAutoplay) {
-          pendingLovenseForTtsRef.current = { messageId: id, command };
-        } else {
-          void executeDeviceCommand(command);
-        }
-      }
-    } catch (e) {
-      console.error(e);
-      toast.error("Could not save voice reply to chat");
-    }
-  };
-
   const insertAssistantImageMessage = async (args: {
     content: string;
     imageUrl: string;
@@ -1609,11 +1529,12 @@ const Chat = () => {
 
     setImageGenPending(null);
 
-    const inferredFromSpeech = inferChatImageGenerationPrompt(messageText);
-    const promptForImage = options?.imageGenerationPrompt?.trim() || inferredFromSpeech || messageText;
+    const promptForImage = resolveChatImagePromptForTensor({
+      messageText,
+      menuImagePrompt: options?.imageGenerationPrompt ?? null,
+    });
     const requestingImage =
-      Boolean(options?.imageGenerationPrompt?.trim()) ||
-      isImageRequestText(messageText);
+      Boolean(options?.imageGenerationPrompt?.trim()) || wantsChatImageFromText(messageText);
     const autoSpendImages = getChatAutoSpendImages(companion.id);
     const holdForImageButton =
       requestingImage && !autoSpendImages && !options?.bypassImageConfirmation;
@@ -1763,7 +1684,7 @@ const Chat = () => {
           await applyChatAffectionAfterExchange();
         }
       } else {
-        const { data, error } = await supabase.functions.invoke("chat-with-companion", {
+        const { data, error } = await supabase.functions.invoke("together-chat", {
           body: {
             companionId: companion.id,
             messages: threadForModel,
@@ -1796,6 +1717,10 @@ const Chat = () => {
         };
 
         setMessages((prev) => [...prev, assistantMsg]);
+
+        if (sessionMode === "live_voice") {
+          liveRampAssistFeedRef.current?.(displayContent);
+        }
 
         if (command && hasDevice) {
           if (ttsAutoplay) {
@@ -1933,10 +1858,15 @@ const Chat = () => {
 
   const freeNsfwUsed = user ? getFreeNsfwImagesUsed(user.id, companion.id) : 0;
   const freeNsfwRemaining = Math.max(0, FREE_NSFW_CHAT_IMAGES - freeNsfwUsed);
+  const draftImagePrompt = input.trim()
+    ? resolveChatImagePromptForTensor({ messageText: input, menuImagePrompt: null })
+    : "";
   const imageSubmitTitle =
     isAdminUser
       ? "Generate image"
-      : isImageRequestText(input) && isExplicitImageRequest(input) && freeNsfwRemaining > 0
+      : wantsChatImageFromText(input) &&
+          isExplicitImageRequest(draftImagePrompt || input) &&
+          freeNsfwRemaining > 0
         ? `Generate image (free NSFW · ${freeNsfwRemaining} left)`
         : `Generate image (${IMAGE_TOKEN_COST} tokens)`;
   const pendingExplicit = imageGenPending ? isExplicitImageRequest(imageGenPending.prompt) : false;
@@ -2035,10 +1965,8 @@ const Chat = () => {
             imageCostLabel={isAdminUser ? "waived" : `${IMAGE_TOKEN_COST} cr`}
             videoCostLabel={isAdminUser ? "waived" : `${CHAT_VIDEO_TOKEN_COST} cr`}
             onRequest={handleMediaBarRequest}
-          />
-          <ChatAutoSpendImagesToggle
-            enabled={autoSpendChatImages}
-            onChange={(enabled) => {
+            autoSpendEnabled={autoSpendChatImages}
+            onAutoSpendChange={(enabled) => {
               setAutoSpendChatImages(enabled);
               setChatAutoSpendImages(companion.id, enabled);
             }}
@@ -2068,7 +1996,7 @@ const Chat = () => {
         userAvatarUrl={userAvatarUrl}
         userInitials={userInitials}
         loading={loading}
-        isImageRequest={isImageRequestText}
+        isImageRequest={wantsChatImageFromText}
         inputSnapshot={input}
         hasDevice={hasDevice}
         onImageClick={setViewingImage}
@@ -2103,10 +2031,9 @@ const Chat = () => {
           <LiveVoicePanel
             disabled={!isAdminUser && tokensBalance <= 0}
             busy={loading}
-            liveInstructions={composeGrokSystemPrompt()}
-            xaiVoice={uxVoiceToXaiVoice(effectiveUxVoice)}
-            onAssistantTranscriptDone={(text) => void handleVoiceAssistantTranscript(text)}
-            onUserSpeechTranscript={handleLiveUserTranscript}
+            onRegisterRampAssistFeed={(fn) => {
+              liveRampAssistFeedRef.current = fn;
+            }}
             onSendText={(text) => void sendMessage(text)}
             rampModeActive={rampModeActive}
             onRampModeActiveChange={setRampModeActive}
@@ -2139,9 +2066,9 @@ const Chat = () => {
               ? "Out of tokens — upgrade to continue"
               : sessionMode === "live_voice"
                 ? `Type to ${companion.name} or use the mic above…`
-                : `Message ${companion.name}… (ask for selfies or pics!)`
+                : `Message ${companion.name}… e.g. "send me a pic" or "new selfie — spicy"`
           }
-          isImageRequest={isImageRequestText}
+          isImageRequest={wantsChatImageFromText}
           isAdminUser={isAdminUser}
           tokensBalance={tokensBalance}
           tokenCost={TOKEN_COST}

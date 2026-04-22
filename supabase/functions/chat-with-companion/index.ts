@@ -1,70 +1,24 @@
-import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
-
+/**
+ * @deprecated Text chat moved to `together-chat`. Grok/xAI is retained for TTS, STT, images, and voice client secrets only.
+ * This endpoint returns HTTP 410 so stale clients fail loudly instead of silently using Grok for RP.
+ */
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
-
-  try {
-    const { companionId, messages, systemPrompt, companionName } = await req.json();
-
-    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "xAI API key not configured. Set Edge Function secret XAI_API_KEY or GROK_API_KEY (https://console.x.ai/).",
-        }),
-        {
-          status: 503,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "grok-3",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages,
-        ],
-        max_tokens: 1600,
-        temperature: 0.88,
-      }),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("Grok API error:", errText);
-      return new Response(JSON.stringify({ error: "AI service error", details: errText }), {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content || "...";
-
-    return new Response(JSON.stringify({ response: reply }), {
+  return new Response(
+    JSON.stringify({
+      error:
+        "chat-with-companion is retired. Update the app and deploy `together-chat`; set TOGETHER_API_KEY on Edge Functions.",
+    }),
+    {
+      status: 410,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (err) {
-    console.error("Edge function error:", err);
-    const msg = err instanceof Error ? err.message : String(err);
-    return new Response(JSON.stringify({ error: msg }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+    },
+  );
 });

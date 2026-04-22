@@ -109,11 +109,28 @@ export function resolveFabDisplay(display: string | readonly string[]): string {
  * When the user clearly wants a picture (typed or voice-to-text).
  * Relaxed length for short explicit asks like “send nudes”.
  */
+/** True when typed or voice text should run the chat image pipeline (Tensor), not text-only Grok. */
+export function wantsChatImageFromText(text: string): boolean {
+  return isImageRequestText(text);
+}
+
 export function isImageRequestText(text: string): boolean {
   const t = text.toLowerCase().normalize("NFKC").trim();
   if (t.length < 6) return false;
 
   if (inferChatImageGenerationPrompt(text)) return true;
+
+  // Flexible phrasing: "send me a sexy picture", "a new image", "pic of yourself", etc.
+  if (
+    /\b(another|a new|one more|new)\s+(image|picture|pic|photo|selfie)\b/i.test(t) ||
+    /\b(pic|picture|photo|image|selfie)\s+of\s+(you|yourself|u)\b/i.test(t) ||
+    /\b(send|show|give)\s+me\b[\s\S]{0,48}\b(pic|picture|photo|image|selfie)\b/i.test(t) ||
+    /\b(can|could)\s+i\s+(get|have|see)\b[\s\S]{0,40}\b(pic|picture|photo|image|selfie)\b/i.test(t) ||
+    /\b(gen|generate|creating|create)\b[\s\S]{0,20}\b(image|picture|pic|photo)\b/i.test(t) ||
+    /\bask(ing|ed)?\b[\s\S]{0,32}\b(for\s+)?(a\s+)?(pic|picture|photo|image|selfie)\b/i.test(t)
+  ) {
+    return true;
+  }
 
   if (t.length < 10) {
     if (
@@ -197,6 +214,17 @@ export function isImageRequestText(text: string): boolean {
     "want to see you",
     "need a selfie",
     "need a pic",
+    "need an image",
+    "want a pic",
+    "want a picture",
+    "want a photo",
+    "want a selfie",
+    "want to see a pic",
+    "hit me with a pic",
+    "drop a pic",
+    "selfie of yourself",
+    "photo of yourself",
+    "picture of yourself",
   ];
 
   if (phrases.some((p) => t.includes(p))) return true;
@@ -212,23 +240,28 @@ export function inferChatImageGenerationPrompt(text: string): string | undefined
   const t = text.toLowerCase().normalize("NFKC");
 
   const nudeIntent =
-    /\b(full\s*nude|fully nude|nude selfie|nude pic|nude picture|send nudes|send nude|naked selfie|completely naked|fully naked|bare all|bare for me|no clothes|nothing on)\b/i.test(
+    /\b(full\s*nude|fully nude|full\s*nudity|nude selfie|nude pic|nude picture|send nudes|send nude|naked selfie|completely naked|fully naked|bare all|bare for me|no clothes|nothing on|all\s*fours|spread\s*(eagle|open)|on\s*your\s*knees)\b/i.test(
       t,
     ) ||
     (/\bnude\b|\bnaked\b|\bnsfw\b/i.test(t) &&
-      /\b(selfie|pic|picture|photo|image|send|show|take)\b/i.test(t));
+      /\b(selfie|pic|picture|photo|image|send|show|take)\b/i.test(t)) ||
+    (/\b(uncensored|x-?rated|hardcore)\b/i.test(t) &&
+      /\b(selfie|pic|picture|photo|image|send|show|draw|generate)\b/i.test(t));
 
   if (nudeIntent) return FAB_SELFIE.nude.imagePrompt;
 
   const lewdIntent =
-    /\b(lewd selfie|lewd pic|lewd picture|lingerie|sheer|topless|teasing|spicy selfie|spicy pic)\b/i.test(t) ||
-    (/\blewd\b/i.test(t) && /\b(selfie|pic|picture|photo|send|show)\b/i.test(t));
+    /\b(lewd selfie|lewd pic|lewd picture|lingerie|sheer|topless|teasing|spicy selfie|spicy pic|something\s+hot|something\s+naughty|something\s+dirty|turn\s+me\s+on|thirst\s*trap)\b/i.test(t) ||
+    (/\b(sexy|seductive|erotic|risqu[eé])\b/i.test(t) &&
+      /\b(selfie|pic|picture|photo|image|send|show|give)\b/i.test(t)) ||
+    (/\blewd\b/i.test(t) && /\b(selfie|pic|picture|photo|send|show)\b/i.test(t)) ||
+    (/\bhot\b/i.test(t) && /\b(selfie|pic|picture|photo|image|send)\b/i.test(t));
 
   if (lewdIntent) return FAB_SELFIE.lewd.imagePrompt;
 
   const sfwIntent =
     /\b(cute selfie|casual selfie|sfw selfie|sweet selfie|pretty selfie|outfit pic|clothed selfie)\b/i.test(t) ||
-    (/\b(cute|casual|sweet|pretty)\b/i.test(t) && /\b(selfie|pic|picture|photo)\b/i.test(t) && !/\b(nude|naked|lewd|nsfw)\b/i.test(t));
+    (/\b(cute|casual|sweet|pretty)\b/i.test(t) && /\b(selfie|pic|picture|photo)\b/i.test(t) && !/\b(nude|naked|lewd|nsfw|explicit|sexy|hot|erotic)\b/i.test(t));
 
   if (sfwIntent) return FAB_SELFIE.sfw.imagePrompt;
 
@@ -241,6 +274,7 @@ export function isExplicitImageRequest(text: string): boolean {
   const needles = [
     "nude",
     "nudes",
+    "nudity",
     "naked",
     "nsfw",
     "explicit",
@@ -264,8 +298,51 @@ export function isExplicitImageRequest(text: string): boolean {
     "masturbat",
     "spicy pic",
     "xxx",
+    "filthy",
+    "raunchy",
+    "uncensored",
+    "x-rated",
+    "hardcore",
+    "sexy pic",
+    "sexy photo",
+    "sexy selfie",
+    "sexy picture",
+    "erotic",
+    "seductive",
+    "lingerie",
+    "topless",
+    "bottomless",
+    "undressed",
+    "unclothed",
+    "something hot",
+    "something naughty",
   ];
   return needles.some((n) => t.includes(n));
+}
+
+/**
+ * Resolves the diffusion brief for `generate-image-tensor`.
+ * Menu / FAB flows pass `menuImagePrompt`; free-typed chat uses inference, but never replaces
+ * clearly explicit user wording with a SFW preset.
+ */
+export function resolveChatImagePromptForTensor(args: {
+  messageText: string;
+  menuImagePrompt?: string | null;
+}): string {
+  const menu = args.menuImagePrompt?.trim();
+  if (menu) return menu;
+
+  const raw = args.messageText.trim();
+  if (!raw) return raw;
+
+  const inferred = inferChatImageGenerationPrompt(raw);
+  if (!inferred) return raw;
+
+  const userExplicit = isExplicitImageRequest(raw);
+  const inferredExplicit = isExplicitImageRequest(inferred);
+  if (userExplicit && !inferredExplicit) return raw;
+
+  return inferred;
 }
 
 /** Profile replacement portraits: require ~9:16 vertical (tall). width/height ≈ 9/16. */

@@ -1,17 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Flame, Loader2, Mic, Square } from "lucide-react";
 import { toast } from "sonner";
-import { startGrokRealtimeVoiceSession } from "@/lib/grokRealtimeVoiceSession";
-import { invokeGrokVoiceClientSecret } from "@/lib/invokeGrokVoiceClientSecret";
 import { invokeGrokStt } from "@/lib/invokeGrokStt";
 import { startRampModeDriver, type RampModeDriver } from "@/lib/rampModeDriver";
-import {
-  createRampTranscriptThrottle,
-  type RampTranscriptThrottle,
-} from "@/lib/rampTranscriptThrottle";
 import type { RampPresetId } from "@/lib/rampModePresets";
 import { RAMP_PRESET_IDS, RAMP_PRESET_LABELS, RAMP_PRESET_SHORT } from "@/lib/rampModePresets";
-import type { XaiVoiceId } from "@/lib/ttsVoicePresets";
 import { cn } from "@/lib/utils";
 
 const QUICK_LINES: { label: string; send: string }[] = [
@@ -31,11 +24,8 @@ const RAMP_VOICE_OFF =
 type Props = {
   disabled?: boolean;
   busy?: boolean;
-  liveInstructions: string;
-  xaiVoice: XaiVoiceId;
-  onAssistantTranscriptDone?: (text: string) => void;
-  /** Live realtime: user speech transcript → same pipeline as typed chat (images, etc.). */
-  onUserSpeechTranscript?: (text: string) => void;
+  /** Parent stores this to nudge Ramp Mode from Together assistant replies (typed or voice turn). */
+  onRegisterRampAssistFeed?: (fn: ((text: string) => void) | null) => void;
   onSendText: (text: string) => void;
   rampModeActive: boolean;
   onRampModeActiveChange: (active: boolean) => void;
@@ -50,15 +40,13 @@ type Props = {
 };
 
 /**
- * Grok Realtime Voice + optional Ramp Mode (prompt + intensity driver).
+ * Voice: STT (xAI) → same chat path as typing (Together.ai) → optional Grok TTS from Chat autoplay.
+ * Ramp Mode follows assistant text from Together via `onRegisterRampAssistFeed`.
  */
 export function LiveVoicePanel({
   disabled,
   busy,
-  liveInstructions,
-  xaiVoice,
-  onAssistantTranscriptDone,
-  onUserSpeechTranscript,
+  onRegisterRampAssistFeed,
   onSendText,
   rampModeActive,
   onRampModeActiveChange,
@@ -71,42 +59,30 @@ export function LiveVoicePanel({
   prepareToyForRamp,
   className,
 }: Props) {
-  const [mode, setMode] = useState<"idle" | "realtime">("idle");
-  const [statusLine, setStatusLine] = useState("");
   const [transcribing, setTranscribing] = useState(false);
   const [recording, setRecording] = useState(false);
   const [rampDisplayIntensity, setRampDisplayIntensity] = useState(0);
 
-  const realtimeStopRef = useRef<(() => void) | null>(null);
-  const updateSessionInstructionsRef = useRef<((instructions: string) => void) | null>(null);
-  const liveInstructionsRef = useRef(liveInstructions);
-  liveInstructionsRef.current = liveInstructions;
-
   const rampDriverRef = useRef<RampModeDriver | null>(null);
-  const transcriptThrottleRef = useRef<RampTranscriptThrottle | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
     return () => {
-      realtimeStopRef.current?.();
-      realtimeStopRef.current = null;
-      updateSessionInstructionsRef.current = null;
       void rampDriverRef.current?.stop();
       rampDriverRef.current = null;
-      transcriptThrottleRef.current?.dispose();
-      transcriptThrottleRef.current = null;
     };
   }, []);
 
   useEffect(() => {
-    if (mode === "realtime" && updateSessionInstructionsRef.current) {
-      updateSessionInstructionsRef.current(liveInstructions);
-    }
-  }, [liveInstructions, mode]);
+    onRegisterRampAssistFeed?.((text) => {
+      rampDriverRef.current?.ingestAssistantSpeech(text);
+    });
+    return () => onRegisterRampAssistFeed?.(null);
+  }, [onRegisterRampAssistFeed]);
 
   useEffect(() => {
-    if (!rampModeActive || mode !== "realtime" || !userId || !hasDevice) {
+    if (!rampModeActive || !userId || !hasDevice) {
       void rampDriverRef.current?.stop();
       rampDriverRef.current = null;
       setRampDisplayIntensity(0);
@@ -136,7 +112,6 @@ export function LiveVoicePanel({
     };
   }, [
     rampModeActive,
-    mode,
     userId,
     hasDevice,
     primaryToyUid,
@@ -144,22 +119,6 @@ export function LiveVoicePanel({
     toyIntensityPercent,
     prepareToyForRamp,
   ]);
-
-  /** Throttled streaming transcript → ramp keyword bias (only while Ramp Mode + Live). */
-  useEffect(() => {
-    if (!rampModeActive || mode !== "realtime") {
-      transcriptThrottleRef.current?.dispose();
-      transcriptThrottleRef.current = null;
-      return;
-    }
-    transcriptThrottleRef.current = createRampTranscriptThrottle((text) => {
-      rampDriverRef.current?.ingestAssistantSpeech(text);
-    });
-    return () => {
-      transcriptThrottleRef.current?.dispose();
-      transcriptThrottleRef.current = null;
-    };
-  }, [rampModeActive, mode]);
 
   const stopStream = useCallback((stream: MediaStream | null) => {
     stream?.getTracks().forEach((t) => t.stop());
@@ -237,52 +196,6 @@ export function LiveVoicePanel({
     }
   }, [busy, disabled, stopStream, transcribing]);
 
-  const stopRealtime = useCallback(() => {
-    void rampDriverRef.current?.stop();
-    rampDriverRef.current = null;
-    transcriptThrottleRef.current?.dispose();
-    transcriptThrottleRef.current = null;
-    setRampDisplayIntensity(0);
-    realtimeStopRef.current?.();
-    realtimeStopRef.current = null;
-    updateSessionInstructionsRef.current = null;
-    setMode("idle");
-    setStatusLine("");
-  }, []);
-
-  const startRealtime = useCallback(async () => {
-    if (disabled || busy) return;
-    setStatusLine("Getting session…");
-    const secret = await invokeGrokVoiceClientSecret();
-    if ("error" in secret) {
-      toast.error(secret.error);
-      setStatusLine("");
-      return;
-    }
-
-    const { stop, updateSessionInstructions } = startGrokRealtimeVoiceSession({
-      clientSecret: secret.value,
-      instructions: liveInstructionsRef.current,
-      voice: xaiVoice,
-      onStatus: (s) => setStatusLine(s),
-      onError: (e) => {
-        toast.error(e.message);
-        stopRealtime();
-      },
-      onAssistantTranscriptDelta: (d, acc) => {
-        transcriptThrottleRef.current?.onDelta(d, acc);
-      },
-      onAssistantTranscriptDone: (t) => {
-        transcriptThrottleRef.current?.flushTurn(t);
-        onAssistantTranscriptDone?.(t);
-      },
-      onUserTranscriptDone: (t) => onUserSpeechTranscript?.(t),
-    });
-    realtimeStopRef.current = stop;
-    updateSessionInstructionsRef.current = updateSessionInstructions;
-    setMode("realtime");
-  }, [busy, disabled, onAssistantTranscriptDone, onUserSpeechTranscript, stopRealtime, xaiVoice]);
-
   const toggleSttRecord = useCallback(async () => {
     if (transcribing || busy) return;
     if (recording) {
@@ -312,63 +225,37 @@ export function LiveVoicePanel({
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#00ffd4]/90">Live Voice</p>
           <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
-            <span className="text-foreground/90 font-medium">Live</span> keeps the mic open — Grok speaks back in
-            real time. Use <span className="text-foreground/90 font-medium">Push-to-talk</span> if you prefer
-            transcribe-then-chat.
+            <span className="text-foreground/90 font-medium">Push the mic</span> to speak — audio is transcribed
+            (xAI STT), then <span className="text-foreground/90 font-medium">Together.ai</span> writes the reply
+            like typed chat. Use <span className="text-foreground/90 font-medium">TTS autoplay</span> or tap the
+            speaker on a message to hear it with <span className="text-foreground/90 font-medium">Grok voice</span>.
           </p>
-          {statusLine ? (
-            <p className="text-[11px] text-[#00ffd4]/85 mt-1.5 font-medium">{statusLine}</p>
-          ) : null}
         </div>
         <div className="flex flex-col gap-2 shrink-0 items-end">
-          {mode === "realtime" ? (
-            <button
-              type="button"
-              onClick={() => {
-                stopRealtime();
-                toast.message("Live voice ended");
-              }}
-              className="relative flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-destructive bg-destructive/20 text-destructive transition-all touch-manipulation hover:bg-destructive/30"
-              title="End live"
-            >
-              <Square className="h-6 w-6 fill-current" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={off}
-              onClick={() => void startRealtime()}
-              className={cn(
-                "relative flex h-14 w-14 items-center justify-center rounded-2xl border-2 transition-all touch-manipulation",
-                "border-[#00ffd4]/50 bg-[#00ffd4]/10 text-[#00ffd4] hover:bg-[#00ffd4]/20",
-                off && "opacity-40 pointer-events-none",
-              )}
-              title="Start live conversation"
-            >
-              <Mic className="h-7 w-7" />
-            </button>
-          )}
           <button
             type="button"
-            disabled={off || transcribing || mode === "realtime"}
+            disabled={off || transcribing}
             onClick={() => void toggleSttRecord()}
             className={cn(
-              "inline-flex items-center justify-center gap-1 min-h-9 min-w-[7.5rem] text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-lg border border-white/15",
-              recording ? "bg-destructive/20 text-destructive border-destructive/40" : "bg-white/[0.06]",
-              (off || mode === "realtime") && "opacity-40 pointer-events-none",
+              "relative flex h-14 w-14 items-center justify-center rounded-2xl border-2 transition-all touch-manipulation",
+              recording
+                ? "border-destructive bg-destructive/20 text-destructive hover:bg-destructive/30"
+                : "border-[#00ffd4]/50 bg-[#00ffd4]/10 text-[#00ffd4] hover:bg-[#00ffd4]/20",
+              off && "opacity-40 pointer-events-none",
             )}
+            title={recording ? "Stop and send" : "Hold to speak — tap again to send"}
           >
             {transcribing ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
-                Transcribing…
-              </>
+              <Loader2 className="h-7 w-7 animate-spin" />
             ) : recording ? (
-              "Stop & send"
+              <Square className="h-6 w-6 fill-current" />
             ) : (
-              "Push to talk"
+              <Mic className="h-7 w-7" />
             )}
           </button>
+          <span className="text-[9px] text-muted-foreground text-center max-w-[5.5rem] leading-tight">
+            {transcribing ? "Transcribing…" : recording ? "Tap to send" : "Tap to talk"}
+          </span>
         </div>
       </div>
 
@@ -381,7 +268,7 @@ export function LiveVoicePanel({
       >
         <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-orange-200/90">Ramp Mode</p>
-          {rampModeActive && mode === "realtime" && hasDevice ? (
+          {rampModeActive && hasDevice ? (
             <span className="text-[10px] text-muted-foreground/90 tabular-nums">{Math.round(rampDisplayIntensity)}%</span>
           ) : null}
         </div>
@@ -409,19 +296,19 @@ export function LiveVoicePanel({
             >
               <div
                 className="h-full rounded-full bg-gradient-to-r from-amber-500/50 via-orange-500/70 to-rose-500/60 transition-[width] duration-500 ease-out"
-                style={{ width: `${hasDevice && mode === "realtime" ? rampDisplayIntensity : 0}%` }}
+                style={{ width: `${hasDevice ? rampDisplayIntensity : 0}%` }}
               />
             </div>
-            {hasDevice && mode === "realtime" ? (
+            {hasDevice ? (
               <Flame
                 className="pointer-events-none absolute -right-0.5 -top-1 h-4 w-4 text-orange-400/70 animate-pulse"
                 aria-hidden
               />
             ) : null}
             <p className="text-[10px] text-muted-foreground/80 mt-1.5 leading-snug">
-              {hasDevice && mode === "realtime"
-                ? "Subtle intensity strip — toy follows preset + throttled speech nudges."
-                : "Connect a toy and start Live for hardware ramping."}
+              {hasDevice
+                ? "Toy follows the preset; Together replies nudge intensity from keywords."
+                : "Connect a Lovense toy for hardware ramping."}
             </p>
           </div>
         ) : null}
@@ -453,7 +340,7 @@ export function LiveVoicePanel({
           <button
             key={q.label}
             type="button"
-            disabled={off || recording || transcribing || mode === "realtime"}
+            disabled={off || recording || transcribing}
             onClick={() => onSendText(q.send)}
             className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[10px] font-medium text-foreground/90 hover:bg-white/[0.06] disabled:opacity-40 text-left leading-snug"
           >

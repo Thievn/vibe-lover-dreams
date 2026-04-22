@@ -24,6 +24,9 @@ verify_jwt = false
 [functions.chat-with-companion]
 verify_jwt = false
 
+[functions.together-chat]
+verify_jwt = false
+
 [functions.generate-companion-image]
 verify_jwt = false
 

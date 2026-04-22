@@ -1,5 +1,10 @@
-import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { requireSessionUser } from "../_shared/requireSessionUser.ts";
+import {
+  defaultTogetherChatModel,
+  requireTogetherApiKey,
+  togetherChatCompletion,
+  type TogetherChatMessage,
+} from "../_shared/togetherClient.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,7 +34,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
+    const apiKey = requireTogetherApiKey();
     if (!apiKey) {
       return new Response(JSON.stringify({ suggestions: STATIC_FALLBACK, degraded: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -39,38 +44,26 @@ Deno.serve(async (req) => {
     const name = String(companionName ?? "Companion").slice(0, 80);
     const system = `You suggest 3 very short optional replies the USER could send next in an adults-only chat with "${name}".
 Rules: JSON only, no markdown. Format: {"suggestions":["...","...","..."]}
-Each string max 72 characters. Match thread energy: flirty, playful, or explicitly sexual language is allowed when it fits; stay consensual-adults fiction. xAI applies its own policies — do not self-censor beyond that.`;
+Each string max 72 characters. Match thread energy: flirty, playful, or explicitly sexual language is allowed when it fits; stay consensual-adults fiction.`;
 
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "grok-3",
-        messages: [
-          { role: "system", content: system },
-          ...thread.map((m) => ({
-            role: m.role === "assistant" ? "assistant" : "user",
-            content: String(m.content ?? "").slice(0, 4000),
-          })),
-        ],
-        max_tokens: 220,
-        temperature: 0.85,
-      }),
+    const model = defaultTogetherChatModel();
+    const chatMessages: TogetherChatMessage[] = [
+      { role: "system", content: system },
+      ...thread.map((m) => ({
+        role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant",
+        content: String(m.content ?? "").slice(0, 4000),
+      })),
+    ];
+
+    const { content: raw } = await togetherChatCompletion({
+      apiKey,
+      model,
+      messages: chatMessages,
+      max_tokens: 220,
+      temperature: 0.85,
+      top_p: 0.9,
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("smart-replies grok error:", errText);
-      return new Response(JSON.stringify({ suggestions: STATIC_FALLBACK, degraded: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const data = await response.json();
-    const raw = data.choices?.[0]?.message?.content || "";
     let suggestions: string[] = [];
     try {
       const parsed = JSON.parse(raw.trim());
