@@ -1,5 +1,6 @@
 import { Aperture, Camera, ChevronDown, Sparkles, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CHAT_VIDEO_TIMING_USER_NOTE } from "@/lib/chatVisualRouting";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,7 +55,8 @@ export function ChatMediaRequestBar({
             Photos & clips
           </div>
           <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground/90">
-            Presets or type in chat — images use Tensor; clips generate from your companion portrait.
+            Stills = FLUX.2 · Clips = Wan (Tensor). {CHAT_VIDEO_TIMING_USER_NOTE} Type in chat is detected automatically — no
+            &quot;generating…&quot; spam.
           </p>
         </div>
         {typeof autoSpendEnabled === "boolean" && onAutoSpendChange ? (

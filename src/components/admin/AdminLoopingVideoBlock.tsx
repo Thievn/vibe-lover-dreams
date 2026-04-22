@@ -3,6 +3,7 @@ import { Loader2, Video } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
+import { CHAT_VIDEO_TIMING_USER_NOTE, pickRandomVideoLoadingLine } from "@/lib/chatVisualRouting";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -12,7 +13,7 @@ type Props = {
 };
 
 /**
- * Admin-only: invoke generate-profile-loop-video Edge Function (Grok I2V → Storage MP4).
+ * Admin-only: `generate-profile-loop-video` — Tensor TAMS Wan I2V → Storage MP4.
  */
 export function AdminLoopingVideoBlock({ companionId, className, onSuccess }: Props) {
   const [busy, setBusy] = useState(false);
@@ -20,6 +21,7 @@ export function AdminLoopingVideoBlock({ companionId, className, onSuccess }: Pr
   const run = async () => {
     if (!companionId.trim()) return;
     setBusy(true);
+    const loadId = toast.loading(pickRandomVideoLoadingLine());
     try {
       const { data, error } = await supabase.functions.invoke("generate-profile-loop-video", {
         body: { companionId: companionId.trim() },
@@ -28,13 +30,14 @@ export function AdminLoopingVideoBlock({ companionId, className, onSuccess }: Pr
       const errMsg = (data as { error?: string })?.error;
       if (errMsg) throw new Error(errMsg);
       const url = (data as { publicUrl?: string })?.publicUrl;
-      toast.success("Looping profile video generated", {
-        description: url ? String(url).slice(0, 120) : "Saved to companion — enable on profile if needed.",
+      toast.success("Looping profile video saved", {
+        id: loadId,
+        description: url ? String(url).slice(0, 120) : "Enable on profile if needed.",
         duration: 8000,
       });
       onSuccess?.();
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Generation failed");
+      toast.error(e instanceof Error ? e.message : "Generation failed", { id: loadId });
     } finally {
       setBusy(false);
     }
@@ -52,7 +55,8 @@ export function AdminLoopingVideoBlock({ companionId, className, onSuccess }: Pr
         Looping portrait video
       </div>
       <p className="text-[11px] text-muted-foreground leading-relaxed">
-        Uses your current profile still as source — ~10s themed loop (Grok image-to-video; motion follows name, tags, interests, vibe, and lore). Enable below to use it on the companion profile and in chat; not used on the landing page.
+        Uses the current still as first frame — Tensor Wan I2V short loop; motion follows profile fields. {CHAT_VIDEO_TIMING_USER_NOTE}{" "}
+        Enable below for profile + chat; not on the landing page.
       </p>
       <button
         type="button"

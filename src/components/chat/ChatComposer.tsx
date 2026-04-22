@@ -1,5 +1,7 @@
-import { Send, ImageIcon } from "lucide-react";
+import { Send, ImageIcon, Video } from "lucide-react";
 import { Link } from "react-router-dom";
+import type { ChatMediaRoute } from "@/lib/chatVisualRouting";
+import { CHAT_VIDEO_TIMING_USER_NOTE } from "@/lib/chatVisualRouting";
 
 type Props = {
   input: string;
@@ -8,13 +10,15 @@ type Props = {
   disabled: boolean;
   loading: boolean;
   placeholder: string;
-  isImageRequest: (t: string) => boolean;
+  /** Draft preview: which Tensor path the typed line would trigger (no send yet). */
+  mediaDraftKind: ChatMediaRoute;
   isAdminUser: boolean;
   tokensBalance: number;
   tokenCost: number;
   imageTokenCost: number;
-  /** Shown on the send button when the draft is an image request (includes free-NSFW copy when applicable). */
+  videoTokenCost: number;
   imageSubmitTitle: string;
+  videoSubmitTitle: string;
   safeWord: string;
   companionName: string;
 };
@@ -26,15 +30,26 @@ export function ChatComposer({
   disabled,
   loading,
   placeholder,
-  isImageRequest,
+  mediaDraftKind,
   isAdminUser,
   tokensBalance,
   tokenCost,
   imageTokenCost,
+  videoTokenCost,
   imageSubmitTitle,
+  videoSubmitTitle,
   safeWord,
   companionName,
 }: Props) {
+  const submitTitle =
+    isAdminUser
+      ? "Send"
+      : mediaDraftKind === "video"
+        ? videoSubmitTitle
+        : mediaDraftKind === "image"
+          ? imageSubmitTitle
+          : `Send (${tokenCost} tokens)`;
+
   return (
     <div className="border-t border-white/[0.07] bg-black/50 backdrop-blur-2xl px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shrink-0">
       <form
@@ -58,25 +73,34 @@ export function ChatComposer({
           type="submit"
           disabled={loading || !input.trim() || disabled}
           className="shrink-0 h-[52px] w-[52px] rounded-2xl bg-primary text-primary-foreground disabled:opacity-30 hover:opacity-95 transition-all flex items-center justify-center shadow-[0_0_24px_rgba(255,45,123,0.25)]"
-          title={
-            isAdminUser
-              ? "Send"
-              : isImageRequest(input)
-                ? imageSubmitTitle
-                : `Send (${tokenCost} tokens)`
-          }
+          title={submitTitle}
         >
-          {isImageRequest(input) ? <ImageIcon className="h-5 w-5" /> : <Send className="h-5 w-5" />}
+          {mediaDraftKind === "video" ? (
+            <Video className="h-5 w-5" />
+          ) : mediaDraftKind === "image" ? (
+            <ImageIcon className="h-5 w-5" />
+          ) : (
+            <Send className="h-5 w-5" />
+          )}
         </button>
       </form>
-      <p className="text-[10px] text-muted-foreground text-center mt-2 px-1">
+      <p className="text-[10px] text-muted-foreground text-center mt-2 px-1 leading-snug">
         Safe word: <span className="text-destructive font-bold">{safeWord}</span> ·{" "}
-        {isAdminUser ? "Admin session — credits waived · " : `${tokenCost} tokens/message · ${imageTokenCost} tokens/image · `}
-        18+ only ·{" "}
+        {isAdminUser ? (
+          "Admin session — credits waived · "
+        ) : (
+          <>
+            {tokenCost} tokens/message · {imageTokenCost} still / {videoTokenCost} clip ·{" "}
+          </>
+        )}
+        18+ only · {CHAT_VIDEO_TIMING_USER_NOTE}
         {!isAdminUser && tokensBalance <= 0 ? (
-          <Link to="/" className="text-primary underline">
-            Get tokens
-          </Link>
+          <>
+            {" "}
+            <Link to="/" className="text-primary underline">
+              Get tokens
+            </Link>
+          </>
         ) : null}
       </p>
     </div>

@@ -81,10 +81,15 @@ import {
   incrementFreeNsfwImagesUsed,
   isExplicitImageRequest,
   resolveChatImagePromptForTensor,
-  wantsChatImageFromText,
   resolveFabDisplay,
   setChatAutoSpendImages,
 } from "@/lib/chatImageSettings";
+import {
+  CHAT_VIDEO_TIMING_USER_NOTE,
+  inferChatMediaRoute,
+  inferClipMoodFromUserText,
+  pickRandomVideoLoadingLine,
+} from "@/lib/chatVisualRouting";
 import { invokeGenerateChatVideo } from "@/lib/invokeGenerateChatVideo";
 import { ChatModeToggle } from "@/components/chat/ChatModeToggle";
 import { LiveVoicePanel } from "@/components/chat/LiveVoicePanel";
@@ -111,6 +116,9 @@ type SendMessageOptions = {
   existingUserMessageId?: string;
 };
 const IMAGE_TOKEN_COST = 75;
+
+/** In-thread caption when Tensor returns a still — no “generating” / pipeline language. */
+const CHAT_STILL_DELIVERY_CAPTION = "*sends you a still — just for you.*";
 
 const SMART_FALLBACK = ["Tell me more…", "I want you closer.", "Surprise me."];
 
@@ -1275,7 +1283,10 @@ const Chat = () => {
     return data.id as string;
   };
 
-  /** Phase 2/4: xAI image-to-video from the companion still; `silent` keeps immersion (no full-screen wait toast for model-driven clips). */
+  /**
+   * Tensor I2V (Wan) from the companion still. Non-silent path shows a fun loading line (never “generating…”) then replaces with success.
+   * `silent` = model-appended `lustforge_media_request` (no toasts; immersion-first).
+   */
   const generateChatVideoClip = async (opts?: { mood?: "sfw" | "lewd" | "nude"; silent?: boolean }) => {
     if (!user || !companion) return;
     const mood = opts?.mood ?? "lewd";
@@ -1287,7 +1298,11 @@ const Chat = () => {
       });
       return;
     }
-    if (!silent) setLoading(true);
+    let loadToast: string | number | undefined;
+    if (!silent) {
+      setLoading(true);
+      loadToast = toast.loading(pickRandomVideoLoadingLine());
+    }
     try {
       const { data, error } = await invokeGenerateChatVideo({
         companionId: companion.id,
@@ -1342,11 +1357,20 @@ const Chat = () => {
       } else {
         await fetchTokens(user.id);
       }
-      if (!silent) toast.success("Video ready");
+      if (!silent) {
+        if (loadToast != null) {
+          toast.success("There you go.", { id: loadToast, duration: 4000 });
+        } else {
+          toast.success("There you go.");
+        }
+      }
       void queryClient.invalidateQueries({ queryKey: ["companion-generated-images", user.id, companion.id] });
     } catch (e: unknown) {
-      if (!silent) toast.error(e instanceof Error ? e.message : "Could not generate video");
-      else console.error("silent video", e);
+      if (!silent) {
+        const msg = e instanceof Error ? e.message : "Could not generate video";
+        if (loadToast != null) toast.error(msg, { id: loadToast });
+        else toast.error(msg);
+      } else console.error("silent video", e);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -1359,7 +1383,7 @@ const Chat = () => {
       if (req.kind === "image") {
         const result = await generateImage(req.brief, user.id);
         if (result) {
-          const cap = `*${companion.name} — just for you.*`;
+          const cap = `*${companion.name} sends you a still — just for you.*`;
           const rowId = await insertAssistantImageMessage({
             content: cap,
             imageUrl: result.imageUrl,
@@ -1541,7 +1565,7 @@ const Chat = () => {
       const imageResult = await generateImage(prompt, user.id);
       if (imageResult) {
         const rowId = await insertAssistantImageMessage({
-          content: `*creates a captivating image just for you*`,
+          content: CHAT_STILL_DELIVERY_CAPTION,
           imageUrl: imageResult.imageUrl,
           imagePrompt: prompt,
           generatedImageId: imageResult.imageId,
@@ -1550,7 +1574,7 @@ const Chat = () => {
         const imageMsg: ChatMessage = {
           id: rowId,
           role: "assistant",
-          content: `*creates a captivating image just for you*`,
+          content: CHAT_STILL_DELIVERY_CAPTION,
           imageUrl: imageResult.imageUrl,
           imageId: imageResult.imageId,
           generatedImageId: imageResult.imageId,
@@ -1584,23 +1608,36 @@ const Chat = () => {
 
     setImageGenPending(null);
 
+    const menuForcesImage = Boolean(options?.imageGenerationPrompt?.trim());
+    const mediaRoute = inferChatMediaRoute(messageText, menuForcesImage);
     const promptForImage = resolveChatImagePromptForTensor({
       messageText,
       menuImagePrompt: options?.imageGenerationPrompt ?? null,
     });
-    const requestingImage =
-      Boolean(options?.imageGenerationPrompt?.trim()) || wantsChatImageFromText(messageText);
+    const requestingImage = mediaRoute === "image";
+    const requestingVideo = mediaRoute === "video";
     const autoSpendImages = getChatAutoSpendImages(companion.id);
     const holdForImageButton =
       requestingImage && !autoSpendImages && !options?.bypassImageConfirmation;
     const explicitReq = isExplicitImageRequest(promptForImage);
     const freeUsed = getFreeNsfwImagesUsed(user.id, companion.id);
     const imageCharge = isAdminUser ? 0 : explicitReq && freeUsed < FREE_NSFW_CHAT_IMAGES ? 0 : IMAGE_TOKEN_COST;
-    const requiredTokens = holdForImageButton ? 0 : requestingImage ? imageCharge : TOKEN_COST;
+    const videoCharge = isAdminUser ? 0 : CHAT_VIDEO_TOKEN_COST;
+    const requiredTokens = holdForImageButton
+      ? 0
+      : requestingImage
+        ? imageCharge
+        : requestingVideo
+          ? videoCharge
+          : TOKEN_COST;
 
     const balanceNow = tokensBalanceRef.current;
     if (!isAdminUser && balanceNow < requiredTokens) {
-      const tokenType = requestingImage ? "image generation" : "messaging";
+      const tokenType = requestingImage
+        ? "image generation"
+        : requestingVideo
+          ? "video generation"
+          : "messaging";
       toast.error(`Not enough tokens for ${tokenType}. You need ${requiredTokens} but only have ${balanceNow}.`, {
         action: {
           label: "Upgrade",
@@ -1697,7 +1734,7 @@ const Chat = () => {
 
         if (imageResult) {
           const rowId = await insertAssistantImageMessage({
-            content: `*creates a captivating image just for you*`,
+            content: CHAT_STILL_DELIVERY_CAPTION,
             imageUrl: imageResult.imageUrl,
             imagePrompt: promptForImage,
             generatedImageId: imageResult.imageId,
@@ -1705,7 +1742,7 @@ const Chat = () => {
           const imageMsg: ChatMessage = {
             id: rowId,
             role: "assistant",
-            content: `*creates a captivating image just for you*`,
+            content: CHAT_STILL_DELIVERY_CAPTION,
             imageUrl: imageResult.imageUrl,
             imageId: imageResult.imageId,
             generatedImageId: imageResult.imageId,
@@ -1738,6 +1775,11 @@ const Chat = () => {
           clearOpeningStarterContext();
           await applyChatAffectionAfterExchange();
         }
+      } else if (requestingVideo) {
+        const mood = inferClipMoodFromUserText(messageText);
+        await generateChatVideoClip({ mood, silent: false });
+        clearOpeningStarterContext();
+        await applyChatAffectionAfterExchange();
       } else {
         const { data, error } = await supabase.functions.invoke("together-chat", {
           body: {
@@ -1920,14 +1962,16 @@ const Chat = () => {
   const draftImagePrompt = input.trim()
     ? resolveChatImagePromptForTensor({ messageText: input, menuImagePrompt: null })
     : "";
+  const draftMediaRoute = input.trim() ? inferChatMediaRoute(input, false) : "text";
   const imageSubmitTitle =
     isAdminUser
-      ? "Generate image"
-      : wantsChatImageFromText(input) &&
+      ? "Send still"
+      : draftMediaRoute === "image" &&
           isExplicitImageRequest(draftImagePrompt || input) &&
           freeNsfwRemaining > 0
-        ? `Generate image (free NSFW · ${freeNsfwRemaining} left)`
-        : `Generate image (${IMAGE_TOKEN_COST} tokens)`;
+        ? `Send still (free NSFW · ${freeNsfwRemaining} left)`
+        : `Send still (${IMAGE_TOKEN_COST} tokens)`;
+  const videoSubmitTitle = isAdminUser ? "Send clip" : `Send clip (${CHAT_VIDEO_TOKEN_COST} cr)`;
   const pendingExplicit = imageGenPending ? isExplicitImageRequest(imageGenPending.prompt) : false;
   const pendingImageButtonLabel =
     isAdminUser
@@ -2055,7 +2099,7 @@ const Chat = () => {
         userAvatarUrl={userAvatarUrl}
         userInitials={userInitials}
         loading={loading}
-        isImageRequest={wantsChatImageFromText}
+        isImageRequest={(t) => inferChatMediaRoute(t, false) !== "text"}
         inputSnapshot={input}
         hasDevice={hasDevice}
         onImageClick={setViewingImage}
@@ -2125,14 +2169,16 @@ const Chat = () => {
               ? "Out of tokens — upgrade to continue"
               : sessionMode === "live_voice"
                 ? `Type to ${companion.name} or use the mic above…`
-                : `Message ${companion.name}… e.g. "send me a pic" or "new selfie — spicy"`
+                : `Message ${companion.name}… stills, clips, or just talk`
           }
-          isImageRequest={wantsChatImageFromText}
+          mediaDraftKind={draftMediaRoute}
           isAdminUser={isAdminUser}
           tokensBalance={tokensBalance}
           tokenCost={TOKEN_COST}
           imageTokenCost={IMAGE_TOKEN_COST}
+          videoTokenCost={CHAT_VIDEO_TOKEN_COST}
           imageSubmitTitle={imageSubmitTitle}
+          videoSubmitTitle={videoSubmitTitle}
           safeWord={safeWord}
           companionName={companion.name}
         />

@@ -1,11 +1,19 @@
+/**
+ * Admin / forge: profile portrait loop — Tensor TAMS I2V (Wan), same stack as `generate-chat-companion-video`.
+ * Requires `TENSOR_API_KEY` or TAMS RSA keys. Optional `TENSOR_VIDEO_MODEL`, `TENSOR_CHAT_VIDEO_DURATION_SECONDS` (5–10).
+ */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { requireAdminUser } from "../_shared/requireSessionUser.ts";
-import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { hasTamsRsaCredentials } from "../_shared/tamsRsaAuth.ts";
+import {
+  DEFAULT_TENSOR_VIDEO_MODEL,
+  submitTensorImageToVideoJob,
+  waitForTensorJobResult,
+} from "../_shared/tensorClient.ts";
 import {
   buildMinimalProfileLoopVideoPrompt,
   buildProfileLoopVideoPrompt,
-  PROFILE_LOOP_VIDEO_DURATION_SECONDS,
-  PROFILE_LOOP_VIDEO_FALLBACK_DURATION_SECONDS,
+  I2V_MOUTH_STILL_DIRECTIVE_SHORT,
   sanitizePromptForVideoApi,
 } from "../_shared/profileLoopVideoPrompt.ts";
 
@@ -13,8 +21,6 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-const XAI_VIDEOS = "https://api.x.ai/v1/videos";
 
 function stablePublicImageUrl(url: string | null | undefined): string | null {
   if (!url?.trim()) return null;
@@ -37,49 +43,10 @@ function jsonResponse(obj: Record<string, unknown>, status = 200) {
   });
 }
 
-function tryParseJsonRecord(text: string): Record<string, unknown> | null {
-  const t = text.trim();
-  if (!t) return null;
-  try {
-    return JSON.parse(t) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-async function postVideoGeneration(
-  apiKey: string,
-  imageUrl: string,
-  prompt: string,
-  durationSeconds: number,
-): Promise<Response> {
-  const payload = {
-    model: "grok-imagine-video",
-    prompt: sanitizePromptForVideoApi(prompt),
-    duration: durationSeconds,
-    aspect_ratio: "9:16",
-    resolution: "480p",
-    image: { url: imageUrl },
-  };
-  let res = await fetch(`${XAI_VIDEOS}/generations`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    res = await fetch(`${XAI_VIDEOS}/generations`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ ...payload, image: imageUrl }),
-    });
-  }
-  return res;
+function profileVideoDurationSeconds(): number {
+  const n = Math.round(Number(Deno.env.get("TENSOR_CHAT_VIDEO_DURATION_SECONDS") ?? "10"));
+  if (!Number.isFinite(n)) return 10;
+  return Math.max(5, Math.min(10, n));
 }
 
 Deno.serve(async (req) => {
@@ -96,9 +63,15 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Server misconfigured" }, 500);
   }
 
-  const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
-  if (!apiKey) {
-    return jsonResponse({ error: "XAI_API_KEY not configured on Edge Function" }, 503);
+  const tensorApiKey = (Deno.env.get("TENSOR_API_KEY") ?? "").trim();
+  if (!tensorApiKey && !hasTamsRsaCredentials()) {
+    return jsonResponse(
+      {
+        error:
+          "Tensor not configured: set TENSOR_API_KEY (or TAMS_APP_ID + TAMS_PRIVATE_KEY) for profile loop video.",
+      },
+      503,
+    );
   }
 
   let body: { companionId?: string };
@@ -150,132 +123,73 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "No public profile image URL — set a static portrait first." }, 400);
   }
 
-  const fullPrompt = buildProfileLoopVideoPrompt(row);
-  let startRes = await postVideoGeneration(apiKey, imageUrl, fullPrompt, PROFILE_LOOP_VIDEO_DURATION_SECONDS);
-  let startText = await startRes.text();
-  let startParsed = tryParseJsonRecord(startText);
+  try {
+    const fullFromBuilder = buildProfileLoopVideoPrompt(row);
+    const extra = `\n\n${I2V_MOUTH_STILL_DIRECTIVE_SHORT} Profile page loop: seamless, identity-locked to the still.`;
+    const combined = sanitizePromptForVideoApi(`${fullFromBuilder}\n\n${extra}`);
+    const prompt =
+      combined.length <= 3000
+        ? combined
+        : sanitizePromptForVideoApi(
+            `${buildMinimalProfileLoopVideoPrompt(row)} ${I2V_MOUTH_STILL_DIRECTIVE_SHORT}`,
+          );
 
-  // Long lore + gateway quirks sometimes return HTML/empty bodies; retry compact prompt + 8s.
-  if (!startParsed) {
-    const minimal = buildMinimalProfileLoopVideoPrompt(row);
-    startRes = await postVideoGeneration(
-      apiKey,
-      imageUrl,
-      minimal,
-      PROFILE_LOOP_VIDEO_FALLBACK_DURATION_SECONDS,
-    );
-    startText = await startRes.text();
-    startParsed = tryParseJsonRecord(startText);
-  }
+    const durationSec = profileVideoDurationSeconds();
+    const videoModel = (Deno.env.get("TENSOR_VIDEO_MODEL") ?? DEFAULT_TENSOR_VIDEO_MODEL).trim() || DEFAULT_TENSOR_VIDEO_MODEL;
 
-  if (!startParsed) {
-    return jsonResponse(
-      {
-        error: "xAI returned non-JSON (often empty body, HTML error page, or gateway). Retried with a shorter prompt.",
-        httpStatus: startRes.status,
-        contentType: startRes.headers.get("content-type") ?? "",
-        detail: startText.slice(0, 1500),
-      },
-      502,
-    );
-  }
-  if (!startRes.ok) {
-    return jsonResponse(
-      { error: "xAI video start failed", status: startRes.status, detail: startParsed },
-      502,
-    );
-  }
-
-  return await finalizeVideo(
-    svc,
-    apiKey,
-    startParsed,
-    table,
-    rowPk,
-    companionId,
-    supabaseUrl,
-    serviceKey,
-  );
-});
-
-async function finalizeVideo(
-  svc: ReturnType<typeof createClient>,
-  apiKey: string,
-  startParsed: Record<string, unknown>,
-  table: "companions" | "custom_characters",
-  rowPk: string,
-  companionId: string,
-  supabaseUrl: string,
-  serviceKey: string,
-): Promise<Response> {
-  const requestId = typeof startParsed.request_id === "string" ? startParsed.request_id : null;
-  if (!requestId) {
-    return jsonResponse({ error: "xAI did not return request_id", detail: startParsed }, 502);
-  }
-
-  const deadline = Date.now() + 14 * 60 * 1000;
-  let status = "pending";
-  let lastPayload: Record<string, unknown> = {};
-
-  while (Date.now() < deadline) {
-    const pollRes = await fetch(`${XAI_VIDEOS}/${requestId}`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
+    const { jobId } = await submitTensorImageToVideoJob({
+      apiKey: tensorApiKey,
+      prompt,
+      sourceImageUrl: imageUrl,
+      model: videoModel,
+      durationSeconds: durationSec,
     });
-    const pollText = await pollRes.text();
-    try {
-      lastPayload = JSON.parse(pollText) as Record<string, unknown>;
-    } catch {
-      await new Promise((r) => setTimeout(r, 4000));
-      continue;
+
+    const { videoUrl: tensorVideoUrl } = await waitForTensorJobResult({
+      apiKey: tensorApiKey,
+      jobId,
+      timeoutMs: 16 * 60_000,
+      pollIntervalMs: 4000,
+    });
+
+    if (!tensorVideoUrl) {
+      return jsonResponse({ error: "Tensor job succeeded but returned no video URL." }, 502);
     }
-    status = typeof lastPayload.status === "string" ? lastPayload.status : "";
-    if (status === "done") break;
-    if (status === "failed" || status === "expired") {
-      return jsonResponse({ error: `Video generation ${status}`, detail: lastPayload }, 502);
+
+    const vidRes = await fetch(tensorVideoUrl);
+    if (!vidRes.ok) {
+      return jsonResponse({ error: `Download from Tensor failed HTTP ${vidRes.status}` }, 502);
     }
-    await new Promise((r) => setTimeout(r, 4000));
+    const buf = new Uint8Array(await vidRes.arrayBuffer());
+
+    const safeId = companionId.replace(/[^a-zA-Z0-9-_]/g, "_").slice(0, 120);
+    const fileName = `profile-loops/${safeId}/${Date.now()}.mp4`;
+    const storage = createClient(supabaseUrl, serviceKey);
+    const { error: upErr } = await storage.storage.from("companion-images").upload(fileName, buf, {
+      contentType: "video/mp4",
+      upsert: true,
+    });
+    if (upErr) {
+      return jsonResponse({ error: `Storage upload failed: ${upErr.message}` }, 500);
+    }
+
+    const publicUrl = storage.storage.from("companion-images").getPublicUrl(fileName).data.publicUrl;
+
+    const { error: upRow } = await svc
+      .from(table)
+      .update({
+        animated_image_url: publicUrl,
+        profile_loop_video_enabled: true,
+      })
+      .eq("id", rowPk);
+
+    if (upRow) {
+      return jsonResponse({ error: upRow.message }, 500);
+    }
+
+    return jsonResponse({ success: true, publicUrl, source: "tensor", durationSeconds: durationSec });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return jsonResponse({ error: msg }, 500);
   }
-
-  if (status !== "done") {
-    return jsonResponse({ error: "Video generation timed out", last: lastPayload }, 504);
-  }
-
-  const video = lastPayload.video as Record<string, unknown> | undefined;
-  const vidUrl = typeof video?.url === "string" ? video.url : null;
-  if (!vidUrl) {
-    return jsonResponse({ error: "No video URL in xAI response", detail: lastPayload }, 502);
-  }
-
-  const vidRes = await fetch(vidUrl);
-  if (!vidRes.ok) {
-    return jsonResponse({ error: `Could not download video: HTTP ${vidRes.status}` }, 502);
-  }
-  const buf = new Uint8Array(await vidRes.arrayBuffer());
-
-  const safeId = companionId.replace(/[^a-zA-Z0-9-_]/g, "_").slice(0, 120);
-  const fileName = `profile-loops/${safeId}/${Date.now()}.mp4`;
-  const storage = createClient(supabaseUrl, serviceKey);
-  const { error: upErr } = await storage.storage.from("companion-images").upload(fileName, buf, {
-    contentType: "video/mp4",
-    upsert: true,
-  });
-  if (upErr) {
-    return jsonResponse({ error: `Storage upload failed: ${upErr.message}` }, 500);
-  }
-
-  const publicUrl = storage.storage.from("companion-images").getPublicUrl(fileName).data.publicUrl;
-
-  const { error: upRow } = await svc
-    .from(table)
-    .update({
-      animated_image_url: publicUrl,
-      profile_loop_video_enabled: true,
-    })
-    .eq("id", rowPk);
-
-  if (upRow) {
-    return jsonResponse({ error: upRow.message }, 500);
-  }
-
-  return jsonResponse({ success: true, publicUrl });
-}
+});

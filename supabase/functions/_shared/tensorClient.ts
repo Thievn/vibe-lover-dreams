@@ -5,13 +5,18 @@ const DEFAULT_TENSOR_BASE_URL = "https://ap-east-1.tensorart.cloud";
 /**
  * TAMS `sdModel` must be the numeric ID from the model page URL, e.g.
  * `https://tensor.art/models/935697227794352937` → use `935697227794352937`.
- * Override with secret `TENSOR_IMAGE_MODEL` if you switch checkpoints.
+ * This default is **FLUX.2 DEV (FP8)** on Tensor — LustForge chat stills use this for picture/selfie/pic asks
+ * unless you override with `TENSOR_IMAGE_MODEL` / `TENSOR_CHAT_IMAGE_MODEL` in `generate-image-tensor`.
  *
  * @see https://tams-docs.tensor.art/docs/api/guide/how-to-get-the-model-id
  */
 export const DEFAULT_TENSOR_IMAGE_MODEL = "935697227794352937";
-/** Image-to-video checkpoint id from TAMS workspace example; override with `TENSOR_VIDEO_MODEL`. */
-export const DEFAULT_TENSOR_VIDEO_MODEL = "834845658683829748";
+
+/**
+ * I2V / `VIDEO_DIFFUSION` on TAMS — default **Wan 2.2** short loops (override with `TENSOR_VIDEO_MODEL`).
+ * Confirm the id matches a Wan I2V-capable workflow in your TAMS app.
+ */
+export const DEFAULT_TENSOR_VIDEO_MODEL = "890953380564889159";
 
 export const LUSTFORGE_IMAGE_WIDTH = 768;
 export const LUSTFORGE_IMAGE_HEIGHT = 1024;

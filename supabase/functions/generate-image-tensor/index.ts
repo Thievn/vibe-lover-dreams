@@ -242,9 +242,15 @@ Deno.serve(async (req) => {
       tokensCharged = true;
     }
 
+    // Chat stills: prefer `TENSOR_CHAT_IMAGE_MODEL` (FLUX.2 Dev) when set; else `TENSOR_IMAGE_MODEL` (also defaults to FLUX.2).
+    const isChatSession = String(characterData.style ?? "") === "chat-session";
+    const imageModelRaw = isChatSession
+      ? (Deno.env.get("TENSOR_CHAT_IMAGE_MODEL") ?? Deno.env.get("TENSOR_IMAGE_MODEL") ?? DEFAULT_TENSOR_IMAGE_MODEL)
+          .trim()
+      : (Deno.env.get("TENSOR_IMAGE_MODEL") ?? DEFAULT_TENSOR_IMAGE_MODEL).trim();
     const model = assertTensorSdModelId(
-      (Deno.env.get("TENSOR_IMAGE_MODEL") ?? DEFAULT_TENSOR_IMAGE_MODEL).trim(),
-      "TENSOR_IMAGE_MODEL",
+      imageModelRaw,
+      isChatSession ? "TENSOR_CHAT_IMAGE_MODEL|TENSOR_IMAGE_MODEL" : "TENSOR_IMAGE_MODEL",
     );
     const videoModel = assertTensorSdModelId(
       (Deno.env.get("TENSOR_VIDEO_MODEL") ?? DEFAULT_TENSOR_VIDEO_MODEL).trim(),
