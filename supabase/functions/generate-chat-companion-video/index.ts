@@ -1,10 +1,19 @@
+/**
+ * Chat companion video clips: Tensor TAMS image-to-video (same stack as `generate-image-tensor`).
+ * Configure `TENSOR_API_KEY` and optional `TENSOR_VIDEO_MODEL`, `TENSOR_CHAT_VIDEO_DURATION_SECONDS` (5–10, default 10).
+ * Grok/xAI video is not used here.
+ */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { hasTamsRsaCredentials } from "../_shared/tamsRsaAuth.ts";
+import {
+  DEFAULT_TENSOR_VIDEO_MODEL,
+  submitTensorImageToVideoJob,
+  waitForTensorJobResult,
+} from "../_shared/tensorClient.ts";
 import {
   buildMinimalProfileLoopVideoPrompt,
   buildProfileLoopVideoPrompt,
-  PROFILE_LOOP_VIDEO_DURATION_SECONDS,
-  PROFILE_LOOP_VIDEO_FALLBACK_DURATION_SECONDS,
+  I2V_MOUTH_STILL_DIRECTIVE_SHORT,
   sanitizePromptForVideoApi,
 } from "../_shared/profileLoopVideoPrompt.ts";
 
@@ -16,8 +25,6 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-
-const XAI_VIDEOS = "https://api.x.ai/v1/videos";
 
 function stablePublicImageUrl(url: string | null | undefined): string | null {
   if (!url?.trim()) return null;
@@ -40,49 +47,10 @@ function jsonResponse(obj: Record<string, unknown>, status = 200) {
   });
 }
 
-function tryParseJsonRecord(text: string): Record<string, unknown> | null {
-  const t = text.trim();
-  if (!t) return null;
-  try {
-    return JSON.parse(t) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-async function postVideoGeneration(
-  apiKey: string,
-  imageUrl: string,
-  prompt: string,
-  durationSeconds: number,
-): Promise<Response> {
-  const payload = {
-    model: "grok-imagine-video",
-    prompt: sanitizePromptForVideoApi(prompt),
-    duration: durationSeconds,
-    aspect_ratio: "9:16",
-    resolution: "480p",
-    image: { url: imageUrl },
-  };
-  let res = await fetch(`${XAI_VIDEOS}/generations`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    res = await fetch(`${XAI_VIDEOS}/generations`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ ...payload, image: imageUrl }),
-    });
-  }
-  return res;
+function chatVideoDurationSeconds(): number {
+  const n = Math.round(Number(Deno.env.get("TENSOR_CHAT_VIDEO_DURATION_SECONDS") ?? "10"));
+  if (!Number.isFinite(n)) return 10;
+  return Math.max(5, Math.min(10, n));
 }
 
 async function refundTokens(svc: ReturnType<typeof createClient>, userId: string, amount: number) {
@@ -110,14 +78,17 @@ Deno.serve(async (req) => {
     const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
     const anonTrim = SUPABASE_ANON_KEY?.trim() ?? "";
 
-    const body = await req.json().catch(() => null) as {
+    const body = (await req.json().catch(() => null)) as {
       companionId?: string;
       userId?: string;
       tokenCost?: number;
+      clipMood?: "sfw" | "lewd" | "nude";
     } | null;
 
     const companionId = typeof body?.companionId === "string" ? body.companionId.trim() : "";
     const userId = typeof body?.userId === "string" ? body.userId.trim() : "";
+    const clipMood =
+      body?.clipMood === "sfw" || body?.clipMood === "lewd" || body?.clipMood === "nude" ? body.clipMood : "lewd";
 
     if (!companionId || !userId) {
       return jsonResponse({ success: false, error: "companionId and userId required" }, 400);
@@ -126,7 +97,7 @@ Deno.serve(async (req) => {
     tokenCost =
       typeof body?.tokenCost === "number" && Number.isFinite(body.tokenCost) && body.tokenCost > 0
         ? Math.floor(body.tokenCost)
-        : 320;
+        : 100;
     chargedUserId = userId;
 
     if (!bearer || (anonTrim && bearer === anonTrim)) {
@@ -153,6 +124,19 @@ Deno.serve(async (req) => {
 
     const svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    const tensorApiKey = (Deno.env.get("TENSOR_API_KEY") ?? "").trim();
+    if (!tensorApiKey && !hasTamsRsaCredentials()) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Tensor auth not configured: set Supabase secret TENSOR_API_KEY (Bearer from https://tams.tensor.art/app) " +
+            "or TAMS_APP_ID + TAMS_PRIVATE_KEY for RSA. Ensure TENSOR_API_BASE_URL matches your TAMS app region.",
+        },
+        503,
+      );
+    }
+
     if (tokenCost > 0) {
       const { data: prof, error: profErr } = await svc
         .from("profiles")
@@ -178,12 +162,6 @@ Deno.serve(async (req) => {
         .eq("user_id", userId);
       if (deductErr) throw new Error(deductErr.message || "Could not reserve credits.");
       tokensCharged = true;
-    }
-
-    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
-    if (!apiKey) {
-      if (tokensCharged) await refundTokens(svc, userId, tokenCost);
-      return jsonResponse({ success: false, error: "XAI_API_KEY not configured" }, 503);
     }
 
     let imageUrl: string | null = null;
@@ -233,81 +211,50 @@ Deno.serve(async (req) => {
       "arched back stretch then soft collapse to original pose",
     ];
     const beat = motionBeats[Math.floor(Math.random() * motionBeats.length)] ?? motionBeats[0];
-    const chatPrompt = `${buildProfileLoopVideoPrompt(row)} Focus: **chat lewd clip** — same identity as the reference portrait (face, hair, body type, outfit). Primary motion beat for this request: ${beat}. Prefer sensual, NSFW-leaning performance that still matches the still (not a generic portrait zoom or idle blink). Vary gesture each generation; loop-friendly. Audio is separate — keep lips/jaw still (no talking or lip-sync). Provider policy applies.`;
+    const moodLine =
+      clipMood === "sfw"
+        ? "SFW / flirty: cute playful motion, outfit stays on, no nudity."
+        : clipMood === "nude"
+          ? "Explicit-leaning if the still supports it; sensual body motion."
+          : "Lewd / lingerie tease, NSFW-leaning, matching the still.";
 
-    let startRes = await postVideoGeneration(apiKey, imageUrl, chatPrompt, PROFILE_LOOP_VIDEO_DURATION_SECONDS);
-    let startText = await startRes.text();
-    let startParsed = tryParseJsonRecord(startText);
+    const fullFromBuilder = buildProfileLoopVideoPrompt(row);
+    const extra = `\n\nCHAT CLIP: ${moodLine} Primary motion: ${beat}. ${I2V_MOUTH_STILL_DIRECTIVE_SHORT}`;
+    const combined = sanitizePromptForVideoApi(`${fullFromBuilder}${extra}`);
+    const prompt =
+      combined.length <= 3000
+        ? combined
+        : sanitizePromptForVideoApi(
+            `${buildMinimalProfileLoopVideoPrompt(row)} ${moodLine} Motion: ${beat}. ${I2V_MOUTH_STILL_DIRECTIVE_SHORT}`,
+          );
 
-    if (!startParsed) {
-      const minimal = `${buildMinimalProfileLoopVideoPrompt(row)} Chat lewd loop — match reference identity; motion: ${beat}; sensual, NSFW-leaning if consistent with the still. Mouth still — no lip-sync or speech-like motion (audio is separate).`;
-      startRes = await postVideoGeneration(apiKey, imageUrl, minimal, PROFILE_LOOP_VIDEO_FALLBACK_DURATION_SECONDS);
-      startText = await startRes.text();
-      startParsed = tryParseJsonRecord(startText);
-    }
+    const durationSec = chatVideoDurationSeconds();
+    const videoModel = (Deno.env.get("TENSOR_VIDEO_MODEL") ?? DEFAULT_TENSOR_VIDEO_MODEL).trim() || DEFAULT_TENSOR_VIDEO_MODEL;
 
-    if (!startParsed) {
+    const { jobId } = await submitTensorImageToVideoJob({
+      apiKey: tensorApiKey,
+      prompt,
+      sourceImageUrl: imageUrl,
+      model: videoModel,
+      durationSeconds: durationSec,
+    });
+
+    const { videoUrl: tensorVideoUrl } = await waitForTensorJobResult({
+      apiKey: tensorApiKey,
+      jobId,
+      timeoutMs: 16 * 60_000,
+      pollIntervalMs: 4000,
+    });
+
+    if (!tensorVideoUrl) {
       if (tokensCharged) await refundTokens(svc, userId, tokenCost);
-      return jsonResponse(
-        {
-          success: false,
-          error: "xAI returned non-JSON for video start",
-          detail: startText.slice(0, 1500),
-        },
-        502,
-      );
-    }
-    if (!startRes.ok) {
-      if (tokensCharged) await refundTokens(svc, userId, tokenCost);
-      return jsonResponse({ success: false, error: "xAI video start failed", detail: startParsed }, 502);
+      return jsonResponse({ success: false, error: "Tensor job completed but returned no video URL." }, 502);
     }
 
-    const requestId = typeof startParsed.request_id === "string" ? startParsed.request_id : null;
-    if (!requestId) {
-      if (tokensCharged) await refundTokens(svc, userId, tokenCost);
-      return jsonResponse({ success: false, error: "No request_id from xAI", detail: startParsed }, 502);
-    }
-
-    const deadline = Date.now() + 14 * 60 * 1000;
-    let status = "pending";
-    let lastPayload: Record<string, unknown> = {};
-
-    while (Date.now() < deadline) {
-      const pollRes = await fetch(`${XAI_VIDEOS}/${requestId}`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-      const pollText = await pollRes.text();
-      try {
-        lastPayload = JSON.parse(pollText) as Record<string, unknown>;
-      } catch {
-        await new Promise((r) => setTimeout(r, 4000));
-        continue;
-      }
-      status = typeof lastPayload.status === "string" ? lastPayload.status : "";
-      if (status === "done") break;
-      if (status === "failed" || status === "expired") {
-        if (tokensCharged) await refundTokens(svc, userId, tokenCost);
-        return jsonResponse({ success: false, error: `Video ${status}`, detail: lastPayload }, 502);
-      }
-      await new Promise((r) => setTimeout(r, 4000));
-    }
-
-    if (status !== "done") {
-      if (tokensCharged) await refundTokens(svc, userId, tokenCost);
-      return jsonResponse({ success: false, error: "Video generation timed out", last: lastPayload }, 504);
-    }
-
-    const video = lastPayload.video as Record<string, unknown> | undefined;
-    const vidUrl = typeof video?.url === "string" ? video.url : null;
-    if (!vidUrl) {
-      if (tokensCharged) await refundTokens(svc, userId, tokenCost);
-      return jsonResponse({ success: false, error: "No video URL", detail: lastPayload }, 502);
-    }
-
-    const vidRes = await fetch(vidUrl);
+    const vidRes = await fetch(tensorVideoUrl);
     if (!vidRes.ok) {
       if (tokensCharged) await refundTokens(svc, userId, tokenCost);
-      return jsonResponse({ success: false, error: `Download failed HTTP ${vidRes.status}` }, 502);
+      return jsonResponse({ success: false, error: `Download from Tensor failed HTTP ${vidRes.status}` }, 502);
     }
     const buf = new Uint8Array(await vidRes.arrayBuffer());
 
@@ -332,6 +279,8 @@ Deno.serve(async (req) => {
       videoUrl: publicUrl,
       newTokensBalance: prof?.tokens_balance ?? null,
       tokensCharged: tokenCost,
+      source: "tensor",
+      durationSeconds: durationSec,
     });
   } catch (err) {
     console.error("generate-chat-companion-video:", err);

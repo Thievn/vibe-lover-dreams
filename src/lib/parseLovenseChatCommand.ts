@@ -4,7 +4,7 @@
  * regex required `"lovense_command"` so nothing matched and the raw blob stayed in chat.
  */
 
-function sliceBalancedBrace(text: string, openPos: number): string | null {
+export function sliceBalancedBrace(text: string, openPos: number): string | null {
   if (text[openPos] !== "{") return null;
   let depth = 0;
   for (let i = openPos; i < text.length; i++) {
@@ -19,7 +19,7 @@ function sliceBalancedBrace(text: string, openPos: number): string | null {
 }
 
 /** Flat `key: value` pairs inside `{ ... }` without requiring JSON quotes (model output). */
-function parseLooseInnerObject(innerWithBraces: string): Record<string, unknown> | null {
+export function parseLooseInnerObject(innerWithBraces: string): Record<string, unknown> | null {
   const inner = innerWithBraces.trim().replace(/^\{|\}$/g, "").trim();
   if (!inner) return null;
   const out: Record<string, unknown> = {};
@@ -79,7 +79,7 @@ export function parseLovenseChatCommand(text: string): {
   cleanText: string;
   command: Record<string, unknown> | null;
 } {
-  const raw = text.trim();
+  const raw = (typeof text === "string" ? text : String(text ?? "")).trim();
   if (!raw) return { cleanText: text, command: null };
 
   const lower = raw.toLowerCase();

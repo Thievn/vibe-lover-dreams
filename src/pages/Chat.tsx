@@ -88,7 +88,7 @@ import {
 import { invokeGenerateChatVideo } from "@/lib/invokeGenerateChatVideo";
 import { ChatModeToggle } from "@/components/chat/ChatModeToggle";
 import { LiveVoicePanel } from "@/components/chat/LiveVoicePanel";
-import { ChatMediaRequestBar } from "@/components/chat/ChatMediaRequestBar";
+import { ChatMediaRequestBar, type ChatMediaBarAction } from "@/components/chat/ChatMediaRequestBar";
 import {
   advanceChatAffectionState,
   buildAffectionLevelUpCopy,
@@ -97,7 +97,8 @@ import {
   type AffectionRewardKind,
 } from "@/lib/chatAffection";
 import { parseAssistantDisplayContent } from "@/lib/chatSignatureBeat";
-import { parseLovenseChatCommand } from "@/lib/parseLovenseChatCommand";
+import { parseAssistantStructuredBlocks } from "@/lib/parseAssistantStructuredBlocks";
+import type { LustforgeMediaRequest } from "@/lib/parseLustforgeMediaRequest";
 
 const TOKEN_COST = 15;
 
@@ -860,7 +861,8 @@ const Chat = () => {
     }
   };
 
-  const composeGrokSystemPrompt = () => {
+  /** Phase 2/3: Together (Qwen) only — no Grok text. Classic chat uses immersive RP; live voice uses the voice prompt. */
+  const composeChatSystemPrompt = () => {
     if (!companion) return "";
     const toyBlock =
       connectedToys.length === 0
@@ -892,7 +894,7 @@ const Chat = () => {
       return live;
     }
     return buildChatSystemPrompt(companion, {
-      replyStyle: "sms",
+      replyStyle: "immersive",
       safeWord,
       connectedToysSummary: toyBlock,
       openingFantasyStarterTitle: openingFantasyStarterTitleRef.current,
@@ -1273,8 +1275,11 @@ const Chat = () => {
     return data.id as string;
   };
 
-  const generateChatVideoClip = async () => {
+  /** Phase 2/4: xAI image-to-video from the companion still; `silent` keeps immersion (no full-screen wait toast for model-driven clips). */
+  const generateChatVideoClip = async (opts?: { mood?: "sfw" | "lewd" | "nude"; silent?: boolean }) => {
     if (!user || !companion) return;
+    const mood = opts?.mood ?? "lewd";
+    const silent = opts?.silent ?? false;
     const cost = isAdminUser ? 0 : CHAT_VIDEO_TOKEN_COST;
     if (!isAdminUser && tokensBalance < cost) {
       toast.error(`Video clips cost ${cost} forge credits. You have ${tokensBalance}.`, {
@@ -1282,19 +1287,24 @@ const Chat = () => {
       });
       return;
     }
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const { data, error } = await invokeGenerateChatVideo({
         companionId: companion.id,
         userId: user.id,
         tokenCost: cost,
+        clipMood: mood,
       });
       if (error) throw error;
       const url = data?.videoUrl;
       if (!url) throw new Error("No video returned");
-      const caption = `*${companion.name} sent you a steamy clip…*`;
-      const clipPrompt =
-        "[LustForge chat] Themed lewd 9:16 vertical clip — sensual, flirtatious; exact content varies.";
+      const caption =
+        mood === "sfw"
+          ? `*${companion.name} sent you a flirty clip…*`
+          : mood === "nude"
+            ? `*${companion.name} sent you an explicit clip…*`
+            : `*${companion.name} sent you a steamy clip…*`;
+      const clipPrompt = `[LustForge chat] mood=${mood} — 9:16 vertical clip.`;
       const { data: giRow, error: giErr } = await supabase
         .from("generated_images")
         .insert({
@@ -1332,38 +1342,83 @@ const Chat = () => {
       } else {
         await fetchTokens(user.id);
       }
-      toast.success("Video ready");
+      if (!silent) toast.success("Video ready");
       void queryClient.invalidateQueries({ queryKey: ["companion-generated-images", user.id, companion.id] });
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Could not generate video");
+      if (!silent) toast.error(e instanceof Error ? e.message : "Could not generate video");
+      else console.error("silent video", e);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
-  const handleMediaBarRequest = (tier: "selfie_sfw" | "selfie_lewd" | "selfie_nude" | "lewd_video") => {
-    if (tier === "lewd_video") {
-      void generateChatVideoClip();
+  /** Phase 3/4: after Together replies, run Tensor (images) or clip gen without breaking immersion. */
+  const runDeferredLustforgeMedia = async (req: LustforgeMediaRequest) => {
+    if (!user || !companion || !dbComp) return;
+    try {
+      if (req.kind === "image") {
+        const result = await generateImage(req.brief, user.id);
+        if (result) {
+          const cap = `*${companion.name} — just for you.*`;
+          const rowId = await insertAssistantImageMessage({
+            content: cap,
+            imageUrl: result.imageUrl,
+            imagePrompt: req.brief,
+            generatedImageId: result.imageId,
+          });
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: rowId,
+              role: "assistant",
+              content: cap,
+              imageUrl: result.imageUrl,
+              imageId: result.imageId,
+              generatedImageId: result.imageId,
+              imagePrompt: req.brief,
+              timestamp: new Date(),
+              savedToCompanionGallery: true,
+              savedToPersonalGallery: false,
+            },
+          ]);
+          void queryClient.invalidateQueries({ queryKey: ["companion-generated-images", user.id, companion.id] });
+        }
+      } else {
+        await generateChatVideoClip({ mood: req.mood ?? "lewd", silent: true });
+      }
+    } catch (e) {
+      console.error("runDeferredLustforgeMedia", e);
+    }
+  };
+
+  // --- Phase 1: three dropdowns (Selfie / Lewd / Nude) × (Picture | Video) ---
+  const handleMediaBarRequest = (action: ChatMediaBarAction) => {
+    const videoMood: "sfw" | "lewd" | "nude" =
+      action === "selfie_video" ? "sfw" : action === "nude_video" ? "nude" : "lewd";
+    if (action.endsWith("_video")) {
+      void generateChatVideoClip({ mood: videoMood });
       return;
     }
-    if (tier === "selfie_sfw") {
+    if (action === "selfie_picture") {
       void sendMessage(resolveFabDisplay(FAB_SELFIE.sfw.display), {
         imageGenerationPrompt: FAB_SELFIE.sfw.imagePrompt,
         bypassImageConfirmation: true,
       });
       return;
     }
-    if (tier === "selfie_lewd") {
+    if (action === "lewd_picture") {
       void sendMessage(resolveFabDisplay(FAB_SELFIE.lewd.display), {
         imageGenerationPrompt: FAB_SELFIE.lewd.imagePrompt,
         bypassImageConfirmation: true,
       });
       return;
     }
-    void sendMessage(resolveFabDisplay(FAB_SELFIE.nude.display), {
-      imageGenerationPrompt: FAB_SELFIE.nude.imagePrompt,
-      bypassImageConfirmation: true,
-    });
+    if (action === "nude_picture") {
+      void sendMessage(resolveFabDisplay(FAB_SELFIE.nude.display), {
+        imageGenerationPrompt: FAB_SELFIE.nude.imagePrompt,
+        bypassImageConfirmation: true,
+      });
+    }
   };
 
   const deliverAffectionLevelUpRewards = async (newLevel: number, reward: AffectionRewardKind) => {
@@ -1669,7 +1724,7 @@ const Chat = () => {
           clearOpeningStarterContext();
           await applyChatAffectionAfterExchange();
         } else {
-          /** Image pipeline failed (toast already from `generateImage`). Do NOT call chat with the raw image brief — Grok often refuses and breaks immersion. */
+          /** Image pipeline failed (toast already from `generateImage`). Do NOT call chat with the raw image brief — it breaks immersion. */
           const fallback =
             "*The picture didn't come through — try the + menu again, or ask in your own words.*";
           const asstId = await insertAssistantMessage(fallback, null);
@@ -1688,7 +1743,7 @@ const Chat = () => {
           body: {
             companionId: companion.id,
             messages: threadForModel,
-            systemPrompt: composeGrokSystemPrompt(),
+            systemPrompt: composeChatSystemPrompt(),
             companionName: companion.name,
             connectedToys: connectedToys,
           },
@@ -1702,10 +1757,10 @@ const Chat = () => {
           throw new Error(chatPayload.error);
         }
 
-        const { cleanText, command } = parseLovenseChatCommand(
-          chatPayload?.response || chatPayload?.message || "",
+        const { displayText, lovenseCommand: command, mediaRequest } = parseAssistantStructuredBlocks(
+          chatPayload?.response ?? chatPayload?.message,
         );
-        const displayContent = cleanText.trim() ? cleanText : "*Toy command sent.*";
+        const displayContent = displayText.trim() ? displayText : "*Toy command sent.*";
 
         const asstId = await insertAssistantMessage(displayContent, command);
         const assistantMsg: ChatMessage = {
@@ -1717,6 +1772,10 @@ const Chat = () => {
         };
 
         setMessages((prev) => [...prev, assistantMsg]);
+
+        if (mediaRequest) {
+          void runDeferredLustforgeMedia(mediaRequest);
+        }
 
         if (sessionMode === "live_voice") {
           liveRampAssistFeedRef.current?.(displayContent);

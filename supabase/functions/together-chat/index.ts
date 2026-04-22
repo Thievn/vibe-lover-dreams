@@ -1,3 +1,7 @@
+/**
+ * Phase 2 — LustForge text + roleplay: Together.ai (Qwen) only, via `TOGETHER_API_KEY`.
+ * Grok/xAI is not used here (retained for STT/TTS and video imagine elsewhere).
+ */
 import { requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { togetherChatServerSystemPrefix } from "../_shared/togetherRoleplaySystem.ts";
 import {

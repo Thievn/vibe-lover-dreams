@@ -1,14 +1,30 @@
-import { Camera, Aperture, Sparkles, Video } from "lucide-react";
+import { Aperture, Camera, ChevronDown, Sparkles, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-type Tier = "selfie_sfw" | "selfie_lewd" | "selfie_nude" | "lewd_video";
+/**
+ * Phase 1 — Media bar: three mood buckets, each with Picture / Video.
+ * Wire `onRequest` to Tensor (images) and chat video generation (clips).
+ */
+export type ChatMediaBarAction =
+  | "selfie_picture"
+  | "selfie_video"
+  | "lewd_picture"
+  | "lewd_video"
+  | "nude_picture"
+  | "nude_video";
 
 type Props = {
   disabled?: boolean;
   videoDisabled?: boolean;
   videoCostLabel: string;
   imageCostLabel: string;
-  onRequest: (tier: Tier) => void;
+  onRequest: (action: ChatMediaBarAction) => void;
   className?: string;
   /** Inline “auto-spend forge credits on pics” toggle (per-companion, caller persists). */
   autoSpendEnabled?: boolean;
@@ -38,7 +54,7 @@ export function ChatMediaRequestBar({
             Photos & clips
           </div>
           <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground/90">
-            Presets or type in chat — images use Tensor with your wording.
+            Presets or type in chat — images use Tensor; clips generate from your companion portrait.
           </p>
         </div>
         {typeof autoSpendEnabled === "boolean" && onAutoSpendChange ? (
@@ -57,46 +73,122 @@ export function ChatMediaRequestBar({
         ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onRequest("selfie_sfw")}
-        className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[11px] font-semibold text-foreground/95 hover:bg-white/[0.08] disabled:opacity-40 touch-manipulation"
-      >
-        <Camera className="h-3.5 w-3.5 text-primary shrink-0" />
-        Selfie
-        <span className="text-[9px] text-muted-foreground font-normal">({imageCostLabel})</span>
-      </button>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onRequest("selfie_lewd")}
-        className="inline-flex items-center gap-1.5 rounded-xl border border-primary/25 bg-primary/[0.08] px-2.5 py-1.5 text-[11px] font-semibold text-primary/95 hover:bg-primary/[0.12] disabled:opacity-40 touch-manipulation"
-      >
-        <Aperture className="h-3.5 w-3.5 shrink-0" />
-        Lewd selfie
-        <span className="text-[9px] text-muted-foreground font-normal">({imageCostLabel})</span>
-      </button>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onRequest("selfie_nude")}
-        className="inline-flex items-center gap-1.5 rounded-xl border border-fuchsia-500/30 bg-fuchsia-950/25 px-2.5 py-1.5 text-[11px] font-semibold text-fuchsia-100 hover:bg-fuchsia-950/40 disabled:opacity-40 touch-manipulation"
-      >
-        <Sparkles className="h-3.5 w-3.5 shrink-0" />
-        Nude selfie
-        <span className="text-[9px] text-muted-foreground font-normal">({imageCostLabel})</span>
-      </button>
-      <button
-        type="button"
-        disabled={disabled || videoDisabled}
-        onClick={() => onRequest("lewd_video")}
-        className="inline-flex items-center gap-1.5 rounded-xl border border-[#00ffd4]/35 bg-[#00ffd4]/10 px-2.5 py-1.5 text-[11px] font-semibold text-[#00ffd4] hover:bg-[#00ffd4]/16 disabled:opacity-40 touch-manipulation"
-      >
-        <Video className="h-3.5 w-3.5 shrink-0" />
-        Lewd video
-        <span className="text-[9px] text-[#00ffd4]/80 font-normal">({videoCostLabel})</span>
-      </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              disabled={disabled}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[11px] font-semibold text-foreground/95 hover:bg-white/[0.08] disabled:opacity-40 touch-manipulation"
+            >
+              <Camera className="h-3.5 w-3.5 text-primary shrink-0" />
+              Selfie
+              <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            className="min-w-[12rem] border border-white/10 bg-[hsl(280_25%_10%)]/98 text-foreground"
+          >
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 text-sm"
+              disabled={disabled}
+              onSelect={(e) => e.preventDefault()}
+              onClick={() => onRequest("selfie_picture")}
+            >
+              <Camera className="h-3.5 w-3.5" />
+              Selfie picture
+              <span className="ml-auto text-[10px] text-muted-foreground">{imageCostLabel}</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 text-sm"
+              disabled={disabled || videoDisabled}
+              onSelect={(e) => e.preventDefault()}
+              onClick={() => onRequest("selfie_video")}
+            >
+              <Video className="h-3.5 w-3.5 text-[#00ffd4]" />
+              Selfie video
+              <span className="ml-auto text-[10px] text-[#00ffd4]/80">{videoCostLabel}</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              disabled={disabled}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-primary/25 bg-primary/[0.08] px-2.5 py-1.5 text-[11px] font-semibold text-primary/95 hover:bg-primary/[0.12] disabled:opacity-40 touch-manipulation"
+            >
+              <Aperture className="h-3.5 w-3.5 shrink-0" />
+              Lewd
+              <ChevronDown className="h-3 w-3 shrink-0 opacity-80" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            className="min-w-[12rem] border border-white/10 bg-[hsl(280_25%_10%)]/98 text-foreground"
+          >
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 text-sm"
+              disabled={disabled}
+              onSelect={(e) => e.preventDefault()}
+              onClick={() => onRequest("lewd_picture")}
+            >
+              <Aperture className="h-3.5 w-3.5" />
+              Lewd picture
+              <span className="ml-auto text-[10px] text-muted-foreground">{imageCostLabel}</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 text-sm"
+              disabled={disabled || videoDisabled}
+              onSelect={(e) => e.preventDefault()}
+              onClick={() => onRequest("lewd_video")}
+            >
+              <Video className="h-3.5 w-3.5 text-[#00ffd4]" />
+              Lewd video
+              <span className="ml-auto text-[10px] text-[#00ffd4]/80">{videoCostLabel}</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              disabled={disabled}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-fuchsia-500/30 bg-fuchsia-950/25 px-2.5 py-1.5 text-[11px] font-semibold text-fuchsia-100 hover:bg-fuchsia-950/40 disabled:opacity-40 touch-manipulation"
+            >
+              <Sparkles className="h-3.5 w-3.5 shrink-0" />
+              Nude
+              <ChevronDown className="h-3 w-3 shrink-0 opacity-80" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            className="min-w-[12rem] border border-white/10 bg-[hsl(280_25%_10%)]/98 text-foreground"
+          >
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 text-sm"
+              disabled={disabled}
+              onSelect={(e) => e.preventDefault()}
+              onClick={() => onRequest("nude_picture")}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Nude picture
+              <span className="ml-auto text-[10px] text-muted-foreground">{imageCostLabel}</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 text-sm"
+              disabled={disabled || videoDisabled}
+              onSelect={(e) => e.preventDefault()}
+              onClick={() => onRequest("nude_video")}
+            >
+              <Video className="h-3.5 w-3.5 text-[#00ffd4]" />
+              Nude video
+              <span className="ml-auto text-[10px] text-[#00ffd4]/80">{videoCostLabel}</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

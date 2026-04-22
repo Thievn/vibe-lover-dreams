@@ -1,6 +1,6 @@
 /**
- * Profile companion-page loop videos: Grok Imagine image-to-video.
- * Duration is mirrored in `generate-profile-loop-video` API calls.
+ * Profile companion-page loop videos: image-to-video (Grok or Tensor, depending on function).
+ * Duration is mirrored in edge function API calls.
  *
  * No app-side content moderation — the provider enforces its own rules.
  */
@@ -125,7 +125,7 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>): strin
     "Quality: cinematic lighting, high detail, smooth motion, natural skin and fabric.",
   ].join("\n");
 
-  /** xAI video generations: stay conservative — oversized prompts correlated with empty/HTML error bodies. */
+  /** Video I2V APIs: stay conservative — oversized prompts correlated with failures. */
   const MAX_PROMPT_CHARS = 2800;
   const capped = body.length <= MAX_PROMPT_CHARS ? body : `${body.slice(0, MAX_PROMPT_CHARS).trimEnd()}…`;
   return sanitizePromptForVideoApi(capped);

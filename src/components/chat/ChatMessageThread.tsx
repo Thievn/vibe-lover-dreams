@@ -67,6 +67,21 @@ export function ChatMessageThread({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-2 md:px-4 md:py-3 space-y-2.5 scroll-pb-28 [-webkit-overflow-scrolling:touch] max-w-3xl mx-auto w-full">
+      {/* Phase 4: toy session — persistent strip so “toy active” is obvious without breaking chat layout */}
+      {toyDriveActive ? (
+        <div className="sticky top-0 z-10 -mx-0.5 mb-1 flex items-center justify-center rounded-xl border border-fuchsia-500/30 bg-gradient-to-r from-fuchsia-950/90 via-primary/20 to-fuchsia-950/90 px-2 py-1.5 text-center text-[10px] font-semibold uppercase tracking-widest text-fuchsia-100/95 shadow-lg shadow-black/30">
+          Toy session active
+          {onStopToyDrive ? (
+            <button
+              type="button"
+              onClick={() => onStopToyDrive()}
+              className="ml-2 rounded-md border border-white/20 bg-black/30 px-2 py-0.5 text-[9px] font-bold normal-case tracking-normal text-white/95 hover:bg-black/50"
+            >
+              Stop
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {messages.map((msg) => {
         const assistantDisplay =
           msg.role === "assistant" && !msg.imageUrl

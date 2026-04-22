@@ -41,8 +41,8 @@ export function incrementFreeNsfwImagesUsed(userId: string, companionId: string)
   }
 }
 
-/** Paid chat clip — significantly more than `IMAGE_TOKEN_COST` (75). */
-export const CHAT_VIDEO_TOKEN_COST = 320;
+/** Paid chat clip (Tensor I2V ~10s). Lower than legacy Grok clip pricing. */
+export const CHAT_VIDEO_TOKEN_COST = 100;
 
 /** Quick Action Buttons for image requests in chat */
 export const FAB_SELFIE = {

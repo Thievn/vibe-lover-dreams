@@ -89,8 +89,9 @@ export async function togetherChatCompletion(
 
 /** Override with secret `TOGETHER_CHAT_MODEL` (exact slug from the Together model page). */
 export function defaultTogetherChatModel(): string {
+  // Phase 2: primary RP model (override with secret TOGETHER_CHAT_MODEL).
   return (
-    Deno.env.get("TOGETHER_CHAT_MODEL") ?? "Qwen/Qwen3-235B-A22B-Instruct-2507-tput"
+    Deno.env.get("TOGETHER_CHAT_MODEL") ?? "Qwen/Qwen3-235B-A22B-Instruct-2507-FP8-Throughput"
   ).trim();
 }
 

@@ -5,7 +5,7 @@ const TICK_MS = 2300;
 
 /** Rough bias from companion speech (assistant transcript chunks). */
 function biasFromAssistantText(text: string): number {
-  const t = text.toLowerCase();
+  const t = String(text ?? "").toLowerCase();
   let b = 0;
   if (/\b(harder|more|don't stop|keep going|yes|right there)\b/.test(t)) b += 12;
   if (/\b(edge|edging|close|so close|almost)\b/.test(t)) b += 6;
@@ -96,7 +96,7 @@ export function startRampModeDriver(opts: {
 
   return {
     ingestAssistantSpeech: (text: string) => {
-      speechBias += biasFromAssistantText(text);
+      speechBias += biasFromAssistantText(String(text ?? ""));
       speechBias = Math.max(-30, Math.min(30, speechBias));
     },
     stop: async () => {

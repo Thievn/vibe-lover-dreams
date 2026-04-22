@@ -13,6 +13,8 @@ export async function invokeGenerateChatVideo(body: {
   companionId: string;
   userId: string;
   tokenCost?: number;
+  /** Passed to `generate-chat-companion-video` to steer the motion prompt. */
+  clipMood?: "sfw" | "lewd" | "nude";
 }): Promise<{ data: GenerateChatVideoResponse; error: null } | { data: null; error: Error }> {
   const base = getSupabaseUrl().replace(/\/$/, "");
   const anon = getSupabaseAnonKey();
