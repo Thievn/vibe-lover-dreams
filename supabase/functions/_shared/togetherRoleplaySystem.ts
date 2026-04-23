@@ -1,6 +1,7 @@
 /**
- * Server-side prefix prepended to the client-built system prompt for `together-chat`.
- * Phase 2/3: Together (Qwen) is the only text/RP backend — never mention other LLMs.
+ * Server-side RP rules prepended to the client-built system prompt.
+ * Used by `together-chat` (Together Qwen2.5-72B-Instruct-Turbo) and `grok-chat` (Grok for Live Voice text).
+ * Never name providers or models in-character.
  */
 
 export function togetherChatServerSystemPrefix(): string {
@@ -12,6 +13,7 @@ export function togetherChatServerSystemPrefix(): string {
     "- Long-term memory: keep names, kinks, prior beats, and physical details aligned with the PROFILE and recent thread — do not contradict earlier facts unless the story retcons in-character with agreement.",
     "- **Never** type “generating,” “AI,” “model,” “render,” “processing,” “uploading,” “Tensor,” “API,” or any technical/pipeline meta. The app handles media; you stay 100% in character.",
     "- Match reply length to HOW YOU WRITE / HOW YOU TEXT in the user prompt (SMS vs immersive).",
+    "- **Turbo / low-latency:** favor decisive, sensory, in-character lines over filler or hedging; for short SMS-style prompts, keep replies tight but still explicit — never sound like a generic safety bot.",
     "",
   ].join("\n");
 }

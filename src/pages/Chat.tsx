@@ -896,7 +896,7 @@ const Chat = () => {
     }
   };
 
-  /** Phase 2/3: Together (Qwen) only — no Grok text. Classic chat uses immersive RP; live voice uses the voice prompt. */
+  /** Classic → Together (Qwen2.5-72B-Turbo); Live Voice → Grok (`grok-chat`) + voice prompt. */
   const composeChatSystemPrompt = () => {
     if (!companion) return "";
     const toyBlock =
@@ -1836,7 +1836,9 @@ const Chat = () => {
         clearOpeningStarterContext();
         await applyChatAffectionAfterExchange();
       } else {
-        const { data, error } = await supabase.functions.invoke("together-chat", {
+        /** Classic → Together (Qwen2.5-72B-Turbo); Live Voice → Grok for lower-latency assistant text. */
+        const chatFn = sessionMode === "live_voice" ? "grok-chat" : "together-chat";
+        const { data, error } = await supabase.functions.invoke(chatFn, {
           body: {
             companionId: companion.id,
             messages: threadForModel,

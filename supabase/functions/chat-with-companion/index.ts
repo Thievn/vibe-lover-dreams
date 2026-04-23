@@ -1,5 +1,5 @@
 /**
- * @deprecated Text chat moved to `together-chat`. Grok/xAI is retained for TTS, STT, images, and voice client secrets only.
+ * @deprecated Text chat moved to `together-chat` (typed) and `grok-chat` (Live Voice). Grok/xAI is also used for TTS, STT, images, and voice client secrets.
  * This endpoint returns HTTP 410 so stale clients fail loudly instead of silently using Grok for RP.
  */
 const corsHeaders = {

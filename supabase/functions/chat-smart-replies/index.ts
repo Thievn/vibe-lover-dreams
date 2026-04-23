@@ -60,7 +60,7 @@ Each string max 72 characters. Match thread energy: flirty, playful, or explicit
       model,
       messages: chatMessages,
       max_tokens: 220,
-      temperature: 0.85,
+      temperature: 0.8,
       top_p: 0.9,
     });
 

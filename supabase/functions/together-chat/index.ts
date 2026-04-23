@@ -1,6 +1,7 @@
 /**
- * Phase 2 — LustForge text + roleplay: Together.ai (Qwen) only, via `TOGETHER_API_KEY`.
- * Grok/xAI is not used here (retained for STT/TTS and video imagine elsewhere).
+ * Classic typed chat + roleplay: Together.ai only (`TOGETHER_API_KEY`).
+ * Default model: Qwen2.5-72B-Instruct-Turbo (override `TOGETHER_CHAT_MODEL`) — tuned for fast NSFW RP.
+ * Live Voice assistant text uses `grok-chat` (Grok); TTS/STT use other Grok Edge functions.
  */
 import { requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { togetherChatServerSystemPrefix } from "../_shared/togetherRoleplaySystem.ts";
@@ -70,13 +71,14 @@ Deno.serve(async (req) => {
     ];
 
     const model = defaultTogetherChatModel();
+    /** Turbo: capped completion + moderate temp/top_p → faster responses without gutting heat. */
     const { content, raw } = await togetherChatCompletion({
       apiKey,
       model,
       messages,
-      max_tokens: 4096,
-      temperature: 0.92,
-      top_p: 0.92,
+      max_tokens: 1024,
+      temperature: 0.8,
+      top_p: 0.9,
     });
 
     return json({ response: content, model, usage: (raw as { usage?: unknown })?.usage ?? null });

@@ -9,7 +9,7 @@ export type TogetherChatCompletionArgs = {
   apiKey: string;
   model: string;
   messages: TogetherChatMessage[];
-  /** Creative long-form RP — high ceiling; Together bills by tokens. */
+  /** Callers should pass an explicit cap for chat (e.g. Turbo); default 4096 if omitted. */
   max_tokens?: number;
   temperature?: number;
   top_p?: number;
@@ -87,12 +87,12 @@ export async function togetherChatCompletion(
   return { content: content || "…", raw };
 }
 
-/** Override with secret `TOGETHER_CHAT_MODEL` (exact slug from the Together model page). */
+/**
+ * Default: Qwen2.5-72B-Instruct-Turbo — faster replies than 235B while keeping strong uncensored RP.
+ * Override with Edge secret `TOGETHER_CHAT_MODEL` (e.g. Qwen3-235B… if you prefer max quality over speed).
+ */
 export function defaultTogetherChatModel(): string {
-  // Phase 2: primary RP model (override with secret TOGETHER_CHAT_MODEL).
-  return (
-    Deno.env.get("TOGETHER_CHAT_MODEL") ?? "Qwen/Qwen3-235B-A22B-Instruct-2507-FP8-Throughput"
-  ).trim();
+  return (Deno.env.get("TOGETHER_CHAT_MODEL") ?? "Qwen/Qwen2.5-72B-Instruct-Turbo").trim();
 }
 
 /**
