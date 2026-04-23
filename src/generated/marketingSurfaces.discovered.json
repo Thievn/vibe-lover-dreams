@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-04-22T23:12:54.345Z",
+  "generatedAt": "2026-04-23T15:22:09.277Z",
   "items": [
     {
       "id": "dashboard",
@@ -49,6 +49,12 @@
       "kind": "route",
       "label": "Chat",
       "path": "/chat"
+    },
+    {
+      "id": "route-live-call",
+      "kind": "route",
+      "label": "/live-call/:id",
+      "path": "/live-call/example"
     },
     {
       "id": "companion-profile",

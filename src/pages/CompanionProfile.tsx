@@ -15,6 +15,7 @@ import {
   Heart,
   Images,
   MessageCircle,
+  Phone,
   Sparkles,
   Loader2,
   Flame,
@@ -64,6 +65,7 @@ import {
 import { useLovensePairing } from "@/hooks/useLovensePairing";
 import { useWindowVisibleRefresh } from "@/hooks/useWindowVisibleRefresh";
 import { LovensePairingQrBlock } from "@/components/toy/LovensePairingQrBlock";
+import { LiveCallTypeSelector } from "@/components/liveCall/LiveCallTypeSelector";
 
 const RARITY_BADGE: Record<
   CompanionRarity,
@@ -115,6 +117,7 @@ const CompanionProfile = () => {
   const [pinBusy, setPinBusy] = useState(false);
   const [connectedToys, setConnectedToys] = useState<LovenseToy[]>([]);
   const [pairDialogOpen, setPairDialogOpen] = useState(false);
+  const [liveCallOpen, setLiveCallOpen] = useState(false);
   const [sendingVibrationId, setSendingVibrationId] = useState<string | null>(null);
   const [livePatternId, setLivePatternId] = useState<string | null>(null);
   const sustainedToySessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
@@ -439,6 +442,14 @@ const CompanionProfile = () => {
     });
   };
 
+  const handleOpenLiveCall = () => {
+    if (!user) {
+      navigate("/auth", { state: { from: `/companions/${companion.id}` } });
+      return;
+    }
+    setLiveCallOpen(true);
+  };
+
   const handlePortraitFromGallery = async (imageUrl: string) => {
     if (!user?.id || !id) return;
     await setCompanionPortraitFromGalleryUrl({
@@ -761,6 +772,16 @@ const CompanionProfile = () => {
               >
                 <MessageCircle className="h-5 w-5 shrink-0" />
                 Start chat
+              </motion.button>
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleOpenLiveCall()}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/[0.12] bg-card/70 px-5 py-3.5 text-base font-bold text-foreground backdrop-blur-md shadow-md touch-manipulation hover:border-primary/40 hover:bg-card/85"
+              >
+                <Phone className="h-5 w-5 shrink-0 text-primary" />
+                Call
               </motion.button>
               <Link
                 to="/"
@@ -1137,6 +1158,8 @@ const CompanionProfile = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <LiveCallTypeSelector open={liveCallOpen} onOpenChange={setLiveCallOpen} companion={companion} />
     </div>
   );
 };

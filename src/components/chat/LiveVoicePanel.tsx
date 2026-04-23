@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Flame, Loader2, Mic, Square } from "lucide-react";
 import { toast } from "sonner";
 import { invokeGrokStt } from "@/lib/invokeGrokStt";
@@ -67,8 +67,6 @@ export function LiveVoicePanel({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  /** User released finger before getUserMedia finished (short tap) — stop right after we start. */
-  const stopRequestedBeforeReadyRef = useRef(false);
   const startInFlightRef = useRef(false);
   const finishRecordingRef = useRef<() => Promise<void>>(async () => {});
 
@@ -197,7 +195,6 @@ export function LiveVoicePanel({
     if (disabled || busy || transcribing) return;
     if (startInFlightRef.current || mediaRecorderRef.current) return;
     startInFlightRef.current = true;
-    stopRequestedBeforeReadyRef.current = false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -227,10 +224,6 @@ export function LiveVoicePanel({
       mediaRecorderRef.current = rec;
       rec.start(200);
       setRecording(true);
-      if (stopRequestedBeforeReadyRef.current) {
-        stopRequestedBeforeReadyRef.current = false;
-        await finishRecordingRef.current();
-      }
     } catch {
       mediaStreamRef.current = null;
       toast.error("Microphone permission denied or unavailable.");
@@ -241,23 +234,15 @@ export function LiveVoicePanel({
 
   const off = Boolean(disabled || busy);
 
-  const onMicPointerDown = useCallback(
-    (e: PointerEvent<HTMLButtonElement>) => {
-      e.preventDefault();
-      // Use `disabled`/`busy` here (not a derived alias) so this callback never hits TDZ if declaration order changes.
-      if (disabled || busy || transcribing) return;
-      const onRelease = () => {
-        window.removeEventListener("pointerup", onRelease);
-        window.removeEventListener("pointercancel", onRelease);
-        stopRequestedBeforeReadyRef.current = true;
-        if (mediaRecorderRef.current) void finishRecordingRef.current();
-      };
-      window.addEventListener("pointerup", onRelease, { passive: true });
-      window.addEventListener("pointercancel", onRelease, { passive: true });
-      void startRecording();
-    },
-    [disabled, busy, transcribing, startRecording],
-  );
+  /** Open mic: tap to start, tap again to send (continuous capture while “on”). */
+  const onMicClick = useCallback(() => {
+    if (off || transcribing) return;
+    if (mediaRecorderRef.current) {
+      void finishRecordingRef.current();
+      return;
+    }
+    void startRecording();
+  }, [off, transcribing, startRecording]);
 
   const toggleRampMode = useCallback(() => {
     if (!hasDevice && !rampModeActive) {
@@ -277,28 +262,27 @@ export function LiveVoicePanel({
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#00ffd4]/90">Live Voice</p>
           <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
-            <span className="text-foreground/90 font-medium">Press &amp; hold the mic</span>, speak, then release
-            (walkie-talkie). It’s <span className="text-foreground/90 font-medium">not</span> open-mic live chat —
-            each clip is sent to <span className="text-foreground/90 font-medium">xAI STT</span>, then{" "}
-            <span className="text-foreground/90 font-medium">Together</span> answers like a typed message. For voice
-            playback, use <span className="text-foreground/90 font-medium">TTS</span> on a reply.
+            <span className="text-foreground/90 font-medium">Tap the mic to talk</span> — it stays open while you
+            speak. <span className="text-foreground/90 font-medium">Tap again</span> to send. Audio goes to{" "}
+            <span className="text-foreground/90 font-medium">xAI STT</span>, then{" "}
+            <span className="text-foreground/90 font-medium">Together</span> like a typed message. In Live Voice, her
+            reply usually plays by voice (see voice settings).
           </p>
         </div>
         <div className="flex flex-col gap-2 shrink-0 items-end">
           <button
             type="button"
             disabled={off || transcribing}
-            onPointerDown={onMicPointerDown}
+            onClick={onMicClick}
             className={cn(
               "relative flex h-14 w-14 select-none items-center justify-center rounded-2xl border-2 transition-all touch-manipulation",
-              "touch-none",
               recording
                 ? "border-destructive bg-destructive/20 text-destructive hover:bg-destructive/30"
                 : "border-[#00ffd4]/50 bg-[#00ffd4]/10 text-[#00ffd4] hover:bg-[#00ffd4]/20",
               off && "opacity-40 pointer-events-none",
             )}
-            title="Hold to talk — release to send"
-            aria-label="Hold to talk, release to send to chat"
+            title={recording ? "Tap to send" : "Tap to open the mic"}
+            aria-label={recording ? "Stop recording and send to chat" : "Start open microphone for live voice"}
           >
             {transcribing ? (
               <Loader2 className="h-7 w-7 animate-spin" />
@@ -309,7 +293,7 @@ export function LiveVoicePanel({
             )}
           </button>
           <span className="text-[9px] text-muted-foreground text-center max-w-[5.5rem] leading-tight">
-            {transcribing ? "Transcribing…" : "Hold = record"}
+            {transcribing ? "Transcribing…" : recording ? "Open · tap to send" : "Tap = open mic"}
           </span>
         </div>
       </div>

@@ -21,6 +21,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Chat = lazy(() => import("./pages/Chat"));
 const CompanionProfile = lazy(() => import("./pages/CompanionProfile"));
 const CompanionCreator = lazy(() => import("./pages/CompanionCreator"));
+const LiveCallPage = lazy(() => import("./pages/LiveCallPage"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Admin = lazy(() => import("./pages/Admin"));
 
@@ -220,6 +221,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Chat />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/live-call/:id"
+                element={
+                  <ProtectedRoute>
+                    <LiveCallPage />
                   </ProtectedRoute>
                 }
               />

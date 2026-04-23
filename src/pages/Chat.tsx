@@ -60,7 +60,12 @@ import { FloatingHeartsLayer } from "@/components/chat/FloatingHeartsLayer";
 import { ChatVoiceSettingsSheet } from "@/components/chat/ChatVoiceSettingsSheet";
 import type { ChatMessage } from "@/components/chat/chatTypes";
 import { deriveChatMood } from "@/lib/chatMood";
-import { getTtsAutoplay, persistTtsAutoplay } from "@/lib/ttsChatPreferences";
+import {
+  getLiveVoiceTtsAutoplay,
+  getTtsAutoplay,
+  persistLiveVoiceTtsAutoplay,
+  persistTtsAutoplay,
+} from "@/lib/ttsChatPreferences";
 import {
   TTS_UX_LABELS,
   resolveUxVoiceId,
@@ -151,6 +156,8 @@ const Chat = () => {
   const [voicePresetSaving, setVoicePresetSaving] = useState(false);
   const [profileTtsGlobal, setProfileTtsGlobal] = useState<string | null>(null);
   const [ttsAutoplay, setTtsAutoplayState] = useState(() => getTtsAutoplay());
+  /** Default ON: Live Voice is a voice session — TTS is independent of classic “auto-play new replies.” */
+  const [liveVoiceTtsAutoplay, setLiveVoiceTtsAutoplay] = useState(() => getLiveVoiceTtsAutoplay());
   const [smartSuggestions, setSmartSuggestions] = useState<string[]>(SMART_FALLBACK);
   const [heartBursts, setHeartBursts] = useState<{ id: number; x: string }[]>([]);
   const heartIdRef = useRef(0);
@@ -182,8 +189,7 @@ const Chat = () => {
   const tokensBalanceRef = useRef(0);
   const messagesRef = useRef<ChatMessage[]>([]);
   const sendMessageRef = useRef<(text?: string, opts?: SendMessageOptions) => Promise<void>>(async () => {});
-  /** Stable: avoids re-running LiveVoice STT / finishRecording when `sendMessage` identity changes each render. */
-  /** Live Voice panel registers this to nudge Ramp Mode from Together assistant text. */
+  /** Live Voice: Ramp assist feed + STT use stable `sendMessageRef` / register callback to avoid effect churn. */
   const liveRampAssistFeedRef = useRef<((text: string) => void) | null>(null);
   const liveVoiceSendText = useCallback((text: string) => {
     void sendMessageRef.current(text);
@@ -191,6 +197,8 @@ const Chat = () => {
   const registerLiveRampAssistFeed = useCallback((fn: ((text: string) => void) | null) => {
     liveRampAssistFeedRef.current = fn;
   }, []);
+  /** Defer Ramp text → driver until her TTS actually starts (syncs with Lovense JSON after `playing`). */
+  const rampNarrationPendingRef = useRef<{ messageId: string; text: string } | null>(null);
   const openingFantasyStarterTitleRef = useRef<string | null>(null);
   const location = useLocation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -259,6 +267,15 @@ const Chat = () => {
     persistTtsAutoplay(enabled);
     setTtsAutoplayState(enabled);
   }, []);
+  const onLiveVoiceTtsAutoplayChange = useCallback((enabled: boolean) => {
+    persistLiveVoiceTtsAutoplay(enabled);
+    setLiveVoiceTtsAutoplay(enabled);
+  }, []);
+
+  const effectiveAssistantTtsAutoplay = useMemo(
+    () => (sessionMode === "live_voice" ? liveVoiceTtsAutoplay : ttsAutoplay),
+    [sessionMode, liveVoiceTtsAutoplay, ttsAutoplay],
+  );
 
   useEffect(() => {
     if (!voiceSettingsOpen || !user?.id) return;
@@ -1076,12 +1093,32 @@ const Chat = () => {
     async (msg: ChatMessage) => {
       if (!user || msg.role !== "assistant" || !msg.content?.trim()) return;
 
-      /** Run queued Lovense command once, after we attempt to start audio (keeps toy aligned with voice). */
-      const flushPendingToyForMessage = async () => {
-        const pending = pendingLovenseForTtsRef.current;
-        if (!pending || pending.messageId !== msg.id) return;
-        pendingLovenseForTtsRef.current = null;
-        await executeDeviceCommandRef.current(pending.command);
+      const clearPendingToyForThisMessage = () => {
+        if (pendingLovenseForTtsRef.current?.messageId === msg.id) {
+          pendingLovenseForTtsRef.current = null;
+        }
+      };
+      const feedRampIfPending = () => {
+        const p = rampNarrationPendingRef.current;
+        if (p && p.messageId === msg.id) {
+          liveRampAssistFeedRef.current?.(p.text);
+          rampNarrationPendingRef.current = null;
+        }
+      };
+      /** Lovense JSON command + Ramp driver text only after audio actually starts (or if TTS fails, ramp only). */
+      const onAudioPlaying = () => {
+        void (async () => {
+          const pending = pendingLovenseForTtsRef.current;
+          if (pending?.messageId === msg.id) {
+            pendingLovenseForTtsRef.current = null;
+            await executeDeviceCommandRef.current(pending.command);
+          }
+          feedRampIfPending();
+        })();
+      };
+
+      const wireAudio = (a: HTMLAudioElement) => {
+        a.addEventListener("playing", onAudioPlaying, { once: true });
       };
 
       if (ttsAudioRef.current) {
@@ -1100,13 +1137,16 @@ const Chat = () => {
         a.onerror = () => {
           setTtsPlayingId(null);
           toast.error("Could not play audio");
+          clearPendingToyForThisMessage();
+          feedRampIfPending();
         };
+        wireAudio(a);
         try {
           await a.play();
         } catch {
           toast.error("Could not play audio");
-        } finally {
-          await flushPendingToyForMessage();
+          clearPendingToyForThisMessage();
+          feedRampIfPending();
         }
         return;
       }
@@ -1135,18 +1175,22 @@ const Chat = () => {
         a.onerror = () => {
           setTtsPlayingId(null);
           toast.error("Could not play audio");
+          clearPendingToyForThisMessage();
+          feedRampIfPending();
         };
+        wireAudio(a);
         try {
           await a.play();
         } catch {
           toast.error("Could not play audio");
-        } finally {
-          await flushPendingToyForMessage();
+          clearPendingToyForThisMessage();
+          feedRampIfPending();
         }
       } catch (e: unknown) {
         const raw = e instanceof Error ? e.message : "TTS failed";
         toast.error(raw.length > 120 ? `${raw.slice(0, 117)}…` : raw);
-        await flushPendingToyForMessage();
+        clearPendingToyForThisMessage();
+        feedRampIfPending();
       } finally {
         setTtsLoadingId(null);
       }
@@ -1181,7 +1225,7 @@ const Chat = () => {
       }, 500);
 
       let ttsTimer: number | undefined;
-      if (ttsAutoplay && last && !last.imageUrl && last.content?.trim()) {
+      if (effectiveAssistantTtsAutoplay && last && !last.imageUrl && last.content?.trim()) {
         ttsTimer = window.setTimeout(() => {
           void handleTts(last);
         }, 400);
@@ -1192,7 +1236,7 @@ const Chat = () => {
         if (ttsTimer !== undefined) clearTimeout(ttsTimer);
       };
     }
-  }, [loading, companion, user, historyReady, handleTts, ttsAutoplay]);
+  }, [loading, companion, user, historyReady, handleTts, effectiveAssistantTtsAutoplay]);
 
   const handleBreedingComplete = (offspring: any) => {
     setShowBreedingRitual(false);
@@ -1502,6 +1546,7 @@ const Chat = () => {
         toast.error("Couldn't attach your reward image — try again in a moment.");
       }
     } else {
+      toast.error("Bond reward image didn’t generate — check connection or try again in a moment.");
       const fallback = "I wanted to show you something… the pic didn't go through. Ask me again in a sec?";
       try {
         const fid = await insertAssistantMessage(fallback, null);
@@ -1830,11 +1875,15 @@ const Chat = () => {
         }
 
         if (sessionMode === "live_voice") {
-          liveRampAssistFeedRef.current?.(displayContent);
+          if (effectiveAssistantTtsAutoplay) {
+            rampNarrationPendingRef.current = { messageId: asstId, text: displayContent };
+          } else {
+            liveRampAssistFeedRef.current?.(displayContent);
+          }
         }
 
         if (command && hasDevice) {
-          if (ttsAutoplay) {
+          if (effectiveAssistantTtsAutoplay) {
             pendingLovenseForTtsRef.current = { messageId: asstId, command };
           } else {
             void executeDeviceCommand(command);
@@ -2211,6 +2260,8 @@ const Chat = () => {
         saving={voicePresetSaving}
         ttsAutoplay={ttsAutoplay}
         onTtsAutoplayChange={onTtsAutoplayChange}
+        liveVoiceTtsAutoplay={liveVoiceTtsAutoplay}
+        onLiveVoiceTtsAutoplayChange={onLiveVoiceTtsAutoplayChange}
       />
 
       {/* Image Viewer Modal */}

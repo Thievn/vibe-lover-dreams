@@ -30,6 +30,9 @@ type Props = {
   saving: boolean;
   ttsAutoplay: boolean;
   onTtsAutoplayChange: (enabled: boolean) => void;
+  /** Live Voice session: auto-play her lines (default on, separate from classic chat). */
+  liveVoiceTtsAutoplay: boolean;
+  onLiveVoiceTtsAutoplayChange: (enabled: boolean) => void;
 };
 
 export function ChatVoiceSettingsSheet({
@@ -44,6 +47,8 @@ export function ChatVoiceSettingsSheet({
   saving,
   ttsAutoplay,
   onTtsAutoplayChange,
+  liveVoiceTtsAutoplay,
+  onLiveVoiceTtsAutoplayChange,
 }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -111,7 +116,8 @@ export function ChatVoiceSettingsSheet({
                 Auto-play new replies
               </Label>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                After you send a message, play {companionName}&apos;s reply automatically (tap the speaker to stop).
+                <span className="text-foreground/80">Classic chat only:</span> after you send a message, play{" "}
+                {companionName}&apos;s reply automatically (tap the speaker on a bubble to stop).
               </p>
             </div>
             <Switch
@@ -119,6 +125,24 @@ export function ChatVoiceSettingsSheet({
               checked={ttsAutoplay}
               onCheckedChange={onTtsAutoplayChange}
               className="shrink-0 data-[state=checked]:bg-primary"
+            />
+          </div>
+
+          <div className="flex items-start justify-between gap-4 rounded-xl border border-[#00ffd4]/20 bg-[#00ffd4]/[0.05] px-3.5 py-3">
+            <div className="min-w-0 space-y-0.5">
+              <Label htmlFor="live-voice-tts" className="text-sm font-medium leading-snug text-foreground">
+                Live Voice: play her lines automatically
+              </Label>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                On by default in Live Voice so it feels like a call. Lovense patterns from chat wait until her voice
+                starts. Turn this off if you only want to read in Live Voice.
+              </p>
+            </div>
+            <Switch
+              id="live-voice-tts"
+              checked={liveVoiceTtsAutoplay}
+              onCheckedChange={onLiveVoiceTtsAutoplayChange}
+              className="shrink-0 data-[state=checked]:bg-[#00ffd4] data-[state=checked]:text-black"
             />
           </div>
         </div>
