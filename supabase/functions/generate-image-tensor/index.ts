@@ -11,7 +11,7 @@ import {
   LUSTFORGE_IMAGE_WIDTH,
   sourceImageUrlForTamsUpload,
   submitTensorImageJob,
-  submitTensorImageToVideoJob,
+  runTensorImageToVideoJobWithRetries,
   waitForTensorJobResult,
 } from "../_shared/tensorClient.ts";
 
@@ -362,14 +362,15 @@ Deno.serve(async (req) => {
       console.log("generate-image-tensor: submitting video job", { userId, duration: videoDurationSeconds });
 
       const videoPrompt = `${tensorPrompt}\n\nCreate a seamless ${videoDurationSeconds}s looping motion clip from this image. Silent body-forward performance (dance, tease, pose) — not a speaking shot.\n${I2V_MOUTH_STILL_DIRECTIVE}`;
-      const { jobId } = await submitTensorImageToVideoJob({
+      const videoResult = await runTensorImageToVideoJobWithRetries({
         apiKey: tensorApiKey,
         prompt: videoPrompt,
         sourceImageUrl: baseVideoSource,
         durationSeconds: videoDurationSeconds,
         model: videoModel,
+        timeoutMs: 12 * 60_000,
+        maxAttempts: 3,
       });
-      const videoResult = await waitForTensorJobResult({ apiKey: tensorApiKey, jobId, timeoutMs: 12 * 60_000 });
       if (!videoResult.videoUrl) throw new Error("Tensor video job did not return a video URL.");
 
       const downloadedVideo = await downloadBinary(videoResult.videoUrl);

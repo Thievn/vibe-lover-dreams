@@ -7,9 +7,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { hasTamsRsaCredentials } from "../_shared/tamsRsaAuth.ts";
 import {
   DEFAULT_TENSOR_VIDEO_MODEL,
+  runTensorImageToVideoJobWithRetries,
   sourceImageUrlForTamsUpload,
-  submitTensorImageToVideoJob,
-  waitForTensorJobResult,
 } from "../_shared/tensorClient.ts";
 import {
   buildMinimalProfileLoopVideoPrompt,
@@ -218,19 +217,15 @@ Deno.serve(async (req) => {
     const durationSec = chatVideoDurationSeconds();
     const videoModel = (Deno.env.get("TENSOR_VIDEO_MODEL") ?? DEFAULT_TENSOR_VIDEO_MODEL).trim() || DEFAULT_TENSOR_VIDEO_MODEL;
 
-    const { jobId } = await submitTensorImageToVideoJob({
+    const { videoUrl: tensorVideoUrl } = await runTensorImageToVideoJobWithRetries({
       apiKey: tensorApiKey,
       prompt,
       sourceImageUrl: imageUrl,
       model: videoModel,
       durationSeconds: durationSec,
-    });
-
-    const { videoUrl: tensorVideoUrl } = await waitForTensorJobResult({
-      apiKey: tensorApiKey,
-      jobId,
       timeoutMs: 16 * 60_000,
       pollIntervalMs: 4000,
+      maxAttempts: 3,
     });
 
     if (!tensorVideoUrl) {

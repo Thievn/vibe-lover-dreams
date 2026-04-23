@@ -86,9 +86,9 @@ export function sourceImageUrlForTamsUpload(stored: string | null | undefined): 
 
 /** I2V jobs can sit in queue; TAMS `short-term` EOS objects must not expire before the worker runs. */
 function tensorI2VResourceExpireSec(): number {
-  const raw = (Deno.env.get("TENSOR_I2V_RESOURCE_EXPIRE_SEC") ?? "604800").trim();
+  const raw = (Deno.env.get("TENSOR_I2V_RESOURCE_EXPIRE_SEC") ?? "2592000").trim();
   const n = Math.floor(Number(raw));
-  if (!Number.isFinite(n) || n < 0) return 604800;
+  if (!Number.isFinite(n) || n < 0) return 2_592_000;
   return Math.max(3_600, Math.min(2_592_000, n));
 }
 
@@ -301,6 +301,9 @@ export async function uploadTensorImageResource(opts: {
   const { apiKey, sourceImageUrl } = opts;
   const expireSec = Number.isFinite(opts.expireSec) ? Math.max(60, Math.floor(opts.expireSec!)) : 3600;
   const base = tensorBaseUrl();
+  /** Download first so the TAMS presigned `putUrl` is not idle while we fetch (short TTL on short-term buckets). */
+  const bytes = await fetchImageBytes(sourceImageUrl);
+
   const resourceBody = JSON.stringify({ expireSec });
 
   const createRes = await fetch(`${base}/v1/resource/image`, {
@@ -315,7 +318,6 @@ export async function uploadTensorImageResource(opts: {
     throw new Error(formatTensorApiFailure(createRes.status, raw));
   }
 
-  const bytes = await fetchImageBytes(sourceImageUrl);
   const putHeaders = buildPutHeadersFromTams(address.headers);
 
   const putRes = await fetch(address.putUrl, {
@@ -488,6 +490,63 @@ export async function submitTensorImageToVideoJob(args: {
     throw new Error(`Tensor video submit failed: ${formatTensorApiFailure(res.status, raw)}`);
   }
   return { jobId };
+}
+
+/** TAMS worker sometimes pulls the short-term EOS object after TTL / queue delay — safe to retry with a fresh upload. */
+function isTensorI2vWorkerSourceRetryable(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("nosuchkey") ||
+    m.includes("no such key") ||
+    m.includes("failed to download image") ||
+    m.includes("short-term") ||
+    m.includes("'status': 404") ||
+    m.includes("\"status\": 404")
+  );
+}
+
+/**
+ * Submit I2V and wait, retrying on transient EOS/source-image failures (fresh upload + job per attempt).
+ */
+export async function runTensorImageToVideoJobWithRetries(args: {
+  apiKey: string;
+  prompt: string;
+  sourceImageUrl: string;
+  model?: string;
+  durationSeconds?: number;
+  width?: number;
+  height?: number;
+  timeoutMs?: number;
+  pollIntervalMs?: number;
+  maxAttempts?: number;
+}): Promise<{ imageUrl?: string; videoUrl?: string }> {
+  const maxAttempts = Math.max(1, Math.min(5, Math.floor(args.maxAttempts ?? 3)));
+  let lastErr = new Error("Tensor I2V failed");
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const { jobId } = await submitTensorImageToVideoJob({
+        apiKey: args.apiKey,
+        prompt: args.prompt,
+        sourceImageUrl: args.sourceImageUrl,
+        model: args.model,
+        durationSeconds: args.durationSeconds,
+        width: args.width,
+        height: args.height,
+      });
+      return await waitForTensorJobResult({
+        apiKey: args.apiKey,
+        jobId,
+        timeoutMs: args.timeoutMs,
+        pollIntervalMs: args.pollIntervalMs,
+      });
+    } catch (e) {
+      lastErr = e instanceof Error ? e : new Error(String(e));
+      const canRetry = isTensorI2vWorkerSourceRetryable(lastErr.message) && attempt < maxAttempts - 1;
+      if (!canRetry) throw lastErr;
+      await new Promise((r) => setTimeout(r, 400 + attempt * 600));
+    }
+  }
+  throw lastErr;
 }
 
 export async function waitForTensorJobResult(args: {
