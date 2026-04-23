@@ -65,7 +65,7 @@ import {
 import { useLovensePairing } from "@/hooks/useLovensePairing";
 import { useWindowVisibleRefresh } from "@/hooks/useWindowVisibleRefresh";
 import { LovensePairingQrBlock } from "@/components/toy/LovensePairingQrBlock";
-import { LiveCallTypeSelector } from "@/components/liveCall/LiveCallTypeSelector";
+import { LiveCallTypePanel } from "@/components/liveCall/LiveCallTypePanel";
 
 const RARITY_BADGE: Record<
   CompanionRarity,
@@ -117,11 +117,10 @@ const CompanionProfile = () => {
   const [pinBusy, setPinBusy] = useState(false);
   const [connectedToys, setConnectedToys] = useState<LovenseToy[]>([]);
   const [pairDialogOpen, setPairDialogOpen] = useState(false);
-  const [liveCallOpen, setLiveCallOpen] = useState(false);
   const [sendingVibrationId, setSendingVibrationId] = useState<string | null>(null);
   const [livePatternId, setLivePatternId] = useState<string | null>(null);
   const sustainedToySessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
-  const [profileTab, setProfileTab] = useState<"profile" | "gallery">("profile");
+  const [profileTab, setProfileTab] = useState<"profile" | "gallery" | "live">("profile");
   /** Fade loop MP4 in over the still so we never flash an empty frame while the video buffers */
   const [loopVideoReady, setLoopVideoReady] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
@@ -442,14 +441,6 @@ const CompanionProfile = () => {
     });
   };
 
-  const handleOpenLiveCall = () => {
-    if (!user) {
-      navigate("/auth", { state: { from: `/companions/${companion.id}` } });
-      return;
-    }
-    setLiveCallOpen(true);
-  };
-
   const handlePortraitFromGallery = async (imageUrl: string) => {
     if (!user?.id || !id) return;
     await setCompanionPortraitFromGalleryUrl({
@@ -734,12 +725,12 @@ const CompanionProfile = () => {
               />
             ) : null}
 
-            <div className="flex rounded-2xl border border-white/[0.08] bg-black/45 p-1 gap-1 max-w-xl">
+            <div className="flex rounded-2xl border border-white/[0.08] bg-black/45 p-1 gap-0.5 max-w-2xl">
               <button
                 type="button"
                 onClick={() => setProfileTab("profile")}
                 className={cn(
-                  "flex-1 rounded-xl py-2.5 text-sm font-semibold transition-colors touch-manipulation",
+                  "flex-1 min-w-0 rounded-xl py-2.5 text-xs sm:text-sm font-semibold transition-colors touch-manipulation",
                   profileTab === "profile"
                     ? "bg-primary/20 text-primary border border-primary/30"
                     : "text-muted-foreground hover:text-foreground",
@@ -751,14 +742,33 @@ const CompanionProfile = () => {
                 type="button"
                 onClick={() => setProfileTab("gallery")}
                 className={cn(
-                  "flex-1 inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-colors touch-manipulation",
+                  "flex-1 min-w-0 inline-flex items-center justify-center gap-1 sm:gap-2 rounded-xl py-2.5 text-xs sm:text-sm font-semibold transition-colors touch-manipulation",
                   profileTab === "gallery"
                     ? "bg-primary/20 text-primary border border-primary/30"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <Images className="h-4 w-4 shrink-0" />
-                Gallery
+                <Images className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                <span className="truncate">Gallery</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!user) {
+                    navigate("/auth", { state: { from: `/companions/${companion.id}` } });
+                    return;
+                  }
+                  setProfileTab("live");
+                }}
+                className={cn(
+                  "flex-1 min-w-0 inline-flex items-center justify-center gap-1 sm:gap-2 rounded-xl py-2.5 text-xs sm:text-sm font-semibold transition-colors touch-manipulation",
+                  profileTab === "live"
+                    ? "bg-primary/20 text-primary border border-primary/30"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                <span className="truncate">Live call</span>
               </button>
             </div>
 
@@ -772,16 +782,6 @@ const CompanionProfile = () => {
               >
                 <MessageCircle className="h-5 w-5 shrink-0" />
                 Start chat
-              </motion.button>
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleOpenLiveCall()}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/[0.12] bg-card/70 px-5 py-3.5 text-base font-bold text-foreground backdrop-blur-md shadow-md touch-manipulation hover:border-primary/40 hover:bg-card/85"
-              >
-                <Phone className="h-5 w-5 shrink-0 text-primary" />
-                Call
               </motion.button>
               <Link
                 to="/"
@@ -870,6 +870,22 @@ const CompanionProfile = () => {
                   ))}
                 </div>
               </details>
+            ) : null}
+
+            {profileTab === "live" ? (
+              <section className="rounded-2xl border border-white/[0.1] bg-black/45 backdrop-blur-xl p-5 sm:p-6 ring-1 ring-primary/15">
+                <h2 className="text-xs font-bold uppercase tracking-[0.25em] text-primary mb-1">Live call</h2>
+                {user ? (
+                  <LiveCallTypePanel companion={companion} className="mt-2" />
+                ) : (
+                  <p className="mt-4 text-sm text-muted-foreground py-6 text-center border border-dashed border-white/15 rounded-xl">
+                    <Link to="/auth" state={{ from: `/companions/${companion.id}` }} className="text-primary font-semibold hover:underline">
+                      Sign in
+                    </Link>{" "}
+                    for voice sessions with {companion.name}.
+                  </p>
+                )}
+              </section>
             ) : null}
 
             {profileTab === "gallery" ? (
@@ -1159,7 +1175,6 @@ const CompanionProfile = () => {
         </DialogContent>
       </Dialog>
 
-      <LiveCallTypeSelector open={liveCallOpen} onOpenChange={setLiveCallOpen} companion={companion} />
     </div>
   );
 };

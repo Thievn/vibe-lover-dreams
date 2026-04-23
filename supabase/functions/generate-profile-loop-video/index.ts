@@ -1,9 +1,10 @@
 /**
- * Admin / forge: profile portrait loop — Tensor TAMS I2V (Wan), same stack as `generate-chat-companion-video`.
+ * Profile portrait loop — Tensor TAMS I2V (Wan), same stack as `generate-chat-companion-video`.
+ * Auth: signed-in owner of `cc-…` custom characters, or admin for any companion (including catalog).
  * Requires `TENSOR_API_KEY` or TAMS RSA keys. Optional `TENSOR_VIDEO_MODEL`, `TENSOR_CHAT_VIDEO_DURATION_SECONDS` (5–10).
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { requireAdminUser } from "../_shared/requireSessionUser.ts";
+import { requireAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { hasTamsRsaCredentials } from "../_shared/tamsRsaAuth.ts";
 import {
   DEFAULT_TENSOR_VIDEO_MODEL,
@@ -41,8 +42,9 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const adminGate = await requireAdminUser(req);
-  if ("response" in adminGate) return adminGate.response;
+  const sessionGate = await requireSessionUser(req);
+  if ("response" in sessionGate) return sessionGate.response;
+  const sessionUser = sessionGate.user;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -86,6 +88,12 @@ Deno.serve(async (req) => {
     if (error) return jsonResponse({ error: error.message }, 500);
     if (!data) return jsonResponse({ error: "Companion not found" }, 404);
     row = data as Record<string, unknown>;
+    const ownerId = String(row.user_id ?? "").trim();
+    const isOwner = ownerId.length > 0 && ownerId === sessionUser.id;
+    if (!isOwner) {
+      const adminGate = await requireAdminUser(req);
+      if ("response" in adminGate) return adminGate.response;
+    }
     const raw =
       (typeof row.static_image_url === "string" && row.static_image_url) ||
       (typeof row.image_url === "string" && row.image_url) ||
@@ -99,6 +107,8 @@ Deno.serve(async (req) => {
     if (error) return jsonResponse({ error: error.message }, 500);
     if (!data) return jsonResponse({ error: "Companion not found" }, 404);
     row = data as Record<string, unknown>;
+    const adminGate = await requireAdminUser(req);
+    if ("response" in adminGate) return adminGate.response;
     const raw =
       (typeof row.static_image_url === "string" && row.static_image_url) ||
       (typeof row.image_url === "string" && row.image_url) ||

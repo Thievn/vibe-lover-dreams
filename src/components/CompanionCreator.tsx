@@ -38,6 +38,7 @@ import {
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
 import { clearForgeStash, loadForgeStash, saveForgeStash, type ForgeStashPayload } from "@/lib/forgeDraftStash";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
+import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
 import { formatSupabaseError } from "@/lib/supabaseError";
 import { fallbackForgeDisplayName } from "@/lib/forgeRandomName";
 import { pickOne, pickRandom, randomSelectionCount, randomTraitCount } from "@/lib/forgeRandomSeeds";
@@ -1403,38 +1404,49 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       void queryClient.invalidateQueries({ queryKey: ["companions"] });
       void queryClient.invalidateQueries({ queryKey: ["vault-collection"] });
       void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
-      if (isAdmin && insertedRows?.[0]?.id) {
+      if (insertedRows?.[0]?.id) {
         const ccFull = `cc-${String(insertedRows[0].id)}`;
-        setLastForgedCcId(ccFull);
-        pushForgeOp(
-          `Saved ${ccFull}. Open profile to review visuals, or chat to smoke-test behavior.`,
-          "ok",
-        );
+        void invokeGenerateLiveCallOptions(ccFull, { skipCache: true }).catch(() => undefined);
+
+        if (isAdmin) {
+          setLastForgedCcId(ccFull);
+          pushForgeOp(
+            `Saved ${ccFull}. Open profile to review visuals, or chat to smoke-test behavior.`,
+            "ok",
+          );
+        }
+
         void (async () => {
           try {
-            toast.info("Generating looping profile video…", { duration: 5000 });
-            pushForgeOp("Queued looping profile video (runs async; refresh Character management if needed).", "info");
+            toast.info(isAdmin ? "Generating looping profile video…" : "Creating your looping portrait video…", {
+              duration: 6000,
+            });
+            if (isAdmin) {
+              pushForgeOp("Queued looping profile video (runs async; refresh Character management if needed).", "info");
+            }
             const { data: vidData, error: vidErr } = await supabase.functions.invoke("generate-profile-loop-video", {
               body: { companionId: ccFull },
             });
             if (vidErr) throw new Error(await getEdgeFunctionInvokeMessage(vidErr, vidData));
             if ((vidData as { error?: string })?.error) throw new Error(String((vidData as { error?: string }).error));
             toast.success("Profile loop video saved — enable on profile if needed.");
-            pushForgeOp("Profile loop video finished and saved.", "ok");
+            if (isAdmin) pushForgeOp("Profile loop video finished and saved.", "ok");
             void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
             void queryClient.invalidateQueries({ queryKey: ["companions"] });
           } catch (e) {
             console.error(e);
-            pushForgeOp(
-              e instanceof Error
-                ? `Loop video: ${e.message.slice(0, 160)}…`
-                : "Loop video failed — retry from Character management.",
-              "warn",
-            );
+            if (isAdmin) {
+              pushForgeOp(
+                e instanceof Error
+                  ? `Loop video: ${e.message.slice(0, 160)}…`
+                  : "Loop video failed — retry from Character management.",
+                "warn",
+              );
+            }
             toast.error(
               e instanceof Error
-                ? `${e.message.slice(0, 200)} — generate video from Character management if needed.`
-                : "Loop video failed — use Character management → Generate looping video.",
+                ? `${e.message.slice(0, 220)}${isAdmin ? " — retry from Character management if needed." : " — open their profile → Live call tab is still ready; you can retry loop video from Character management if you have access."}`
+                : "Loop video failed — try again from Character management or your profile tools.",
             );
           }
         })();

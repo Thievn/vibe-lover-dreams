@@ -13,7 +13,8 @@ type Props = {
 };
 
 /**
- * Admin-only: `generate-profile-loop-video` — Tensor TAMS Wan I2V → Storage MP4.
+ * `generate-profile-loop-video` — Tensor TAMS Wan I2V → Storage MP4.
+ * Edge auth: custom-character **owner** or **admin** (catalog rows require admin).
  */
 export function AdminLoopingVideoBlock({ companionId, className, onSuccess }: Props) {
   const [busy, setBusy] = useState(false);
