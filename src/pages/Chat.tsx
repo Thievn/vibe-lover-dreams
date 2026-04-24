@@ -54,7 +54,7 @@ import { ChatPremiumHeader } from "@/components/chat/ChatPremiumHeader";
 import { ChatMessageThread } from "@/components/chat/ChatMessageThread";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatAmbientBackground } from "@/components/chat/ChatAmbientBackground";
-import { ChatGalleryRail } from "@/components/chat/ChatGalleryRail";
+import { ChatLeftHeroPanel } from "@/components/chat/ChatLeftHeroPanel";
 import { ChatActionPills } from "@/components/chat/ChatActionPills";
 import { ChatQuickActionFab, type FabActionId } from "@/components/chat/ChatQuickActionFab";
 import { ChatSmartReplies } from "@/components/chat/ChatSmartReplies";
@@ -899,7 +899,7 @@ const Chat = () => {
     }
   };
 
-  /** Classic → Together (Qwen2.5-72B-Turbo); Live Voice → Grok (`grok-chat`) + voice prompt. */
+  /** In-chat text: Grok only (`grok-chat`) for Classic + Live Voice. */
   const composeChatSystemPrompt = () => {
     if (!companion) return "";
     const toyBlock =
@@ -1433,7 +1433,7 @@ const Chat = () => {
     }
   };
 
-  /** Phase 3/4: after Together replies, run Tensor (images) or clip gen without breaking immersion. */
+  /** Phase 3/4: after Grok replies, run deferred still/clip media without breaking immersion. */
   const runDeferredLustforgeMedia = async (req: LustforgeMediaRequest) => {
     if (!user || !companion || !dbComp) return;
     try {
@@ -1839,8 +1839,7 @@ const Chat = () => {
         clearOpeningStarterContext();
         await applyChatAffectionAfterExchange();
       } else {
-        /** Classic → Together (Qwen2.5-72B-Turbo); Live Voice → Grok for lower-latency assistant text. */
-        const chatFn = sessionMode === "live_voice" ? "grok-chat" : "together-chat";
+        const chatFn = "grok-chat";
         const { data, error } = await supabase.functions.invoke(chatFn, {
           body: {
             companionId: companion.id,
@@ -2076,9 +2075,6 @@ const Chat = () => {
 
       <ChatPremiumHeader
         companion={companion}
-        dbComp={dbComp}
-        imageUrl={portraitStillUrl}
-        headerAnimated={headerAnimated}
         mood={mood}
         affectionTier={affectionTier}
         affectionProgress={affectionProgress}
@@ -2093,10 +2089,10 @@ const Chat = () => {
           else navigate(`/companions/${companion.id}`);
         }}
         onSafeWordInfo={() => {
-          toast.info(`🛑 Safe word: "${safeWord}" — Type it anytime to stop everything.`);
+          toast.info(`Safe word: "${safeWord}" — type it anytime to stop everything.`);
         }}
-        onCompanionPortraitClick={() => setVoiceSettingsOpen(true)}
         onOpenGallery={user ? () => setGalleryOpen(true) : undefined}
+        showHeroInLeftColumn
         sessionControls={
           <ChatModeToggle
             mode={sessionMode}
@@ -2131,19 +2127,21 @@ const Chat = () => {
 
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1">
-          {user ? (
-            <ChatGalleryRail
-              companionName={companion.name}
-              images={galleryImages}
-              loading={galleryImagesLoading}
-              currentPortraitUrl={portraitStillUrl}
-              onSetAsPortrait={handlePortraitFromGallery}
-              onOpenFullGallery={() => setGalleryOpen(true)}
-              onAddReferenceLine={(line) => {
-                setInput((prev) => (prev?.trim() ? `${prev} ${line}` : line));
-              }}
-            />
-          ) : null}
+          <ChatLeftHeroPanel
+            companion={companion}
+            imageUrl={portraitStillUrl}
+            headerAnimated={headerAnimated}
+            onVoiceClick={() => setVoiceSettingsOpen(true)}
+            images={galleryImages}
+            loading={galleryImagesLoading}
+            currentPortraitUrl={portraitStillUrl}
+            onSetAsPortrait={handlePortraitFromGallery}
+            onOpenFullGallery={() => setGalleryOpen(true)}
+            onAddReferenceLine={(line) => {
+              setInput((prev) => (prev?.trim() ? `${prev} ${line}` : line));
+            }}
+            hasGalleryUser={Boolean(user)}
+          />
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <ChatDevicesCollapsible

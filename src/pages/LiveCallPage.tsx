@@ -9,6 +9,7 @@ import { startGrokRealtimeVoiceSession } from "@/lib/grokRealtimeVoiceSession";
 import type { LiveCallOption } from "@/lib/liveCallTypes";
 import { resolveUxVoiceId, uxVoiceToXaiVoice, type TtsUxVoiceId } from "@/lib/ttsVoicePresets";
 import { LiveCallPhoneShell, type LiveCallUiPhase } from "@/components/liveCall/LiveCallPhoneShell";
+import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { Loader2 } from "lucide-react";
 
 type LocationState = { callOption?: LiveCallOption };
@@ -30,6 +31,11 @@ const LiveCallPage = () => {
     if (!id) return null;
     return dbRows.find((r) => r.id === id) ?? null;
   }, [dbRows, id]);
+
+  const callPortraitUrl = useMemo(
+    () => (dbComp && id ? galleryStaticPortraitUrl(dbComp, id) : null),
+    [dbComp, id],
+  );
 
   const { relationship, loading: relationshipLoading } = useCompanionRelationship(companion?.id ?? "");
 
@@ -179,6 +185,7 @@ const LiveCallPage = () => {
       phase={phase}
       statusLine={statusLine}
       onHangUp={hangUp}
+      portraitUrl={callPortraitUrl}
     />
   );
 };

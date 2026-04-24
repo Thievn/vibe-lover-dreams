@@ -1,7 +1,6 @@
 /**
- * Live Voice (in-chat) assistant text — xAI Grok only (`XAI_API_KEY` / `GROK_API_KEY`).
- * Same request/response contract as `together-chat` so `Chat.tsx` stays unified.
- * Classic typed chat uses `together-chat` (Together Qwen2.5-72B-Instruct-Turbo). TTS/STT use other Grok functions.
+ * In-chat assistant text (Classic + Live Voice) — xAI Grok only (`XAI_API_KEY` / `GROK_API_KEY`).
+ * Same request/response shape as the legacy `together-chat` function for a stable client.
  */
 import { requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";

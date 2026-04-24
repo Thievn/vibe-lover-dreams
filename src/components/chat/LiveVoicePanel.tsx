@@ -24,7 +24,7 @@ const RAMP_VOICE_OFF =
 type Props = {
   disabled?: boolean;
   busy?: boolean;
-  /** Parent stores this to nudge Ramp Mode from Together assistant replies (typed or voice turn). */
+  /** Parent stores this to nudge Ramp Mode from Grok assistant replies (typed or voice turn). */
   onRegisterRampAssistFeed?: (fn: ((text: string) => void) | null) => void;
   onSendText: (text: string) => void;
   rampModeActive: boolean;
@@ -40,8 +40,8 @@ type Props = {
 };
 
 /**
- * Voice: STT (xAI) → same chat path as typing (Together.ai) → optional Grok TTS from Chat autoplay.
- * Ramp Mode follows assistant text from Together via `onRegisterRampAssistFeed`.
+ * Voice: STT (xAI) → same chat path as typing (Grok) → optional Grok TTS from Chat autoplay.
+ * Ramp Mode follows assistant text from Grok via `onRegisterRampAssistFeed`.
  */
 export function LiveVoicePanel({
   disabled,
@@ -266,7 +266,7 @@ export function LiveVoicePanel({
             <span className="text-foreground/90 font-medium">Tap the mic to talk</span> — it stays open while you
             speak. <span className="text-foreground/90 font-medium">Tap again</span> to send. Audio goes to{" "}
             <span className="text-foreground/90 font-medium">xAI STT</span>, then{" "}
-            <span className="text-foreground/90 font-medium">Together</span> like a typed message. In Live Voice, her
+            <span className="text-foreground/90 font-medium">Grok</span> like a typed message. In Live Voice, her
             reply usually plays by voice (see voice settings).
           </p>
         </div>
@@ -348,7 +348,7 @@ export function LiveVoicePanel({
             ) : null}
             <p className="text-[10px] text-muted-foreground/80 mt-1.5 leading-snug">
               {hasDevice
-                ? "Toy follows the preset; Together replies nudge intensity from keywords."
+                ? "Toy follows the preset; Grok replies nudge intensity from keywords."
                 : "Connect a Lovense toy for hardware ramping."}
             </p>
           </div>

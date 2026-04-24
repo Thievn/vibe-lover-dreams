@@ -1,10 +1,5 @@
 import { requireSessionUser } from "../_shared/requireSessionUser.ts";
-import {
-  defaultTogetherChatModel,
-  requireTogetherApiKey,
-  togetherChatCompletion,
-  type TogetherChatMessage,
-} from "../_shared/togetherClient.ts";
+import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +7,10 @@ const corsHeaders = {
 };
 
 const STATIC_FALLBACK = ["Tell me more…", "I love that.", "Keep going."];
+
+function defaultModel(): string {
+  return (Deno.env.get("GROK_SMART_REPLIES_MODEL") ?? Deno.env.get("GROK_CHAT_MODEL") ?? "grok-3").trim();
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -22,7 +21,7 @@ Deno.serve(async (req) => {
     const session = await requireSessionUser(req);
     if ("response" in session) return session.response;
 
-    const { companionName, messages } = await req.json() as {
+    const { companionName, messages } = (await req.json().catch(() => ({}))) as {
       companionName?: string;
       messages?: { role: string; content: string }[];
     };
@@ -34,7 +33,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const apiKey = requireTogetherApiKey();
+    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
     if (!apiKey) {
       return new Response(JSON.stringify({ suggestions: STATIC_FALLBACK, degraded: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -46,37 +45,60 @@ Deno.serve(async (req) => {
 Rules: JSON only, no markdown. Format: {"suggestions":["...","...","..."]}
 Each string max 72 characters. Match thread energy: flirty, playful, or explicitly sexual language is allowed when it fits; stay consensual-adults fiction.`;
 
-    const model = defaultTogetherChatModel();
-    const chatMessages: TogetherChatMessage[] = [
-      { role: "system", content: system },
-      ...thread.map((m) => ({
-        role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant",
-        content: String(m.content ?? "").slice(0, 4000),
-      })),
-    ];
-
-    const { content: raw } = await togetherChatCompletion({
-      apiKey,
-      model,
-      messages: chatMessages,
+    const body = {
+      model: defaultModel(),
+      messages: [
+        { role: "system" as const, content: system },
+        ...thread.map((m) => ({
+          role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant",
+          content: String(m.content ?? "").slice(0, 4000),
+        })),
+      ],
       max_tokens: 220,
       temperature: 0.8,
       top_p: 0.9,
+    };
+
+    const res = await fetch("https://api.x.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     });
+
+    const rawText = await res.text();
+    let raw: unknown;
+    try {
+      raw = JSON.parse(rawText) as unknown;
+    } catch {
+      return new Response(JSON.stringify({ suggestions: STATIC_FALLBACK, degraded: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!res.ok) {
+      return new Response(JSON.stringify({ suggestions: STATIC_FALLBACK, degraded: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const content = (raw as { choices?: Array<{ message?: { content?: string } }> })?.choices?.[0]?.message?.content
+      ?.trim() || "";
 
     let suggestions: string[] = [];
     try {
-      const parsed = JSON.parse(raw.trim());
+      const parsed = JSON.parse(content);
       if (Array.isArray(parsed?.suggestions)) {
-        suggestions = parsed.suggestions.map((x: unknown) => String(x ?? "").trim()).filter(Boolean);
+        suggestions = (parsed as { suggestions: unknown[] }).suggestions.map((x) => String(x ?? "").trim()).filter(Boolean);
       }
     } catch {
-      const m = raw.match(/\[[\s\S]*\]/);
+      const m = content.match(/\[[\s\S]*\]/);
       if (m) {
         try {
           const arr = JSON.parse(m[0]) as unknown;
           if (Array.isArray(arr)) {
-            suggestions = arr.map((x) => String(x ?? "").trim()).filter(Boolean);
+            suggestions = (arr as unknown[]).map((x) => String(x ?? "").trim()).filter(Boolean);
           }
         } catch {
           /* ignore */

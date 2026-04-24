@@ -3,8 +3,6 @@ import { motion } from "framer-motion";
 import { Zap, Volume2, Loader2 } from "lucide-react";
 import { ImageMessage } from "@/components/ImageMessage";
 import { ChatInlineVideo } from "@/components/chat/ChatInlineVideo";
-import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
-import { normalizeCompanionRarity } from "@/lib/companionRarity";
 import type { Companion } from "@/data/companions";
 import type { ChatMessage } from "@/components/chat/chatTypes";
 import { ChatTypingIndicator } from "@/components/chat/ChatTypingIndicator";
@@ -64,12 +62,10 @@ export function ChatMessageThread({
   toyDriveActive = false,
   onStopToyDrive,
 }: Props) {
-  const rarity = normalizeCompanionRarity(companion.rarity);
-
   const typingVariant = getChatTypingVariant(companion);
 
   return (
-    <div className="relative z-[1] min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-2.5 md:px-5 md:py-4 space-y-3.5 scroll-pb-32 [-webkit-overflow-scrolling:touch] max-w-3xl mx-auto w-full">
+    <div className="relative z-[1] mx-auto min-h-0 w-full min-w-0 max-w-full flex-1 space-y-3.5 overflow-y-auto overflow-x-hidden scroll-pb-32 px-2.5 py-2.5 [-webkit-overflow-scrolling:touch] sm:px-4 md:py-4">
       {/* Phase 4: toy session — persistent strip so “toy active” is obvious without breaking chat layout */}
       {toyDriveActive ? (
         <div className="sticky top-0 z-10 -mx-0.5 mb-1 flex items-center justify-center rounded-xl border border-fuchsia-500/30 bg-gradient-to-r from-fuchsia-950/90 via-primary/20 to-fuchsia-950/90 px-2 py-1.5 text-center text-[10px] font-semibold uppercase tracking-widest text-fuchsia-100/95 shadow-lg shadow-black/30">
@@ -98,49 +94,37 @@ export function ChatMessageThread({
           initial={{ opacity: 0, y: 10, x: msg.role === "user" ? 14 : -12 }}
           animate={{ opacity: 1, y: 0, x: 0 }}
           transition={{ type: "spring", stiffness: 420, damping: 32 }}
-          className={cn("flex gap-2", msg.role === "user" ? "justify-end" : "justify-start")}
+          className={cn(
+            "flex min-w-0 gap-2",
+            msg.role === "user" ? "justify-end" : "justify-start",
+          )}
         >
           {msg.role === "assistant" ? (
-            <motion.div
-              className="flex h-10 w-10 shrink-0 items-center justify-center overflow-visible rounded-full border border-primary/20 bg-black/50 p-0.5 shadow-[0_0_20px_rgba(0,0,0,0.35)]"
-              animate={{ scale: [1, 1.03, 1] }}
-              transition={{ duration: 4, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
-            >
-              <TierHaloPortraitFrame
-                variant="avatar"
-                frameStyle="clean"
-                rarity={rarity}
-                gradientFrom={companion.gradientFrom}
-                gradientTo={companion.gradientTo}
-                aspectClassName="aspect-square w-10 h-10"
-                className="rounded-full"
-              >
-                <div
-                  className="absolute inset-0 z-0"
-                  style={{
-                    background: companionImageUrl
-                      ? undefined
-                      : `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
-                  }}
+            <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/25 bg-zinc-900 sm:h-9 sm:w-9">
+              {companionImageUrl ? (
+                <img
+                  src={companionImageUrl}
+                  alt=""
+                  width={36}
+                  height={36}
+                  className="h-full w-full object-cover object-top"
                 />
-                {companionImageUrl ? (
-                  <img
-                    src={companionImageUrl}
-                    alt=""
-                    className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
-                  />
-                ) : (
-                  <span className="absolute inset-0 z-[2] flex items-center justify-center text-[11px] font-gothic font-bold text-white/95">
-                    {companion.name.charAt(0)}
-                  </span>
-                )}
-              </TierHaloPortraitFrame>
-            </motion.div>
+              ) : (
+                <div
+                  className="flex h-full w-full items-center justify-center text-[10px] font-gothic font-bold text-white/95"
+                  style={{
+                    background: `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
+                  }}
+                >
+                  {companion.name.charAt(0)}
+                </div>
+              )}
+            </div>
           ) : null}
 
           <div
             className={cn(
-              "max-w-[min(92%,32rem)] rounded-2xl px-4 py-3.5 text-[15px] leading-relaxed shadow-lg",
+              "min-w-0 max-w-[min(100%,36rem)] rounded-2xl px-3.5 py-3.5 text-[15px] leading-relaxed break-words shadow-lg sm:px-4",
               msg.role === "user"
                 ? "bg-gradient-to-br from-primary to-[hsl(320_70%_35%)] text-primary-foreground rounded-br-md shadow-[0_0_32px_rgba(255,45,123,0.28),inset_0_1px_0_rgba(255,255,255,0.12)]"
                 : assistantDisplay.signatureBeat

@@ -41,21 +41,20 @@ export function ChatTypingIndicator({
   }, [isImageRequest, lines.length]);
 
   return (
-    <div className="flex justify-start gap-2.5 pl-0.5">
-      <motion.div
-        className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary/20 bg-black/50 shadow-[0_0_20px_rgba(255,45,123,0.12)]"
-        animate={{ scale: [1, 1.04, 1] }}
-        transition={{ duration: 2.4, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+    <div className="flex min-w-0 justify-start gap-2.5 pl-0.5">
+      <div
+        className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/25 bg-zinc-900 sm:h-9 sm:w-9"
         aria-hidden
       >
         {companionImageUrl ? (
-          <img src={companionImageUrl} alt="" className="h-full w-full object-cover object-top" />
+          <img src={companionImageUrl} alt="" width={36} height={36} className="h-full w-full object-cover object-top" />
         ) : (
-          <span className="font-gothic text-xs font-bold text-primary/90">{companionName.charAt(0)}</span>
+          <span className="flex h-full w-full items-center justify-center font-gothic text-[10px] font-bold text-primary/90">
+            {companionName.charAt(0)}
+          </span>
         )}
-        <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-primary/15 to-transparent" />
-      </motion.div>
-      <div className="max-w-[min(90%,32rem)] rounded-2xl rounded-bl-md border border-primary/20 bg-gradient-to-br from-black/60 via-fuchsia-950/20 to-black/55 px-4 py-3 shadow-inner backdrop-blur-md">
+      </div>
+      <div className="min-w-0 max-w-[min(100%,30rem)] rounded-2xl rounded-bl-md border border-primary/20 bg-gradient-to-br from-black/60 via-fuchsia-950/20 to-black/55 px-3 py-2.5 shadow-inner backdrop-blur-md sm:px-4 sm:py-3">
         <p className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/80">
           {companionName}
         </p>
@@ -68,7 +67,7 @@ export function ChatTypingIndicator({
           {[0, 1, 2].map((d) => (
             <motion.span
               key={`typing-dot-${d}`}
-              className="inline-block h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(320_85%_55%_/_0.5)]"
+              className="inline-block h-1.5 w-1.5 rounded-full bg-primary/90"
               animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
               transition={{
                 duration: t.minDuration * 1.2 + d * 0.08,

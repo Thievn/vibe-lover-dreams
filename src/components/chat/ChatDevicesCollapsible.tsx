@@ -68,7 +68,7 @@ export function ChatDevicesCollapsible({
       >
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">Session & devices</p>
-          <p className="text-xs text-foreground/90 truncate mt-0.5">
+          <p className="mt-0.5 line-clamp-2 break-words text-xs leading-snug text-foreground/90">
             {connectedCount > 0 ? `${connectedCount} linked · ${activeCount} active` : "No toy connected"} · Affection{" "}
             {affectionPct}% · Breeding {breedingStage} / 3
           </p>

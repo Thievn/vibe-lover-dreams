@@ -10,7 +10,7 @@ import {
 
 /**
  * Phase 1 — Media bar: three mood buckets, each with Picture / Video.
- * Wire `onRequest` to Tensor (images) and chat video generation (clips).
+ * Wire `onRequest` to image + clip generation (Grok Imagine for stills; clip path in `generate-chat-companion-video`).
  */
 export type ChatMediaBarAction =
   | "selfie_picture"
@@ -55,7 +55,7 @@ export function ChatMediaRequestBar({
             Photos & clips
           </div>
           <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground/90">
-            Stills = FLUX.2 · Clips = Wan (Tensor). {CHAT_VIDEO_TIMING_USER_NOTE} Type in chat is detected automatically — no
+            Stills = Grok Imagine. {CHAT_VIDEO_TIMING_USER_NOTE} Type in chat is detected automatically — no
             &quot;generating…&quot; spam.
           </p>
         </div>
