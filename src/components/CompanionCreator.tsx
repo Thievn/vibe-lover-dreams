@@ -42,6 +42,7 @@ import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptio
 import { formatSupabaseError } from "@/lib/supabaseError";
 import { fallbackForgeDisplayName } from "@/lib/forgeRandomName";
 import { pickOne, pickRandom, randomTraitCount } from "@/lib/forgeRandomSeeds";
+import { fetchForgeNameExclusions, generateForgeName, generateUniqueForgeName, normalizeNameKey } from "@/lib/forgeNameEngine";
 import {
   DEFAULT_FORGE_PERSONALITY,
   type ForgePersonalityKey,
@@ -264,10 +265,19 @@ function buildForgeDesignLabSeedPrompt(o: {
   bodyType: string;
   orientation: string;
   traits: string[];
+  /** If set, model must use this display name (from forge name engine or user-typed). */
+  mandatoryDisplayName?: string;
 }): string {
+  const nameLine = o.mandatoryDisplayName?.trim()
+    ? `- **MANDATORY display name (use this EXACT string in the "name" field, bio, backstory, starters, system prompt — the character's one true name):** ${o.mandatoryDisplayName.trim()}`
+    : "";
+  const nameRule1 = o.mandatoryDisplayName?.trim()
+    ? `1) name: MUST be exactly: "${o.mandatoryDisplayName.trim()}" — the forge already locked a culturally-appropriate name from the Personalities matrix. Do not substitute a gothic, cyberpunk, or stock-romance alias.`
+    : `1) name: Match the Personalities matrix (time period + all five picks). Avoid recycled dark-romance catalog names ("Velvet / Storm / Night / Vale") unless Dark Fantasy. NEVER Forge-*, Temp-*, UUIDs. **One true name** in backstory, bio, fantasy_starters, and system_prompt.`;
   return `FORGE — treat the lines below as creative SEEDS only. Interpret into a cohesive original character. Do NOT paste the seed list into "appearance" or "backstory".
 
 Seeds:
+${nameLine}
 - gender leaning (${o.gender}): informs **face, voice, and personality presentation only** — **physique, species, scale, and silhouette come only from** body type "${o.bodyType}"; do not let gender imply a different default human build.
 - ancestry / complexion (${o.ethnicity}): ${isOpenEthnicityChoice(o.ethnicity) ? "operator left open — invent a coherent face, skin tone, and hair that still obey body type + species + art style." : `treat as a **visual lock** for skin tone, facial cues, and hair texture (fantasy labels = literal where compatible); must not erase or contradict body type "${o.bodyType}".`}
 - **Personalities (fuse ALL into one voice — this block is the psychological + speech contract):**
@@ -282,7 +292,7 @@ ${forgePersonalitySeedsProse(o.forgePersonality)
 - notable traits: ${o.traits.length ? o.traits.join(", ") : "(none)"}
 
 Hard requirements:
-${forgeCompactStatureInstruction(o.bodyType)}1) name: Grok invents ONE highly unique display name (species- and setting-themed; vary etymology — no recycled "Velvet / Storm / Night / Vale" spam). Use varied registers: epithets, court titles, monastery vow-names, relic codenames, mundane jobs + odd honorifics, geography, loanwords — not only dark-romance catalog tone. Do not lean on gratuitous "forge / lust / neon vice" phonemes unless seeds clearly ask. NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs. The operator can rename in the profile editor later. **Use this exact name string whenever the character is named in backstory, bio, fantasy_starters, and system_prompt — no alternate pet names as the "real" name.**
+${forgeCompactStatureInstruction(o.bodyType)}${nameRule1}
 2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps. Forge body type "${o.bodyType}" is the **spine of the physique** — lead with how this body occupies space (limb/torso/head proportions, scale vs furniture or environment). Personality, species, and wardrobe **theme around** that body; never treat it as a footnote. If "${o.bodyType}" is a compact / short-stature / little-person / pixie / micro label, nothing in the prose may read like a default average-height unnamed human — establish adult compact proportions first, then layer everything else.
 3) backstory: 3–4 paragraphs of premium dark-romance storytelling that weaves every Personalities line into one coherent history — not a bullet recap of tags.
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
@@ -290,37 +300,6 @@ ${forgeCompactStatureInstruction(o.bodyType)}1) name: Grok invents ONE highly un
 6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
 7) image_prompt: one dense SFW paragraph for a vertical portrait card. **The first tokens must be exactly this pattern:** \`A character, …\` followed by an explicit physique line that locks "${o.bodyType}" for silhouette/species/scale/material — never vague. Do NOT default to a normal human model with small accessories. For non-human or hybrid labels, describe visible anatomy (fur, tail, digitigrade legs, extra limbs, slime mass, pixel grid, etc.) prominently. Gender must not override body shape. Then art style "${o.artStyle}" and scene "${o.sceneAtmosphere}" (lighting, wardrobe, set) — scene must not erase the body type. If the scene is transparent / empty-set ("No Background", "No Background / Transparent"), use cyclorama, flat color, or clearly cut-out portrait only — no busy environment unless the body type requires scale props.
 8) system_prompt: full chat charter for this persona.`;
-}
-
-function buildForgeNameOnlyUserPrompt(o: {
-  gender: string;
-  ethnicity: string;
-  forgePersonality: ForgePersonalityProfile;
-  artStyle: string;
-  sceneAtmosphere: string;
-  bodyType: string;
-  orientation: string;
-  traits: string[];
-}): string {
-  const nonce =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  return `Forge display name — invent ONE name only (operator may edit later in the profile editor).
-
-Uniqueness salt (do not echo in the name): ${nonce}
-
-Seeds (mood only — do not concatenate these words into the name):
-- gender leaning: ${o.gender}
-- ancestry / complexion: ${o.ethnicity}
-- personality matrix (voice + psychology — fused): ${forgePersonalityLabel(o.forgePersonality)}
-- art style: ${o.artStyle}
-- scene anchor: ${o.sceneAtmosphere}
-- body type: ${o.bodyType}
-- orientation: ${o.orientation}
-- notable traits: ${o.traits.length ? o.traits.join(", ") : "(none)"}
-
-Name vibe: avoid gratuitous host-product / neon vice clichés unless seeds demand it; vary etymology and cultural register.`;
 }
 
 const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProps>(function CompanionCreator(
@@ -364,6 +343,9 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   const [finalLoading, setFinalLoading] = useState(false);
   /** Last forged `cc-…` id in this session (admin) — for looping video tool */
   const [lastForgedCcId, setLastForgedCcId] = useState<string | null>(null);
+  /** Local-only name engine (avoids DB duplicates in-session). */
+  const nameGenSessionReserved = useRef<Set<string>>(new Set());
+  const [nameGenBusy, setNameGenBusy] = useState(false);
   /** Next admin save (scheduled / manual) forces private draft rows. */
   const forcePrivateForgeRef = useRef(false);
 
@@ -750,6 +732,43 @@ User flavor notes: ${extraNotes || "none"}`;
     if (traitHits.length) setTraits(traitHits.slice(0, 6));
   };
 
+  const runGenerateNewName = useCallback(async () => {
+    setNameGenBusy(true);
+    try {
+      if (userId) {
+        const n = await generateUniqueForgeName(
+          supabase,
+          userId,
+          { gender, forgePersonality },
+          nameGenSessionReserved.current,
+        );
+        nameGenSessionReserved.current.add(normalizeNameKey(n));
+        setName(n);
+        toast.success("New name from your Personalities mix — you can still edit the field.");
+      } else {
+        const n = generateForgeName({
+          gender,
+          forgePersonality,
+          exclude: nameGenSessionReserved.current,
+        });
+        nameGenSessionReserved.current.add(normalizeNameKey(n));
+        setName(n);
+        toast.success("New name from your Personalities — sign in to also avoid names in your collection.");
+      }
+    } catch {
+      const n = generateForgeName({
+        gender,
+        forgePersonality,
+        exclude: nameGenSessionReserved.current,
+      });
+      nameGenSessionReserved.current.add(normalizeNameKey(n));
+      setName(n);
+      toast.info("Used local name — try again to check your collection for duplicates.");
+    } finally {
+      setNameGenBusy(false);
+    }
+  }, [userId, gender, forgePersonality, supabase]);
+
   const randomizeForgeCharacter = async () => {
     setRouletteLoading(true);
     if (isAdmin) pushForgeOp("Forge roulette: rolled local seeds; calling Grok for the full profile pack…", "info");
@@ -772,9 +791,28 @@ User flavor notes: ${extraNotes || "none"}`;
     setOrientation(ori);
     setNamePrefix("");
 
+    let lockedName = "";
+    if (userId) {
+      try {
+        const ex = await fetchForgeNameExclusions(supabase, userId);
+        for (const k of nameGenSessionReserved.current) ex.add(k);
+        lockedName = await generateUniqueForgeName(supabase, userId, { gender: g, forgePersonality: fp }, ex);
+        nameGenSessionReserved.current.add(normalizeNameKey(lockedName));
+        setName(lockedName);
+      } catch {
+        lockedName = generateForgeName({ gender: g, forgePersonality: fp, exclude: nameGenSessionReserved.current });
+        nameGenSessionReserved.current.add(normalizeNameKey(lockedName));
+        setName(lockedName);
+      }
+    } else {
+      lockedName = generateForgeName({ gender: g, forgePersonality: fp });
+      setName(lockedName);
+    }
+
     const seedPrompt = `FORGE ROULETTE — treat the lines below as creative SEEDS only. Interpret into a cohesive original character. Do NOT paste the seed list into "appearance" or "backstory".
 
 Seeds:
+- **MANDATORY display name (the "name" field must be this exact string):** ${lockedName}
 - gender leaning: ${g}
 - **Personalities (all lines below — this is the voice + psychology + relationship contract):**
 ${forgePersonalitySeedsProse(fp)
@@ -789,7 +827,7 @@ ${forgePersonalitySeedsProse(fp)
 - notable traits: ${shuffled.join(", ")}
 
 Hard requirements:
-${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique display name (species- and setting-themed; vary etymology — no recycled "Velvet / Storm / Night / Vale" spam). Epithets, court titles, monastery vow-names, relic codenames, or 2–4 word constructions. NEVER Forge-*, Temp-*, UUIDs, or random alphanumeric slugs. Do not pick from any fixed name roster — invent fresh. The operator can rename in the profile editor later.
+${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" — the app already generated a period- and personality-appropriate name; do not replace it with a gothic, alias, or "cooler" catalog name.
 2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps. Forge body type "${bt}" is the **spine of the physique** — lead with scale and proportion; theme species/fashion/setting around it. For compact / short-stature / little-person / pixie / micro picks, establish unmistakable adult compact proportions first — nothing may read like a default average-height human silhouette.
 3) backstory: 3–4 paragraphs of premium dark-romance storytelling that weaves every Personalities line into one coherent history — not a bullet recap of tags.
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
@@ -807,7 +845,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
       const fields = data?.fields as Record<string, unknown> | undefined;
       if (!fields || typeof fields.name !== "string") throw new Error("No profile returned");
 
-      setName(String(fields.name).slice(0, 120));
+      setName(lockedName);
       if (typeof fields.tagline === "string" && fields.tagline.trim()) setTagline(fields.tagline.slice(0, 240));
       syncPillsFromGrokFields(fields);
 
@@ -1006,39 +1044,29 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
     if (!userId) return;
     let forgeName = name.trim();
     if (!forgeName && isAdmin) {
-      toast.info("Inventing a unique name with Grok…");
       try {
-        const namePrompt = buildForgeNameOnlyUserPrompt({
-          gender,
-          ethnicity: normalizeForgeEthnicity(ethnicity),
-          forgePersonality,
-          artStyle,
-          sceneAtmosphere,
-          bodyType,
-          orientation,
-          traits,
-        });
-        const { data: nameData, error: nameErr } = await supabase.functions.invoke("parse-companion-prompt", {
-          body: { mode: "forge_name_only", prompt: namePrompt },
-        });
-        if (nameErr) throw new Error(await getEdgeFunctionInvokeMessage(nameErr, nameData));
-        if (nameData?.error) throw new Error(String(nameData.error));
-        const rawName = (nameData?.fields as Record<string, unknown> | undefined)?.name;
-        const invented = typeof rawName === "string" ? rawName.trim().slice(0, 120) : "";
-        if (invented) {
-          forgeName = invented;
-          setName(invented);
-        } else {
-          const fb = fallbackForgeDisplayName();
-          forgeName = fb;
-          setName(fb);
-          toast.warning("Used offline fallback name — edit in Character management if you like.");
-        }
+        const ex = await fetchForgeNameExclusions(supabase, userId);
+        for (const k of nameGenSessionReserved.current) ex.add(k);
+        const invented = await generateUniqueForgeName(
+          supabase,
+          userId,
+          { gender, forgePersonality },
+          ex,
+        );
+        nameGenSessionReserved.current.add(normalizeNameKey(invented));
+        forgeName = invented;
+        setName(invented);
+        toast.info("Named from your Personalities + collection — edit anytime.");
       } catch {
-        const fb = fallbackForgeDisplayName();
+        const fb = generateForgeName({
+          gender,
+          forgePersonality,
+          exclude: nameGenSessionReserved.current,
+        });
+        nameGenSessionReserved.current.add(normalizeNameKey(fb));
         forgeName = fb;
         setName(fb);
-        toast.warning("Could not reach name AI — used offline fallback. Rename in the profile editor anytime.");
+        toast.warning("Used local name — check Character management for duplicates.");
       }
     }
     if (!forgeName) {
@@ -1094,6 +1122,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
           bodyType,
           orientation,
           traits,
+          mandatoryDisplayName: forgeName,
         });
         const { data: labData, error: labErr } = await supabase.functions.invoke("parse-companion-prompt", {
           body: { mode: "companion_design_lab", prompt: seedPrompt },
@@ -1101,11 +1130,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
         if (labErr) throw new Error(await getEdgeFunctionInvokeMessage(labErr, labData));
         if (labData?.error) throw new Error(String(labData.error));
         const fields = labData?.fields as Record<string, unknown> | undefined;
-        if (typeof fields?.name === "string" && fields.name.trim()) {
-          const sync = fields.name.trim().slice(0, 120);
-          forgeName = sync;
-          setName(sync);
-        }
+        // Keep forgeName; design lab is instructed with mandatoryDisplayName and must not replace it in UI.
         const bs = typeof fields?.backstory === "string" ? fields.backstory.trim() : "";
         if (!bs) {
           throw new Error(
@@ -1146,7 +1171,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
 
       const portraitAppearanceForRow = effectiveNarrative || appearanceBlurb;
       const rowGrokPrompt = composeForgePortraitPrompt({
-        name: name.trim() || "an original companion",
+        name: forgeName || "an original companion",
         bodyType,
         genderPresentation: gender,
         ethnicitySeed: isOpenEthnicityChoice(ethnicity) ? undefined : normalizeForgeEthnicity(ethnicity),
@@ -1158,7 +1183,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
         extraNotes,
         referenceNotes,
       });
-      const rowImagePrompt = name.trim() ? rowGrokPrompt : rowGrokPrompt.replace("an original companion", forgeName);
+      const rowImagePrompt = rowGrokPrompt;
 
       const previewRaw = previewCanonicalUrl || previewUrl;
       let portraitUrl: string | null = stablePortraitDisplayUrl(previewRaw) ?? previewRaw;
@@ -1188,7 +1213,29 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
 
       if (isAdmin) pushForgeOp("Inserting custom_characters row(s)…", "info");
 
-      const defaultBio = `${forgeName} is a ${gender.toLowerCase()} presence shaped by ${personalityLabel.toLowerCase()}, often imagined in ${sceneAtmosphere.toLowerCase()} light. ${tagline ? tagline + "." : ""} They move through the world with ${orientation.toLowerCase()} magnetism.`;
+      const nameReserve = await fetchForgeNameExclusions(supabase, userId);
+      for (const k of nameGenSessionReserved.current) nameReserve.add(k);
+      const batchFirstNames: string[] = [];
+      if (batchCount === 1) {
+        batchFirstNames.push(forgeName);
+      } else {
+        for (let j = 0; j < batchCount; j++) {
+          const nm = await generateUniqueForgeName(
+            supabase,
+            userId,
+            { gender, forgePersonality },
+            nameReserve,
+          );
+          const nk = normalizeNameKey(nm);
+          nameReserve.add(nk);
+          nameGenSessionReserved.current.add(nk);
+          batchFirstNames.push(nm);
+        }
+      }
+
+      const defaultBioFor = (n: string) =>
+        `${n} is a ${gender.toLowerCase()} presence shaped by ${personalityLabel.toLowerCase()}, often imagined in ${sceneAtmosphere.toLowerCase()} light. ${tagline ? tagline + "." : ""} They move through the world with ${orientation.toLowerCase()} magnetism.`;
+      const defaultBio = defaultBioFor(forgeName);
       const bioOut = effectiveHook || defaultBio;
       const backstoryOut = effectiveChronicle || effectiveHook || bioOut;
       const appearanceOut = portraitAppearanceForRow;
@@ -1215,8 +1262,9 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
 
       const rows = [];
       for (let i = 0; i < batchCount; i++) {
-        const suffix = batchCount > 1 ? ` ${i + 1}` : "";
-        const displayName = namePrefix.trim() ? `${namePrefix.trim()} ${forgeName}${suffix}`.trim() : `${forgeName}${suffix}`;
+        const rowFirst = batchFirstNames[i] ?? forgeName;
+        const displayName = namePrefix.trim() ? `${namePrefix.trim()} ${rowFirst}`.trim() : rowFirst;
+        const bioRow = effectiveHook || (batchCount > 1 ? defaultBioFor(rowFirst) : bioOut);
         const basePrompt = buildSystemPromptFor(displayName);
         const charter = effectiveCharter || basePrompt;
         const goPublic = saveVisibility === "public" && !isAdmin;
@@ -1239,7 +1287,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
           tags: tagsOut,
           kinks: kinksOut,
           appearance: appearanceOut,
-          bio: bioOut,
+          bio: bioRow,
           backstory: backstoryOut,
           system_prompt: charter,
           fantasy_starters: startersForRow,
@@ -2043,15 +2091,32 @@ ${forgeCompactStatureInstruction(bt)}1) name: Grok invents ONE highly unique dis
                 <AccordionContent className="pb-5 space-y-5">
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">Name</p>
-                    <input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder={isAdmin ? "Companion name (optional — auto if empty)" : "Companion name"}
-                      className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm mb-2 focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
-                    />
+                    <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                      <input
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder={isAdmin ? "Companion name (optional — auto if empty)" : "Companion name"}
+                        className="w-full min-w-0 flex-1 rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void runGenerateNewName()}
+                        disabled={nameGenBusy}
+                        className={cn(
+                          "shrink-0 inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition-all",
+                          nameGenBusy
+                            ? "border-white/10 bg-black/30 text-muted-foreground pointer-events-none opacity-60"
+                            : "border-[#FF2D7B]/40 bg-[#FF2D7B]/10 text-white hover:border-[#FF2D7B]/60 hover:bg-[#FF2D7B]/15",
+                        )}
+                      >
+                        {nameGenBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" style={{ color: NEON }} />}
+                        <span>Generate new name</span>
+                      </button>
+                    </div>
                     {isAdmin && (
                       <p className="text-[10px] text-muted-foreground mb-2 leading-relaxed">
-                        Admin forge: leave name blank and we pick a random evocative catalog name (never Forge-*) when you create.
+                        Admin forge: leave the name empty and the forge engine picks a unique name from the Personalities matrix
+                        (and your existing companions) at create time.
                       </p>
                     )}
                     <input

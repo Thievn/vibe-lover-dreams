@@ -26,7 +26,6 @@ Deno.serve(async (req) => {
 
     const parodyLab = mode === "parody_lab";
     const companionDesignLab = mode === "companion_design_lab";
-    const forgeNameOnly = mode === "forge_name_only";
 
     const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
     if (!apiKey) {
@@ -95,24 +94,10 @@ Gradients: hex pair matching palette.
 
 Return everything ONLY via the extract_companion_fields tool call (that is your structured JSON channel).`;
 
-    const systemForgeNameOnly =
-      `You invent exactly ONE display name for a premium adult fantasy AI companion. The operator sends high-entropy random seeds — use them only as loose flavor for tone and mythic register; do NOT concatenate seed words into the name.
-
-Rules:
-- 2–4 words OR one rare compound (8–28 characters). Pull from varied etymologies: mythic epithets, invented compounds, hyphenated court titles, relic codenames, undercity aliases, monastery vow-names, hive-caste designations, serial-poetic labels, unpronounceable-but-evocative spellings, mundane professions, geographic accidents, non-English loanwords, etc. — vary the register; not every name should sound like the same dark-romance catalog.
-- Do NOT default to “host product” / neon vice / sin-city clichés in the name unless the seeds clearly ask for that aesthetic.
-- The name must feel distinct from generic romance-catalog entries — weirder and more specific than "Firstname Lastname" clichés.
-- BANNED: Forge-*, Temp-*, CC-*, UUIDs, random alphanumeric slugs, usernames.
-- BANNED: leaning on a single stock token (Velvet, Raven, Storm, Night, Ash, Vale, Thorne, Cross, Noir, Sable, Luna) as the only memorable part unless paired with a highly unusual second token.
-
-Return ONLY the name via the tool — no other fields.`;
-
     const userContent = parodyLab
       ? `Parody lab request (broad archetypes / genres only — no real people named):\n\n${prompt}\n\nGenerate ONE original parody companion profile via the tool.`
       : companionDesignLab
       ? `Invent ONE premium catalog companion.\n\nOperator hints (optional — if blank, maximize surprise and variety):\n${prompt.trim() || "(none — go wild within policy)"}\n\nPopulate all tool fields.`
-      : forgeNameOnly
-      ? prompt
       : `Parse this companion profile and extract all fields:\n\n${prompt}`;
 
     const fantasyStartersSchema: Record<string, unknown> = {
@@ -194,27 +179,11 @@ Return ONLY the name via the tool — no other fields.`;
       required: ["name"],
     };
 
-    const toolParametersForgeNameOnly = {
-      type: "object",
-      properties: {
-        name: {
-          type: "string",
-          description:
-            "Single highly unique display name (2–4 words or one rare compound). Never developer slugs.",
-        },
-      },
-      required: ["name"],
-    };
-
-    const effectiveSystem = forgeNameOnly
-      ? systemForgeNameOnly
-      : parodyLab
+    const effectiveSystem = parodyLab
       ? systemParody
       : companionDesignLab
       ? systemCompanionDesignLab
       : systemDefault;
-
-    const effectiveToolParameters = forgeNameOnly ? toolParametersForgeNameOnly : toolParameters;
 
     const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
@@ -239,15 +208,13 @@ Return ONLY the name via the tool — no other fields.`;
             type: "function",
             function: {
               name: "extract_companion_fields",
-              description: forgeNameOnly
-                ? "Return the invented display name"
-                : "Extract structured companion profile fields from text",
-              parameters: effectiveToolParameters,
+              description: "Extract structured companion profile fields from text",
+              parameters: toolParameters,
             },
           },
         ],
         tool_choice: { type: "function", function: { name: "extract_companion_fields" } },
-        temperature: forgeNameOnly ? 0.93 : companionDesignLab ? 0.88 : 0.7,
+        temperature: companionDesignLab ? 0.88 : 0.7,
       }),
     });
 
