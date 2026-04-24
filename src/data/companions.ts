@@ -1,4 +1,5 @@
 import type { CompanionRarity } from "@/lib/companionRarity";
+import type { ForgePersonalityProfile } from "@/lib/forgePersonalityProfile";
 import type { TcgStatBlock } from "@/lib/tcgStats";
 
 export interface Companion {
@@ -38,6 +39,8 @@ export interface Companion {
   lineageParentIds?: string[] | null;
   /** TCG ascendant stats — exactly four keys from the global pool. */
   tcgStats?: TcgStatBlock | null;
+  /** Forge Personalities matrix (custom_characters); drives voice-consistent chat & Live Call. */
+  personalityForge?: ForgePersonalityProfile | null;
 }
 
 export const companions: Companion[] = [

@@ -1,5 +1,5 @@
 /**
- * Profile companion-page loop videos: image-to-video (Grok or Tensor, depending on function).
+ * Profile companion-page loop videos: image-to-video via Grok Imagine (`generate-profile-loop-video`).
  * Duration is mirrored in edge function API calls.
  *
  * No app-side content moderation — the provider enforces its own rules.
@@ -33,6 +33,19 @@ function joinList(v: unknown, maxItems: number, maxLen: number): string {
     .filter(Boolean)
     .slice(0, maxItems);
   const s = parts.join(", ");
+  return s.length <= maxLen ? s : `${s.slice(0, maxLen).trimEnd()}…`;
+}
+
+/** Compact line from `personality_forge` jsonb (no src/ import in Edge). */
+function personalityForgeSummary(raw: unknown, maxLen: number): string {
+  if (!raw || typeof raw !== "object") return "";
+  const o = raw as Record<string, unknown>;
+  const keys = ["timePeriod", "personalityType", "speechStyle", "sexualEnergy", "relationshipVibe"] as const;
+  const parts = keys
+    .map((k) => (typeof o[k] === "string" ? o[k]!.trim() : ""))
+    .filter(Boolean);
+  const s = parts.join(" · ");
+  if (!s) return "";
   return s.length <= maxLen ? s : `${s.slice(0, maxLen).trimEnd()}…`;
 }
 
@@ -80,6 +93,7 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>): strin
   const kinks = joinList(row.kinks, 8, 200);
   const archetypes = joinList(row.personality_archetypes, 6, 140);
   const vibeThemes = joinList(row.vibe_theme_selections, 8, 180);
+  const personalityForge = personalityForgeSummary(row.personality_forge, 220);
   const appearance = sliceStr(row.appearance, 320);
   const personality = sliceStr(row.personality, 260);
   const bio = sliceStr(row.bio, 180);
@@ -94,8 +108,9 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>): strin
       `Identity cues: ${[gender, orientation].filter(Boolean).join(" · ")}.`,
     tags && `Tags / motifs: ${tags}.`,
     kinks && `Interests / tone (inform mood and performance): ${kinks}.`,
-    archetypes && `Archetypes: ${archetypes}.`,
-    vibeThemes && `Vibe / theme picks: ${vibeThemes}.`,
+    personalityForge && `Personality matrix (forge): ${personalityForge}.`,
+    !personalityForge && archetypes && `Archetypes: ${archetypes}.`,
+    !personalityForge && vibeThemes && `Mood / theme tags: ${vibeThemes}.`,
     appearance && `Look & wardrobe (stay consistent with the source image as the loop baseline): ${appearance}`,
     personality && `Personality energy (inform gesture and expression): ${personality}`,
     bio && `Bio tone: ${bio}`,

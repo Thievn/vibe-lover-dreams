@@ -17,7 +17,8 @@ type Props = {
   onRamp: () => void;
   onGallery: () => void;
   onVoiceOptions: () => void;
-  onSafeWordInfo: () => void;
+  safeWord: string;
+  onEmergencyStop: () => void;
   /** Signed-in: Ramp can run (switches to Live Voice + toggles the driver for guests, keep signed-out disabled). */
   rampAvailable: boolean;
   rampActive?: boolean;
@@ -37,7 +38,8 @@ export function ChatActionPills({
   onRamp,
   onGallery,
   onVoiceOptions,
-  onSafeWordInfo,
+  safeWord,
+  onEmergencyStop,
   rampAvailable,
   rampActive = false,
   disabled,
@@ -51,7 +53,7 @@ export function ChatActionPills({
         onClick={onLiveCall}
         disabled={disabled}
         className={cn(pillClass, "text-primary/95 border-primary/25 bg-primary/8")}
-        title="Start a live call from her profile"
+        title="Start a live call"
       >
         <Phone className="h-3.5 w-3.5 text-[#00ffd4]" />
         <span>Live call</span>
@@ -113,10 +115,15 @@ export function ChatActionPills({
           <DropdownMenuSeparator className="bg-white/10" />
           <DropdownMenuItem
             className="cursor-pointer text-destructive focus:text-destructive text-sm"
-            onSelect={() => onSafeWordInfo()}
+            onSelect={() => onEmergencyStop()}
           >
-            Safe word info
+            Emergency stop
           </DropdownMenuItem>
+          {safeWord ? (
+            <p className="px-2 py-1.5 text-[10px] text-muted-foreground">
+              Type <span className="font-mono text-foreground/90">{safeWord}</span> in chat to stop
+            </p>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

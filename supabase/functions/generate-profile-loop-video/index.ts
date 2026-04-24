@@ -1,16 +1,16 @@
 /**
- * Profile portrait loop — Tensor TAMS I2V (Wan), same stack as `generate-chat-companion-video`.
+ * Profile portrait loop — Grok Imagine image-to-video (`grok-imagine-video` via xAI).
  * Auth: signed-in owner of `cc-…` custom characters, or admin for any companion (including catalog).
- * Requires `TENSOR_API_KEY` or TAMS RSA keys. Optional `TENSOR_VIDEO_MODEL`, `TENSOR_CHAT_VIDEO_DURATION_SECONDS` (5–10).
+ * Requires `XAI_API_KEY` or `GROK_API_KEY`. Optional: `GROK_VIDEO_MODEL`, `GROK_VIDEO_DURATION_SECONDS` (5–15, default 10).
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { requireAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
-import { hasTamsRsaCredentials } from "../_shared/tamsRsaAuth.ts";
+import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import {
-  DEFAULT_TENSOR_VIDEO_MODEL,
-  runTensorImageToVideoJobWithRetries,
-  sourceImageUrlForTamsUpload,
-} from "../_shared/tensorClient.ts";
+  DEFAULT_GROK_VIDEO_MODEL,
+  publicHttpsImageUrlForGrok,
+  runGrokImagineImageToVideo,
+} from "../_shared/xaiGrokVideo.ts";
 import {
   buildMinimalProfileLoopVideoPrompt,
   buildProfileLoopVideoPrompt,
@@ -31,9 +31,9 @@ function jsonResponse(obj: Record<string, unknown>, status = 200) {
 }
 
 function profileVideoDurationSeconds(): number {
-  const n = Math.round(Number(Deno.env.get("TENSOR_CHAT_VIDEO_DURATION_SECONDS") ?? "10"));
+  const n = Math.round(Number(Deno.env.get("GROK_VIDEO_DURATION_SECONDS") ?? "10"));
   if (!Number.isFinite(n)) return 10;
-  return Math.max(5, Math.min(10, n));
+  return Math.max(5, Math.min(15, n));
 }
 
 Deno.serve(async (req) => {
@@ -51,12 +51,12 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Server misconfigured" }, 500);
   }
 
-  const tensorApiKey = (Deno.env.get("TENSOR_API_KEY") ?? "").trim();
-  if (!tensorApiKey && !hasTamsRsaCredentials()) {
+  const xaiKey = resolveXaiApiKey((n) => Deno.env.get(n) ?? undefined);
+  if (!xaiKey) {
     return jsonResponse(
       {
         error:
-          "Tensor not configured: set TENSOR_API_KEY (or TAMS_APP_ID + TAMS_PRIVATE_KEY) for profile loop video.",
+          "Grok / xAI not configured: set Edge Function secret XAI_API_KEY or GROK_API_KEY for profile loop video.",
       },
       503,
     );
@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
       (typeof row.image_url === "string" && row.image_url) ||
       (typeof row.avatar_url === "string" && row.avatar_url) ||
       null;
-    imageUrl = sourceImageUrlForTamsUpload(raw);
+    imageUrl = publicHttpsImageUrlForGrok(raw);
   } else {
     table = "companions";
     rowPk = companionId;
@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
       (typeof row.static_image_url === "string" && row.static_image_url) ||
       (typeof row.image_url === "string" && row.image_url) ||
       null;
-    imageUrl = sourceImageUrlForTamsUpload(raw);
+    imageUrl = publicHttpsImageUrlForGrok(raw);
   }
 
   if (!imageUrl) {
@@ -131,26 +131,22 @@ Deno.serve(async (req) => {
           );
 
     const durationSec = profileVideoDurationSeconds();
-    const videoModel = (Deno.env.get("TENSOR_VIDEO_MODEL") ?? DEFAULT_TENSOR_VIDEO_MODEL).trim() || DEFAULT_TENSOR_VIDEO_MODEL;
+    const videoModel = (Deno.env.get("GROK_VIDEO_MODEL") ?? DEFAULT_GROK_VIDEO_MODEL).trim() || DEFAULT_GROK_VIDEO_MODEL;
 
-    const { videoUrl: tensorVideoUrl } = await runTensorImageToVideoJobWithRetries({
-      apiKey: tensorApiKey,
+    const { videoUrl: xaiVideoUrl } = await runGrokImagineImageToVideo({
+      apiKey: xaiKey,
       prompt,
       sourceImageUrl: imageUrl,
-      model: videoModel,
       durationSeconds: durationSec,
-      timeoutMs: 16 * 60_000,
-      pollIntervalMs: 4000,
-      maxAttempts: 3,
+      aspectRatio: "9:16",
+      resolution: "720p",
+      model: videoModel,
+      maxWaitMs: 20 * 60_000,
     });
 
-    if (!tensorVideoUrl) {
-      return jsonResponse({ error: "Tensor job succeeded but returned no video URL." }, 502);
-    }
-
-    const vidRes = await fetch(tensorVideoUrl);
+    const vidRes = await fetch(xaiVideoUrl);
     if (!vidRes.ok) {
-      return jsonResponse({ error: `Download from Tensor failed HTTP ${vidRes.status}` }, 502);
+      return jsonResponse({ error: `Download from xAI video URL failed HTTP ${vidRes.status}` }, 502);
     }
     const buf = new Uint8Array(await vidRes.arrayBuffer());
 
@@ -179,7 +175,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: upRow.message }, 500);
     }
 
-    return jsonResponse({ success: true, publicUrl, source: "tensor", durationSeconds: durationSec });
+    return jsonResponse({ success: true, publicUrl, source: "grok", durationSeconds: durationSec });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return jsonResponse({ error: msg }, 500);

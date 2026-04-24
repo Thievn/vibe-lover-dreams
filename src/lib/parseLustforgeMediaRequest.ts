@@ -2,7 +2,7 @@ import { parseLooseInnerObject, sliceBalancedBrace } from "./parseLovenseChatCom
 
 export type LustforgeMediaRequest = {
   kind: "image" | "video";
-  /** Image/video creative brief in plain language (Tensor / clip pipeline). */
+  /** Image/video creative brief in plain language (Grok generation pipeline). */
   brief: string;
   /** For video: optional mood bucket for the motion prompt. */
   mood?: "sfw" | "lewd" | "nude";

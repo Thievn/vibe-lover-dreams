@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
   return new Response(
     JSON.stringify({
       error:
-        "chat-with-companion is retired. Update the app and deploy `together-chat`; set TOGETHER_API_KEY on Edge Functions.",
+        "chat-with-companion is retired. The app uses `grok-chat` and `generate-image` — set XAI_API_KEY or GROK_API_KEY on Edge Functions.",
     }),
     {
       status: 410,

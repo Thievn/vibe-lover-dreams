@@ -13,7 +13,7 @@ type Props = {
 };
 
 /**
- * `generate-profile-loop-video` — Tensor TAMS Wan I2V → Storage MP4.
+ * `generate-profile-loop-video` — Grok Imagine I2V → Storage MP4.
  * Edge auth: custom-character **owner** or **admin** (catalog rows require admin).
  */
 export function AdminLoopingVideoBlock({ companionId, className, onSuccess }: Props) {
@@ -56,7 +56,7 @@ export function AdminLoopingVideoBlock({ companionId, className, onSuccess }: Pr
         Looping portrait video
       </div>
       <p className="text-[11px] text-muted-foreground leading-relaxed">
-        Uses the current still as first frame — Tensor Wan I2V short loop; motion follows profile fields. {CHAT_VIDEO_TIMING_USER_NOTE}{" "}
+        Uses the current still as first frame — Grok Imagine short loop; motion follows profile fields. {CHAT_VIDEO_TIMING_USER_NOTE}{" "}
         Enable below for profile + chat; not on the landing page.
       </p>
       <button

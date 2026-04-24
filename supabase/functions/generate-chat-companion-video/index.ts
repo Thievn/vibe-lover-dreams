@@ -1,15 +1,14 @@
 /**
- * Chat companion video clips: Tensor TAMS image-to-video (same stack as `generate-image-tensor`).
- * Configure `TENSOR_API_KEY` and optional `TENSOR_VIDEO_MODEL`, `TENSOR_CHAT_VIDEO_DURATION_SECONDS` (5–10, default 10).
- * Grok/xAI video is not used here.
+ * Chat companion video clips: Grok Imagine image-to-video (`grok-imagine-video` via xAI).
+ * Configure `XAI_API_KEY` or `GROK_API_KEY` and optional `GROK_VIDEO_MODEL`, `GROK_CHAT_VIDEO_DURATION_SECONDS` (5–15, default 10).
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { hasTamsRsaCredentials } from "../_shared/tamsRsaAuth.ts";
+import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import {
-  DEFAULT_TENSOR_VIDEO_MODEL,
-  runTensorImageToVideoJobWithRetries,
-  sourceImageUrlForTamsUpload,
-} from "../_shared/tensorClient.ts";
+  DEFAULT_GROK_VIDEO_MODEL,
+  publicHttpsImageUrlForGrok,
+  runGrokImagineImageToVideo,
+} from "../_shared/xaiGrokVideo.ts";
 import {
   buildMinimalProfileLoopVideoPrompt,
   buildProfileLoopVideoPrompt,
@@ -34,9 +33,9 @@ function jsonResponse(obj: Record<string, unknown>, status = 200) {
 }
 
 function chatVideoDurationSeconds(): number {
-  const n = Math.round(Number(Deno.env.get("TENSOR_CHAT_VIDEO_DURATION_SECONDS") ?? "10"));
+  const n = Math.round(Number(Deno.env.get("GROK_CHAT_VIDEO_DURATION_SECONDS") ?? "10"));
   if (!Number.isFinite(n)) return 10;
-  return Math.max(5, Math.min(10, n));
+  return Math.max(5, Math.min(15, n));
 }
 
 async function refundTokens(svc: ReturnType<typeof createClient>, userId: string, amount: number) {
@@ -110,14 +109,13 @@ Deno.serve(async (req) => {
 
     const svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const tensorApiKey = (Deno.env.get("TENSOR_API_KEY") ?? "").trim();
-    if (!tensorApiKey && !hasTamsRsaCredentials()) {
+    const xaiKey = resolveXaiApiKey((n) => Deno.env.get(n) ?? undefined);
+    if (!xaiKey) {
       return jsonResponse(
         {
           success: false,
           error:
-            "Tensor auth not configured: set Supabase secret TENSOR_API_KEY (Bearer from https://tams.tensor.art/app) " +
-            "or TAMS_APP_ID + TAMS_PRIVATE_KEY for RSA. Ensure TENSOR_API_BASE_URL matches your TAMS app region.",
+            "Grok / xAI not configured: set Edge Function secret XAI_API_KEY or GROK_API_KEY for chat video clips.",
         },
         503,
       );
@@ -167,7 +165,7 @@ Deno.serve(async (req) => {
         (typeof row.image_url === "string" && row.image_url) ||
         (typeof row.avatar_url === "string" && row.avatar_url) ||
         null;
-      imageUrl = sourceImageUrlForTamsUpload(raw);
+      imageUrl = publicHttpsImageUrlForGrok(raw);
     } else {
       const { data, error } = await svc.from("companions").select("*").eq("id", companionId).maybeSingle();
       if (error) throw new Error(error.message);
@@ -180,7 +178,7 @@ Deno.serve(async (req) => {
         (typeof row.static_image_url === "string" && row.static_image_url) ||
         (typeof row.image_url === "string" && row.image_url) ||
         null;
-      imageUrl = sourceImageUrlForTamsUpload(raw);
+      imageUrl = publicHttpsImageUrlForGrok(raw);
     }
 
     if (!imageUrl) {
@@ -215,28 +213,31 @@ Deno.serve(async (req) => {
           );
 
     const durationSec = chatVideoDurationSeconds();
-    const videoModel = (Deno.env.get("TENSOR_VIDEO_MODEL") ?? DEFAULT_TENSOR_VIDEO_MODEL).trim() || DEFAULT_TENSOR_VIDEO_MODEL;
+    const videoModel = (Deno.env.get("GROK_VIDEO_MODEL") ?? DEFAULT_GROK_VIDEO_MODEL).trim() || DEFAULT_GROK_VIDEO_MODEL;
 
-    const { videoUrl: tensorVideoUrl } = await runTensorImageToVideoJobWithRetries({
-      apiKey: tensorApiKey,
-      prompt,
-      sourceImageUrl: imageUrl,
-      model: videoModel,
-      durationSeconds: durationSec,
-      timeoutMs: 16 * 60_000,
-      pollIntervalMs: 4000,
-      maxAttempts: 3,
-    });
-
-    if (!tensorVideoUrl) {
+    let grokVideoUrl: string;
+    try {
+      const r = await runGrokImagineImageToVideo({
+        apiKey: xaiKey,
+        prompt,
+        sourceImageUrl: imageUrl,
+        durationSeconds: durationSec,
+        aspectRatio: "9:16",
+        resolution: "720p",
+        model: videoModel,
+        maxWaitMs: 20 * 60_000,
+      });
+      grokVideoUrl = r.videoUrl;
+    } catch (e) {
       if (tokensCharged) await refundTokens(svc, userId, tokenCost);
-      return jsonResponse({ success: false, error: "Tensor job completed but returned no video URL." }, 502);
+      const msg = e instanceof Error ? e.message : String(e);
+      return jsonResponse({ success: false, error: msg }, 502);
     }
 
-    const vidRes = await fetch(tensorVideoUrl);
+    const vidRes = await fetch(grokVideoUrl);
     if (!vidRes.ok) {
       if (tokensCharged) await refundTokens(svc, userId, tokenCost);
-      return jsonResponse({ success: false, error: `Download from Tensor failed HTTP ${vidRes.status}` }, 502);
+      return jsonResponse({ success: false, error: `Download from xAI video failed HTTP ${vidRes.status}` }, 502);
     }
     const buf = new Uint8Array(await vidRes.arrayBuffer());
 
@@ -261,7 +262,7 @@ Deno.serve(async (req) => {
       videoUrl: publicUrl,
       newTokensBalance: prof?.tokens_balance ?? null,
       tokensCharged: tokenCost,
-      source: "tensor",
+      source: "grok",
       durationSeconds: durationSec,
     });
   } catch (err) {

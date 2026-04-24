@@ -1,13 +1,13 @@
 /**
- * Routes natural-language chat toward Tensor stills (FLUX.2) vs short I2V loops (Wan on TAMS),
+ * Routes natural-language chat toward Grok Imagine stills vs short I2V loops (Grok Imagine video),
  * plus copy for immersive video loading (no technical "generating…" jargon in the thread).
  */
 
 import { wantsChatImageFromText } from "./chatImageSettings";
 
-/** Shown near video actions; set expectations for Tensor queue time. */
+/** Shown near video actions; Grok video is async and may take a few minutes. */
 export const CHAT_VIDEO_TIMING_USER_NOTE =
-  "Videos may take 20–60 seconds to generate depending on current load.";
+  "Videos can take 1–5+ minutes to generate — hang tight.";
 
 const VIDEO_LOADING_LINES = [
   "Filming that for you…",
@@ -59,7 +59,7 @@ export function wantsChatVideoFromText(text: string): boolean {
 export type ChatMediaRoute = "image" | "video" | "text";
 
 /**
- * Decide Tensor pipeline: still (FLUX.2) vs I2V (Wan) vs plain Together chat.
+ * Decide media pipeline: still (Grok Imagine) vs I2V clip (Grok Imagine video) vs text chat.
  * `menuForcesImage` = FAB / dropdown sent an image brief (always still).
  */
 export function inferChatMediaRoute(messageText: string, menuForcesImage: boolean): ChatMediaRoute {

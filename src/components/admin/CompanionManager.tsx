@@ -73,6 +73,7 @@ const CUSTOM_CHARACTER_UPDATE_KEYS = new Set([
   "gallery_credit_name",
   "exclude_from_personal_vault",
   "personality_archetypes",
+  "personality_forge",
   "vibe_theme_selections",
 ]);
 

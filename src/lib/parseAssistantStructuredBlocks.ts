@@ -10,7 +10,7 @@ export type AssistantStructuredParse = {
 
 /**
  * Chain-strip machine-readable blocks the model may append. Order: Lovense first (anchor-based),
- * then Lustforge media. Phase 3/4: keeps RP clean while we trigger Tensor + devices client-side.
+ * then Lustforge media. Phase 3/4: keeps RP clean while we trigger media + devices client-side.
  */
 export function parseAssistantStructuredBlocks(rawInput: unknown): AssistantStructuredParse {
   // Together/edge may rarely return a non-string — never throw on .trim().

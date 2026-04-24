@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Flame, Loader2, Mic, Square } from "lucide-react";
 import { toast } from "sonner";
 import { invokeGrokStt } from "@/lib/invokeGrokStt";
+import { matchesSafeWord } from "@/lib/matchesSafeWord";
 import { startRampModeDriver, type RampModeDriver } from "@/lib/rampModeDriver";
 import type { RampPresetId } from "@/lib/rampModePresets";
 import { RAMP_PRESET_IDS, RAMP_PRESET_LABELS, RAMP_PRESET_SHORT } from "@/lib/rampModePresets";
@@ -36,6 +37,11 @@ type Props = {
   primaryToyUid: string | null;
   toyIntensityPercent: number;
   prepareToyForRamp: () => Promise<void>;
+  /** Same store as header — if spoken, we route through the chat path as the safe word. */
+  safeWord: string;
+  /** Increment from parent to cancel the open mic and streams (emergency, safe word, etc.). */
+  emergencyStopTick: number;
+  onVoiceSettingsClick?: () => void;
   className?: string;
 };
 
@@ -57,6 +63,9 @@ export function LiveVoicePanel({
   primaryToyUid,
   toyIntensityPercent,
   prepareToyForRamp,
+  safeWord,
+  emergencyStopTick,
+  onVoiceSettingsClick,
   className,
 }: Props) {
   const [transcribing, setTranscribing] = useState(false);
@@ -71,6 +80,7 @@ export function LiveVoicePanel({
   const finishRecordingRef = useRef<() => Promise<void>>(async () => {});
 
   const MIN_AUDIO_BYTES = 200;
+  const lastEmergencyTick = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -129,6 +139,35 @@ export function LiveVoicePanel({
     stream?.getTracks().forEach((t) => t.stop());
   }, []);
 
+  const cancelOpenMic = useCallback(() => {
+    const rec = mediaRecorderRef.current;
+    if (rec && rec.state !== "inactive") {
+      chunksRef.current = [];
+      rec.ondataavailable = null;
+      rec.onerror = null;
+      rec.onstop = null;
+      try {
+        if (rec.state === "recording") rec.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    mediaRecorderRef.current = null;
+    const stream = mediaStreamRef.current;
+    mediaStreamRef.current = null;
+    stopStream(stream);
+    setRecording(false);
+    setTranscribing(false);
+  }, [stopStream]);
+
+  useEffect(() => {
+    if (emergencyStopTick <= 0) return;
+    if (emergencyStopTick === lastEmergencyTick.current) return;
+    lastEmergencyTick.current = emergencyStopTick;
+    cancelOpenMic();
+    void rampDriverRef.current?.stop();
+  }, [emergencyStopTick, cancelOpenMic]);
+
   const finishRecording = useCallback(async () => {
     const rec = mediaRecorderRef.current;
     if (!rec || rec.state === "inactive") {
@@ -173,6 +212,10 @@ export function LiveVoicePanel({
         return;
       }
       const text = result.text.trim();
+      if (safeWord.trim() && matchesSafeWord(text, safeWord)) {
+        onSendText(text);
+        return;
+      }
       if (RAMP_VOICE_ON.test(text)) {
         onRampModeActiveChange(true);
         toast.success("Ramp Mode on — speak to her.");
@@ -187,7 +230,7 @@ export function LiveVoicePanel({
     } finally {
       setTranscribing(false);
     }
-  }, [onRampModeActiveChange, onSendText, stopStream]);
+  }, [onRampModeActiveChange, onSendText, stopStream, safeWord]);
 
   finishRecordingRef.current = finishRecording;
 
@@ -255,28 +298,35 @@ export function LiveVoicePanel({
     <div
       id="lf-live-voice-panel"
       className={cn(
-        "rounded-2xl border border-[#00ffd4]/20 bg-gradient-to-br from-black/70 via-[hsl(280_30%_8%)]/95 to-black/80 p-4 space-y-3 shadow-[0_0_40px_rgba(0,255,212,0.08)]",
+        "rounded-xl border border-[#00ffd4]/20 bg-gradient-to-br from-black/70 via-[hsl(280_30%_8%)]/95 to-black/80 p-2.5 space-y-2 shadow-[0_0_32px_rgba(0,255,212,0.06)]",
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#00ffd4]/90">Live Voice</p>
-          <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
-            <span className="text-foreground/90 font-medium">Tap the mic to talk</span> — it stays open while you
-            speak. <span className="text-foreground/90 font-medium">Tap again</span> to send. Audio goes to{" "}
-            <span className="text-foreground/90 font-medium">xAI STT</span>, then{" "}
-            <span className="text-foreground/90 font-medium">Grok</span> like a typed message. In Live Voice, her
-            reply usually plays by voice (see voice settings).
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#00ffd4]/90">Live Voice</p>
+            {onVoiceSettingsClick ? (
+              <button
+                type="button"
+                onClick={onVoiceSettingsClick}
+                className="text-[10px] text-primary/80 underline-offset-2 hover:underline"
+              >
+                Voice &amp; TTS
+              </button>
+            ) : null}
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight line-clamp-2">
+            Tap mic → speak → tap again to send. Replies can play as voice.
           </p>
         </div>
-        <div className="flex flex-col gap-2 shrink-0 items-end">
+        <div className="flex flex-col items-end gap-0.5 shrink-0">
           <button
             type="button"
             disabled={off || transcribing}
             onClick={onMicClick}
             className={cn(
-              "relative flex h-14 w-14 select-none items-center justify-center rounded-2xl border-2 transition-all touch-manipulation",
+              "relative flex h-11 w-11 select-none items-center justify-center rounded-xl border-2 transition-all touch-manipulation",
               recording
                 ? "border-destructive bg-destructive/20 text-destructive hover:bg-destructive/30"
                 : "border-[#00ffd4]/50 bg-[#00ffd4]/10 text-[#00ffd4] hover:bg-[#00ffd4]/20",
@@ -286,31 +336,30 @@ export function LiveVoicePanel({
             aria-label={recording ? "Stop recording and send to chat" : "Start open microphone for live voice"}
           >
             {transcribing ? (
-              <Loader2 className="h-7 w-7 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin" />
             ) : recording ? (
-              <Square className="h-6 w-6 fill-current" />
+              <Square className="h-5 w-5 fill-current" />
             ) : (
-              <Mic className="h-7 w-7" />
+              <Mic className="h-5 w-5" />
             )}
           </button>
-          <span className="text-[9px] text-muted-foreground text-center max-w-[5.5rem] leading-tight">
-            {transcribing ? "Transcribing…" : recording ? "Open · tap to send" : "Tap = open mic"}
+          <span className="text-[8px] text-muted-foreground text-right max-w-[4.5rem] leading-tight">
+            {transcribing ? "…" : recording ? "Tap send" : "Open"}
           </span>
         </div>
       </div>
 
-      {/* Ramp Mode */}
       <div
         id="lf-ramp-block"
         className={cn(
-          "rounded-xl border border-white/[0.07] bg-black/25 px-3 py-3 space-y-2.5",
+          "rounded-lg border border-white/[0.07] bg-black/25 px-2.5 py-2 space-y-1.5",
           rampModeActive && "border-orange-500/25 bg-gradient-to-br from-orange-950/20 to-transparent",
         )}
       >
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-orange-200/90">Ramp Mode</p>
+          <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-orange-200/90">Ramp</p>
           {rampModeActive && hasDevice ? (
-            <span className="text-[10px] text-muted-foreground/90 tabular-nums">{Math.round(rampDisplayIntensity)}%</span>
+            <span className="text-[9px] text-muted-foreground/90 tabular-nums">{Math.round(rampDisplayIntensity)}%</span>
           ) : null}
         </div>
 
@@ -319,20 +368,20 @@ export function LiveVoicePanel({
           disabled={off}
           onClick={toggleRampMode}
           className={cn(
-            "w-full rounded-xl px-4 py-3 text-sm font-semibold transition-all touch-manipulation text-center",
+            "w-full rounded-lg px-3 py-2 text-xs font-semibold transition-all touch-manipulation text-center",
             rampModeActive
-              ? "bg-gradient-to-r from-orange-600/90 to-rose-700/90 text-white shadow-[0_0_24px_rgba(251,146,60,0.25)]"
+              ? "bg-gradient-to-r from-orange-600/90 to-rose-700/90 text-white"
               : "bg-gradient-to-r from-orange-500/25 to-rose-600/25 border border-orange-400/30 text-orange-100 hover:from-orange-500/35 hover:to-rose-600/35",
             off && "opacity-40 pointer-events-none",
           )}
         >
-          {rampModeActive ? "Ramp Mode active — tap to stop" : "Activate Ramp Mode 🔥"}
+          {rampModeActive ? "On — tap to stop" : "Activate 🔥"}
         </button>
 
         {rampModeActive ? (
-          <div className="relative pt-0.5">
+          <div className="relative">
             <div
-              className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]"
+              className="h-1 w-full overflow-hidden rounded-full bg-white/[0.06]"
               aria-hidden
             >
               <div
@@ -342,19 +391,19 @@ export function LiveVoicePanel({
             </div>
             {hasDevice ? (
               <Flame
-                className="pointer-events-none absolute -right-0.5 -top-1 h-4 w-4 text-orange-400/70 animate-pulse"
+                className="pointer-events-none absolute -right-0.5 -top-1 h-3.5 w-3.5 text-orange-400/70 animate-pulse"
                 aria-hidden
               />
             ) : null}
-            <p className="text-[10px] text-muted-foreground/80 mt-1.5 leading-snug">
+            <p className="text-[9px] text-muted-foreground/80 mt-1 leading-tight line-clamp-1">
               {hasDevice
-                ? "Toy follows the preset; Grok replies nudge intensity from keywords."
-                : "Connect a Lovense toy for hardware ramping."}
+                ? "Grok lines steer intensity; toy runs the preset."
+                : "Add a linked toy for real hardware ramping."}
             </p>
           </div>
         ) : null}
 
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-nowrap gap-1 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-w-full">
           {RAMP_PRESET_IDS.map((id) => (
             <button
               key={id}
@@ -363,7 +412,7 @@ export function LiveVoicePanel({
               title={RAMP_PRESET_SHORT[id]}
               onClick={() => onRampPresetChange(id)}
               className={cn(
-                "rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors touch-manipulation max-w-[11rem] truncate",
+                "shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-medium transition-colors touch-manipulation max-w-[8rem] truncate",
                 rampPreset === id
                   ? "border-orange-400/50 bg-orange-500/15 text-orange-100"
                   : "border-white/10 bg-black/30 text-foreground/80 hover:bg-white/[0.05]",
@@ -376,14 +425,14 @@ export function LiveVoicePanel({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
+      <div className="max-h-14 overflow-y-auto flex flex-wrap gap-1 [scrollbar-width:thin]">
         {QUICK_LINES.map((q) => (
           <button
             key={q.label}
             type="button"
             disabled={off || recording || transcribing}
             onClick={() => onSendText(q.send)}
-            className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[10px] font-medium text-foreground/90 hover:bg-white/[0.06] disabled:opacity-40 text-left leading-snug"
+            className="rounded-full border border-white/10 bg-black/35 px-2 py-0.5 text-[9px] font-medium text-foreground/90 hover:bg-white/[0.06] disabled:opacity-40 text-left leading-tight"
           >
             {q.label}
           </button>

@@ -14,6 +14,9 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
+import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
+import { getLiveCallPresetsFallback } from "@/lib/liveCallPresetsFallback";
+import { matchesSafeWord } from "@/lib/matchesSafeWord";
 import { isPlatformAdmin } from "@/config/auth";
 import { Loader2, Zap } from "lucide-react";
 import { toast } from "sonner";
@@ -88,7 +91,7 @@ import {
   getFreeNsfwImagesUsed,
   incrementFreeNsfwImagesUsed,
   isExplicitImageRequest,
-  resolveChatImagePromptForTensor,
+  resolveChatImageGenerationPrompt,
   resolveFabDisplay,
   setChatAutoSpendImages,
 } from "@/lib/chatImageSettings";
@@ -125,7 +128,7 @@ type SendMessageOptions = {
 };
 const IMAGE_TOKEN_COST = 75;
 
-/** In-thread caption when Tensor returns a still — no “generating” / pipeline language. */
+/** In-thread caption when a still returns — no “generating” / pipeline language. */
 const CHAT_STILL_DELIVERY_CAPTION = "*sends you a still — just for you.*";
 
 const SMART_FALLBACK = ["Tell me more…", "I want you closer.", "Surprise me."];
@@ -180,6 +183,8 @@ const Chat = () => {
   /** Live Voice — Ramp Mode (prompt + Lovense driver, see LiveVoicePanel). */
   const [rampModeActive, setRampModeActive] = useState(false);
   const [rampPreset, setRampPreset] = useState<RampPresetId>("gentle_tease");
+  /** Increment to force Live Voice mic cleanup on emergency (safe word, leave chat, etc.). */
+  const [liveVoiceStopTick, setLiveVoiceStopTick] = useState(0);
   const [toyUtilityBusy, setToyUtilityBusy] = useState(false);
   const [historyReady, setHistoryReady] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -192,6 +197,14 @@ const Chat = () => {
   const tokensBalanceRef = useRef(0);
   const messagesRef = useRef<ChatMessage[]>([]);
   const sendMessageRef = useRef<(text?: string, opts?: SendMessageOptions) => Promise<void>>(async () => {});
+  const connectedToysRef = useRef(connectedToys);
+  const userIdRef = useRef(user?.id);
+  useEffect(() => {
+    connectedToysRef.current = connectedToys;
+  }, [connectedToys]);
+  useEffect(() => {
+    userIdRef.current = user?.id;
+  }, [user?.id]);
   /** Live Voice: Ramp assist feed + STT use stable `sendMessageRef` / register callback to avoid effect churn. */
   const liveRampAssistFeedRef = useRef<((text: string) => void) | null>(null);
   const liveVoiceSendText = useCallback((text: string) => {
@@ -389,7 +402,17 @@ const Chat = () => {
 
   useEffect(() => {
     return () => {
-      void stopSustainedToy();
+      void (async () => {
+        await stopSustainedToy();
+        const uid = userIdRef.current;
+        if (uid) {
+          try {
+            await stopAllUserToys(uid, connectedToysRef.current);
+          } catch {
+            /* unmount */
+          }
+        }
+      })();
     };
   }, [stopSustainedToy]);
 
@@ -584,7 +607,7 @@ const Chat = () => {
       const useFreeNsfwSlot = explicit && freeUsed < FREE_NSFW_CHAT_IMAGES;
       const tokenCost = isAdminUser ? 0 : useFreeNsfwSlot ? 0 : IMAGE_TOKEN_COST;
 
-      /** Raw desire text — `generate-image-tensor` (Tensor) builds the final diffusion prompt; explicit chat requests are allowed within Tensor / product rules. */
+      /** Raw desire text — `generate-image` (Grok Imagine) rewrites the final prompt; explicit chat requests follow xAI / product rules. */
       const prompt = `${userRequest}\n\n(Character: ${companion.name}, ${companion.gender}. ${companion.appearance})`.slice(
         0,
         8000,
@@ -1255,16 +1278,24 @@ const Chat = () => {
     ]);
   };
 
-  const handleEmergencyStop = async () => {
+  const handleEmergencyStop = useCallback(async () => {
     await stopSustainedToy();
-    if (!user) return;
+    setRampModeActive(false);
+    setLiveVoiceStopTick((n) => n + 1);
+    const uid = userIdRef.current;
+    if (!uid) return;
     try {
-      const ok = await stopAllUserToys(user.id, connectedToys);
+      const ok = await stopAllUserToys(uid, connectedToysRef.current);
       if (!ok) toast.error("Failed to stop device");
     } catch {
       toast.error("Failed to stop device");
     }
-  };
+  }, [stopSustainedToy]);
+
+  const handleEmergencyStopFromUi = useCallback(async () => {
+    await handleEmergencyStop();
+    toast.info("🛑 Stopped — all activity.");
+  }, [handleEmergencyStop]);
 
   const toggleToyEnabled = (toyId: string) => {
     setConnectedToys(prevToys =>
@@ -1341,7 +1372,7 @@ const Chat = () => {
   };
 
   /**
-   * Tensor I2V (Wan) from the companion still. Non-silent path shows a fun loading line (never “generating…”) then replaces with success.
+   * Grok Imagine I2V from the companion still. Non-silent path shows a fun loading line (never “generating…”) then replaces with success.
    * `silent` = model-appended `lustforge_media_request` (no toasts; immersion-first).
    */
   const generateChatVideoClip = async (opts?: { mood?: "sfw" | "lewd" | "nude"; silent?: boolean }) => {
@@ -1658,7 +1689,25 @@ const Chat = () => {
 
   const sendMessage = async (overrideText?: string, options?: SendMessageOptions) => {
     const messageText = overrideText?.trim() ?? input.trim();
-    if (!messageText || loading || !user || !companion) return;
+    if (!messageText || !user || !companion) return;
+
+    if (matchesSafeWord(messageText, safeWord)) {
+      setInput("");
+      setImageGenPending(null);
+      await handleEmergencyStop();
+      toast.info("🛑 Stopped — safe word.");
+      const safeMsg: ChatMessage = {
+        id: Date.now().toString(),
+        role: "assistant",
+        content:
+          "*immediately stops everything* Of course. Everything stops right now. You're safe. Take all the time you need. I'm here when and if you want to continue. No pressure, no judgment. 💛",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, safeMsg]);
+      return;
+    }
+
+    if (loading) return;
 
     if (overrideText) {
       setInput("");
@@ -1668,7 +1717,7 @@ const Chat = () => {
 
     const menuForcesImage = Boolean(options?.imageGenerationPrompt?.trim());
     const mediaRoute = inferChatMediaRoute(messageText, menuForcesImage);
-    const promptForImage = resolveChatImagePromptForTensor({
+    const promptForImage = resolveChatImageGenerationPrompt({
       messageText,
       menuImagePrompt: options?.imageGenerationPrompt ?? null,
     });
@@ -1702,25 +1751,6 @@ const Chat = () => {
           onClick: () => navigate("/"),
         },
       });
-      return;
-    }
-
-    if (messageText.toUpperCase() === safeWord.toUpperCase()) {
-      toast.info("🛑 Safe word activated. All activity stopped. You're safe.");
-      setInput("");
-
-      if (connectedToys.length > 0) {
-        handleEmergencyStop();
-      }
-
-      const safeMsg: ChatMessage = {
-        id: Date.now().toString(),
-        role: "assistant",
-        content:
-          "*immediately stops everything* Of course. Everything stops right now. You're safe. Take all the time you need. I'm here when and if you want to continue. No pressure, no judgment. 💛",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, safeMsg]);
       return;
     }
 
@@ -1918,6 +1948,22 @@ const Chat = () => {
 
   sendMessageRef.current = sendMessage;
 
+  const requestSimilarStillFromGallery = useCallback(
+    (imageUrl: string) => {
+      if (!user || !companion) {
+        toast.error("Sign in to generate a new still.");
+        return;
+      }
+      const base = imageUrl.split("?")[0] ?? imageUrl;
+      const brief = `New in-session still. Match the energy, pose, and wardrobe vibe of the reference still, but as a fresh key-art shot. Framing: upper body, chest to midriff, boudoir, tasteful lingerie, sheer or implied, premium sensual — use reference image mood only: ${base}`;
+      void sendMessage("New still with the same heat as that pick — upper body, lingerie or tease.", {
+        imageGenerationPrompt: brief,
+        bypassImageConfirmation: true,
+      });
+    },
+    [user, companion, sendMessage],
+  );
+
   const handleFabAction = (fabId: FabActionId) => {
     if (fabId === "gallery") {
       setGalleryOpen(true);
@@ -1967,7 +2013,39 @@ const Chat = () => {
       navigate("/auth", { state: { from: `/chat/${companion.id}` } });
       return;
     }
-    navigate(`/companions/${companion.id}`, { state: { profileTab: "live" } });
+    void (async () => {
+      const loading = toast.loading("Starting your call…");
+      try {
+        const res = await invokeGenerateLiveCallOptions(companion.id);
+        const options =
+          res.ok && res.options.length > 0 ? res.options : getLiveCallPresetsFallback(companion);
+        if (!res.ok) {
+          const errText = "error" in res ? res.error : "Could not reach the call designer.";
+          toast.message("Using offline call themes", {
+            description: errText || "Could not reach the call designer.",
+          });
+        }
+        const opt = options[0];
+        if (!opt) {
+          toast.error("No call style available right now.");
+          return;
+        }
+        navigate(`/live-call/${companion.id}`, { state: { callOption: opt } });
+      } catch (e) {
+        const options = getLiveCallPresetsFallback(companion);
+        const opt = options[0];
+        if (opt) {
+          navigate(`/live-call/${companion.id}`, { state: { callOption: opt } });
+          toast.message("Using offline call themes", {
+            description: e instanceof Error ? e.message : "Could not reach the call designer.",
+          });
+        } else {
+          toast.error(e instanceof Error ? e.message : "Could not start the call");
+        }
+      } finally {
+        toast.dismiss(loading);
+      }
+    })();
   }, [companion, user, navigate]);
 
   const handleRampPill = useCallback(() => {
@@ -2049,7 +2127,7 @@ const Chat = () => {
   const freeNsfwUsed = user ? getFreeNsfwImagesUsed(user.id, companion.id) : 0;
   const freeNsfwRemaining = Math.max(0, FREE_NSFW_CHAT_IMAGES - freeNsfwUsed);
   const draftImagePrompt = input.trim()
-    ? resolveChatImagePromptForTensor({ messageText: input, menuImagePrompt: null })
+    ? resolveChatImageGenerationPrompt({ messageText: input, menuImagePrompt: null })
     : "";
   const draftMediaRoute = input.trim() ? inferChatMediaRoute(input, false) : "text";
   const imageSubmitTitle =
@@ -2083,14 +2161,13 @@ const Chat = () => {
         isAdminUser={isAdminUser}
         safeWord={safeWord}
         onBack={() => {
+          void handleEmergencyStop();
           const backTo = (location.state as { from?: string } | undefined)?.from;
           if (backTo) navigate(backTo);
           else if (location.key !== "default") navigate(-1);
           else navigate(`/companions/${companion.id}`);
         }}
-        onSafeWordInfo={() => {
-          toast.info(`Safe word: "${safeWord}" — type it anytime to stop everything.`);
-        }}
+        onEmergencyStop={() => void handleEmergencyStopFromUi()}
         onOpenGallery={user ? () => setGalleryOpen(true) : undefined}
         showHeroInLeftColumn
         sessionControls={
@@ -2140,6 +2217,7 @@ const Chat = () => {
             onAddReferenceLine={(line) => {
               setInput((prev) => (prev?.trim() ? `${prev} ${line}` : line));
             }}
+            onRequestSimilarStill={user ? requestSimilarStillFromGallery : undefined}
             hasGalleryUser={Boolean(user)}
           />
 
@@ -2239,6 +2317,9 @@ const Chat = () => {
                   primaryToyUid={primaryToyUid}
                   toyIntensityPercent={parseInt(localStorage.getItem("lustforge-intensity") || "100", 10) || 100}
                   prepareToyForRamp={prepareToyForRamp}
+                  safeWord={safeWord}
+                  emergencyStopTick={liveVoiceStopTick}
+                  onVoiceSettingsClick={() => setVoiceSettingsOpen(true)}
                 />
               </div>
             ) : null}
@@ -2250,9 +2331,8 @@ const Chat = () => {
                 onRamp={handleRampPill}
                 onGallery={() => (user ? setGalleryOpen(true) : void navigate("/auth", { state: { from: location.pathname } }))}
                 onVoiceOptions={() => setVoiceSettingsOpen(true)}
-                onSafeWordInfo={() => {
-                  toast.info(`Safe word: "${safeWord}" — type it anytime to stop everything.`);
-                }}
+                safeWord={safeWord}
+                onEmergencyStop={() => void handleEmergencyStopFromUi()}
                 rampAvailable={Boolean(user)}
                 rampActive={sessionMode === "live_voice" && rampModeActive}
                 disabled={false}

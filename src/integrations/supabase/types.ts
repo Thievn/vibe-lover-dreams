@@ -218,6 +218,7 @@ export type Database = {
           nexus_cooldown_until: string | null
           orientation: string
           personality: string
+          personality_forge: Json
           personality_archetypes: string[] | null
           rarity: string
           rarity_border_overlay_url: string | null
@@ -259,6 +260,7 @@ export type Database = {
           nexus_cooldown_until?: string | null
           orientation?: string
           personality?: string
+          personality_forge?: Json
           personality_archetypes?: string[] | null
           rarity?: string
           rarity_border_overlay_url?: string | null
@@ -300,6 +302,7 @@ export type Database = {
           nexus_cooldown_until?: string | null
           orientation?: string
           personality?: string
+          personality_forge?: Json
           personality_archetypes?: string[] | null
           rarity?: string
           rarity_border_overlay_url?: string | null

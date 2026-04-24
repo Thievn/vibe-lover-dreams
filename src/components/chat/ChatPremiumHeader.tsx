@@ -12,7 +12,8 @@ type Props = {
   isAdminUser: boolean;
   safeWord: string;
   onBack: () => void;
-  onSafeWordInfo: () => void;
+  /** Hard stop: toys, ramp, and live voice. */
+  onEmergencyStop: () => void;
   onOpenGallery?: () => void;
   affectionTier?: number;
   affectionProgress?: number;
@@ -36,7 +37,7 @@ export function ChatPremiumHeader({
   isAdminUser,
   safeWord,
   onBack,
-  onSafeWordInfo,
+  onEmergencyStop,
   onOpenGallery,
   affectionTier = 1,
   affectionProgress = 0,
@@ -132,10 +133,10 @@ export function ChatPremiumHeader({
           </div>
           <button
             type="button"
-            onClick={onSafeWordInfo}
+            onClick={onEmergencyStop}
             className="shrink-0 rounded-lg p-1.5 text-destructive/90 hover:bg-destructive/10"
-            title="Safe word"
-            aria-label="Safe word"
+            title="Emergency stop (same as your safe word)"
+            aria-label="Emergency stop all activity"
           >
             <AlertOctagon className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>

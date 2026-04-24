@@ -41,7 +41,7 @@ export function incrementFreeNsfwImagesUsed(userId: string, companionId: string)
   }
 }
 
-/** Paid chat clip (Tensor I2V ~10s). Lower than legacy Grok clip pricing. */
+/** Paid chat clip (Grok Imagine video ~5–15s). */
 export const CHAT_VIDEO_TOKEN_COST = 100;
 
 /** Quick Action Buttons for image requests in chat */
@@ -107,7 +107,7 @@ export function resolveFabDisplay(display: string | readonly string[]): string {
  * When the user clearly wants a picture (typed or voice-to-text).
  * Relaxed length for short explicit asks like “send nudes”.
  */
-/** True when typed or voice text should run the chat image pipeline (Tensor), not text-only Grok. */
+/** True when typed or voice text should run the chat image pipeline (Grok Imagine), not text-only chat. */
 export function wantsChatImageFromText(text: string): boolean {
   return isImageRequestText(text);
 }
@@ -319,11 +319,11 @@ export function isExplicitImageRequest(text: string): boolean {
 }
 
 /**
- * Resolves the diffusion brief for `generate-image-tensor`.
+ * Resolves the image brief for `generate-image` (Grok Imagine + rewriter).
  * Menu / FAB flows pass `menuImagePrompt`; free-typed chat uses inference, but never replaces
  * clearly explicit user wording with a SFW preset.
  */
-export function resolveChatImagePromptForTensor(args: {
+export function resolveChatImageGenerationPrompt(args: {
   messageText: string;
   menuImagePrompt?: string | null;
 }): string {

@@ -21,6 +21,8 @@ type Props = {
   onSetAsPortrait: (url: string) => Promise<void>;
   onOpenFullGallery: () => void;
   onAddReferenceLine: (line: string) => void;
+  /** If set, the gallery “To chat” action runs a new still (similar heat) instead of only prepending a line. */
+  onRequestSimilarStill?: (imageUrl: string) => void;
   hasGalleryUser: boolean;
   className?: string;
 };
@@ -40,6 +42,7 @@ export function ChatLeftHeroPanel({
   onSetAsPortrait,
   onOpenFullGallery,
   onAddReferenceLine,
+  onRequestSimilarStill,
   hasGalleryUser,
   className,
 }: Props) {
@@ -232,14 +235,19 @@ export function ChatLeftHeroPanel({
                             <button
                               type="button"
                               className="rounded bg-white/15 px-1.5 py-0.5 text-[8px] font-bold uppercase text-white"
-                              onClick={() =>
-                                onAddReferenceLine(
-                                  `Let's go back to that look — the energy in that still.`,
-                                )
-                              }
+                              onClick={() => {
+                                const d = display.split("?")[0] || display;
+                                if (onRequestSimilarStill) {
+                                  onRequestSimilarStill(d);
+                                } else {
+                                  onAddReferenceLine(
+                                    `Let's go back to that look — the energy in that still.`,
+                                  );
+                                }
+                              }}
                             >
                               <MessageSquarePlus className="mb-0.5 inline h-2.5 w-2.5" />
-                              To chat
+                              Similar still
                             </button>
                             <button
                               type="button"

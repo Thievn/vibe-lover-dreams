@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { companions as staticCompanions, type Companion } from "@/data/companions";
 import { getStaticRarityForCatalog, normalizeCompanionRarity } from "@/lib/companionRarity";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
+import { normalizeForgePersonality, type ForgePersonalityProfile } from "@/lib/forgePersonalityProfile";
 import { generateTcgStatBlock, normalizeTcgStatBlock } from "@/lib/tcgStats";
 
 export interface DbCompanion {
@@ -37,6 +38,8 @@ export interface DbCompanion {
   gallery_credit_name?: string | null;
   personality_archetypes?: string[] | null;
   vibe_theme_selections?: string[] | null;
+  /** JSON object from forge Personalities section. */
+  personality_forge?: ForgePersonalityProfile | Record<string, unknown> | null;
   /** Admin forge: listed in Discover but omitted from the user’s personal vault until pinned */
   exclude_from_personal_vault?: boolean;
   /** Forge row owner (custom_characters only). */
@@ -121,6 +124,10 @@ export function mapSupabaseCustomCharacterRow(row: Record<string, unknown>): DbC
     vibe_theme_selections: Array.isArray(row.vibe_theme_selections)
       ? (row.vibe_theme_selections as string[])
       : null,
+    personality_forge:
+      row.personality_forge && typeof row.personality_forge === "object"
+        ? (row.personality_forge as Record<string, unknown>)
+        : null,
     exclude_from_personal_vault: Boolean(row.exclude_from_personal_vault),
     user_id: typeof row.user_id === "string" ? row.user_id : null,
     nexus_cooldown_until: (row.nexus_cooldown_until as string | null | undefined) ?? null,
@@ -273,6 +280,7 @@ export const dbToCompanion = (db: DbCompanion): Companion => ({
     ? db.lineage_parent_ids.map((id) => `cc-${id}`)
     : undefined,
   tcgStats: normalizeTcgStatBlock(db.tcg_stats as unknown) ?? undefined,
+  personalityForge: db.personality_forge ? normalizeForgePersonality(db.personality_forge) : null,
 });
 
 export const useCompanions = () => {

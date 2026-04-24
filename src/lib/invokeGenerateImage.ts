@@ -36,7 +36,7 @@ function parseErrorMessage(status: number, text: string): string {
 }
 
 /**
- * Calls `generate-image-tensor` with plain fetch so Authorization is exactly one Bearer token.
+ * Calls `generate-image` (Grok Imagine + rewriter) with plain fetch so Authorization is exactly one Bearer token.
  * The shared Supabase fetch wrapper skips injecting a fresh JWT if `Authorization` is already
  * set (e.g. from a stale `invoke` header); this path avoids that class of "Invalid JWT" bugs.
  *
@@ -51,7 +51,7 @@ export async function invokeGenerateImage(
     return { data: null, error: new Error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY") };
   }
 
-  const url = `${base}/functions/v1/generate-image-tensor`;
+  const url = `${base}/functions/v1/generate-image`;
 
   const post = (bearer: string) =>
     fetch(url, {

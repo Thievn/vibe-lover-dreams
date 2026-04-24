@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
                         fields: {
                           type: "object",
                           description:
-                            "Key-value pairs to update. Allowed keys: name, tagline, gender, orientation, role, tags, kinks, appearance, personality, bio, backstory, system_prompt, image_prompt, gradient_from, gradient_to, rarity, is_active, static_image_url, animated_image_url, rarity_border_overlay_url, image_url, fantasy_starters (array of {title, description})",
+                            "Key-value pairs to update. Allowed keys: name, tagline, gender, orientation, role, tags, kinks, appearance, personality, personality_forge (object: timePeriod, personalityType, speechStyle, sexualEnergy, relationshipVibe), bio, backstory, system_prompt, image_prompt, gradient_from, gradient_to, rarity, is_active, static_image_url, animated_image_url, rarity_border_overlay_url, image_url, fantasy_starters (array of {title, description})",
                         }
                       },
                       required: ["id", "fields"]

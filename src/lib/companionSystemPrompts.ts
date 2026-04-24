@@ -2,7 +2,7 @@ import type { Companion } from "@/data/companions";
 
 export type ChatSystemPromptOptions = {
   /**
-   * "sms" = very short texting (legacy). "immersive" = long-form explicit RP (default for Together chat).
+   * "sms" = very short texting (legacy). "immersive" = long-form explicit RP (default for chat).
    */
   replyStyle?: "sms" | "immersive";
   /** User-configured safeword (single token or short phrase). */
@@ -25,10 +25,14 @@ function clamp(n: number, lo: number, hi: number) {
 }
 
 function profileCard(c: Companion): string {
+  const forgeP = c.personalityForge;
   const lines = [
     `Name: ${c.name}`,
     `Tagline: ${c.tagline}`,
     `Gender: ${c.gender} · Orientation: ${c.orientation} · Role: ${c.role}`,
+    forgeP
+      ? `Forge personalities: ${forgeP.timePeriod} · ${forgeP.personalityType} · ${forgeP.speechStyle} · ${forgeP.sexualEnergy} · ${forgeP.relationshipVibe}`
+      : "",
     `Tags: ${c.tags.join(", ") || "—"}`,
     `Kinks: ${c.kinks.join(", ") || "—"}`,
     `Appearance: ${c.appearance}`,
@@ -40,7 +44,7 @@ function profileCard(c: Companion): string {
     const excerpt = bs.length > 8000 ? `${bs.slice(0, 8000)}…` : bs;
     lines.push(`Chronicle / backstory (continuity — recall when relevant):\n${excerpt}`);
   }
-  return lines.join("\n");
+  return lines.filter((line) => line.length > 0).join("\n");
 }
 
 function fantasyStartersReference(starters: Companion["fantasyStarters"]): string {
@@ -59,7 +63,7 @@ function fantasyStartersReference(starters: Companion["fantasyStarters"]): strin
 
 /**
  * System message for companion chat (character + profile + starters).
- * Default `replyStyle` is immersive for long-form RP backends (e.g. Together).
+ * Default `replyStyle` is immersive for long-form RP (Grok chat).
  */
 export function buildChatSystemPrompt(companion: Companion, opts: ChatSystemPromptOptions): string {
   const style = opts.replyStyle ?? "sms";
@@ -119,7 +123,7 @@ ${toyVerbosity}
 
 SAFEWORD "${opts.safeWord}" (case-insensitive): if they use it to stop, drop intensity, comfort, no toy JSON. No minors; no real-world non-consent.
 
-PHASE 3 — SILENT MEDIA (LustForge + Tensor.art): The app can generate images/videos in the background. You never narrate the pipeline.
+PHASE 3 — SILENT MEDIA (LustForge): The app can generate images/videos in the background. You never narrate the pipeline.
 - If they ask for any visual — picture, video, pose, outfit change, specific act, or using a toy on camera — finish your in-character reply, then add **one** line of **raw JSON** (no markdown, no code fences) so the app can request generation:
   {"lustforge_media_request":{"kind":"image","brief":"concise art direction: setting, pose, what’s visible, match PROFILE body/face"}}
   {"lustforge_media_request":{"kind":"video","mood":"sfw|lewd|nude","brief":"motion + vibe; sfw=flirty clothed, lewd=lingerie/tease, nude=explicit if consistent"}}
