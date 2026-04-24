@@ -37,7 +37,7 @@ export function ChatQuickActionFab({ onAction, isActionDisabled }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-[calc(12.5rem+env(safe-area-inset-bottom))] right-3 z-40 sm:bottom-[calc(10.5rem+env(safe-area-inset-bottom))] sm:right-5 md:right-8">
+    <div className="fixed bottom-[calc(14.5rem+env(safe-area-inset-bottom))] right-3 z-40 sm:bottom-[calc(12.5rem+env(safe-area-inset-bottom))] sm:right-5 md:right-8">
       <AnimatePresence>
         {open ? (
           <motion.div

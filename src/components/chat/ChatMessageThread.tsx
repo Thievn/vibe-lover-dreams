@@ -10,6 +10,7 @@ import type { ChatMessage } from "@/components/chat/chatTypes";
 import { ChatTypingIndicator } from "@/components/chat/ChatTypingIndicator";
 import { cn } from "@/lib/utils";
 import { parseAssistantDisplayContent } from "@/lib/chatSignatureBeat";
+import { getChatTypingVariant } from "@/lib/chatTypingPersonality";
 
 type Props = {
   messages: ChatMessage[];
@@ -65,8 +66,10 @@ export function ChatMessageThread({
 }: Props) {
   const rarity = normalizeCompanionRarity(companion.rarity);
 
+  const typingVariant = getChatTypingVariant(companion);
+
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-2 md:px-4 md:py-3 space-y-2.5 scroll-pb-28 [-webkit-overflow-scrolling:touch] max-w-3xl mx-auto w-full">
+    <div className="relative z-[1] min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-2.5 md:px-5 md:py-4 space-y-3.5 scroll-pb-32 [-webkit-overflow-scrolling:touch] max-w-3xl mx-auto w-full">
       {/* Phase 4: toy session — persistent strip so “toy active” is obvious without breaking chat layout */}
       {toyDriveActive ? (
         <div className="sticky top-0 z-10 -mx-0.5 mb-1 flex items-center justify-center rounded-xl border border-fuchsia-500/30 bg-gradient-to-r from-fuchsia-950/90 via-primary/20 to-fuchsia-950/90 px-2 py-1.5 text-center text-[10px] font-semibold uppercase tracking-widest text-fuchsia-100/95 shadow-lg shadow-black/30">
@@ -92,19 +95,24 @@ export function ChatMessageThread({
         return (
         <motion.div
           key={msg.id}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={cn("flex gap-1.5", msg.role === "user" ? "justify-end" : "justify-start")}
+          initial={{ opacity: 0, y: 10, x: msg.role === "user" ? 14 : -12 }}
+          animate={{ opacity: 1, y: 0, x: 0 }}
+          transition={{ type: "spring", stiffness: 420, damping: 32 }}
+          className={cn("flex gap-2", msg.role === "user" ? "justify-end" : "justify-start")}
         >
           {msg.role === "assistant" ? (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-visible rounded-full border border-white/10 bg-black/40 p-0.5">
+            <motion.div
+              className="flex h-10 w-10 shrink-0 items-center justify-center overflow-visible rounded-full border border-primary/20 bg-black/50 p-0.5 shadow-[0_0_20px_rgba(0,0,0,0.35)]"
+              animate={{ scale: [1, 1.03, 1] }}
+              transition={{ duration: 4, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+            >
               <TierHaloPortraitFrame
                 variant="avatar"
                 frameStyle="clean"
                 rarity={rarity}
                 gradientFrom={companion.gradientFrom}
                 gradientTo={companion.gradientTo}
-                aspectClassName="aspect-square w-9 h-9"
+                aspectClassName="aspect-square w-10 h-10"
                 className="rounded-full"
               >
                 <div
@@ -127,17 +135,17 @@ export function ChatMessageThread({
                   </span>
                 )}
               </TierHaloPortraitFrame>
-            </div>
+            </motion.div>
           ) : null}
 
           <div
             className={cn(
-              "max-w-[min(94%,32rem)] rounded-[1.35rem] px-3.5 py-3 text-[15px] leading-relaxed shadow-sm",
+              "max-w-[min(92%,32rem)] rounded-2xl px-4 py-3.5 text-[15px] leading-relaxed shadow-lg",
               msg.role === "user"
-                ? "bg-gradient-to-br from-primary to-[hsl(320_70%_38%)] text-primary-foreground rounded-br-md"
+                ? "bg-gradient-to-br from-primary to-[hsl(320_70%_35%)] text-primary-foreground rounded-br-md shadow-[0_0_32px_rgba(255,45,123,0.28),inset_0_1px_0_rgba(255,255,255,0.12)]"
                 : assistantDisplay.signatureBeat
-                  ? "border border-[#ff2d7b]/40 bg-gradient-to-br from-[#ff2d7b]/[0.14] via-fuchsia-950/30 to-[#00ffd4]/[0.08] text-foreground/95 rounded-bl-md backdrop-blur-md shadow-[0_0_32px_rgba(255,45,123,0.18)] ring-1 ring-[#ff2d7b]/25"
-                  : "border border-white/[0.08] bg-black/45 text-foreground/95 rounded-bl-md backdrop-blur-md",
+                  ? "border border-[#ff2d7b]/40 bg-gradient-to-br from-[#ff2d7b]/[0.16] via-fuchsia-950/30 to-[#00ffd4]/[0.1] text-foreground/95 rounded-bl-md backdrop-blur-md shadow-[0_0_36px_rgba(255,45,123,0.2)] ring-1 ring-[#ff2d7b]/30"
+                  : "border border-white/[0.1] bg-[hsl(280_25%_6%/0.92)] text-foreground/95 rounded-bl-md backdrop-blur-md shadow-black/20",
             )}
           >
             {msg.imageUrl ? (
@@ -262,7 +270,7 @@ export function ChatMessageThread({
           </div>
 
           {msg.role === "user" ? (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-muted/50 text-[11px] font-semibold text-foreground">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-cyan-500/15 bg-black/50 text-[11px] font-semibold text-foreground shadow-[0_0_20px_hsl(190_100%_50%_/_0.1)]">
               {userAvatarUrl ? (
                 <img src={userAvatarUrl} alt="" className="h-full w-full object-cover" />
               ) : (
@@ -275,7 +283,12 @@ export function ChatMessageThread({
       })}
 
       {loading ? (
-        <ChatTypingIndicator companionName={companion.name} isImageRequest={isImageRequest(inputSnapshot)} />
+        <ChatTypingIndicator
+          companionName={companion.name}
+          isImageRequest={isImageRequest(inputSnapshot)}
+          variant={typingVariant}
+          companionImageUrl={companionImageUrl}
+        />
       ) : null}
       <div ref={messagesEndRef} />
     </div>

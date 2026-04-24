@@ -53,6 +53,9 @@ import {
 import { ChatPremiumHeader } from "@/components/chat/ChatPremiumHeader";
 import { ChatMessageThread } from "@/components/chat/ChatMessageThread";
 import { ChatComposer } from "@/components/chat/ChatComposer";
+import { ChatAmbientBackground } from "@/components/chat/ChatAmbientBackground";
+import { ChatGalleryRail } from "@/components/chat/ChatGalleryRail";
+import { ChatActionPills } from "@/components/chat/ChatActionPills";
 import { ChatQuickActionFab, type FabActionId } from "@/components/chat/ChatQuickActionFab";
 import { ChatSmartReplies } from "@/components/chat/ChatSmartReplies";
 import { ChatDevicesCollapsible } from "@/components/chat/ChatDevicesCollapsible";
@@ -98,7 +101,7 @@ import {
 import { invokeGenerateChatVideo } from "@/lib/invokeGenerateChatVideo";
 import { ChatModeToggle } from "@/components/chat/ChatModeToggle";
 import { LiveVoicePanel } from "@/components/chat/LiveVoicePanel";
-import { ChatMediaRequestBar, type ChatMediaBarAction } from "@/components/chat/ChatMediaRequestBar";
+import { type ChatMediaBarAction } from "@/components/chat/ChatMediaRequestBar";
 import {
   advanceChatAffectionState,
   buildAffectionLevelUpCopy,
@@ -1959,6 +1962,32 @@ const Chat = () => {
     if (fabId === "breeding") setShowBreedingRitual(true);
   };
 
+  const goLiveCallFromChat = useCallback(() => {
+    if (!companion) return;
+    if (!user) {
+      navigate("/auth", { state: { from: `/chat/${companion.id}` } });
+      return;
+    }
+    navigate(`/companions/${companion.id}`, { state: { profileTab: "live" } });
+  }, [companion, user, navigate]);
+
+  const handleRampPill = useCallback(() => {
+    if (!user) {
+      navigate("/auth", { state: { from: location.pathname } });
+      return;
+    }
+    if (sessionMode !== "live_voice") {
+      setSessionMode("live_voice");
+      persistChatSessionMode("live_voice");
+      setRampModeActive(true);
+    } else {
+      setRampModeActive((a) => !a);
+    }
+    requestAnimationFrame(() => {
+      document.getElementById("lf-ramp-block")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, [user, navigate, sessionMode, setRampModeActive, setSessionMode, location.pathname]);
+
   /** Fantasy starter from profile: first line is the exact scripted USER message; works with new or existing threads. */
   useEffect(() => {
     if (!user || !companion || !historyReady || loading) return;
@@ -2093,154 +2122,190 @@ const Chat = () => {
             />
           ) : null
         }
-      />
-
-      <ChatDevicesCollapsible
-        companionName={companion.name}
-        connectedCount={connectedToys.length}
-        activeCount={activeToys.length}
-        affectionPct={relationship?.affection_level ?? 0}
-        breedingStage={relationship?.breeding_stage ?? 0}
-        hasDevice={hasDevice}
-        pairingQrUrl={pairingQrUrl}
-        toyUtilityBusy={toyUtilityBusy}
-        pairingLoading={pairingLoading}
-        onCancelPairing={cancelLovensePairing}
-        onTestToy={() => void handleTestToy()}
-        onDisconnectToy={() => void handleDisconnectToy()}
-        onStopAll={() => void handleStopAll()}
-        onConnectToy={() => void handleConnectToy()}
-        onBreedingRitual={handleStartBreedingRitual}
-        toys={activeToys}
-        primaryToyId={primaryToyUid}
-        onSelectPrimaryToy={selectPrimaryToy}
-        patterns={vibrationPatterns}
-        patternsLoading={vibrationPatternsLoading}
-        sendingVibrationId={sendingVibrationId}
-        activePatternId={livePatternId}
-        onTriggerPattern={(row) => void triggerCompanionVibration(row)}
-      />
-
-      {user ? (
-        <div className="shrink-0 px-3 pt-1 pb-2 md:px-5 space-y-2">
-          <ChatMediaRequestBar
-            disabled={!isAdminUser && tokensBalance <= 0}
-            videoDisabled={!isAdminUser && tokensBalance < CHAT_VIDEO_TOKEN_COST}
-            imageCostLabel={isAdminUser ? "waived" : `${IMAGE_TOKEN_COST} cr`}
-            videoCostLabel={isAdminUser ? "waived" : `${CHAT_VIDEO_TOKEN_COST} cr`}
-            onRequest={handleMediaBarRequest}
-            autoSpendEnabled={autoSpendChatImages}
-            onAutoSpendChange={(enabled) => {
-              setAutoSpendChatImages(enabled);
-              setChatAutoSpendImages(companion.id, enabled);
-            }}
-          />
-        </div>
-      ) : null}
-
-      {/* Token warning */}
-      {!isAdminUser && tokensBalance < 100 && tokensBalance > 0 && (
-        <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-2 text-center text-xs text-destructive">
-          ⚠️ Low tokens! You have {tokensBalance} left.{" "}
-          <Link to="/" className="underline font-medium">Upgrade for more</Link>
-        </div>
-      )}
-
-      {!isAdminUser && tokensBalance <= 0 && (
-        <div className="bg-destructive/20 border-b border-destructive/30 px-4 py-3 text-center text-sm text-destructive font-medium">
-          🔒 Out of tokens!{" "}
-          <Link to="/" className="underline">Upgrade now</Link> to keep chatting.
-        </div>
-      )}
-
-      <ChatMessageThread
-        messages={messages}
-        companion={companion}
-        companionImageUrl={portraitStillUrl}
-        userAvatarUrl={userAvatarUrl}
-        userInitials={userInitials}
-        loading={loading}
-        isImageRequest={(t) => inferChatMediaRoute(t, false) !== "text"}
-        inputSnapshot={input}
-        hasDevice={hasDevice}
-        onImageClick={setViewingImage}
-        labelForLovenseCmd={labelForLovenseCmd}
-        onTtsClick={handleTts}
-        ttsLoadingId={ttsLoadingId}
-        ttsPlayingId={ttsPlayingId}
-        messagesEndRef={messagesEndRef}
-        onSaveImageBackup={user ? handleSaveImageBackup : undefined}
-        savingBackupImageId={savingBackupImageId}
-        imageGenPending={imageGenPending}
-        onConfirmPendingImage={() => void confirmPendingImageGeneration()}
-        pendingImageButtonLabel={pendingImageButtonLabel}
-        toyDriveActive={toyDriveActive}
-        onStopToyDrive={() => void stopSustainedToy()}
-      />
-
-      <div className="shrink-0 px-3 pb-1 z-20 bg-gradient-to-t from-black/80 to-transparent">
-        <ChatSmartReplies
-          suggestions={smartSuggestions}
-          disabled={loading || (!isAdminUser && tokensBalance <= 0)}
-          loading={loading}
-          onPick={(s) => {
-            setInput(s);
-            void sendMessage(s);
-          }}
-        />
-      </div>
-
-      {sessionMode === "live_voice" ? (
-        <div className="shrink-0 px-3 pb-1 z-10 border-t border-white/[0.06] bg-gradient-to-b from-black/40 to-transparent">
-          <LiveVoicePanel
-            disabled={!isAdminUser && tokensBalance <= 0}
-            busy={loading}
-            onRegisterRampAssistFeed={registerLiveRampAssistFeed}
-            onSendText={liveVoiceSendText}
-            rampModeActive={rampModeActive}
-            onRampModeActiveChange={setRampModeActive}
-            rampPreset={rampPreset}
-            onRampPresetChange={handleRampPresetChange}
-            hasDevice={hasDevice}
-            userId={user?.id}
-            primaryToyUid={primaryToyUid}
-            toyIntensityPercent={parseInt(localStorage.getItem("lustforge-intensity") || "100", 10) || 100}
-            prepareToyForRamp={prepareToyForRamp}
-          />
-        </div>
-      ) : null}
-
-      <div
-        className={
-          sessionMode === "live_voice"
-            ? "shrink-0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] z-20 bg-gradient-to-t from-black/85 to-transparent"
-            : "shrink-0"
+        toyStatusLabel={
+          connectedToys.length > 0
+            ? `${activeToys.length} active${connectedToys.length > activeToys.length ? ` · ${connectedToys.length} link` : ""}`
+            : "No toy"
         }
-      >
-        <ChatComposer
-          input={input}
-          onChange={setInput}
-          onSubmit={() => void sendMessage()}
-          disabled={!isAdminUser && tokensBalance <= 0}
-          loading={loading}
-          placeholder={
-            !isAdminUser && tokensBalance <= 0
-              ? "Out of tokens — upgrade to continue"
-              : sessionMode === "live_voice"
-                ? `Type to ${companion.name} or use the mic above…`
-                : `Message ${companion.name}… stills, clips, or just talk`
-          }
-          mediaDraftKind={draftMediaRoute}
-          isAdminUser={isAdminUser}
-          tokensBalance={tokensBalance}
-          tokenCost={TOKEN_COST}
-          imageTokenCost={IMAGE_TOKEN_COST}
-          videoTokenCost={CHAT_VIDEO_TOKEN_COST}
-          imageSubmitTitle={imageSubmitTitle}
-          videoSubmitTitle={videoSubmitTitle}
-          safeWord={safeWord}
-          companionName={companion.name}
-        />
+      />
+
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1">
+          {user ? (
+            <ChatGalleryRail
+              companionName={companion.name}
+              images={galleryImages}
+              loading={galleryImagesLoading}
+              currentPortraitUrl={portraitStillUrl}
+              onSetAsPortrait={handlePortraitFromGallery}
+              onOpenFullGallery={() => setGalleryOpen(true)}
+              onAddReferenceLine={(line) => {
+                setInput((prev) => (prev?.trim() ? `${prev} ${line}` : line));
+              }}
+            />
+          ) : null}
+
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <ChatDevicesCollapsible
+              companionName={companion.name}
+              connectedCount={connectedToys.length}
+              activeCount={activeToys.length}
+              affectionPct={relationship?.affection_level ?? 0}
+              breedingStage={relationship?.breeding_stage ?? 0}
+              hasDevice={hasDevice}
+              pairingQrUrl={pairingQrUrl}
+              toyUtilityBusy={toyUtilityBusy}
+              pairingLoading={pairingLoading}
+              onCancelPairing={cancelLovensePairing}
+              onTestToy={() => void handleTestToy()}
+              onDisconnectToy={() => void handleDisconnectToy()}
+              onStopAll={() => void handleStopAll()}
+              onConnectToy={() => void handleConnectToy()}
+              onBreedingRitual={handleStartBreedingRitual}
+              toys={activeToys}
+              primaryToyId={primaryToyUid}
+              onSelectPrimaryToy={selectPrimaryToy}
+              patterns={vibrationPatterns}
+              patternsLoading={vibrationPatternsLoading}
+              sendingVibrationId={sendingVibrationId}
+              activePatternId={livePatternId}
+              onTriggerPattern={(row) => void triggerCompanionVibration(row)}
+            />
+
+            {!isAdminUser && tokensBalance < 100 && tokensBalance > 0 && (
+              <div className="shrink-0 border-b border-destructive/20 bg-destructive/10 px-3 py-2 text-center text-xs text-destructive sm:px-4">
+                Low tokens! You have {tokensBalance} left.{" "}
+                <Link to="/" className="font-medium underline">Upgrade for more</Link>
+              </div>
+            )}
+
+            {!isAdminUser && tokensBalance <= 0 && (
+              <div className="shrink-0 border-b border-destructive/30 bg-destructive/20 px-3 py-2.5 text-center text-sm font-medium text-destructive sm:px-4">
+                Out of tokens! <Link to="/" className="underline">Upgrade now</Link> to keep chatting.
+              </div>
+            )}
+
+            <div className="relative z-0 flex min-h-0 flex-1 flex-col">
+              <ChatAmbientBackground activityKey={messages.length} />
+              <ChatMessageThread
+                messages={messages}
+                companion={companion}
+                companionImageUrl={portraitStillUrl}
+                userAvatarUrl={userAvatarUrl}
+                userInitials={userInitials}
+                loading={loading}
+                isImageRequest={(t) => inferChatMediaRoute(t, false) !== "text"}
+                inputSnapshot={input}
+                hasDevice={hasDevice}
+                onImageClick={setViewingImage}
+                labelForLovenseCmd={labelForLovenseCmd}
+                onTtsClick={handleTts}
+                ttsLoadingId={ttsLoadingId}
+                ttsPlayingId={ttsPlayingId}
+                messagesEndRef={messagesEndRef}
+                onSaveImageBackup={user ? handleSaveImageBackup : undefined}
+                savingBackupImageId={savingBackupImageId}
+                imageGenPending={imageGenPending}
+                onConfirmPendingImage={() => void confirmPendingImageGeneration()}
+                pendingImageButtonLabel={pendingImageButtonLabel}
+                toyDriveActive={toyDriveActive}
+                onStopToyDrive={() => void stopSustainedToy()}
+              />
+            </div>
+
+            <div className="z-20 shrink-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1 sm:px-3">
+              <ChatSmartReplies
+                suggestions={smartSuggestions}
+                disabled={loading || (!isAdminUser && tokensBalance <= 0)}
+                loading={loading}
+                onPick={(s) => {
+                  setInput(s);
+                  void sendMessage(s);
+                }}
+              />
+            </div>
+
+            {sessionMode === "live_voice" ? (
+              <div className="z-10 shrink-0 border-t border-white/[0.06] bg-gradient-to-b from-black/40 to-transparent px-2 pb-1 sm:px-3">
+                <LiveVoicePanel
+                  disabled={!isAdminUser && tokensBalance <= 0}
+                  busy={loading}
+                  onRegisterRampAssistFeed={registerLiveRampAssistFeed}
+                  onSendText={liveVoiceSendText}
+                  rampModeActive={rampModeActive}
+                  onRampModeActiveChange={setRampModeActive}
+                  rampPreset={rampPreset}
+                  onRampPresetChange={handleRampPresetChange}
+                  hasDevice={hasDevice}
+                  userId={user?.id}
+                  primaryToyUid={primaryToyUid}
+                  toyIntensityPercent={parseInt(localStorage.getItem("lustforge-intensity") || "100", 10) || 100}
+                  prepareToyForRamp={prepareToyForRamp}
+                />
+              </div>
+            ) : null}
+
+            <div className="z-20 shrink-0 space-y-2.5 border-t border-white/[0.06] bg-gradient-to-t from-black/80 to-transparent pt-1.5">
+              <ChatActionPills
+                companionId={companion.id}
+                onLiveCall={goLiveCallFromChat}
+                onRamp={handleRampPill}
+                onGallery={() => (user ? setGalleryOpen(true) : void navigate("/auth", { state: { from: location.pathname } }))}
+                onVoiceOptions={() => setVoiceSettingsOpen(true)}
+                onSafeWordInfo={() => {
+                  toast.info(`Safe word: "${safeWord}" — type it anytime to stop everything.`);
+                }}
+                rampAvailable={Boolean(user)}
+                rampActive={sessionMode === "live_voice" && rampModeActive}
+                disabled={false}
+              />
+            </div>
+
+            <div
+              className={
+                sessionMode === "live_voice"
+                  ? "z-20 shrink-0 bg-gradient-to-t from-black/90 to-black/50 pb-[max(0.25rem,env(safe-area-inset-bottom))]"
+                  : "z-20 shrink-0"
+              }
+            >
+              <ChatComposer
+                input={input}
+                onChange={setInput}
+                onSubmit={() => void sendMessage()}
+                disabled={!isAdminUser && tokensBalance <= 0}
+                loading={loading}
+                placeholder={
+                  !isAdminUser && tokensBalance <= 0
+                    ? "Out of tokens — upgrade to continue"
+                    : sessionMode === "live_voice"
+                      ? `Type to ${companion.name} or use the mic above…`
+                      : `Message ${companion.name}… stills, clips, or just talk`
+                }
+                mediaDraftKind={draftMediaRoute}
+                isAdminUser={isAdminUser}
+                tokensBalance={tokensBalance}
+                tokenCost={TOKEN_COST}
+                imageTokenCost={IMAGE_TOKEN_COST}
+                videoTokenCost={CHAT_VIDEO_TOKEN_COST}
+                imageSubmitTitle={imageSubmitTitle}
+                videoSubmitTitle={videoSubmitTitle}
+                safeWord={safeWord}
+                companionName={companion.name}
+                onMediaRequest={handleMediaBarRequest}
+                mediaMenuDisabled={Boolean(user && !isAdminUser && tokensBalance <= 0)}
+                videoMenuDisabled={Boolean(user && !isAdminUser && tokensBalance < CHAT_VIDEO_TOKEN_COST)}
+                imageCostLabel={isAdminUser ? "waived" : `${IMAGE_TOKEN_COST} cr`}
+                videoCostLabel={isAdminUser ? "waived" : `${CHAT_VIDEO_TOKEN_COST} cr`}
+                autoSpendEnabled={autoSpendChatImages}
+                onAutoSpendChange={(enabled) => {
+                  setAutoSpendChatImages(enabled);
+                  setChatAutoSpendImages(companion.id, enabled);
+                }}
+                userLoggedIn={Boolean(user)}
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       <ChatQuickActionFab

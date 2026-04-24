@@ -129,6 +129,14 @@ const CompanionProfile = () => {
   const { data: vibrationPatterns = [], isLoading: vibrationPatternsLoading } = useCompanionVibrationPatterns(id);
 
   const { dbComp, forgeLookupBusy: forgeRowFetching } = useForgeCompanionOverlay(id, dbCompanions, isLoading);
+
+  /** e.g. Chat “Live call” can deep-link here with `state: { profileTab: "live" }`. */
+  useEffect(() => {
+    const tab = (location.state as { profileTab?: "profile" | "gallery" | "live" } | null)?.profileTab;
+    if (tab === "profile" || tab === "gallery" || tab === "live") {
+      setProfileTab(tab);
+    }
+  }, [location.state]);
   const companion = dbComp ? dbToCompanion(dbComp) : null;
   const rarity: CompanionRarity = companion?.rarity ?? "common";
   const animatedPortrait = profileAnimatedPortraitUrl(dbComp);

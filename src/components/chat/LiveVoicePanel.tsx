@@ -253,6 +253,7 @@ export function LiveVoicePanel({
 
   return (
     <div
+      id="lf-live-voice-panel"
       className={cn(
         "rounded-2xl border border-[#00ffd4]/20 bg-gradient-to-br from-black/70 via-[hsl(280_30%_8%)]/95 to-black/80 p-4 space-y-3 shadow-[0_0_40px_rgba(0,255,212,0.08)]",
         className,
@@ -300,6 +301,7 @@ export function LiveVoicePanel({
 
       {/* Ramp Mode */}
       <div
+        id="lf-ramp-block"
         className={cn(
           "rounded-xl border border-white/[0.07] bg-black/25 px-3 py-3 space-y-2.5",
           rampModeActive && "border-orange-500/25 bg-gradient-to-br from-orange-950/20 to-transparent",
