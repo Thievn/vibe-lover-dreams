@@ -108,6 +108,7 @@ export type Database = {
           backstory: string
           bio: string
           created_at: string
+          display_traits: Json
           fantasy_starters: Json
           gender: string
           gradient_from: string
@@ -138,6 +139,7 @@ export type Database = {
           backstory?: string
           bio?: string
           created_at?: string
+          display_traits?: Json
           fantasy_starters?: Json
           gender?: string
           gradient_from?: string
@@ -168,6 +170,7 @@ export type Database = {
           backstory?: string
           bio?: string
           created_at?: string
+          display_traits?: Json
           fantasy_starters?: Json
           gender?: string
           gradient_from?: string
@@ -203,6 +206,7 @@ export type Database = {
           backstory: string
           bio: string
           created_at: string
+          display_traits: Json
           exclude_from_personal_vault: boolean
           fantasy_starters: Json
           gallery_credit_name: string | null
@@ -246,6 +250,7 @@ export type Database = {
           backstory?: string
           bio?: string
           created_at?: string
+          display_traits?: Json
           exclude_from_personal_vault?: boolean
           fantasy_starters?: Json
           gallery_credit_name?: string | null
@@ -289,6 +294,7 @@ export type Database = {
           backstory?: string
           bio?: string
           created_at?: string
+          display_traits?: Json
           exclude_from_personal_vault?: boolean
           fantasy_starters?: Json
           gallery_credit_name?: string | null

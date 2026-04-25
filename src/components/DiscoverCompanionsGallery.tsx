@@ -11,6 +11,8 @@ import type { CompanionRarity } from "@/lib/companionRarity";
 import { COMPANION_RARITIES, normalizeCompanionRarity, rarityTierCaptionColor } from "@/lib/companionRarity";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
+import { CompanionVibeTraitStrip } from "@/components/traits/CompanionVibeTraitStrip";
+import { resolveDisplayTraitsForCompanion } from "@/lib/vibeDisplayTraits";
 import { VAULT_COLLECTION_QUERY_KEY } from "@/hooks/useVaultCollection";
 import { supabase } from "@/integrations/supabase/client";
 import { discoverCardPriceFc } from "@/lib/forgeEconomy";
@@ -382,6 +384,7 @@ export default function DiscoverCompanionsGallery() {
                 const buyFc = discoverCardPriceFc(c.rarity);
                 const rarityPriceStyle = { color: rarityTierCaptionColor(c.rarity) };
                 const buyBusy = purchasingId === c.id;
+                const discoverTraits = resolveDisplayTraitsForCompanion(c);
                 return (
                   <motion.div
                     key={c.id}
@@ -430,6 +433,24 @@ export default function DiscoverCompanionsGallery() {
                           />
                         ) : null}
                         <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/95 via-black/25 to-transparent pointer-events-none" />
+                        {c.isNexusHybrid ? (
+                          <div className="absolute top-2 left-2 z-[3] text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-950/50 text-fuchsia-100/90">
+                            Nexus
+                          </div>
+                        ) : null}
+                        {discoverTraits.length > 0 ? (
+                          <div
+                            className="absolute bottom-24 left-0 right-0 z-[3] px-2 pointer-events-auto"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <CompanionVibeTraitStrip
+                              traits={discoverTraits}
+                              className="justify-center"
+                              size="sm"
+                              max={4}
+                            />
+                          </div>
+                        ) : null}
                         <div className="absolute inset-x-0 bottom-0 z-[3] p-3 space-y-0.5">
                           <p className="text-xs font-bold text-white truncate leading-tight font-gothic">{c.name}</p>
                           <p className="text-[10px] text-white/75 truncate">{c.tagline}</p>

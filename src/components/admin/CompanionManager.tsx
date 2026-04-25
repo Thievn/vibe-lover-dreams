@@ -70,6 +70,7 @@ const CUSTOM_CHARACTER_UPDATE_KEYS = new Set([
   "profile_loop_video_enabled",
   "rarity_border_overlay_url",
   "rarity",
+  "display_traits",
   "gallery_credit_name",
   "exclude_from_personal_vault",
   "personality_archetypes",

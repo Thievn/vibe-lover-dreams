@@ -4,6 +4,7 @@ import { renderPortraitToStorage } from "../_shared/renderCompanionPortrait.ts";
 import { requireAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { mergeTcgForNexusChild } from "../_shared/tcgStatsGenerate.ts";
 import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
+import { buildNexusDisplayTraitRows } from "../_shared/nexusDisplayTraitsBuild.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -523,6 +524,21 @@ Output ONLY via the nexus_merge_companion tool call.`;
     }
 
     const childUuid = inserted.id as string;
+
+    const displayTraitRows = buildNexusDisplayTraitRows({
+      childRarity: childRarity,
+      childIdUuid: childUuid,
+      parentA: pa as Record<string, unknown>,
+      parentB: pb as Record<string, unknown>,
+    });
+    const { error: traitsUpdErr } = await supabase
+      .from("custom_characters")
+      .update({ display_traits: displayTraitRows })
+      .eq("id", childUuid);
+    if (traitsUpdErr) {
+      console.error("nexus-merge display_traits update", traitsUpdErr);
+    }
+
     let portraitOk = false;
     let portraitError: string | null = null;
     const imagePromptRaw = String(fields.image_prompt || "").trim();

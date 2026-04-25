@@ -20,9 +20,7 @@ import {
   TrendingUp,
   UserRound,
   Wand2,
-  Waves,
   X,
-  Zap,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getToys } from "@/lib/lovense";
@@ -31,6 +29,8 @@ import ParticleBackground from "@/components/ParticleBackground";
 import DiscoverCompanionsGallery from "@/components/DiscoverCompanionsGallery";
 import TheNexus from "@/components/TheNexus";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
+import { CompanionVibeTraitStrip } from "@/components/traits/CompanionVibeTraitStrip";
+import { resolveDisplayTraitsForCompanion } from "@/lib/vibeDisplayTraits";
 import { normalizeCompanionRarity } from "@/lib/companionRarity";
 import { Progress } from "@/components/ui/progress";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
@@ -973,8 +973,8 @@ function DashboardHome({
 
 function MiniCompanionCard({ companion: c, index }: { companion: Companion; index: number }) {
   const location = useLocation();
-  const ms = c.mergeStats;
   const rarity = c.rarity ?? "common";
+  const cardTraits = useMemo(() => resolveDisplayTraitsForCompanion(c), [c]);
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -1015,21 +1015,22 @@ function MiniCompanionCard({ companion: c, index }: { companion: Companion; inde
             />
           ) : null}
           <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
-          {c.isNexusHybrid && ms ? (
-            <div className="absolute left-2 top-2 z-[3] flex items-center gap-1 rounded-md bg-black/55 border border-white/10 px-1.5 py-1">
-              <Heart className="h-3 w-3 text-rose-300" style={{ opacity: 0.35 + (ms.compatibility / 100) * 0.65 }} />
-              <Waves className="h-3 w-3 text-cyan-200" style={{ opacity: 0.35 + (ms.resonance / 100) * 0.65 }} />
-              <Zap className="h-3 w-3 text-amber-200" style={{ opacity: 0.35 + (ms.pulse / 100) * 0.65 }} />
-              <Sparkles className="h-3 w-3 text-fuchsia-200" style={{ opacity: 0.35 + (ms.affinity / 100) * 0.65 }} />
-            </div>
-          ) : c.isNexusHybrid ? (
-            <div className="absolute left-2 top-2 z-[3] rounded-md bg-black/55 border border-primary/30 px-1.5 py-0.5">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
+          {c.isNexusHybrid ? (
+            <div className="absolute left-2 top-2 z-[3] text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-950/50 text-fuchsia-100/90">
+              Nexus
             </div>
           ) : null}
           <div className="absolute top-2 right-2 z-[3] px-1.5 py-0.5 rounded-md bg-black/50 border border-white/10 text-[9px] font-bold uppercase tracking-wider text-white/90">
             {c.role}
           </div>
+          {cardTraits.length > 0 ? (
+            <div
+              className="absolute bottom-[3.25rem] left-0 right-0 z-[3] px-1 pointer-events-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <CompanionVibeTraitStrip traits={cardTraits} className="justify-center" size="sm" max={4} />
+            </div>
+          ) : null}
           <div className="absolute inset-x-0 bottom-0 z-[3] p-3 space-y-0.5">
             <p className="text-xs font-bold text-white truncate leading-tight">{c.name}</p>
             <p className="text-[10px] text-white/70 truncate">{c.tagline}</p>

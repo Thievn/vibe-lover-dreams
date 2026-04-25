@@ -1,6 +1,7 @@
 import type { CompanionRarity } from "@/lib/companionRarity";
 import type { ForgePersonalityProfile } from "@/lib/forgePersonalityProfile";
 import type { TcgStatBlock } from "@/lib/tcgStats";
+import type { VibeDisplayTrait } from "@/lib/vibeTraitCatalog";
 
 export interface Companion {
   id: string;
@@ -41,6 +42,11 @@ export interface Companion {
   tcgStats?: TcgStatBlock | null;
   /** Forge Personalities matrix (custom_characters); drives voice-consistent chat & Live Call. */
   personalityForge?: ForgePersonalityProfile | null;
+  /**
+   * Resolved vibe traits for cards + profile. Prefer DB `display_traits` when set;
+   * otherwise 4 traits are inferred (non-Nexus) from personality/tags.
+   */
+  displayTraits?: VibeDisplayTrait[] | null;
 }
 
 export const companions: Companion[] = [

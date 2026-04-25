@@ -5,6 +5,7 @@ import { getStaticRarityForCatalog, normalizeCompanionRarity } from "@/lib/compa
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { normalizeForgePersonality, type ForgePersonalityProfile } from "@/lib/forgePersonalityProfile";
 import { generateTcgStatBlock, normalizeTcgStatBlock } from "@/lib/tcgStats";
+import { resolveDisplayTraitsForDb } from "@/lib/vibeDisplayTraits";
 
 export interface DbCompanion {
   id: string;
@@ -53,6 +54,8 @@ export interface DbCompanion {
   tcg_stats?: Record<string, unknown> | null;
   /** Cached: Tensor nude generation model family (server-filled on first nude request). */
   nude_tensor_render_group?: "realistic" | "stylized" | null;
+  /** JSON array of `{ id, inherited? }` for profile + cards. */
+  display_traits?: unknown;
 }
 
 function coerceStockRow(row: Record<string, unknown>): DbCompanion {
@@ -67,6 +70,7 @@ function coerceStockRow(row: Record<string, unknown>): DbCompanion {
     rarity_border_overlay_url: (row.rarity_border_overlay_url as string | null | undefined) ?? null,
     tcg_stats:
       row.tcg_stats && typeof row.tcg_stats === "object" ? (row.tcg_stats as Record<string, unknown>) : null,
+    display_traits: row.display_traits,
   };
 }
 
@@ -144,6 +148,7 @@ export function mapSupabaseCustomCharacterRow(row: Record<string, unknown>): DbC
     tcg_stats:
       row.tcg_stats && typeof row.tcg_stats === "object" ? (row.tcg_stats as Record<string, unknown>) : null,
     tts_voice_preset: (row.tts_voice_preset as string | null | undefined) ?? null,
+    display_traits: row.display_traits,
   };
 }
 
@@ -283,6 +288,16 @@ export const dbToCompanion = (db: DbCompanion): Companion => ({
     : undefined,
   tcgStats: normalizeTcgStatBlock(db.tcg_stats as unknown) ?? undefined,
   personalityForge: db.personality_forge ? normalizeForgePersonality(db.personality_forge) : null,
+  displayTraits: resolveDisplayTraitsForDb({
+    id: db.id,
+    tags: db.tags,
+    kinks: db.kinks,
+    personality: db.personality,
+    bio: db.bio,
+    is_nexus_hybrid: db.is_nexus_hybrid,
+    rarity: db.rarity,
+    display_traits: db.display_traits,
+  }),
 });
 
 export const useCompanions = () => {

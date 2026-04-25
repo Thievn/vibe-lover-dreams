@@ -93,6 +93,7 @@ import {
 } from "@/lib/forgePortraitPrompt";
 import { FORGE_CREATE_COMPANION_FC, FORGE_PREVIEW_FC } from "@/lib/forgeEconomy";
 import { creditForgeCoins, spendForgeCoins } from "@/lib/forgeCoinsClient";
+import { serializeBaseDisplayTraitsForInsert } from "@/lib/vibeDisplayTraits";
 
 const NEON = "#FF2D7B";
 const PREVIEW_COST = FORGE_PREVIEW_FC;
@@ -1317,6 +1318,7 @@ User flavor notes: ${extraNotes || "none"}`;
         const rowFirst = batchFirstNames[i] ?? forgeName;
         const displayName = namePrefix.trim() ? `${namePrefix.trim()} ${rowFirst}`.trim() : rowFirst;
         const bioRow = effectiveHook || (batchCount > 1 ? defaultBioFor(rowFirst) : bioOut);
+        const rowPersonality = `${personalityLabel}${extraNotes ? `. ${extraNotes}` : ""}`.trim();
         const basePrompt = buildSystemPromptFor(displayName);
         const charter = effectiveCharter || basePrompt;
         const goPublic = saveVisibility === "public" && !isAdmin;
@@ -1325,10 +1327,11 @@ User flavor notes: ${extraNotes || "none"}`;
           ? "abyssal"
           : normalizeCompanionRarity(adminForgeRarity);
         const rarityForTcg = isAdmin ? adminTier : "rare";
+        const displayTraitsSeed = `${userId}|${displayName}|${i}`;
         rows.push({
           user_id: userId,
           name: displayName,
-          personality: `${personalityLabel}${extraNotes ? `. ${extraNotes}` : ""}`.trim(),
+          personality: rowPersonality,
           personality_forge: forgePersonality,
           personality_archetypes: forgePersonalityToArchetypeList(forgePersonality),
           vibe_theme_selections: [],
@@ -1357,6 +1360,13 @@ User flavor notes: ${extraNotes || "none"}`;
             : {}),
           avatar_url: portraitUrl,
           tcg_stats: generateTcgStatBlock(`${userId}:${displayName}:${i}:${batchCount}`, rarityForTcg),
+          display_traits: serializeBaseDisplayTraitsForInsert({
+            seed: displayTraitsSeed,
+            tags: tagsOut,
+            kinks: kinksOut,
+            personality: rowPersonality,
+            bio: bioRow,
+          }),
         });
       }
 

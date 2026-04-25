@@ -4,6 +4,9 @@ import { UserRound } from "lucide-react";
 import type { Companion } from "@/data/companions";
 import { getStaticRarityForCatalog } from "@/lib/companionRarity";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
+import { CompanionVibeTraitStrip } from "@/components/traits/CompanionVibeTraitStrip";
+import { resolveDisplayTraitsForCompanion } from "@/lib/vibeDisplayTraits";
+import { useMemo } from "react";
 
 interface CompanionCardProps {
   companion: Companion;
@@ -19,6 +22,7 @@ export default function CompanionCard({ companion, index, imageOverride, gallery
   const isCommunity = companion.id.startsWith("cc-");
   const to = `/companions/${companion.id}`;
   const rarity = companion.rarity ?? getStaticRarityForCatalog(companion.id);
+  const cardTraits = useMemo(() => resolveDisplayTraitsForCompanion(companion), [companion]);
 
   return (
     <motion.div
@@ -66,6 +70,16 @@ export default function CompanionCard({ companion, index, imageOverride, gallery
               Forged
             </span>
           )}
+          {companion.isNexusHybrid ? (
+            <span className="absolute top-2 right-2 z-[3] text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border border-fuchsia-500/45 bg-fuchsia-950/55 text-fuchsia-100/95">
+              Nexus
+            </span>
+          ) : null}
+          {cardTraits.length > 0 ? (
+            <div className="absolute bottom-[4.5rem] left-0 right-0 z-[3] px-2 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+              <CompanionVibeTraitStrip traits={cardTraits} className="justify-center" size="sm" max={4} />
+            </div>
+          ) : null}
           <div className="absolute bottom-0 left-0 right-0 z-[3] p-3 text-left">
             <h3 className="font-gothic text-sm font-bold text-white leading-tight line-clamp-2 drop-shadow-md">{companion.name}</h3>
             <p className="text-[11px] text-white/80 line-clamp-2 mt-0.5">{companion.tagline}</p>

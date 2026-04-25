@@ -54,7 +54,9 @@ import { splitProseIntoParagraphs } from "@/lib/profileProseSplit";
 import { buildProfileSearchTags } from "@/lib/companionSearchTags";
 import { getChatAutoSpendImages, setChatAutoSpendImages } from "@/lib/chatImageSettings";
 import { ChatAutoSpendImagesToggle } from "@/components/chat/ChatAutoSpendImagesToggle";
-import { TcgProfilePanel } from "@/components/tcg/TcgStatDisplay";
+import { CompanionVibeTraitStrip } from "@/components/traits/CompanionVibeTraitStrip";
+import { VibeTraitProfilePanel } from "@/components/traits/VibeTraitProfilePanel";
+import { resolveDisplayTraitsForCompanion } from "@/lib/vibeDisplayTraits";
 import { PortraitViewLightbox } from "@/components/PortraitViewLightbox";
 import {
   Dialog,
@@ -138,6 +140,10 @@ const CompanionProfile = () => {
     }
   }, [location.state]);
   const companion = dbComp ? dbToCompanion(dbComp) : null;
+  const vibeTraits = useMemo(
+    () => (companion ? resolveDisplayTraitsForCompanion(companion) : []),
+    [companion],
+  );
   const rarity: CompanionRarity = companion?.rarity ?? "common";
   const animatedPortrait = profileAnimatedPortraitUrl(dbComp);
   const showLoopVideo = shouldShowProfileLoopVideo(dbComp, dbComp?.profile_loop_video_enabled);
@@ -671,6 +677,11 @@ const CompanionProfile = () => {
                 </div>
               </PortraitViewLightbox>
             </ProfilePortraitTierHalo>
+            {vibeTraits.length > 0 ? (
+              <div className="mt-4 flex justify-center px-1 pointer-events-auto">
+                <CompanionVibeTraitStrip traits={vibeTraits} size="md" max={8} />
+              </div>
+            ) : null}
             <div className="mt-6 hidden lg:block">
               <ProfileDiscoverRow />
             </div>
@@ -1000,7 +1011,7 @@ const CompanionProfile = () => {
               <ProfileDiscoverRow />
             </div>
 
-            <TcgProfilePanel stats={companion.tcgStats} />
+            <VibeTraitProfilePanel traits={vibeTraits} isNexus={Boolean(companion.isNexusHybrid)} />
 
             {companion.kinks.length > 0 ? (
               <div className="rounded-2xl border border-fuchsia-500/20 bg-black/40 p-5 backdrop-blur-xl ring-1 ring-fuchsia-500/10">

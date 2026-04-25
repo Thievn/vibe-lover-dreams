@@ -24,6 +24,8 @@ import { AdminLoopingVideoBlock } from "@/components/admin/AdminLoopingVideoBloc
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { getNexusRarityOutcomesTable } from "@/lib/nexusRarityOutcomesTable";
 import { COMPANION_RARITIES, rarityDisplayLabel } from "@/lib/companionRarity";
+import { CompanionVibeTraitStrip } from "@/components/traits/CompanionVibeTraitStrip";
+import { resolveDisplayTraitsForDb } from "@/lib/vibeDisplayTraits";
 
 export type TheNexusMode = "user" | "admin";
 
@@ -53,6 +55,20 @@ function NexusCard({
   const locked = coolMs > 0;
   const isOperatorForge = Boolean(db.user_id && db.user_id === operatorUserId);
   const rarity = normalizeCompanionRarity(db.rarity);
+  const nexusPoolTraits = useMemo(
+    () =>
+      resolveDisplayTraitsForDb({
+        id: db.id,
+        tags: db.tags,
+        kinks: db.kinks,
+        personality: db.personality,
+        bio: db.bio,
+        is_nexus_hybrid: db.is_nexus_hybrid,
+        rarity: db.rarity,
+        display_traits: db.display_traits,
+      }),
+    [db],
+  );
   return (
     <button
       type="button"
@@ -119,6 +135,11 @@ function NexusCard({
           <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center gap-1 bg-black/70 text-[10px] uppercase tracking-widest text-white/90 px-2 text-center">
             <Lock className="h-5 w-5" />
             <span>Cooldown {formatNexusCooldownShort(coolMs)}</span>
+          </div>
+        ) : null}
+        {nexusPoolTraits.length > 0 && !locked ? (
+          <div className="absolute bottom-12 left-0 right-0 z-[3] px-1.5 pointer-events-auto">
+            <CompanionVibeTraitStrip traits={nexusPoolTraits} className="justify-center" size="sm" max={4} />
           </div>
         ) : null}
         <div className="absolute inset-x-0 bottom-0 z-[3] p-2.5 pt-8">
