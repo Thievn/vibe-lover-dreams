@@ -1,12 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Coins, LogOut, Save, Shield, Sparkles, UserRound } from "lucide-react";
+import { ArrowLeft, Coins, History, LogOut, Save, Shield, Sparkles, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
 import { cn } from "@/lib/utils";
 import { isPlatformAdmin } from "@/config/auth";
 import type { User } from "@supabase/supabase-js";
+
+type UserTransactionRow = {
+  id: string;
+  credits_change: number;
+  balance_after: number;
+  transaction_type: string;
+  description: string;
+  created_at: string;
+};
 
 const NEON = "#FF2D7B";
 
@@ -18,6 +27,9 @@ export default function Account() {
   const [username, setUsername] = useState("");
   const [tokens, setTokens] = useState<number | null>(null);
   const [sessionUser, setSessionUser] = useState<User | null>(null);
+  const [accountTab, setAccountTab] = useState<"account" | "history">("account");
+  const [txLoading, setTxLoading] = useState(false);
+  const [txRows, setTxRows] = useState<UserTransactionRow[]>([]);
 
   const load = useCallback(async () => {
     const {
@@ -44,6 +56,34 @@ export default function Account() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const loadTransactions = useCallback(async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.user) return;
+    setTxLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("user_transactions")
+        .select("id,credits_change,balance_after,transaction_type,description,created_at")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      setTxRows(
+        (data as UserTransactionRow[] | null)?.filter(Boolean) ?? [],
+      );
+    } catch (e) {
+      console.error(e);
+      setTxRows([]);
+    } finally {
+      setTxLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (accountTab === "history") void loadTransactions();
+  }, [accountTab, loadTransactions]);
 
   const saveUsername = async () => {
     const trimmed = username.trim();
@@ -127,19 +167,44 @@ export default function Account() {
           Back to dashboard
         </Link>
 
-        <div className="mb-8 flex items-center gap-3">
-          <div
-            className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 shadow-lg"
-            style={{
-              background: `linear-gradient(145deg, ${NEON}33, hsl(280 45% 22% / 0.5))`,
-              boxShadow: `0 0 32px ${NEON}22`,
-            }}
-          >
-            <Sparkles className="h-6 w-6 text-white" />
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 shadow-lg"
+              style={{
+                background: `linear-gradient(145deg, ${NEON}33, hsl(280 45% 22% / 0.5))`,
+                boxShadow: `0 0 32px ${NEON}22`,
+              }}
+            >
+              <Sparkles className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="font-gothic text-2xl md:text-3xl tracking-wide text-white">Account</h1>
+              <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mt-1">Vault & identity</p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-gothic text-2xl md:text-3xl tracking-wide text-white">Account</h1>
-            <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mt-1">Vault & identity</p>
+          <div className="flex gap-1 rounded-2xl border border-white/10 bg-black/40 p-1">
+            <button
+              type="button"
+              onClick={() => setAccountTab("account")}
+              className={cn(
+                "px-3 py-1.5 rounded-xl text-xs font-medium transition-colors",
+                accountTab === "account" ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Settings
+            </button>
+            <button
+              type="button"
+              onClick={() => setAccountTab("history")}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors",
+                accountTab === "history" ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <History className="h-3.5 w-3.5" />
+              Transaction history
+            </button>
           </div>
         </div>
 
@@ -149,14 +214,20 @@ export default function Account() {
             "shadow-[0_0_80px_rgba(255,45,123,0.06),inset_0_1px_0_rgba(255,255,255,0.06)]",
           )}
         >
+          {accountTab === "account" ? (
+            <>
           <div className="mb-8 flex items-start justify-between gap-4 rounded-2xl border border-[#FF2D7B]/20 bg-gradient-to-r from-[#FF2D7B]/[0.08] to-[hsl(280_50%_30%)]/20 px-5 py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FF2D7B]/20 text-[#FF2D7B]">
                 <Coins className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Token balance</p>
-                <p className="font-gothic text-2xl text-white tabular-nums">{tokens ?? "—"}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  Forge Coin balance
+                </p>
+                <p className="font-gothic text-2xl text-white tabular-nums">
+                  {tokens ?? "—"} <span className="text-sm font-sans text-muted-foreground">FC</span>
+                </p>
               </div>
             </div>
           </div>
@@ -238,6 +309,56 @@ export default function Account() {
               </button>
             </div>
           </div>
+            </>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Forge Coin ledger</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Spends and credits in Forge Coins (FC). Most recent first.
+                </p>
+              </div>
+              {txLoading ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : txRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No transactions yet.</p>
+              ) : (
+                <ul className="max-h-[min(60vh,32rem)] overflow-y-auto space-y-2 pr-1">
+                  {txRows.map((r) => {
+                    const isSpend = r.credits_change < 0;
+                    const amount = Math.abs(r.credits_change);
+                    return (
+                      <li
+                        key={r.id}
+                        className="rounded-xl border border-white/[0.07] bg-black/30 px-3 py-2.5 text-left"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-foreground truncate">
+                              {r.description || r.transaction_type}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              {r.transaction_type} · {new Date(r.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                          <span
+                            className={cn(
+                              "shrink-0 text-xs font-semibold tabular-nums",
+                              isSpend ? "text-rose-300" : "text-emerald-300",
+                            )}
+                          >
+                            {isSpend ? "−" : "+"}
+                            {amount} FC
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground/80 mt-1">Balance after: {r.balance_after} FC</p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -59,7 +59,8 @@ import { ChatMessageThread } from "@/components/chat/ChatMessageThread";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatAmbientBackground } from "@/components/chat/ChatAmbientBackground";
 import { ChatLeftHeroPanel } from "@/components/chat/ChatLeftHeroPanel";
-import { ChatActionPills } from "@/components/chat/ChatActionPills";
+import { ChatFloatingActionDock } from "@/components/chat/ChatFloatingActionDock";
+import { ChatMobilePortraitSpotlight } from "@/components/chat/ChatMobilePortraitSpotlight";
 import { ChatQuickActionFab, type FabActionId } from "@/components/chat/ChatQuickActionFab";
 import { ChatSmartReplies } from "@/components/chat/ChatSmartReplies";
 import { ChatDevicesCollapsible } from "@/components/chat/ChatDevicesCollapsible";
@@ -79,6 +80,8 @@ import {
   uxVoiceToXaiVoice,
   type TtsUxVoiceId,
 } from "@/lib/ttsVoicePresets";
+import { CHAT_IMAGE_LEWD_FC, CHAT_IMAGE_NUDE_FC, CHAT_MESSAGE_FC } from "@/lib/forgeEconomy";
+import { spendForgeCoins } from "@/lib/forgeCoinsClient";
 import { ToyHubPopover } from "@/components/toy/ToyHubPopover";
 import { ChatGallerySheet } from "@/components/chat/ChatGallerySheet";
 import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFromGallery";
@@ -123,8 +126,6 @@ import { parseAssistantDisplayContent } from "@/lib/chatSignatureBeat";
 import { parseAssistantStructuredBlocks } from "@/lib/parseAssistantStructuredBlocks";
 import type { LustforgeMediaRequest } from "@/lib/parseLustforgeMediaRequest";
 
-const TOKEN_COST = 15;
-
 /** Optional second arg for `sendMessage`: internal image brief (not shown in chat) + skip confirm for + menu. */
 type SendMessageOptions = {
   imageGenerationPrompt?: string;
@@ -135,8 +136,6 @@ type SendMessageOptions = {
   skipUserMessageInsert?: boolean;
   existingUserMessageId?: string;
 };
-const IMAGE_TOKEN_COST = 75;
-
 /** In-thread caption when a still returns — no “generating” / pipeline language. */
 const CHAT_STILL_DELIVERY_CAPTION = "*sends you a still — just for you.*";
 
@@ -603,14 +602,18 @@ const Chat = () => {
     return bal;
   };
 
-  const deductTokens = async (userId: string) => {
+  const deductMessageForgeCoins = async (userId: string) => {
     if (isAdminUser) return;
-    const { data } = await supabase.from("profiles").select("tokens_balance").eq("user_id", userId).maybeSingle();
-    const cur = data?.tokens_balance ?? 0;
-    const newBalance = Math.max(0, cur - TOKEN_COST);
-    await supabase.from("profiles").update({ tokens_balance: newBalance }).eq("user_id", userId);
-    setTokensBalance(newBalance);
-    tokensBalanceRef.current = newBalance;
+    const r = await spendForgeCoins(CHAT_MESSAGE_FC, "chat_message", "Chat message", {
+      companion_id: companion?.id ?? id ?? null,
+    });
+    if (r.ok === false) {
+      toast.error(r.err || "Could not record FC for this message.");
+      void fetchTokens(userId);
+      return;
+    }
+    setTokensBalance(r.newBalance);
+    tokensBalanceRef.current = r.newBalance;
   };
 
   const generateImage = async (
@@ -625,7 +628,13 @@ const Chat = () => {
         isExplicitImageRequest(genOpts.rawUserMessage) || isExplicitImageRequest(userRequest);
       const freeUsed = getFreeNsfwImagesUsed(userId, companion.id);
       const useFreeNsfwSlot = genOpts.fromMenu && explicit && freeUsed < FREE_NSFW_CHAT_IMAGES;
-      const tokenCost = isAdminUser || useFreeNsfwSlot ? 0 : IMAGE_TOKEN_COST;
+      const imageMood = classifyChatImageMood({
+        rawUserMessage: genOpts.rawUserMessage,
+        menuBasePrompt: genOpts.menuImagePrompt,
+      });
+      const nudePath = imageMood === "nude";
+      const lewdOrNudeFc = nudePath ? CHAT_IMAGE_NUDE_FC : CHAT_IMAGE_LEWD_FC;
+      const tokenCost = isAdminUser || useFreeNsfwSlot ? 0 : lewdOrNudeFc;
 
       const { prompt: masterPrompt, portraitConsistencyLock } = buildMasterChatImagePrompt({
         companion,
@@ -635,11 +644,6 @@ const Chat = () => {
         menuImagePrompt: genOpts.menuImagePrompt,
       });
       const prompt = masterPrompt;
-      const imageMood = classifyChatImageMood({
-        rawUserMessage: genOpts.rawUserMessage,
-        menuBasePrompt: genOpts.menuImagePrompt,
-      });
-      const nudePath = imageMood === "nude";
 
       const resolvedBodyType =
         inferForgeBodyTypeFromTags(dbComp.tags ?? []) ??
@@ -1691,14 +1695,20 @@ const Chat = () => {
     const { prompt, rawUserMessage, fromMenu, menuImagePrompt } = imageGenPending;
     const explicit = isExplicitImageRequest(prompt) || isExplicitImageRequest(rawUserMessage);
     const freeUsed = getFreeNsfwImagesUsed(user.id, companion.id);
+    const menuP = imageGenPending.menuImagePrompt;
+    const pendingMood = classifyChatImageMood({
+      rawUserMessage: imageGenPending.rawUserMessage,
+      menuBasePrompt: menuP,
+    });
+    const pendingImageFc = pendingMood === "nude" ? CHAT_IMAGE_NUDE_FC : CHAT_IMAGE_LEWD_FC;
     const needTokens = isAdminUser
       ? 0
       : fromMenu && explicit && freeUsed < FREE_NSFW_CHAT_IMAGES
         ? 0
-        : IMAGE_TOKEN_COST;
+        : pendingImageFc;
     if (!isAdminUser && tokensBalanceRef.current < needTokens) {
       toast.error(
-        `Not enough tokens. You need ${needTokens} forge credits (or use one of ${FREE_NSFW_CHAT_IMAGES} free NSFW generations — ${freeUsed} used).`,
+        `Not enough Forge Coins. You need ${needTokens} FC (or use one of ${FREE_NSFW_CHAT_IMAGES} free NSFW stills — ${freeUsed} used).`,
         { action: { label: "Upgrade", onClick: () => navigate("/") } },
       );
       return;
@@ -1788,11 +1798,17 @@ const Chat = () => {
     const explicitReq =
       isExplicitImageRequest(promptForImage) || isExplicitImageRequest(messageText);
     const freeUsed = getFreeNsfwImagesUsed(user.id, companion.id);
+    const menuForCharge = options?.imageGenerationPrompt ?? null;
+    const imageMoodForCharge = classifyChatImageMood({
+      rawUserMessage: messageText,
+      menuBasePrompt: menuForCharge,
+    });
+    const imagePerGenFc = imageMoodForCharge === "nude" ? CHAT_IMAGE_NUDE_FC : CHAT_IMAGE_LEWD_FC;
     const imageCharge = isAdminUser
       ? 0
       : imageRequestFromMenu && explicitReq && freeUsed < FREE_NSFW_CHAT_IMAGES
         ? 0
-        : IMAGE_TOKEN_COST;
+        : imagePerGenFc;
     const videoCharge = isAdminUser ? 0 : CHAT_VIDEO_TOKEN_COST;
     const requiredTokens = holdForImageButton
       ? 0
@@ -1800,7 +1816,7 @@ const Chat = () => {
         ? imageCharge
         : requestingVideo
           ? videoCharge
-          : TOKEN_COST;
+          : CHAT_MESSAGE_FC;
 
     const balanceNow = tokensBalanceRef.current;
     if (!isAdminUser && balanceNow < requiredTokens) {
@@ -1809,7 +1825,7 @@ const Chat = () => {
         : requestingVideo
           ? "video generation"
           : "messaging";
-      toast.error(`Not enough tokens for ${tokenType}. You need ${requiredTokens} but only have ${balanceNow}.`, {
+      toast.error(`Not enough FC for ${tokenType}. You need ${requiredTokens} FC but only have ${balanceNow}.`, {
         action: {
           label: "Upgrade",
           onClick: () => navigate("/"),
@@ -2016,7 +2032,7 @@ const Chat = () => {
           }
         }
 
-        await deductTokens(user.id);
+        await deductMessageForgeCoins(user.id);
         clearOpeningStarterContext();
         await applyChatAffectionAfterExchange();
         }
@@ -2173,11 +2189,12 @@ const Chat = () => {
 
     void (async () => {
       const bal = await fetchTokens(user.id);
-      if (!isAdminUser && bal < TOKEN_COST) {
+      if (!isAdminUser && bal < CHAT_MESSAGE_FC) {
         starterSentRef.current = false;
-        toast.error(`Not enough tokens to begin this fantasy. You need ${TOKEN_COST} but have ${bal}.`, {
-          action: { label: "Upgrade", onClick: () => navigate("/") },
-        });
+        toast.error(
+          `Not enough Forge Coins to begin this fantasy. You need ${CHAT_MESSAGE_FC} FC but have ${bal}.`,
+          { action: { label: "Upgrade", onClick: () => navigate("/") } },
+        );
         return;
       }
       if (st) openingFantasyStarterTitleRef.current = st;
@@ -2227,6 +2244,11 @@ const Chat = () => {
     ? resolveChatImageGenerationPrompt({ messageText: input, menuImagePrompt: null })
     : "";
   const draftMediaRoute = input.trim() ? inferChatMediaRoute(input, false) : "text";
+  const draftImageStillFc =
+    draftMediaRoute === "image" &&
+    classifyChatImageMood({ rawUserMessage: input, menuBasePrompt: null }) === "nude"
+      ? CHAT_IMAGE_NUDE_FC
+      : CHAT_IMAGE_LEWD_FC;
   const imageSubmitTitle =
     isAdminUser
       ? "Send still"
@@ -2234,18 +2256,28 @@ const Chat = () => {
           isExplicitImageRequest(draftImagePrompt || input) &&
           freeNsfwRemaining > 0
         ? `Send still (free NSFW · ${freeNsfwRemaining} left)`
-        : `Send still (${IMAGE_TOKEN_COST} tokens)`;
-  const videoSubmitTitle = isAdminUser ? "Send clip" : `Send clip (${CHAT_VIDEO_TOKEN_COST} cr)`;
+        : draftMediaRoute === "image"
+          ? `Send still (${draftImageStillFc} FC)`
+          : "Send still";
+  const videoSubmitTitle = isAdminUser ? "Send clip" : `Send clip (${CHAT_VIDEO_TOKEN_COST} FC)`;
   const pendingExplicit = imageGenPending ? isExplicitImageRequest(imageGenPending.prompt) : false;
+  const pendingGenFc = imageGenPending
+    ? classifyChatImageMood({
+        rawUserMessage: imageGenPending.rawUserMessage,
+        menuBasePrompt: imageGenPending.menuImagePrompt,
+      }) === "nude"
+      ? CHAT_IMAGE_NUDE_FC
+      : CHAT_IMAGE_LEWD_FC
+    : CHAT_IMAGE_LEWD_FC;
   const pendingImageButtonLabel =
     isAdminUser
       ? "Generate image"
       : pendingExplicit && freeNsfwRemaining > 0
         ? `Generate image (free NSFW · ${freeNsfwRemaining} left)`
-        : `Generate image (${IMAGE_TOKEN_COST} tokens)`;
+        : `Generate image (${pendingGenFc} FC)`;
 
   return (
-    <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-[hsl(280_30%_5%)] text-foreground">
+    <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,hsl(300_35%_12%/0.5),hsl(280_32%_4%))] text-foreground">
       <FloatingHeartsLayer bursts={heartBursts} />
 
       <ChatPremiumHeader
@@ -2319,6 +2351,12 @@ const Chat = () => {
           />
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <ChatMobilePortraitSpotlight
+              companion={companion}
+              imageUrl={portraitStillUrl}
+              headerAnimated={headerAnimated}
+              onVoiceClick={() => setVoiceSettingsOpen(true)}
+            />
             <ChatDevicesCollapsible
               companionName={companion.name}
               connectedCount={connectedToys.length}
@@ -2347,14 +2385,14 @@ const Chat = () => {
 
             {!isAdminUser && tokensBalance < 100 && tokensBalance > 0 && (
               <div className="shrink-0 border-b border-destructive/20 bg-destructive/10 px-3 py-2 text-center text-xs text-destructive sm:px-4">
-                Low tokens! You have {tokensBalance} left.{" "}
-                <Link to="/" className="font-medium underline">Upgrade for more</Link>
+                Low Forge Coins! You have {tokensBalance} FC.{" "}
+                <Link to="/" className="font-medium underline">Top up</Link>
               </div>
             )}
 
             {!isAdminUser && tokensBalance <= 0 && (
               <div className="shrink-0 border-b border-destructive/30 bg-destructive/20 px-3 py-2.5 text-center text-sm font-medium text-destructive sm:px-4">
-                Out of tokens! <Link to="/" className="underline">Upgrade now</Link> to keep chatting.
+                Out of Forge Coins! <Link to="/" className="underline">Add FC</Link> to keep chatting.
               </div>
             )}
 
@@ -2421,8 +2459,8 @@ const Chat = () => {
               </div>
             ) : null}
 
-            <div className="z-20 shrink-0 space-y-2.5 border-t border-white/[0.06] bg-gradient-to-t from-black/80 to-transparent pt-1.5">
-              <ChatActionPills
+            <div className="z-20 shrink-0 space-y-2 border-t border-white/[0.06] bg-gradient-to-t from-black/85 via-black/50 to-transparent pt-2 pb-1">
+              <ChatFloatingActionDock
                 companionId={companion.id}
                 onLiveCall={goLiveCallFromChat}
                 onRamp={handleRampPill}
@@ -2451,7 +2489,7 @@ const Chat = () => {
                 loading={loading}
                 placeholder={
                   !isAdminUser && tokensBalance <= 0
-                    ? "Out of tokens — upgrade to continue"
+                    ? "Out of FC — add Forge Coins to continue"
                     : sessionMode === "live_voice"
                       ? `Type to ${companion.name} or use the mic above…`
                       : `Message ${companion.name}… stills, clips, or just talk`
@@ -2459,8 +2497,8 @@ const Chat = () => {
                 mediaDraftKind={draftMediaRoute}
                 isAdminUser={isAdminUser}
                 tokensBalance={tokensBalance}
-                tokenCost={TOKEN_COST}
-                imageTokenCost={IMAGE_TOKEN_COST}
+                tokenCost={CHAT_MESSAGE_FC}
+                imageTokenCost={CHAT_IMAGE_NUDE_FC}
                 videoTokenCost={CHAT_VIDEO_TOKEN_COST}
                 imageSubmitTitle={imageSubmitTitle}
                 videoSubmitTitle={videoSubmitTitle}
@@ -2469,8 +2507,8 @@ const Chat = () => {
                 onMediaRequest={handleMediaBarRequest}
                 mediaMenuDisabled={Boolean(user && !isAdminUser && tokensBalance <= 0)}
                 videoMenuDisabled={Boolean(user && !isAdminUser && tokensBalance < CHAT_VIDEO_TOKEN_COST)}
-                imageCostLabel={isAdminUser ? "waived" : `${IMAGE_TOKEN_COST} cr`}
-                videoCostLabel={isAdminUser ? "waived" : `${CHAT_VIDEO_TOKEN_COST} cr`}
+                imageCostLabel={isAdminUser ? "waived" : `${CHAT_IMAGE_LEWD_FC}–${CHAT_IMAGE_NUDE_FC} FC still`}
+                videoCostLabel={isAdminUser ? "waived" : `${CHAT_VIDEO_TOKEN_COST} FC clip`}
                 autoSpendEnabled={autoSpendChatImages}
                 onAutoSpendChange={(enabled) => {
                   setAutoSpendChatImages(enabled);

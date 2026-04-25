@@ -99,10 +99,17 @@ function extractUserTranscriptFromRealtimeEvent(event: Record<string, unknown>):
  */
 export function startGrokRealtimeVoiceSession(opts: GrokRealtimeVoiceOptions): {
   stop: () => void;
-  updateSessionInstructions: (instructions: string) => void;
+  /**
+   * Push new instructions and/or a different xAI `voice` without reconnecting.
+   * Omitted fields keep the last values the session was started or updated with.
+   */
+  updateSession: (partial: { instructions?: string; voice?: XaiVoiceId }) => void;
 } {
   let stopped = false;
   let ws: WebSocket | null = null;
+  /** Last committed session fields (kept in sync for partial updates). */
+  let sessionInstructions = opts.instructions;
+  let sessionVoice = opts.voice;
   let audioCtx: AudioContext | null = null;
   let micStream: MediaStream | null = null;
   let processor: ScriptProcessorNode | null = null;
@@ -126,11 +133,17 @@ export function startGrokRealtimeVoiceSession(opts: GrokRealtimeVoiceOptions): {
     nextPlay = startAt + buffer.duration;
   };
 
-  const updateSessionInstructions = (instructions: string) => {
+  const updateSession = (partial: { instructions?: string; voice?: XaiVoiceId }) => {
+    if (typeof partial.instructions === "string") {
+      sessionInstructions = partial.instructions;
+    }
+    if (partial.voice !== undefined) {
+      sessionVoice = partial.voice;
+    }
     const sock = ws;
     if (!sock || sock.readyState !== WebSocket.OPEN) return;
     try {
-      sock.send(JSON.stringify(sessionUpdatePayload(instructions, opts.voice)));
+      sock.send(JSON.stringify(sessionUpdatePayload(sessionInstructions, sessionVoice)));
     } catch {
       /* ignore */
     }
@@ -189,7 +202,7 @@ export function startGrokRealtimeVoiceSession(opts: GrokRealtimeVoiceOptions): {
 
       ws.onopen = () => {
         opts.onStatus?.("Starting session…");
-        ws?.send(JSON.stringify(sessionUpdatePayload(opts.instructions, opts.voice)));
+        ws?.send(JSON.stringify(sessionUpdatePayload(sessionInstructions, sessionVoice)));
       };
 
       ws.onmessage = (ev) => {
@@ -307,5 +320,5 @@ export function startGrokRealtimeVoiceSession(opts: GrokRealtimeVoiceOptions): {
     }
   })();
 
-  return { stop, updateSessionInstructions };
+  return { stop, updateSession };
 }

@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import { ArrowLeft, AlertOctagon, Flame, Heart, Images } from "lucide-react";
 import { Link } from "react-router-dom";
 import { normalizeCompanionRarity } from "@/lib/companionRarity";
@@ -56,10 +57,10 @@ export function ChatPremiumHeader({
 
   return (
     <header
-      className="shrink-0 border-b border-white/[0.08] bg-black/60 backdrop-blur-xl"
+      className="shrink-0 border-b border-white/[0.08] bg-black/55 shadow-[0_4px_32px_rgba(0,0,0,0.35)] backdrop-blur-xl"
       style={{ paddingTop: "max(0.25rem, env(safe-area-inset-top))" }}
     >
-      <div className="flex items-center gap-2 px-2 py-2 sm:px-3">
+      <div className="flex items-center gap-2 px-2 py-2.5 sm:px-4 sm:py-3">
         <button
           type="button"
           onClick={onBack}
@@ -152,17 +153,37 @@ export function ChatPremiumHeader({
           <span className="truncate">{mood}</span>
         </span>
         <span
-          className="inline-flex items-center gap-0.5 rounded-full border border-white/10 bg-black/30 px-2 py-0.5"
+          className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-gradient-to-b from-primary/10 to-black/40 px-2.5 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:px-3 sm:py-1.5"
           title="Bond"
         >
-          {Array.from({ length: 5 }, (_, i) => (
-            <Heart
-              key={i}
-              className={cn("h-2.5 w-2.5", i < tier ? "fill-primary text-primary" : "text-white/12")}
-              aria-hidden
-            />
-          ))}
-          <span className="ml-0.5 text-[8px] font-bold tabular-nums text-muted-foreground">{tier}/5</span>
+          {Array.from({ length: 5 }, (_, i) => {
+            const filled = i < tier;
+            return (
+              <motion.span
+                key={i}
+                initial={false}
+                animate={
+                  filled
+                    ? { scale: [1, 1.15, 1], filter: ["brightness(1)", "brightness(1.25)", "brightness(1)"] }
+                    : { scale: 1 }
+                }
+                transition={{ duration: 0.5, delay: i * 0.05, ease: "easeOut" }}
+                className="inline-flex"
+              >
+                <Heart
+                  className={cn(
+                    "h-4 w-4 sm:h-5 sm:w-5",
+                    filled
+                      ? "fill-primary text-primary drop-shadow-[0_0_10px_rgba(255,45,123,0.45)]"
+                      : "text-white/15",
+                  )}
+                  strokeWidth={filled ? 0 : 1.5}
+                  aria-hidden
+                />
+              </motion.span>
+            );
+          })}
+          <span className="ml-0.5 text-[9px] font-bold tabular-nums text-muted-foreground sm:text-[10px]">{tier}/5</span>
         </span>
         {toyStatusLabel ? (
           <span
@@ -176,12 +197,14 @@ export function ChatPremiumHeader({
       </div>
       {tier < 5 ? (
         <div
-          className="mx-2 mb-1.5 h-0.5 max-w-sm overflow-hidden rounded-full bg-white/[0.05] sm:mx-3"
+          className="mx-2 mb-1.5 h-1 max-w-sm overflow-hidden rounded-full bg-white/[0.08] sm:mx-3"
           title="Bond"
         >
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-primary/80 to-fuchsia-500/90"
-            style={{ width: `${pct}%` }}
+          <motion.div
+            className="h-full rounded-full bg-gradient-to-r from-primary/90 to-fuchsia-500/95 shadow-[0_0_12px_rgba(255,45,123,0.35)]"
+            initial={false}
+            animate={{ width: `${pct}%` }}
+            transition={{ type: "spring", stiffness: 120, damping: 22 }}
           />
         </div>
       ) : null}

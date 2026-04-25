@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Orbit, Sparkles, Heart, Waves, Zap, Lock } from "lucide-react";
+import { Orbit, Sparkles, Heart, Waves, Zap, Lock, Info } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { DbCompanion } from "@/hooks/useCompanions";
@@ -21,6 +21,9 @@ import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
 import { normalizeCompanionRarity } from "@/lib/companionRarity";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { AdminLoopingVideoBlock } from "@/components/admin/AdminLoopingVideoBlock";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { getNexusRarityOutcomesTable } from "@/lib/nexusRarityOutcomesTable";
+import { COMPANION_RARITIES, rarityDisplayLabel } from "@/lib/companionRarity";
 
 export type TheNexusMode = "user" | "admin";
 
@@ -156,6 +159,16 @@ export default function TheNexus({
   const [meter, setMeter] = useState(0);
   const [reveal, setReveal] = useState<{ childId: string; name: string; summary: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [nexusRarityInfoOpen, setNexusRarityInfoOpen] = useState(false);
+
+  const nexusRarityTableRows = useMemo(() => {
+    const arr = getNexusRarityOutcomesTable();
+    return [...arr].sort(
+      (a, b) =>
+        COMPANION_RARITIES.indexOf(a.parentA) - COMPANION_RARITIES.indexOf(b.parentA) ||
+        COMPANION_RARITIES.indexOf(a.parentB) - COMPANION_RARITIES.indexOf(b.parentB),
+    );
+  }, []);
 
   const byId = useMemo(() => new Map(forgeParents.map((c) => [c.id, c])), [forgeParents]);
   const alphaId = picked[0] ?? null;
@@ -319,10 +332,72 @@ export default function TheNexus({
             <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground mb-2">
               {isAdmin ? "Admin lab · no charge" : "Premium merge"}
             </p>
-            <h2 className="font-gothic text-3xl sm:text-4xl flex items-center gap-3">
-              <Orbit className="h-9 w-9 shrink-0" style={{ color: NEON }} />
-              <span className="gradient-vice-text">The Nexus</span>
-            </h2>
+            <div className="flex items-start gap-3">
+              <h2 className="font-gothic text-3xl sm:text-4xl flex items-center gap-3 flex-1 min-w-0">
+                <Orbit className="h-9 w-9 shrink-0" style={{ color: NEON }} />
+                <span className="gradient-vice-text">The Nexus</span>
+              </h2>
+              <Dialog open={nexusRarityInfoOpen} onOpenChange={setNexusRarityInfoOpen}>
+                <DialogTrigger asChild>
+                  <button
+                    type="button"
+                    className="shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/12 bg-black/50 text-white/80 hover:text-white hover:border-primary/40 transition-colors"
+                    title="Rarity merge odds"
+                    aria-label="Nexus rarity outcome percentages"
+                  >
+                    <Info className="h-4 w-4" />
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="max-w-[min(100vw-1.5rem,56rem)] max-h-[85vh] flex flex-col gap-0 p-0 border-white/10 bg-zinc-950/95 text-foreground">
+                  <DialogHeader className="px-5 py-4 border-b border-white/10 shrink-0 text-left">
+                    <DialogTitle className="font-gothic text-lg sm:text-xl pr-6">
+                      Nexus · child rarity by parent pair
+                    </DialogTitle>
+                    <p className="text-xs text-muted-foreground font-normal leading-relaxed mt-1.5 max-w-2xl">
+                      Percentages are the product&apos;s intended distribution (each row sums to 100%). Your merge still
+                      passes through the fusion model; use this as transparent odds, not a guarantee of any single
+                      roll.
+                    </p>
+                  </DialogHeader>
+                  <div className="overflow-x-auto overflow-y-auto px-0 pb-4 -mx-0 min-h-0">
+                    <table className="w-full min-w-[640px] text-left text-[10px] sm:text-[11px]">
+                      <thead>
+                        <tr className="border-b border-white/10 bg-black/50">
+                          <th className="sticky left-0 z-[1] bg-zinc-950/98 px-3 py-2 font-semibold text-muted-foreground">
+                            Parent pair
+                          </th>
+                          {COMPANION_RARITIES.map((r) => (
+                            <th
+                              key={r}
+                              className="px-1.5 py-2 text-center font-semibold text-muted-foreground whitespace-nowrap"
+                            >
+                              {rarityDisplayLabel(r)}%
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {nexusRarityTableRows.map((row) => (
+                          <tr
+                            key={`${row.parentA}::${row.parentB}`}
+                            className="border-b border-white/[0.06] hover:bg-white/[0.03]"
+                          >
+                            <td className="sticky left-0 z-[1] bg-zinc-950/98 px-3 py-1.5 font-medium text-foreground whitespace-nowrap">
+                              {rarityDisplayLabel(row.parentA)} + {rarityDisplayLabel(row.parentB)}
+                            </td>
+                            {COMPANION_RARITIES.map((r) => (
+                              <td key={r} className="px-1.5 py-1.5 text-center tabular-nums text-muted-foreground">
+                                {row.childChancePct[r] ?? 0}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
             <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
               {isAdmin
                 ? "Tap two ascendants in the grid — order is I then II. Fused output is an adult hybrid bound to your vault for QA. Gallery picks are public-approved only."
@@ -331,12 +406,12 @@ export default function TheNexus({
           </div>
           {!isAdmin ? (
             <div className="rounded-2xl border border-white/10 bg-black/55 px-6 py-4 text-right shrink-0 backdrop-blur-md">
-              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Forge credits</p>
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Forge Coins (FC)</p>
               <p className="font-gothic text-3xl tabular-nums" style={{ color: NEON }}>
                 {tokensBalance}
               </p>
               <p className="text-[11px] text-muted-foreground mt-1">
-                This merge: {totalCost}
+                This merge: {totalCost} FC
                 {infuse ? ` (${NEXUS_MERGE_BASE_COST} + ${NEXUS_INFUSE_EXTRA_COST} infuse)` : ""}
               </p>
             </div>
@@ -344,7 +419,7 @@ export default function TheNexus({
             <div className="rounded-2xl border border-accent/30 bg-accent/10 px-6 py-4 text-right shrink-0">
               <p className="text-[10px] uppercase tracking-widest text-accent">Admin</p>
               <p className="font-gothic text-2xl text-accent">Unlimited</p>
-              <p className="text-[11px] text-muted-foreground mt-1">No credits · no cooldown</p>
+              <p className="text-[11px] text-muted-foreground mt-1">No FC charge · no cooldown</p>
             </div>
           )}
         </div>
@@ -417,12 +492,12 @@ export default function TheNexus({
                     />
                     <span>
                       <span className="text-sm font-semibold text-foreground">
-                        Infuse{isAdmin ? "" : ` (+${NEXUS_INFUSE_EXTRA_COST})`}
+                        Infuse{isAdmin ? "" : ` (+${NEXUS_INFUSE_EXTRA_COST} FC)`}
                       </span>
                       <span className="block text-xs text-muted-foreground mt-1">
                         {isAdmin
                           ? "Bias which parent’s silhouette and voice dominate the fusion (no charge)."
-                          : "Spend extra credits to bias which parent’s traits dominate the fusion."}
+                          : "Spend extra FC to bias which parent’s traits dominate the fusion."}
                       </span>
                     </span>
                   </label>
@@ -465,10 +540,10 @@ export default function TheNexus({
                   >
                     {isAdmin
                       ? "Run admin fusion"
-                      : `Awaken in The Nexus — ${totalCost} credits`}
+                      : `Awaken in The Nexus — ${totalCost} FC`}
                   </motion.button>
                   {!canAfford && !isAdmin ? (
-                    <p className="text-center text-xs text-destructive">Insufficient forge credits for this merge.</p>
+                    <p className="text-center text-xs text-destructive">Insufficient Forge Coins (FC) for this merge.</p>
                   ) : null}
                 </>
               ) : (
@@ -505,7 +580,7 @@ export default function TheNexus({
                 {phase === "merging"
                   ? isAdmin
                     ? "Essences entwine while the model writes your hybrid ascendant."
-                    : "Credits lock, essences entwine, and the model writes your third ascendant."
+                    : "FC is committed, essences entwine, and the model writes your third ascendant."
                   : "Carving voice, silhouette, and appetite into a new adult signature beneath velvet static…"}
               </p>
             </div>

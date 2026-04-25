@@ -26,6 +26,7 @@ import {
   I2V_MOUTH_STILL_DIRECTIVE_SHORT,
   sanitizePromptForVideoApi,
 } from "../_shared/profileLoopVideoPrompt.ts";
+import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -49,12 +50,21 @@ function chatVideoDurationSeconds(): number {
   return Math.max(5, Math.min(15, n));
 }
 
-async function refundTokens(svc: ReturnType<typeof createClient>, userId: string, amount: number) {
+async function refundTokens(svc: ReturnType<typeof createClient>, userId: string, amount: number, reason: string) {
   if (amount <= 0) return;
   try {
     const { data: row } = await svc.from("profiles").select("tokens_balance").eq("user_id", userId).maybeSingle();
     const bal = row?.tokens_balance ?? 0;
-    await svc.from("profiles").update({ tokens_balance: bal + amount }).eq("user_id", userId);
+    const nxt = bal + amount;
+    await svc.from("profiles").update({ tokens_balance: nxt }).eq("user_id", userId);
+    await recordFcTransaction(svc, {
+      userId,
+      creditsChange: amount,
+      balanceAfter: nxt,
+      transactionType: "video_refund",
+      description: `Chat video refund: ${reason}`,
+      metadata: { fc: amount },
+    });
   } catch (e) {
     console.error("refundTokens", e);
   }
@@ -145,6 +155,15 @@ Deno.serve(async (req) => {
         .eq("user_id", userId);
       if (deductErr) throw new Error(deductErr.message || "Could not reserve credits.");
       tokensCharged = true;
+      const nbal = prof.tokens_balance - tokenCost;
+      await recordFcTransaction(svc, {
+        userId,
+        creditsChange: -tokenCost,
+        balanceAfter: nbal,
+        transactionType: "chat_video",
+        description: "Chat: short video clip (Imagine / Tensor)",
+        metadata: { tokenCost, companionId },
+      });
     }
 
     let imageUrl: string | null = null;
@@ -155,7 +174,7 @@ Deno.serve(async (req) => {
       const { data, error } = await svc.from("custom_characters").select("*").eq("id", rowPk).maybeSingle();
       if (error) throw new Error(error.message);
       if (!data) {
-        if (tokensCharged) await refundTokens(svc, userId, tokenCost);
+        if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
         return jsonResponse({ success: false, error: "Companion not found" }, 404);
       }
       row = data as Record<string, unknown>;
@@ -169,7 +188,7 @@ Deno.serve(async (req) => {
       const { data, error } = await svc.from("companions").select("*").eq("id", companionId).maybeSingle();
       if (error) throw new Error(error.message);
       if (!data) {
-        if (tokensCharged) await refundTokens(svc, userId, tokenCost);
+        if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
         return jsonResponse({ success: false, error: "Companion not found" }, 404);
       }
       row = data as Record<string, unknown>;
@@ -181,7 +200,7 @@ Deno.serve(async (req) => {
     }
 
     if (!imageUrl) {
-      if (tokensCharged) await refundTokens(svc, userId, tokenCost);
+      if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
       return jsonResponse({ success: false, error: "No fetchable portrait image URL for video source." }, 400);
     }
 
@@ -225,7 +244,7 @@ Deno.serve(async (req) => {
     if (clipMood === "nude") {
       const tensorKey = (Deno.env.get("TENSOR_API_KEY") ?? "").trim();
       if (!tensorKey && !hasTamsRsaCredentials()) {
-        if (tokensCharged) await refundTokens(svc, userId, tokenCost);
+        if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
         return jsonResponse(
           {
             success: false,
@@ -237,7 +256,7 @@ Deno.serve(async (req) => {
       }
       const tamsSource = sourceImageUrlForTamsUpload(imageUrl);
       if (!tamsSource) {
-        if (tokensCharged) await refundTokens(svc, userId, tokenCost);
+        if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
         return jsonResponse(
           { success: false, error: "Profile URL must be a fetchable https URL for Tensor (public storage or a signed link)." },
           400,
@@ -276,13 +295,13 @@ Deno.serve(async (req) => {
         if (!vu) throw new Error("Tensor returned no nude video URL");
         tensorVideoUrl = vu;
       } catch (e) {
-        if (tokensCharged) await refundTokens(svc, userId, tokenCost);
+        if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
         const msg = e instanceof Error ? e.message : String(e);
         return jsonResponse({ success: false, error: msg }, 502);
       }
       const vidRes2 = await fetch(tensorVideoUrl);
       if (!vidRes2.ok) {
-        if (tokensCharged) await refundTokens(svc, userId, tokenCost);
+        if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
         return jsonResponse(
           { success: false, error: `Download from Tensor video failed HTTP ${vidRes2.status}` },
           502,
@@ -295,7 +314,7 @@ Deno.serve(async (req) => {
         .from("companion-images")
         .upload(fileName2, buf2, { contentType: "video/mp4", upsert: true });
       if (upErr2) {
-        if (tokensCharged) await refundTokens(svc, userId, tokenCost);
+        if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
         return jsonResponse({ success: false, error: upErr2.message }, 500);
       }
       const publicUrl2 = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY).storage
@@ -315,7 +334,7 @@ Deno.serve(async (req) => {
 
     const xaiKey = resolveXaiApiKey((n) => Deno.env.get(n) ?? undefined);
     if (!xaiKey) {
-      if (tokensCharged) await refundTokens(svc, userId, tokenCost);
+      if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
       return jsonResponse(
         {
           success: false,
@@ -342,14 +361,14 @@ Deno.serve(async (req) => {
       });
       grokVideoUrl = r.videoUrl;
     } catch (e) {
-      if (tokensCharged) await refundTokens(svc, userId, tokenCost);
+      if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
       const msg = e instanceof Error ? e.message : String(e);
       return jsonResponse({ success: false, error: msg }, 502);
     }
 
     const vidRes = await fetch(grokVideoUrl);
     if (!vidRes.ok) {
-      if (tokensCharged) await refundTokens(svc, userId, tokenCost);
+      if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
       return jsonResponse({ success: false, error: `Download from xAI video failed HTTP ${vidRes.status}` }, 502);
     }
     const buf = new Uint8Array(await vidRes.arrayBuffer());
@@ -362,7 +381,7 @@ Deno.serve(async (req) => {
       upsert: true,
     });
     if (upErr) {
-      if (tokensCharged) await refundTokens(svc, userId, tokenCost);
+      if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
       return jsonResponse({ success: false, error: upErr.message }, 500);
     }
 
@@ -382,7 +401,7 @@ Deno.serve(async (req) => {
     console.error("generate-chat-companion-video:", err);
     if (tokensCharged && chargedUserId && tokenCost > 0) {
       const svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-      await refundTokens(svc, chargedUserId, tokenCost);
+      await refundTokens(svc, chargedUserId, tokenCost, "uncaught");
     }
     const msg = err instanceof Error ? err.message : String(err);
     return jsonResponse({ success: false, error: msg, tokensRefunded: tokensCharged }, 500);

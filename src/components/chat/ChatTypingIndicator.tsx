@@ -41,37 +41,37 @@ export function ChatTypingIndicator({
   }, [isImageRequest, lines.length]);
 
   return (
-    <div className="flex min-w-0 justify-start gap-2.5 pl-0.5">
-      <div
-        className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/25 bg-zinc-900 sm:h-9 sm:w-9"
+    <div className="flex min-w-0 justify-start gap-3 pl-0.5">
+      <motion.div
+        className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-primary/30 bg-zinc-900 shadow-[0_0_20px_rgba(168,85,247,0.2)] ring-2 ring-primary/10 sm:h-11 sm:w-11"
         aria-hidden
+        animate={{ boxShadow: ["0 0 20px rgba(168,85,247,0.15)", "0 0 28px rgba(255,45,123,0.2)", "0 0 20px rgba(168,85,247,0.15)"] }}
+        transition={{ duration: 2.2, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
       >
         {companionImageUrl ? (
-          <img src={companionImageUrl} alt="" width={36} height={36} className="h-full w-full object-cover object-top" />
+          <img src={companionImageUrl} alt="" width={44} height={44} className="h-full w-full object-cover object-top" />
         ) : (
-          <span className="flex h-full w-full items-center justify-center font-gothic text-[10px] font-bold text-primary/90">
+          <span className="flex h-full w-full items-center justify-center font-gothic text-sm font-bold text-primary/90">
             {companionName.charAt(0)}
           </span>
         )}
-      </div>
-      <div className="min-w-0 max-w-[min(100%,30rem)] rounded-2xl rounded-bl-md border border-primary/20 bg-gradient-to-br from-black/60 via-fuchsia-950/20 to-black/55 px-3 py-2.5 shadow-inner backdrop-blur-md sm:px-4 sm:py-3">
-        <p className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/80">
-          {companionName}
-        </p>
+      </motion.div>
+      <div className="min-w-0 max-w-[min(100%,32rem)] rounded-[1.15rem] rounded-bl-md border border-primary/25 bg-gradient-to-br from-black/70 via-fuchsia-950/[0.18] to-black/60 px-4 py-3.5 shadow-[0_0_40px_-8px_rgba(168,85,247,0.18),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-md sm:px-5 sm:py-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/80">{companionName}</p>
         {isImageRequest ? (
-          <p className="mt-0.5 text-sm italic text-primary/95">Composing a visual for you…</p>
+          <p className="mt-1 text-sm font-medium italic text-primary">Crafting a visual for you…</p>
         ) : (
-          <p className="mt-0.5 text-sm text-foreground/85 line-clamp-2">{lines[idx]}</p>
+          <p className="mt-1 text-sm leading-snug text-foreground/90 line-clamp-2">{lines[idx]}</p>
         )}
-        <div className="mt-2 flex h-2 items-end gap-1" aria-label={`${companionName} is typing`}>
-          {[0, 1, 2].map((d) => (
+        <div className="mt-2.5 flex h-2.5 items-end gap-1.5" aria-label={`${companionName} is typing`}>
+          {[0, 1, 2, 3].map((d) => (
             <motion.span
               key={`typing-dot-${d}`}
-              className="inline-block h-1.5 w-1.5 rounded-full bg-primary/90"
-              animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
+              className="inline-block h-2 w-2 rounded-full bg-gradient-to-t from-primary to-fuchsia-400 shadow-[0_0_8px_rgba(255,45,123,0.5)]"
+              animate={{ y: [0, -6, 0], scale: [1, 1.15, 1], opacity: [0.5, 1, 0.5] }}
               transition={{
-                duration: t.minDuration * 1.2 + d * 0.08,
-                delay: t.delay * d * 0.2,
+                duration: t.minDuration * 1.1 + d * 0.06,
+                delay: t.delay * d * 0.15 + d * 0.1,
                 repeat: Number.POSITIVE_INFINITY,
                 ease: "easeInOut",
               }}

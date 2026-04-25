@@ -1,3 +1,8 @@
+/**
+ * Standalone phone-style xAI Realtime call: one portrait, timer + rate UI, in-call TTS
+ * preview/save, optional Lovense strip, and lightweight phrase→toy sync from the assistant
+ * final transcript.
+ */
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,12 +12,23 @@ import { buildLiveCallRealtimeInstructions } from "@/lib/buildLiveCallRealtimeIn
 import { invokeGrokVoiceClientSecret } from "@/lib/invokeGrokVoiceClientSecret";
 import { startGrokRealtimeVoiceSession } from "@/lib/grokRealtimeVoiceSession";
 import type { LiveCallOption } from "@/lib/liveCallTypes";
-import { resolveUxVoiceId, uxVoiceToXaiVoice, type TtsUxVoiceId } from "@/lib/ttsVoicePresets";
+import { resolveUxVoiceId, uxVoiceToXaiVoice, type TtsUxVoiceId, type XaiVoiceId } from "@/lib/ttsVoicePresets";
+import { getToys, sendCommand, type LovenseToy } from "@/lib/lovense";
+import { liveCallToyCommandFromAssistantLine } from "@/lib/liveCallToyFromAssistantSpeech";
+import { fetchTtsSampleAudioUrl } from "@/lib/invokeGrokTtsSample";
+import { LIVE_CALL_CREDITS_PER_MINUTE } from "@/lib/liveCallBilling";
+import { spendForgeCoins } from "@/lib/forgeCoinsClient";
 import { LiveCallPhoneShell, type LiveCallUiPhase } from "@/components/liveCall/LiveCallPhoneShell";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 type LocationState = { callOption?: LiveCallOption };
+
+function pickPrimaryToy(toys: LovenseToy[]): LovenseToy | null {
+  if (toys.length === 0) return null;
+  return toys.find((t) => t.enabled !== false) ?? toys[0] ?? null;
+}
 
 const LiveCallPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -37,24 +53,58 @@ const LiveCallPage = () => {
     [dbComp, id],
   );
 
-  const { relationship, loading: relationshipLoading } = useCompanionRelationship(companion?.id ?? "");
+  const { relationship, loading: relationshipLoading, refresh: refreshRelationship } = useCompanionRelationship(
+    companion?.id ?? "",
+  );
 
+  const [userId, setUserId] = useState<string | null>(null);
+  const [toyList, setToyList] = useState<LovenseToy[]>([]);
   const [profileTtsGlobal, setProfileTtsGlobal] = useState<string | null>(null);
+  const [callVoice, setCallVoice] = useState<TtsUxVoiceId | null>(null);
+  const [saveVoicePending, setSaveVoicePending] = useState(false);
+  const [previewLoadingId, setPreviewLoadingId] = useState<TtsUxVoiceId | null>(null);
+
+  const [phase, setPhase] = useState<LiveCallUiPhase>("preparing");
+  const [statusLine, setStatusLine] = useState("Preparing…");
+  const [liveElapsedSec, setLiveElapsedSec] = useState(0);
+
+  const stopRef = useRef<(() => void) | null>(null);
+  const updateSessionRef = useRef<((p: { instructions?: string; voice?: XaiVoiceId }) => void) | null>(null);
+  const sessionStartedFor = useRef<string | null>(null);
+  const callVoiceRef = useRef<TtsUxVoiceId>("velvet_whisper");
+  const toyForSessionRef = useRef<LovenseToy | null>(null);
+  const userIdRef = useRef<string | null>(null);
+  const liveAtRef = useRef<number | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
   useEffect(() => {
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      const uid = session?.user?.id;
-      if (!uid) return;
-      void supabase
-        .from("profiles")
-        .select("tts_voice_global_override")
-        .eq("user_id", uid)
-        .maybeSingle()
-        .then(({ data }) => {
-          const g = data?.tts_voice_global_override;
-          setProfileTtsGlobal(typeof g === "string" && g.trim() ? g.trim() : null);
-        });
+    userIdRef.current = userId;
+  }, [userId]);
+
+  useEffect(() => {
+    void supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const uid = session?.user?.id ?? null;
+      setUserId(uid);
+      if (uid) {
+        const list = await getToys(uid);
+        setToyList(list);
+        toyForSessionRef.current = pickPrimaryToy(list);
+      }
     });
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    void supabase
+      .from("profiles")
+      .select("tts_voice_global_override")
+      .eq("user_id", userId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const g = data?.tts_voice_global_override;
+        setProfileTtsGlobal(typeof g === "string" && g.trim() ? g.trim() : null);
+      });
+  }, [userId]);
 
   const effectiveUxVoice: TtsUxVoiceId = useMemo(() => {
     if (profileTtsGlobal) return resolveUxVoiceId(profileTtsGlobal);
@@ -63,10 +113,149 @@ const LiveCallPage = () => {
     return "velvet_whisper";
   }, [profileTtsGlobal, relationship?.tts_voice_preset, dbComp?.tts_voice_preset]);
 
-  const [phase, setPhase] = useState<LiveCallUiPhase>("preparing");
-  const [statusLine, setStatusLine] = useState("Preparing…");
-  const stopRef = useRef<(() => void) | null>(null);
-  const sessionStartedFor = useRef<string | null>(null);
+  const effectiveCallVoice = callVoice ?? effectiveUxVoice;
+
+  useEffect(() => {
+    callVoiceRef.current = effectiveCallVoice;
+  }, [effectiveCallVoice]);
+
+  const sessionCreditsEstimate = useMemo(
+    () => (phase === "live" ? Math.max(0, Math.floor((liveElapsedSec / 60) * LIVE_CALL_CREDITS_PER_MINUTE)) : 0),
+    [liveElapsedSec, phase],
+  );
+
+  useEffect(() => {
+    if (phase === "preparing" || phase === "ringing" || phase === "connecting" || phase === "error" || phase === "ended") {
+      liveAtRef.current = null;
+      setLiveElapsedSec(0);
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "live") return;
+    if (liveAtRef.current == null) {
+      liveAtRef.current = Date.now();
+    }
+    const t = window.setInterval(() => {
+      const a = liveAtRef.current;
+      if (a != null) {
+        setLiveElapsedSec(Math.floor((Date.now() - a) / 1000));
+      }
+    }, 1000);
+    return () => window.clearInterval(t);
+  }, [phase]);
+
+  /** Browsers may throttle `setInterval` in background tabs — resync on focus for an accurate on-call time. */
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible" && phase === "live" && liveAtRef.current != null) {
+        setLiveElapsedSec(Math.floor((Date.now() - liveAtRef.current) / 1000));
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [phase]);
+
+  const primaryToy = useMemo(() => pickPrimaryToy(toyList), [toyList]);
+  const toyBarProps =
+    userId && primaryToy
+      ? { userId, toyId: primaryToy.id, toyName: primaryToy.name }
+      : null;
+
+  const hangUp = useCallback(() => {
+    const billSec =
+      liveAtRef.current != null ? Math.max(0, Math.floor((Date.now() - liveAtRef.current) / 1000)) : 0;
+    const minutesBilled = billSec > 0 ? Math.max(1, Math.ceil(billSec / 60)) : 0;
+    const uid = userIdRef.current;
+    const companionId = id;
+
+    try {
+      previewAudioRef.current?.pause();
+      previewAudioRef.current = null;
+      stopRef.current?.();
+    } catch {
+      /* ignore */
+    }
+    stopRef.current = null;
+    updateSessionRef.current = null;
+    sessionStartedFor.current = null;
+    setPhase("ended");
+    if (uid && companionId && minutesBilled > 0) {
+      const amount = minutesBilled * LIVE_CALL_CREDITS_PER_MINUTE;
+      void spendForgeCoins(amount, "live_voice", `Live voice · ${minutesBilled} min`, {
+        companion_id: companionId,
+        bill_seconds: billSec,
+      }).then((r) => {
+        if (!r.ok) toast.error(r.err || "Could not record FC for this call.");
+      });
+    }
+    if (id) navigate(`/companions/${id}`, { replace: true });
+  }, [id, navigate]);
+
+  const applyCallVoice = useCallback(
+    async (v: TtsUxVoiceId) => {
+      setCallVoice(v);
+      callVoiceRef.current = v;
+      if (phase === "live") {
+        updateSessionRef.current?.({ voice: uxVoiceToXaiVoice(v) });
+      }
+      if (!userId || !id || !companion) {
+        return;
+      }
+      if (profileTtsGlobal) {
+        toast.info("A global voice override in Settings is active; relationship preset not saved.");
+        return;
+      }
+      setSaveVoicePending(true);
+      try {
+        const { error } = await supabase.from("companion_relationships").upsert(
+          {
+            user_id: userId,
+            companion_id: id,
+            affection_level: relationship?.affection_level ?? 0,
+            chat_affection_level: relationship?.chat_affection_level ?? 1,
+            chat_affection_progress: relationship?.chat_affection_progress ?? 0,
+            breeding_progress: relationship?.breeding_progress ?? 0,
+            breeding_stage: relationship?.breeding_stage ?? 0,
+            tts_voice_preset: v,
+            last_interaction: new Date().toISOString(),
+          },
+          { onConflict: "user_id,companion_id" },
+        );
+        if (error) throw error;
+        await refreshRelationship();
+        toast.success("Voice updated");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Could not save voice");
+        throw e;
+      } finally {
+        setSaveVoicePending(false);
+      }
+    },
+    [userId, id, companion, relationship, phase, profileTtsGlobal, refreshRelationship],
+  );
+
+  const onPreviewVoice = useCallback(async (v: TtsUxVoiceId) => {
+    try {
+      previewAudioRef.current?.pause();
+      setPreviewLoadingId(v);
+      const url = await fetchTtsSampleAudioUrl(v);
+      const a = new Audio(url);
+      a.onended = () => {
+        setPreviewLoadingId((cur) => (cur === v ? null : cur));
+        previewAudioRef.current = null;
+      };
+      a.onerror = () => {
+        setPreviewLoadingId(null);
+        previewAudioRef.current = null;
+      };
+      previewAudioRef.current = a;
+      await a.play();
+    } catch (e) {
+      setPreviewLoadingId(null);
+      throw e;
+    }
+  }, []);
 
   useEffect(() => {
     if (!id || !callOption) {
@@ -74,18 +263,6 @@ const LiveCallPage = () => {
       else navigate("/", { replace: true });
     }
   }, [id, callOption, navigate]);
-
-  const hangUp = useCallback(() => {
-    try {
-      stopRef.current?.();
-    } catch {
-      /* ignore */
-    }
-    stopRef.current = null;
-    sessionStartedFor.current = null;
-    setPhase("ended");
-    if (id) navigate(`/companions/${id}`, { replace: true });
-  }, [id, navigate]);
 
   useEffect(() => {
     if (!companion || !callOption || !id || isLoading) return;
@@ -100,6 +277,21 @@ const LiveCallPage = () => {
     void (async () => {
       setPhase("preparing");
       setStatusLine("Securing line…");
+
+      const { data: sess } = await supabase.auth.getSession();
+      const uid = sess?.session?.user?.id ?? null;
+      if (uid) {
+        setUserId(uid);
+        const toys = await getToys(uid);
+        if (cancelled) return;
+        setToyList(toys);
+        toyForSessionRef.current = pickPrimaryToy(toys);
+      } else {
+        toyForSessionRef.current = null;
+      }
+
+      const hasLinked = (toyForSessionRef.current != null);
+
       const sec = await invokeGrokVoiceClientSecret();
       if (cancelled) return;
       if ("error" in sec) {
@@ -118,8 +310,8 @@ const LiveCallPage = () => {
       setPhase("connecting");
       setStatusLine("Connecting…");
 
-      const instructions = buildLiveCallRealtimeInstructions(companion, callOption);
-      const voice = uxVoiceToXaiVoice(effectiveUxVoice);
+      const instructions = buildLiveCallRealtimeInstructions(companion, callOption, { hasLinkedToy: hasLinked });
+      const voice = uxVoiceToXaiVoice(callVoiceRef.current);
 
       const api = startGrokRealtimeVoiceSession({
         clientSecret: sec.value,
@@ -127,7 +319,9 @@ const LiveCallPage = () => {
         voice,
         onStatus: (s) => {
           setStatusLine(s);
-          if (s.includes("Live")) setPhase("live");
+          if (s.includes("Live")) {
+            setPhase("live");
+          }
           if (s.includes("Disconnected")) {
             setPhase("ended");
           }
@@ -137,8 +331,18 @@ const LiveCallPage = () => {
           setStatusLine(e.message || "Voice error");
           sessionStartedFor.current = null;
         },
+        onAssistantTranscriptDone: (text) => {
+          const t = toyForSessionRef.current;
+          const u = userIdRef.current;
+          if (!t || !u) return;
+          const cmd = liveCallToyCommandFromAssistantLine(String(text), { toyDeviceUid: t.id });
+          if (cmd) {
+            void sendCommand(u, cmd).catch(() => undefined);
+          }
+        },
       });
       stopRef.current = api.stop;
+      updateSessionRef.current = api.updateSession;
     })();
 
     return () => {
@@ -149,9 +353,10 @@ const LiveCallPage = () => {
         /* ignore */
       }
       stopRef.current = null;
+      updateSessionRef.current = null;
       sessionStartedFor.current = null;
     };
-  }, [companion, callOption, id, isLoading, navigate, relationshipLoading, effectiveUxVoice]);
+  }, [companion, callOption, id, isLoading, relationshipLoading]);
 
   if (!id || !callOption) {
     return (
@@ -186,6 +391,15 @@ const LiveCallPage = () => {
       statusLine={statusLine}
       onHangUp={hangUp}
       portraitUrl={callPortraitUrl}
+      liveElapsedSec={liveElapsedSec}
+      creditsPerMinute={LIVE_CALL_CREDITS_PER_MINUTE}
+      sessionCreditsEstimate={sessionCreditsEstimate}
+      callVoiceId={effectiveCallVoice}
+      onCallVoiceChange={applyCallVoice}
+      onPreviewVoice={onPreviewVoice}
+      previewLoadingId={previewLoadingId}
+      saveVoicePending={saveVoicePending}
+      toyBar={toyBarProps}
     />
   );
 };

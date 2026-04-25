@@ -24,12 +24,19 @@ export function ChatAmbientBackground({ activityKey, className }: Props) {
       className={cn("pointer-events-none absolute inset-0 z-0 select-none overflow-hidden", className)}
       aria-hidden
     >
+      {/* Film grain / texture — ultra subtle */}
+      <div
+        className="absolute inset-0 opacity-[0.035] mix-blend-overlay"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+        }}
+      />
       {/* Base wash */}
       <div
-        className="absolute inset-0 opacity-[0.4]"
+        className="absolute inset-0 opacity-[0.42]"
         style={{
           background:
-            "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(123, 45, 142, 0.18), transparent 55%), radial-gradient(ellipse 70% 50% at 100% 80%, rgba(255, 45, 123, 0.08), transparent 50%)",
+            "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(123, 45, 142, 0.2), transparent 55%), radial-gradient(ellipse 70% 50% at 100% 80%, rgba(255, 45, 123, 0.1), transparent 50%)",
         }}
       />
 
@@ -46,6 +53,31 @@ export function ChatAmbientBackground({ activityKey, className }: Props) {
         animate={{ x: [0, -30, 0], y: [0, 16, 0] }}
         transition={{ duration: 22, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
       />
+
+      {/* Soft floating motes (very low opacity) */}
+      {[0, 1, 2, 3, 4].map((i) => (
+        <motion.div
+          key={i}
+          className="absolute rounded-full bg-fuchsia-400/20 blur-[1px]"
+          style={{
+            width: 2 + (i % 3),
+            height: 2 + (i % 3),
+            left: `${12 + i * 19}%`,
+            top: `${18 + (i * 13) % 40}%`,
+          }}
+          animate={{
+            y: [0, -40, 0],
+            x: [0, i % 2 === 0 ? 20 : -15, 0],
+            opacity: [0.15, 0.4, 0.15],
+          }}
+          transition={{
+            duration: 8 + i * 1.2,
+            repeat: Number.POSITIVE_INFINITY,
+            ease: "easeInOut",
+            delay: i * 0.7,
+          }}
+        />
+      ))}
 
       {/* Neon grid */}
       <div

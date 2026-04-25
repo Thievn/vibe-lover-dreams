@@ -3,6 +3,7 @@ import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { renderPortraitToStorage } from "../_shared/renderCompanionPortrait.ts";
 import { requireAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { mergeTcgForNexusChild } from "../_shared/tcgStatsGenerate.ts";
+import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,12 +28,22 @@ async function refundTokens(
   supabase: ReturnType<typeof createClient>,
   userId: string,
   amount: number,
+  reason: string,
 ): Promise<void> {
   if (amount <= 0) return;
   try {
     const { data: row } = await supabase.from("profiles").select("tokens_balance").eq("user_id", userId).maybeSingle();
     const bal = row?.tokens_balance ?? 0;
-    await supabase.from("profiles").update({ tokens_balance: bal + amount }).eq("user_id", userId);
+    const nxt = bal + amount;
+    await supabase.from("profiles").update({ tokens_balance: nxt }).eq("user_id", userId);
+    await recordFcTransaction(supabase, {
+      userId,
+      creditsChange: amount,
+      balanceAfter: nxt,
+      transactionType: "nexus_refund",
+      description: `Nexus merge refund: ${reason}`,
+      metadata: { fc: amount },
+    });
   } catch (e) {
     console.error("nexus-merge refundTokens failed", e);
   }
@@ -208,11 +219,20 @@ Deno.serve(async (req) => {
         });
       }
       charged = totalCost;
+      const newBalNexus = prof.tokens_balance - totalCost;
+      await recordFcTransaction(supabase, {
+        userId,
+        creditsChange: -totalCost,
+        balanceAfter: newBalNexus,
+        transactionType: "nexus_merge",
+        description: body.infuse ? "The Nexus — merge + infusion" : "The Nexus — merge",
+        metadata: { fc: totalCost, parent_a: body.parentAId, parent_b: body.parentBId, infuse: Boolean(body.infuse) },
+      });
     }
 
     const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
     if (!apiKey) {
-      if (charged > 0) await refundTokens(supabase, userId, charged);
+      if (charged > 0) await refundTokens(supabase, userId, charged, "no xAI key");
       charged = 0;
       return new Response(
         JSON.stringify({
@@ -414,7 +434,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
     if (!grokRes.ok) {
       const errText = await grokRes.text();
       console.error("nexus-merge Grok error:", errText);
-      if (charged > 0) await refundTokens(supabase, userId, charged);
+      if (charged > 0) await refundTokens(supabase, userId, charged, "Grok HTTP error");
       charged = 0;
       return new Response(JSON.stringify({ error: "AI fusion service error" }), {
         status: 502,
@@ -425,7 +445,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
     const grokData = await grokRes.json();
     const toolCall = grokData.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall || toolCall.function?.name !== "nexus_merge_companion") {
-      if (charged > 0) await refundTokens(supabase, userId, charged);
+      if (charged > 0) await refundTokens(supabase, userId, charged, "no fusion tool output");
       charged = 0;
       return new Response(JSON.stringify({ error: "Fusion model returned no structured profile." }), {
         status: 500,
@@ -437,7 +457,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
     try {
       fields = JSON.parse(toolCall.function.arguments);
     } catch {
-      if (charged > 0) await refundTokens(supabase, userId, charged);
+      if (charged > 0) await refundTokens(supabase, userId, charged, "fusion JSON parse error");
       charged = 0;
       return new Response(JSON.stringify({ error: "Could not parse fusion output." }), {
         status: 500,
@@ -494,7 +514,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
 
     if (insErr || !inserted?.id) {
       console.error("nexus-merge insert", insErr);
-      if (charged > 0) await refundTokens(supabase, userId, charged);
+      if (charged > 0) await refundTokens(supabase, userId, charged, "DB insert failed");
       charged = 0;
       return new Response(JSON.stringify({ error: insErr?.message || "Could not save merged companion." }), {
         status: 500,
@@ -579,7 +599,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
     console.error("nexus-merge", err);
     const msg = err instanceof Error ? err.message : String(err);
     if (charged > 0 && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-      await refundTokens(createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY), userId, charged);
+      await refundTokens(createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY), userId, charged, "uncaught error");
     }
     return new Response(JSON.stringify({ error: msg }), {
       status: 500,

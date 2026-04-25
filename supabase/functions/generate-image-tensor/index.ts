@@ -17,6 +17,7 @@ import {
 import { pickNudeImageModelId, pickNudeVideoModelId } from "../_shared/nudeTensorModelPick.server.ts";
 import type { NudeRenderGroup } from "../_shared/nudeTensorRenderGroup.server.ts";
 import { resolveNudeRenderGroupForCompanion } from "../_shared/resolveNudeRenderGroupForCompanion.ts";
+import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,12 +36,26 @@ function jsonResponse(obj: Record<string, unknown>, status = 200) {
   });
 }
 
-async function refundTokens(supabase: ReturnType<typeof createClient>, userId: string, amount: number): Promise<void> {
+async function refundTokens(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  amount: number,
+  reason: string,
+): Promise<void> {
   if (amount <= 0) return;
   try {
     const { data: row } = await supabase.from("profiles").select("tokens_balance").eq("user_id", userId).maybeSingle();
     const balance = row?.tokens_balance ?? 0;
-    await supabase.from("profiles").update({ tokens_balance: balance + amount }).eq("user_id", userId);
+    const nxt = balance + amount;
+    await supabase.from("profiles").update({ tokens_balance: nxt }).eq("user_id", userId);
+    await recordFcTransaction(supabase, {
+      userId,
+      creditsChange: amount,
+      balanceAfter: nxt,
+      transactionType: "image_refund",
+      description: `Tensor refund: ${reason}`,
+      metadata: { fc: amount },
+    });
   } catch (e) {
     console.error("generate-image-tensor: refundTokens failed", e);
   }
@@ -263,6 +278,15 @@ Deno.serve(async (req) => {
         .eq("user_id", userId);
       if (deductErr) throw new Error(deductErr.message || "Could not reserve forge credits.");
       tokensCharged = true;
+      const newBal = profile.tokens_balance - tokenCost;
+      await recordFcTransaction(supabase, {
+        userId,
+        creditsChange: -tokenCost,
+        balanceAfter: newBal,
+        transactionType: "image_generation",
+        description: nudeTensorGeneration ? "Chat: nude / Tensor still" : "Chat / gallery: Tensor still",
+        metadata: { tokenCost, nudeTensor: nudeTensorGeneration, isPortrait },
+      });
     }
 
     // Chat stills: prefer `TENSOR_CHAT_IMAGE_MODEL` (FLUX.2 Dev) when set; else `TENSOR_IMAGE_MODEL` (also defaults to FLUX.2).
@@ -460,7 +484,7 @@ Deno.serve(async (req) => {
     if (tokensCharged && chargedUserId && tokenCost > 0 && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
       try {
         const svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-        await refundTokens(svc, chargedUserId, tokenCost);
+        await refundTokens(svc, chargedUserId, tokenCost, "emergency");
       } catch (refundErr) {
         console.error("generate-image-tensor: emergency token refund failed", refundErr);
       }

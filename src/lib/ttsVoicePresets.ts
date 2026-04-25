@@ -22,6 +22,7 @@ export const TTS_UX_VOICE_IDS = [
 
 export type TtsUxVoiceId = (typeof TTS_UX_VOICE_IDS)[number];
 
+/** xAI TTS + realtime `voice` field. */
 export type XaiVoiceId = "ara" | "eve" | "rex" | "sal" | "leo";
 
 const UX_TO_XAI: Record<TtsUxVoiceId, XaiVoiceId> = {

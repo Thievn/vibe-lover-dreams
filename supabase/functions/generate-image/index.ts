@@ -10,6 +10,7 @@ import {
 import { rewritePromptForImagine } from "../_shared/safeImagePromptRewriter.ts";
 import { maybeAppendForgeStyleSceneBlock } from "../_shared/forgePortraitAugmentation.ts";
 import { forgePortraitBodyTypeContract } from "../_shared/forgeBodyTypeContract.ts";
+import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,12 +27,22 @@ async function refundTokens(
   supabase: ReturnType<typeof createClient>,
   userId: string,
   amount: number,
+  reason: string,
 ): Promise<void> {
   if (amount <= 0) return;
   try {
     const { data: row } = await supabase.from("profiles").select("tokens_balance").eq("user_id", userId).maybeSingle();
     const bal = row?.tokens_balance ?? 0;
-    await supabase.from("profiles").update({ tokens_balance: bal + amount }).eq("user_id", userId);
+    const nxt = bal + amount;
+    await supabase.from("profiles").update({ tokens_balance: nxt }).eq("user_id", userId);
+    await recordFcTransaction(supabase, {
+      userId,
+      creditsChange: amount,
+      balanceAfter: nxt,
+      transactionType: "image_refund",
+      description: `Refund: ${reason}`,
+      metadata: { fc: amount },
+    });
   } catch (e) {
     console.error("refundTokens failed", e);
   }
@@ -157,6 +168,15 @@ serve(async (req) => {
         .eq("user_id", userId);
       if (deductErr) throw new Error(deductErr.message || "Could not reserve forge credits.");
       tokensCharged = true;
+      const balAfterDeduct = prof.tokens_balance - tokenCost;
+      await recordFcTransaction(supabase, {
+        userId,
+        creditsChange: -tokenCost,
+        balanceAfter: balAfterDeduct,
+        transactionType: "image_generation",
+        description: isPortrait ? "Forge: portrait (Imagine)" : "Chat / gallery: image (Grok Imagine)",
+        metadata: { tokenCost, isPortrait },
+      });
     }
 
     let baseDescription = (characterData.baseDescription as string) || "a highly attractive character";
@@ -192,7 +212,7 @@ serve(async (req) => {
       });
     } catch (rewriteErr) {
       if (tokensCharged) {
-        await refundTokens(supabase, userId, tokenCost);
+        await refundTokens(supabase, userId, tokenCost, "prompt rewrite failed");
         tokensCharged = false;
       }
       const msg = rewriteErr instanceof Error ? rewriteErr.message : String(rewriteErr);
@@ -351,7 +371,7 @@ ${safeRewritten}
       }
     } catch (imgErr) {
       if (tokensCharged) {
-        await refundTokens(supabase, userId, tokenCost);
+        await refundTokens(supabase, userId, tokenCost, "xAI image generation error");
         tokensCharged = false;
       }
       const msg = imgErr instanceof Error ? imgErr.message : String(imgErr);
@@ -391,7 +411,7 @@ ${safeRewritten}
       }
     } catch (dlErr) {
       if (tokensCharged) {
-        await refundTokens(supabase, userId, tokenCost);
+        await refundTokens(supabase, userId, tokenCost, "image download failed");
         tokensCharged = false;
       }
       const msg = dlErr instanceof Error ? dlErr.message : String(dlErr);
@@ -470,7 +490,7 @@ ${safeRewritten}
       );
     } catch (lateErr) {
       if (tokensCharged) {
-        await refundTokens(supabase, userId, tokenCost);
+        await refundTokens(supabase, userId, tokenCost, "post-generation save failed");
         tokensCharged = false;
       }
       const message = lateErr instanceof Error ? lateErr.message : String(lateErr);
@@ -488,7 +508,7 @@ ${safeRewritten}
     if (tokensCharged && tokenCost > 0 && chargedUserId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
       try {
         const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-        await refundTokens(sb, chargedUserId, tokenCost);
+        await refundTokens(sb, chargedUserId, tokenCost, "request error / emergency refund");
       } catch (re) {
         console.error("Emergency token refund failed:", re);
       }

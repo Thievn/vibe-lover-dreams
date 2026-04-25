@@ -80,7 +80,7 @@ export function ChatLeftHeroPanel({
     <aside
       className={cn(
         "relative hidden h-full min-h-0 min-w-0 flex-col border-r border-white/[0.08] bg-[hsl(280_28%_6%)] md:flex",
-        expanded ? "w-[min(40vw,22rem)] max-w-md flex-[0_0_min(40vw,22rem)]" : "w-12 flex-[0_0_3rem]",
+        expanded ? "w-[min(44vw,26rem)] max-w-lg flex-[0_0_min(44vw,26rem)]" : "w-12 flex-[0_0_3rem]",
         className,
       )}
     >
@@ -105,8 +105,8 @@ export function ChatLeftHeroPanel({
       {expanded ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2 p-2">
           <div
-            className="relative w-full shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/50 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
-            style={{ height: "min(48vh, 26rem)" }}
+            className="relative w-full shrink-0 overflow-hidden rounded-[1.65rem] border border-white/[0.12] bg-black/50 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05),0_20px_56px_-12px_rgba(0,0,0,0.55),0_0_64px_-16px_rgba(168,85,247,0.22)]"
+            style={{ height: "min(58vh, 36rem)" }}
           >
             <PortraitViewLightbox
               alt={companion.name}
@@ -130,7 +130,7 @@ export function ChatLeftHeroPanel({
                     className="absolute inset-0 h-full w-full object-cover object-top"
                     loading="eager"
                     decoding="async"
-                    sizes="(max-width: 1200px) 40vw, 360px"
+                    sizes="(max-width: 1200px) 44vw, 420px"
                   />
                 ) : (
                   <span className="absolute inset-0 flex items-center justify-center font-gothic text-4xl font-bold text-white/90">

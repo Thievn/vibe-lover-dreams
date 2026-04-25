@@ -65,7 +65,7 @@ export function ChatMessageThread({
   const typingVariant = getChatTypingVariant(companion);
 
   return (
-    <div className="relative z-[1] mx-auto min-h-0 w-full min-w-0 max-w-full flex-1 space-y-3.5 overflow-y-auto overflow-x-hidden scroll-pb-32 px-2.5 py-2.5 [-webkit-overflow-scrolling:touch] sm:px-4 md:py-4">
+    <div className="relative z-[1] mx-auto min-h-0 w-full min-w-0 max-w-full flex-1 space-y-4 overflow-y-auto overflow-x-hidden scroll-pb-36 px-3 py-3 [-webkit-overflow-scrolling:touch] sm:px-5 md:space-y-5 md:py-5">
       {/* Phase 4: toy session — persistent strip so “toy active” is obvious without breaking chat layout */}
       {toyDriveActive ? (
         <div className="sticky top-0 z-10 -mx-0.5 mb-1 flex items-center justify-center rounded-xl border border-fuchsia-500/30 bg-gradient-to-r from-fuchsia-950/90 via-primary/20 to-fuchsia-950/90 px-2 py-1.5 text-center text-[10px] font-semibold uppercase tracking-widest text-fuchsia-100/95 shadow-lg shadow-black/30">
@@ -100,7 +100,7 @@ export function ChatMessageThread({
           )}
         >
           {msg.role === "assistant" ? (
-            <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/25 bg-zinc-900 sm:h-9 sm:w-9">
+            <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-white/30 bg-zinc-900 shadow-[0_0_20px_rgba(168,85,247,0.15)] ring-1 ring-white/5 sm:h-10 sm:w-10">
               {companionImageUrl ? (
                 <img
                   src={companionImageUrl}
@@ -124,12 +124,12 @@ export function ChatMessageThread({
 
           <div
             className={cn(
-              "min-w-0 max-w-[min(100%,36rem)] rounded-2xl px-3.5 py-3.5 text-[15px] leading-relaxed break-words shadow-lg sm:px-4",
+              "min-w-0 max-w-[min(100%,38rem)] rounded-[1.25rem] px-4 py-[1.1rem] text-[15px] leading-relaxed break-words sm:px-5 sm:py-5",
               msg.role === "user"
-                ? "bg-gradient-to-br from-primary to-[hsl(320_70%_35%)] text-primary-foreground rounded-br-md shadow-[0_0_32px_rgba(255,45,123,0.28),inset_0_1px_0_rgba(255,255,255,0.12)]"
+                ? "rounded-br-[0.55rem] bg-gradient-to-br from-primary to-[hsl(320_70%_32%)] text-primary-foreground shadow-[0_4px_28px_rgba(0,0,0,0.35),0_0_40px_rgba(255,45,123,0.22),inset_0_1px_0_rgba(255,255,255,0.14)]"
                 : assistantDisplay.signatureBeat
-                  ? "border border-[#ff2d7b]/40 bg-gradient-to-br from-[#ff2d7b]/[0.16] via-fuchsia-950/30 to-[#00ffd4]/[0.1] text-foreground/95 rounded-bl-md backdrop-blur-md shadow-[0_0_36px_rgba(255,45,123,0.2)] ring-1 ring-[#ff2d7b]/30"
-                  : "border border-white/[0.1] bg-[hsl(280_25%_6%/0.92)] text-foreground/95 rounded-bl-md backdrop-blur-md shadow-black/20",
+                  ? "border border-[#ff2d7b]/35 bg-gradient-to-br from-[#ff2d7b]/[0.15] via-fuchsia-950/25 to-[#00ffd4]/[0.08] text-foreground/95 rounded-bl-[0.55rem] backdrop-blur-md shadow-[0_0_44px_rgba(255,45,123,0.16),0_4px_24px_rgba(0,0,0,0.2)] ring-1 ring-[#ff2d7b]/25"
+                  : "border border-white/[0.11] bg-[hsl(280_24%_7%/0.94)] text-foreground/95 rounded-bl-[0.55rem] backdrop-blur-md shadow-[0_2px_24px_rgba(0,0,0,0.32),0_0_50px_-12px_rgba(168,85,247,0.12),inset_0_1px_0_rgba(255,255,255,0.04)]",
             )}
           >
             {msg.imageUrl ? (

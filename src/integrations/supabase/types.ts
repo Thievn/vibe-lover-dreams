@@ -727,6 +727,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_transactions: {
+        Row: {
+          id: string
+          user_id: string
+          credits_change: number
+          balance_after: number
+          transaction_type: string
+          description: string
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          credits_change: number
+          balance_after: number
+          transaction_type: string
+          description?: string
+          metadata?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          credits_change?: number
+          balance_after?: number
+          transaction_type?: string
+          description?: string
+          metadata?: Json
+          created_at?: string
+        }
+        Relationships: []
+      }
       user_lovense_toys: {
         Row: {
           battery: number | null

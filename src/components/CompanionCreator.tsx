@@ -91,10 +91,12 @@ import {
   normalizeForgeArtStyle,
   normalizeForgeScene,
 } from "@/lib/forgePortraitPrompt";
+import { FORGE_CREATE_COMPANION_FC, FORGE_PREVIEW_FC } from "@/lib/forgeEconomy";
+import { creditForgeCoins, spendForgeCoins } from "@/lib/forgeCoinsClient";
 
 const NEON = "#FF2D7B";
-const PREVIEW_COST = 50;
-const FINAL_COST_PER = 250;
+const PREVIEW_COST = FORGE_PREVIEW_FC;
+const FINAL_COST_PER = FORGE_CREATE_COMPANION_FC;
 
 export type CompanionCreatorMode = "user" | "admin";
 
@@ -711,45 +713,6 @@ User flavor notes: ${extraNotes || "none"}`;
 
   const systemPrompt = useMemo(() => buildSystemPromptFor(name), [name, buildSystemPromptFor]);
 
-  const deductTokens = async (amount: number): Promise<boolean> => {
-    if (isAdmin) return true;
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session?.user) return false;
-    const { data: row, error: rErr } = await supabase
-      .from("profiles")
-      .select("tokens_balance")
-      .eq("user_id", session.user.id)
-      .single();
-    if (rErr || !row) return false;
-    if (row.tokens_balance < amount) return false;
-    const { error: uErr } = await supabase
-      .from("profiles")
-      .update({ tokens_balance: row.tokens_balance - amount })
-      .eq("user_id", session.user.id);
-    if (uErr) return false;
-    setTokens(row.tokens_balance - amount);
-    return true;
-  };
-
-  const addTokens = async (amount: number): Promise<void> => {
-    if (isAdmin) return;
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session?.user) return;
-    const { data: row } = await supabase
-      .from("profiles")
-      .select("tokens_balance")
-      .eq("user_id", session.user.id)
-      .single();
-    if (!row) return;
-    const next = row.tokens_balance + amount;
-    await supabase.from("profiles").update({ tokens_balance: next }).eq("user_id", session.user.id);
-    setTokens(next);
-  };
-
   const onReferenceFileChosen = async (file: File | undefined) => {
     if (!file) return;
     try {
@@ -1023,7 +986,7 @@ User flavor notes: ${extraNotes || "none"}`;
     if (!userId) return;
     if (!isAdmin) {
       if (tokens !== null && tokens < PREVIEW_COST) {
-        toast.error(`Need ${PREVIEW_COST} tokens for preview.`);
+        toast.error(`Need ${PREVIEW_COST} FC for preview.`);
         return;
       }
     }
@@ -1157,7 +1120,7 @@ User flavor notes: ${extraNotes || "none"}`;
     }
     if (!isAdmin) {
       if (tokens !== null && tokens < finalTotalCost) {
-        toast.error(`Need ${finalTotalCost} tokens for ${batchCount} companion(s).`);
+        toast.error(`Need ${finalTotalCost} FC for ${batchCount} companion(s).`);
         return;
       }
     }
@@ -1171,13 +1134,19 @@ User flavor notes: ${extraNotes || "none"}`;
       );
     }
     try {
-      const ok = await deductTokens(finalTotalCost);
-      if (!isAdmin && !ok) {
-        toast.error("Insufficient tokens.");
-        endFinalForgeLoading();
-        return;
-      }
       if (!isAdmin) {
+        const spend = await spendForgeCoins(
+          finalTotalCost,
+          "companion_forge",
+          `Forge: create ${batchCount} companion(s)`,
+          { batch_count: batchCount },
+        );
+        if (!spend.ok) {
+          toast.error(spend.err || "Could not spend Forge Coins.");
+          endFinalForgeLoading();
+          return;
+        }
+        setTokens(spend.newBalance);
         toast.message("Weaving your companion into the vault…", {
           description: "This can take a little while — keep the tab open until we finish.",
         });
@@ -1416,7 +1385,15 @@ User flavor notes: ${extraNotes || "none"}`;
       }
       const { data: insertedRows, error } = insertRes;
       if (error) {
-        if (!isAdmin) await addTokens(finalTotalCost);
+        if (!isAdmin) {
+          const ref = await creditForgeCoins(
+            finalTotalCost,
+            "refund",
+            "Forge: insert failed — refund",
+            { reason: "insert_error" },
+          );
+          if (ref.ok) setTokens(ref.newBalance);
+        }
         throw error;
       }
 
@@ -1721,7 +1698,7 @@ User flavor notes: ${extraNotes || "none"}`;
                 <p className="text-sm text-muted-foreground mt-2 max-w-md leading-relaxed">
                   {isAdmin
                     ? "Admin forge — no token cost. Shape every variable, then commit."
-                    : "Cheap live previews to iterate. Final binding costs 250 tokens per companion."}
+                    : "Cheap live previews to iterate. Final binding costs 80 FC per companion."}
                 </p>
               </div>
               {!isAdmin && (
@@ -1731,7 +1708,7 @@ User flavor notes: ${extraNotes || "none"}`;
                 >
                   <Coins className="h-5 w-5" style={{ color: NEON }} />
                   <span className="text-lg font-semibold tabular-nums text-white">{tokens ?? "—"}</span>
-                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground">tokens</span>
+                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground">FC</span>
                 </div>
               )}
             </div>
@@ -2614,7 +2591,7 @@ User flavor notes: ${extraNotes || "none"}`;
                     <span className="text-left leading-tight min-w-0">
                       <span className="block">Generate portrait</span>
                       <span className="block text-[10px] font-normal opacity-90">
-                        Packshot prompt + fields below · {isAdmin ? "no tokens" : `${PREVIEW_COST} tokens`}
+                        Packshot prompt + fields below · {isAdmin ? "no FC" : `${PREVIEW_COST} FC preview`}
                       </span>
                     </span>
                   </motion.button>
@@ -2642,7 +2619,7 @@ User flavor notes: ${extraNotes || "none"}`;
                         Create {batchCount} companion{batchCount > 1 ? "s" : ""}
                       </span>
                       <span className="block text-[10px] font-normal text-muted-foreground">
-                        {isAdmin ? "No token spend · auto-name if empty" : `${FINAL_COST_PER} tokens each · ${finalTotalCost} total`}
+                        {isAdmin ? "No FC spend · auto-name if empty" : `${FINAL_COST_PER} FC each · ${finalTotalCost} total`}
                       </span>
                     </span>
                   </motion.button>
@@ -2695,9 +2672,9 @@ User flavor notes: ${extraNotes || "none"}`;
                   </>
                 ) : (
                   <>
-                    Previews cost <strong style={{ color: NEON }}>{PREVIEW_COST} tokens</strong> so you can iterate cheaply. Your last preview
+                    Previews cost <strong style={{ color: NEON }}>{PREVIEW_COST} FC</strong> so you can iterate cheaply. Your last preview
                     image is remembered on this device until you forge or tap Reset. Final creation locks{" "}
-                    <strong className="text-[hsl(170_100%_70%)]">{FINAL_COST_PER} tokens</strong> per companion ({finalTotalCost} for this batch).
+                    <strong className="text-[hsl(170_100%_70%)]">{FINAL_COST_PER} FC</strong> per companion ({finalTotalCost} for this batch).
                     All generations follow SFW forge policy.
                   </>
                 )}

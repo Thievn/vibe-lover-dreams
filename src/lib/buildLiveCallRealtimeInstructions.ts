@@ -7,10 +7,19 @@ function trim(s: string, max: number): string {
   return `${t.slice(0, max - 1)}…`;
 }
 
+export type LiveCallInstructionOpts = {
+  /** User has at least one linked Lovense toy available for haptics. */
+  hasLinkedToy: boolean;
+};
+
 /**
  * Merges companion charter + call-type augment + realtime voice rules for xAI Realtime.
  */
-export function buildLiveCallRealtimeInstructions(companion: Companion, option: LiveCallOption): string {
+export function buildLiveCallRealtimeInstructions(
+  companion: Companion,
+  option: LiveCallOption,
+  extra?: LiveCallInstructionOpts,
+): string {
   const core = [
     `You are ${companion.name} on a private voice phone call with the user.`,
     companion.systemPrompt?.trim()
@@ -33,5 +42,15 @@ export function buildLiveCallRealtimeInstructions(companion: Companion, option: 
     "No JSON, markdown, or system-style formatting in speech.",
   ].join("\n");
 
-  return `${core}\n\n--- Session rules ---\n${rules}`;
+  const toyAppendix =
+    extra?.hasLinkedToy === true
+      ? [
+          "",
+          "--- Linked device (Lovense) ---",
+          "The user may have a Lovense toy connected. You can narrate first-person control in plain speech — describe what you are doing to them in the moment.",
+          "Use natural language the app can align with, e.g. mention pulsing, a rolling wave, teasing light touches, cranking the intensity, or asking for a full stop. Never read technical codes, JSON, or instructions aloud.",
+        ].join("\n")
+      : "";
+
+  return `${core}\n\n--- Session rules ---\n${rules}${toyAppendix}`;
 }

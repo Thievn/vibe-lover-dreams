@@ -86,7 +86,7 @@ export function ChatComposer({
         ? videoSubmitTitle
         : mediaDraftKind === "image"
           ? imageSubmitTitle
-          : `Send (${tokenCost} tokens)`;
+          : `Send (${tokenCost} FC)`;
 
   const startVoice = useCallback(() => {
     // Web Speech API — typings vary; keep construction loose.
@@ -144,9 +144,9 @@ export function ChatComposer({
   );
 
   return (
-    <div className="shrink-0 border-t border-white/[0.08] bg-gradient-to-t from-black/90 via-black/80 to-black/50 px-3 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-2xl">
-      <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
-        <p className="min-w-0 text-[9px] uppercase tracking-[0.22em] text-muted-foreground/80">Message</p>
+    <div className="shrink-0 border-t border-white/[0.07] bg-gradient-to-t from-black/95 via-black/80 to-black/40 px-3 pt-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] backdrop-blur-2xl sm:px-4 sm:pt-3.5">
+      <div className="mb-2.5 flex items-center justify-between gap-2 px-0.5">
+        <p className="min-w-0 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground/90">Message</p>
         {userLoggedIn ? (
           <label className="inline-flex max-w-[55%] cursor-pointer select-none items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-1 text-[9px] font-medium text-foreground/90 sm:text-[10px]">
             <input
@@ -172,10 +172,10 @@ export function ChatComposer({
       >
         <div
           className={cn(
-            "flex min-h-[3.4rem] items-stretch gap-1.5 rounded-2xl border p-1 transition-[box-shadow,background,border-color] sm:min-h-14",
+            "flex min-h-[3.75rem] items-stretch gap-2 rounded-[1.15rem] border p-1.5 transition-[box-shadow,background,border-color] sm:min-h-16",
             focused
-              ? "border-primary/50 bg-gradient-to-r from-fuchsia-950/40 to-black/60 shadow-[0_0_0_1px_hsl(320_85%_50%_/_0.3),0_0_32px_hsl(320_85%_50%_/_0.12)]"
-              : "border-white/10 bg-black/55 shadow-inner",
+              ? "border-primary/45 bg-gradient-to-r from-fuchsia-950/45 to-black/55 shadow-[0_0_0_1px_hsl(320_85%_50%_/_0.25),0_0_40px_hsl(320_85%_50%_/_0.15)]"
+              : "border-white/11 bg-black/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
             disabled && "opacity-50",
           )}
         >
@@ -184,14 +184,14 @@ export function ChatComposer({
               type="button"
               onClick={listening ? undefined : startVoice}
               className={cn(
-                "inline-flex h-11 w-11 items-center justify-center rounded-xl text-[#00ffd4] transition-colors",
-                "hover:bg-[#00ffd4]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00ffd4]/40",
+                "inline-flex h-12 w-12 items-center justify-center rounded-xl text-[#00ffd4] transition-colors sm:h-14 sm:w-14",
+                "hover:bg-[#00ffd4]/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00ffd4]/40",
                 (loading || disabled || listening) && "pointer-events-none opacity-40",
               )}
               title={listening ? "Listening…" : "Dictate (browser voice)"}
               aria-label="Voice input"
             >
-              {listening ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+              {listening ? <Loader2 className="h-6 w-6 animate-spin" /> : <Mic className="h-6 w-6" />}
             </button>
           </div>
           <input
@@ -201,7 +201,7 @@ export function ChatComposer({
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder={placeholder}
-            className="min-w-0 flex-1 border-0 bg-transparent py-2.5 pr-1 text-[15px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-0"
+            className="min-w-0 flex-1 border-0 bg-transparent py-3 pr-1 text-base text-foreground placeholder:text-muted-foreground/65 focus:outline-none focus:ring-0 sm:py-3.5 sm:text-[16px]"
             disabled={loading || disabled}
             autoComplete="off"
             aria-label={`Message ${companionName}`}
@@ -233,20 +233,20 @@ export function ChatComposer({
           </div>
         ) : null}
 
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-2 pt-0.5">
           <motion.button
             type="submit"
             whileTap={{ scale: 0.98 }}
             disabled={loading || !input.trim() || disabled}
-            className="inline-flex h-[52px] min-w-[52px] items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-fuchsia-700 text-primary-foreground transition-opacity disabled:opacity-30 shadow-[0_0_32px_hsl(320_85%_50%_/_0.32)]"
+            className="inline-flex h-14 min-w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-fuchsia-700 text-primary-foreground transition-opacity disabled:opacity-30 shadow-[0_4px_24px_hsl(320_85%_50%_/_0.35),0_0_40px_hsl(320_85%_50%_/_0.2)] sm:min-w-[3.75rem] sm:px-2"
             title={submitTitle}
           >
             {mediaDraftKind === "video" ? (
-              <Video className="h-5 w-5" />
+              <Video className="h-5 w-5 sm:h-6 sm:w-6" />
             ) : mediaDraftKind === "image" ? (
-              <ImageIcon className="h-5 w-5" />
+              <ImageIcon className="h-5 w-5 sm:h-6 sm:w-6" />
             ) : (
-              <Send className="h-5 w-5" />
+              <Send className="h-5 w-5 sm:h-6 sm:w-6" />
             )}
           </motion.button>
         </div>
@@ -258,7 +258,7 @@ export function ChatComposer({
           "Admin session · "
         ) : (
           <>
-            {tokenCost} msg / {imageTokenCost} still / {videoTokenCost} clip ·{" "}
+            {tokenCost} msg / {imageTokenCost} still / {videoTokenCost} clip FC ·{" "}
           </>
         )}
         18+ only · {CHAT_VIDEO_TIMING_USER_NOTE}
@@ -266,7 +266,7 @@ export function ChatComposer({
           <>
             {" "}
             <Link to="/" className="text-primary underline">
-              Get tokens
+              Get FC
             </Link>
           </>
         ) : null}

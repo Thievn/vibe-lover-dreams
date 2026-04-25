@@ -1,14 +1,20 @@
-import { useMemo, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Filter, Loader2, Search, Sparkles, UserRound, Wand2, X } from "lucide-react";
+import { toast } from "sonner";
 import type { Companion } from "@/data/companions";
 import { useCompanions, dbToCompanion, type DbCompanion } from "@/hooks/useCompanions";
 import { cn } from "@/lib/utils";
 import type { CompanionRarity } from "@/lib/companionRarity";
-import { COMPANION_RARITIES, normalizeCompanionRarity } from "@/lib/companionRarity";
+import { COMPANION_RARITIES, normalizeCompanionRarity, rarityTierCaptionColor } from "@/lib/companionRarity";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
+import { VAULT_COLLECTION_QUERY_KEY } from "@/hooks/useVaultCollection";
+import { supabase } from "@/integrations/supabase/client";
+import { discoverCardPriceFc } from "@/lib/forgeEconomy";
+import { purchaseDiscoverCompanion } from "@/lib/forgeCoinsClient";
 
 const NEON_PINK = "#FF2D7B";
 
@@ -37,8 +43,36 @@ function rowsFromDb(dbList: DbCompanion[]): CommunityGalleryRow[] {
 
 export default function DiscoverCompanionsGallery() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: dbRows, isLoading } = useCompanions();
   const pool = useMemo(() => (dbRows?.length ? rowsFromDb(dbRows) : []), [dbRows]);
+
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const [fcBalance, setFcBalance] = useState<number | null>(null);
+  const [purchasingId, setPurchasingId] = useState<string | null>(null);
+
+  const refreshSessionWallet = useCallback(async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.user) {
+      setSessionUserId(null);
+      setFcBalance(null);
+      return;
+    }
+    setSessionUserId(session.user.id);
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("tokens_balance")
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+    setFcBalance(typeof profile?.tokens_balance === "number" ? profile.tokens_balance : null);
+  }, []);
+
+  useEffect(() => {
+    void refreshSessionWallet();
+  }, [refreshSessionWallet]);
 
   const [search, setSearch] = useState("");
   const [gender, setGender] = useState<string | null>(null);
@@ -73,6 +107,40 @@ export default function DiscoverCompanionsGallery() {
     setGender(null);
     setRarity(null);
     setVibe(null);
+  };
+
+  const handleBuyCard = async (c: CommunityGalleryRow) => {
+    if (!sessionUserId) {
+      navigate("/auth", { state: { from: `${location.pathname}${location.search}` } });
+      return;
+    }
+    const price = discoverCardPriceFc(c.rarity);
+    if (fcBalance !== null && fcBalance < price) {
+      toast.error(`Not enough Forge Coins. This card is ${price} FC — you have ${fcBalance} FC.`);
+      return;
+    }
+    setPurchasingId(c.id);
+    try {
+      const r = await purchaseDiscoverCompanion(c.id);
+      if (!r.ok) {
+        if (r.err === "insufficient_funds") {
+          toast.error(`Need ${r.priceFc} FC. You have ${r.newBalance} FC.`);
+        } else {
+          toast.error(r.err || "Could not complete purchase.");
+        }
+        setFcBalance((b) => (b !== null ? r.newBalance : b));
+        return;
+      }
+      setFcBalance(r.newBalance);
+      void queryClient.invalidateQueries({ queryKey: [...VAULT_COLLECTION_QUERY_KEY, sessionUserId] });
+      if (r.alreadyOwned) {
+        toast.message("Already in your collection", { description: c.name });
+      } else {
+        toast.success(`Added to your vault — ${r.priceFc} FC`, { description: c.name });
+      }
+    } finally {
+      setPurchasingId(null);
+    }
   };
 
   const hasFilters = search || gender || rarity || vibe;
@@ -311,6 +379,9 @@ export default function DiscoverCompanionsGallery() {
             >
               {filtered.map((c, i) => {
                 const img = c.imageUrl;
+                const buyFc = discoverCardPriceFc(c.rarity);
+                const rarityPriceStyle = { color: rarityTierCaptionColor(c.rarity) };
+                const buyBusy = purchasingId === c.id;
                 return (
                   <motion.div
                     key={c.id}
@@ -319,55 +390,77 @@ export default function DiscoverCompanionsGallery() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: Math.min(i * 0.03, 0.35), type: "spring", stiffness: 380, damping: 28 }}
                     whileHover={{ y: -4, scale: 1.02 }}
-                    className="text-left rounded-2xl border border-transparent bg-card/50 backdrop-blur-md overflow-visible group shadow-lg shadow-black/30 transition-all hover:shadow-[0_0_28px_rgba(255,45,123,0.15)] p-1.5 max-md:p-1"
+                    className="relative text-left rounded-2xl border border-transparent bg-card/50 backdrop-blur-md overflow-visible group shadow-lg shadow-black/30 transition-all hover:shadow-[0_0_28px_rgba(255,45,123,0.15)] p-1.5 max-md:p-1"
                   >
                     <Link
                       to={`/companions/${c.id}`}
                       state={{ from: `${location.pathname}${location.search}` }}
-                      className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl overflow-visible"
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute top-3.5 right-2.5 z-[4] text-[9px] font-semibold uppercase tracking-wider px-2 py-1 rounded-lg bg-black/65 border border-white/15 text-white/90 hover:border-primary/50 hover:text-white transition-colors"
                     >
-                    <TierHaloPortraitFrame
-                      variant="card"
-                      frameStyle="clean"
-                      rarity={c.rarity}
-                      gradientFrom={c.gradientFrom}
-                      gradientTo={c.gradientTo}
-                      overlayUrl={c.rarityBorderOverlayUrl}
-                      rarityFrameBleed
-                    >
-                      <div
-                        className="absolute inset-0 z-0"
-                        style={{
-                          background: img ? undefined : `linear-gradient(160deg, ${c.gradientFrom}, ${c.gradientTo})`,
-                        }}
-                      />
-                      {img ? (
-                        <img
-                          src={img}
-                          alt=""
-                          className="absolute inset-0 z-[1] w-full h-full object-cover object-top"
-                          loading="lazy"
-                        />
-                      ) : null}
-                      <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/95 via-black/25 to-transparent pointer-events-none" />
-                      <div className="absolute inset-x-0 bottom-0 z-[3] p-3 space-y-0.5">
-                        <p className="text-xs font-bold text-white truncate leading-tight font-gothic">{c.name}</p>
-                        <p className="text-[10px] text-white/75 truncate">{c.tagline}</p>
-                        <p className="text-[9px] text-teal-300/90 truncate pt-0.5">{c.vibe}</p>
-                        {c.galleryCredit ? (
-                          <p className="text-[9px] text-[hsl(170_100%_65%)] mt-1 flex items-center gap-1 truncate">
-                            <UserRound className="h-3 w-3 shrink-0" />
-                            <span className="truncate">by {c.galleryCredit}</span>
-                          </p>
-                        ) : null}
-                      </div>
-                      <div className="absolute inset-0 z-[3] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/[0.07] to-primary/10 pointer-events-none" />
-                    </TierHaloPortraitFrame>
-                    <div className="px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/50">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Open profile</span>
-                      <Sparkles className="h-3.5 w-3.5 text-accent" />
-                    </div>
+                      Profile
                     </Link>
+                    <button
+                      type="button"
+                      onClick={() => void handleBuyCard(c)}
+                      disabled={buyBusy}
+                      className="w-full text-left h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl overflow-visible disabled:opacity-70"
+                    >
+                      <TierHaloPortraitFrame
+                        variant="card"
+                        frameStyle="clean"
+                        rarity={c.rarity}
+                        gradientFrom={c.gradientFrom}
+                        gradientTo={c.gradientTo}
+                        overlayUrl={c.rarityBorderOverlayUrl}
+                        rarityFrameBleed
+                      >
+                        <div
+                          className="absolute inset-0 z-0"
+                          style={{
+                            background: img ? undefined : `linear-gradient(160deg, ${c.gradientFrom}, ${c.gradientTo})`,
+                          }}
+                        />
+                        {img ? (
+                          <img
+                            src={img}
+                            alt=""
+                            className="absolute inset-0 z-[1] w-full h-full object-cover object-top"
+                            loading="lazy"
+                          />
+                        ) : null}
+                        <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/95 via-black/25 to-transparent pointer-events-none" />
+                        <div className="absolute inset-x-0 bottom-0 z-[3] p-3 space-y-0.5">
+                          <p className="text-xs font-bold text-white truncate leading-tight font-gothic">{c.name}</p>
+                          <p className="text-[10px] text-white/75 truncate">{c.tagline}</p>
+                          <p className="text-[9px] text-teal-300/90 truncate pt-0.5">{c.vibe}</p>
+                          {c.galleryCredit ? (
+                            <p className="text-[9px] text-[hsl(170_100%_65%)] mt-1 flex items-center gap-1 truncate">
+                              <UserRound className="h-3 w-3 shrink-0" />
+                              <span className="truncate">by {c.galleryCredit}</span>
+                            </p>
+                          ) : null}
+                          <p
+                            className="pt-1 font-gothic text-lg tabular-nums leading-none drop-shadow-sm"
+                            style={rarityPriceStyle}
+                            aria-label={`${buyFc} Forge Coins`}
+                          >
+                            {buyFc} <span className="text-[11px] font-sans text-white/90">FC</span>
+                          </p>
+                        </div>
+                        <div className="absolute inset-0 z-[3] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/[0.07] to-primary/10 pointer-events-none" />
+                      </TierHaloPortraitFrame>
+                      <div className="px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/50">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
+                          {buyBusy ? "Unlocking…" : "Tap to buy"}
+                        </span>
+                        {buyBusy ? (
+                          <Loader2 className="h-3.5 w-3.5 text-accent animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3.5 w-3.5 text-accent" style={rarityPriceStyle} />
+                        )}
+                      </div>
+                    </button>
                   </motion.div>
                 );
               })}

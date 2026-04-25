@@ -41,8 +41,8 @@ export function incrementFreeNsfwImagesUsed(userId: string, companionId: string)
   }
 }
 
-/** Paid chat clip (Grok Imagine video ~5–15s). */
-export const CHAT_VIDEO_TOKEN_COST = 100;
+/** Paid chat clip (Grok Imagine video ~5–15s). Same as `CHAT_SHORT_VIDEO_FC` in forgeEconomy. */
+export { CHAT_SHORT_VIDEO_FC as CHAT_VIDEO_TOKEN_COST } from "@/lib/forgeEconomy";
 
 /** Quick Action Buttons for image requests in chat */
 export const FAB_SELFIE = {
