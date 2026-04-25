@@ -5,6 +5,7 @@ import { requireAdminUser, requireSessionUser } from "../_shared/requireSessionU
 import { mergeTcgForNexusChild } from "../_shared/tcgStatsGenerate.ts";
 import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
 import { buildNexusDisplayTraitRows } from "../_shared/nexusDisplayTraitsBuild.ts";
+import { rollNexusChildRarity } from "../_shared/nexusRarityRoll.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -321,6 +322,8 @@ ${sourceContext} Invent ONE new wholly original hybrid adult companion that beli
 
 Naming: invent a distinctive new name (2–4 words or one rare compound). Never reuse either parent’s full name.${infuseLine}
 
+Rarity: the \`rarity\` field in your tool output is ignored — the server rolls the child’s tier from the Nexus outcome table using both parents’ rarities. Still output a plausible \`rarity\` string for logging only.
+
 Also output merge_stats integers 0-100 (compatibility = how fused the two essences feel; resonance = emotional chord stability; pulse = erotic charge / tension; affinity = user bond potential).
 
 Output ONLY via the nexus_merge_companion tool call.`;
@@ -468,7 +471,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
 
     const merge_stats = normalizeMergeStats(fields.merge_stats);
     const coolUntil = new Date(Date.now() + COOLDOWN_MS).toISOString();
-    const childRarity = String(fields.rarity || "rare").toLowerCase();
+    const childRarity = rollNexusChildRarity(String(pa.rarity || "common"), String(pb.rarity || "common"));
     const childTcg = mergeTcgForNexusChild(
       `${idA}:${idB}:${userId}`,
       childRarity,
@@ -602,6 +605,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
         success: true,
         childId: `cc-${inserted.id}`,
         name: insertRow.name,
+        rarity: childRarity,
         merge_stats,
         trait_fusion_summary: String(fields.trait_fusion_summary || ""),
         creditsCharged: totalCost,

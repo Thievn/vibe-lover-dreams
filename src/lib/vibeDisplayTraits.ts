@@ -48,14 +48,17 @@ export function parseStoredDisplayTraits(raw: unknown): { id: string; inherited?
   return out.length ? out : null;
 }
 
-/** Four permanent traits for stock / user forge: keyword-aware, nexusOnly excluded. */
+/** Permanent traits for stock / user forge: count by rarity (1–6), keyword-aware, nexusOnly excluded. */
 export function inferBaseDisplayTraits(params: {
   seed: string;
   tags: string[];
   kinks: string[];
   personality: string;
   bio: string;
+  rarity?: CompanionRarity | string | null;
 }): VibeDisplayTrait[] {
+  const r = normalizeCompanionRarity(params.rarity ?? undefined);
+  const count = NEXUS_TRAITS_BASE_COUNT[r] ?? 1;
   const pool = listBaseRollableTraitIds();
   const text = [params.tags.join(" "), params.kinks.join(" "), params.personality, params.bio].join(" ").toLowerCase();
 
@@ -75,9 +78,9 @@ export function inferBaseDisplayTraits(params: {
   const ranked = [...pool].sort((a, b) => scoreFor(b) - scoreFor(a));
   const take = (() => {
     if (ranked[0] !== undefined && scoreFor(ranked[0]) > 3) {
-      return pickDeterministic(ranked, params.seed, 4, "base");
+      return pickDeterministic(ranked, params.seed, count, "base");
     }
-    return pickDeterministic(ranked, params.seed, 4, "baseflat");
+    return pickDeterministic(ranked, params.seed, count, "baseflat");
   })();
   return take
     .map((id) => getVibeTraitById(id))
@@ -113,6 +116,7 @@ export function resolveDisplayTraitsForDb(
     kinks: db.kinks ?? [],
     personality: db.personality ?? "",
     bio: db.bio ?? "",
+    rarity: db.rarity,
   });
 }
 
@@ -124,12 +128,13 @@ export function resolveDisplayTraitsForCompanion(c: Companion): VibeDisplayTrait
     kinks: c.kinks,
     personality: c.personality,
     bio: c.bio,
+    rarity: c.rarity ?? undefined,
   });
 }
 
 /**
  * Produces the JSON to store in `display_traits` for a fresh forge (non-Nexus) row.
- * Exactly four ids.
+ * Count matches forge rarity (1–6).
  */
 export function serializeBaseDisplayTraitsForInsert(params: {
   seed: string;
@@ -137,6 +142,7 @@ export function serializeBaseDisplayTraitsForInsert(params: {
   kinks: string[];
   personality: string;
   bio: string;
+  rarity: CompanionRarity | string;
 }): { id: string; inherited?: boolean }[] {
   return inferBaseDisplayTraits(params).map((t) => ({ id: t.id }));
 }

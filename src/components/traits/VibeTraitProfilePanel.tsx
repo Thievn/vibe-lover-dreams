@@ -33,7 +33,7 @@ export function VibeTraitProfilePanel({ traits, isNexus }: Props) {
       <p className="text-xs text-muted-foreground mb-6 max-w-2xl leading-relaxed">
         {isNexus
           ? "Nexus-forged: parents left fingerprints; the veil rolled in spice from the 50. Funny or extreme lines only show up on hybrids from The Nexus."
-          : "Four fixed lines that stay with this ascendant. Only Nexus children roll the full 50 and extra hybrid spice."}
+          : "Fixed vibe lines tied to this card’s rarity (1–6). Only Nexus children roll the full 50 plus the extra Nexus line."}
       </p>
       <div className="grid gap-2.5 sm:grid-cols-2">
         {traits.map((t) => {

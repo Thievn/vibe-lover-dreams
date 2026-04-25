@@ -1,7 +1,7 @@
 /**
  * Vibe traits: personality flavor chips for profile + cards.
  * The full 50-id pool is rolled only for Nexus-forged characters (plus inheritance rules).
- * Base companions use `inferBaseDisplayTraits` (4 traits, nexusOnly traits excluded from rolls).
+ * Base companions use `inferBaseDisplayTraits` (trait count = rarity: 1–6, nexusOnly excluded from rolls).
  */
 import type { CompanionRarity } from "@/lib/companionRarity";
 

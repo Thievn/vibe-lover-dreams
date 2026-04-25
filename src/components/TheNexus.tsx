@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Orbit, Sparkles, Heart, Waves, Zap, Lock, Info } from "lucide-react";
+import { Orbit, Sparkles, Lock, Percent } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { DbCompanion } from "@/hooks/useCompanions";
@@ -22,7 +22,11 @@ import { normalizeCompanionRarity } from "@/lib/companionRarity";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { AdminLoopingVideoBlock } from "@/components/admin/AdminLoopingVideoBlock";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { getNexusRarityOutcomesTable } from "@/lib/nexusRarityOutcomesTable";
+import {
+  formatNexusOddsPercent,
+  getNexusRarityOutcomesTable,
+  nexusParentPairKey,
+} from "@/lib/nexusRarityOutcomesTable";
 import { COMPANION_RARITIES, rarityDisplayLabel } from "@/lib/companionRarity";
 import { CompanionVibeTraitStrip } from "@/components/traits/CompanionVibeTraitStrip";
 import { resolveDisplayTraitsForDb } from "@/lib/vibeDisplayTraits";
@@ -139,7 +143,7 @@ function NexusCard({
         ) : null}
         {nexusPoolTraits.length > 0 && !locked ? (
           <div className="absolute bottom-12 left-0 right-0 z-[3] px-1.5 pointer-events-auto">
-            <CompanionVibeTraitStrip traits={nexusPoolTraits} className="justify-center" size="sm" max={4} />
+            <CompanionVibeTraitStrip traits={nexusPoolTraits} className="justify-center" size="sm" max={8} />
           </div>
         ) : null}
         <div className="absolute inset-x-0 bottom-0 z-[3] p-2.5 pt-8">
@@ -199,6 +203,10 @@ export default function TheNexus({
 
   const compatibility = alpha && omega ? computeNexusCompatibility(alpha, omega) : null;
   const fusionPreview = alpha && omega ? buildTraitFusionPreview(alpha, omega) : "";
+  const selectedPairKey =
+    alpha && omega
+      ? nexusParentPairKey(normalizeCompanionRarity(alpha.rarity), normalizeCompanionRarity(omega.rarity))
+      : null;
 
   const isAdmin = mode === "admin";
   const totalCost = isAdmin ? 0 : NEXUS_MERGE_BASE_COST + (infuse ? NEXUS_INFUSE_EXTRA_COST : 0);
@@ -362,22 +370,22 @@ export default function TheNexus({
                 <DialogTrigger asChild>
                   <button
                     type="button"
-                    className="shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/12 bg-black/50 text-white/80 hover:text-white hover:border-primary/40 transition-colors"
-                    title="Rarity merge odds"
-                    aria-label="Nexus rarity outcome percentages"
+                    className="shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-violet-500/35 bg-gradient-to-br from-violet-950/70 to-black/60 text-violet-100/90 shadow-[0_0_18px_rgba(139,92,246,0.25)] hover:border-fuchsia-400/50 hover:text-white transition-colors"
+                    title="Official Nexus rarity odds"
+                    aria-label="Open Nexus rarity outcome table"
                   >
-                    <Info className="h-4 w-4" />
+                    <Percent className="h-4 w-4" strokeWidth={2.25} />
                   </button>
                 </DialogTrigger>
                 <DialogContent className="max-w-[min(100vw-1.5rem,56rem)] max-h-[85vh] flex flex-col gap-0 p-0 border-white/10 bg-zinc-950/95 text-foreground">
                   <DialogHeader className="px-5 py-4 border-b border-white/10 shrink-0 text-left">
                     <DialogTitle className="font-gothic text-lg sm:text-xl pr-6">
-                      Nexus · child rarity by parent pair
+                      Nexus · official rarity odds
                     </DialogTitle>
                     <p className="text-xs text-muted-foreground font-normal leading-relaxed mt-1.5 max-w-2xl">
-                      Percentages are the product&apos;s intended distribution (each row sums to 100%). Your merge still
-                      passes through the fusion model; use this as transparent odds, not a guarantee of any single
-                      roll.
+                      When you merge, the server rolls the child&apos;s tier from this table (parent order does not
+                      matter). Each row sums to 100%. All parent rarity combinations are explicitly defined here. Trait
+                      chips = rolled child tier (1–6) plus one Nexus bonus line.
                     </p>
                   </DialogHeader>
                   <div className="overflow-x-auto overflow-y-auto px-0 pb-4 -mx-0 min-h-0">
@@ -398,21 +406,33 @@ export default function TheNexus({
                         </tr>
                       </thead>
                       <tbody>
-                        {nexusRarityTableRows.map((row) => (
-                          <tr
-                            key={`${row.parentA}::${row.parentB}`}
-                            className="border-b border-white/[0.06] hover:bg-white/[0.03]"
-                          >
-                            <td className="sticky left-0 z-[1] bg-zinc-950/98 px-3 py-1.5 font-medium text-foreground whitespace-nowrap">
-                              {rarityDisplayLabel(row.parentA)} + {rarityDisplayLabel(row.parentB)}
-                            </td>
-                            {COMPANION_RARITIES.map((r) => (
-                              <td key={r} className="px-1.5 py-1.5 text-center tabular-nums text-muted-foreground">
-                                {row.childChancePct[r] ?? 0}
+                        {nexusRarityTableRows.map((row) => {
+                          const rk = `${row.parentA}::${row.parentB}`;
+                          const highlighted = selectedPairKey === rk;
+                          return (
+                            <tr
+                              key={rk}
+                              className={cn(
+                                "border-b border-white/[0.06] hover:bg-white/[0.03]",
+                                highlighted && "bg-fuchsia-500/[0.12] ring-1 ring-inset ring-fuchsia-500/25",
+                              )}
+                            >
+                              <td className="sticky left-0 z-[1] bg-zinc-950/98 px-3 py-1.5 font-medium text-foreground whitespace-nowrap">
+                                {rarityDisplayLabel(row.parentA)} + {rarityDisplayLabel(row.parentB)}
+                                {highlighted ? (
+                                  <span className="ml-2 text-[9px] font-bold uppercase tracking-wider text-fuchsia-300/90">
+                                    Your pair
+                                  </span>
+                                ) : null}
                               </td>
-                            ))}
-                          </tr>
-                        ))}
+                              {COMPANION_RARITIES.map((r) => (
+                                <td key={r} className="px-1.5 py-1.5 text-center tabular-nums text-muted-foreground">
+                                  {formatNexusOddsPercent(row.childChancePct[r] ?? 0)}
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -503,6 +523,11 @@ export default function TheNexus({
                     <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Compatibility</p>
                     <p className="font-gothic text-5xl tabular-nums gradient-vice-text">{compatibility}%</p>
                     <p className="text-xs text-muted-foreground leading-relaxed text-left">{fusionPreview}</p>
+                    <p className="text-[10px] text-violet-200/80 leading-snug text-left pt-1">
+                      Tap the violet <span className="font-semibold text-violet-100">% odds</span> orb — your parent
+                      pair row highlights in the matrix. The server rolls rarity on merge; trait chips follow that tier
+                      (1–6) plus one Nexus bonus line.
+                    </p>
                   </div>
                   <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-white/10 bg-black/30 p-4 hover:border-primary/30 transition-colors">
                     <input

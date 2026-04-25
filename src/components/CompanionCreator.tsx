@@ -1366,6 +1366,7 @@ User flavor notes: ${extraNotes || "none"}`;
             kinks: kinksOut,
             personality: rowPersonality,
             bio: bioRow,
+            rarity: isAdmin ? adminTier : rarityForTcg,
           }),
         });
       }
