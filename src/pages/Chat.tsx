@@ -129,6 +129,8 @@ import type { LustforgeMediaRequest } from "@/lib/parseLustforgeMediaRequest";
 /** Optional second arg for `sendMessage`: internal image brief (not shown in chat) + skip confirm for + menu. */
 type SendMessageOptions = {
   imageGenerationPrompt?: string;
+  /** Smart photo menu: merged into the image scene after the tier base (FAB) prompt. */
+  styledSceneExtension?: string;
   bypassImageConfirmation?: boolean;
   /** True for + menu / media bar / FAB — may use free NSFW slots. Typed free-text requests are always charged. */
   imageRequestFromMenu?: boolean;
@@ -1788,6 +1790,7 @@ const Chat = () => {
     const promptForImage = resolveChatImageGenerationPrompt({
       messageText,
       menuImagePrompt: options?.imageGenerationPrompt ?? null,
+      styledSceneExtension: options?.styledSceneExtension ?? null,
     });
     const requestingImage = mediaRoute === "image";
     const requestingVideo = mediaRoute === "video";
@@ -2505,6 +2508,14 @@ const Chat = () => {
                 safeWord={safeWord}
                 companionName={companion.name}
                 onMediaRequest={handleMediaBarRequest}
+                onStyledStillRequest={(p) =>
+                  void sendMessage(p.userLine, {
+                    imageGenerationPrompt: FAB_SELFIE[p.tier].imagePrompt,
+                    styledSceneExtension: p.sceneExtension,
+                    bypassImageConfirmation: true,
+                    imageRequestFromMenu: true,
+                  })
+                }
                 mediaMenuDisabled={Boolean(user && !isAdminUser && tokensBalance <= 0)}
                 videoMenuDisabled={Boolean(user && !isAdminUser && tokensBalance < CHAT_VIDEO_TOKEN_COST)}
                 imageCostLabel={isAdminUser ? "waived" : `${CHAT_IMAGE_LEWD_FC}–${CHAT_IMAGE_NUDE_FC} FC still`}

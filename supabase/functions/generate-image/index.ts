@@ -22,6 +22,13 @@ const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const DEFAULT_IMAGE_MODEL = "grok-imagine-image";
+const XAI_IMAGE_PROMPT_SOFT_LIMIT = 7600;
+
+function clampPromptForXai(prompt: string, maxChars: number): string {
+  const compact = prompt.replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (compact.length <= maxChars) return compact;
+  return `${compact.slice(0, maxChars).trimEnd()}…`;
+}
 
 async function refundTokens(
   supabase: ReturnType<typeof createClient>,
@@ -289,7 +296,7 @@ serve(async (req) => {
       .filter(Boolean)
       .join("\n");
 
-    const finalPrompt = isPortrait
+    const finalPromptRaw = isPortrait
       ? `
 ${PORTRAIT_IMAGE_DESIGN_BRIEF}
 
@@ -326,6 +333,7 @@ ${refLines ? `${refLines}\n` : ""}
 PRIMARY SCENE (follow closely — rewriter output is authoritative for mood and explicitness):
 ${safeRewritten}
     `.trim();
+    const finalPrompt = clampPromptForXai(finalPromptRaw, XAI_IMAGE_PROMPT_SOFT_LIMIT);
 
     const model = Deno.env.get("GROK_IMAGE_MODEL")?.trim() || DEFAULT_IMAGE_MODEL;
 

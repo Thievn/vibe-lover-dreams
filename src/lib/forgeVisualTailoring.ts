@@ -104,6 +104,12 @@ export const FORGE_SPECIAL_FEATURES = [
   "Heterochromia",
   "Elf ears",
   "Cybernetic lines",
+  "Bioluminescent markings",
+  "Runic sigils",
+  "Crystalline inlays",
+  "Solar shimmer",
+  "Galaxy freckles",
+  "Arcane halo",
 ] as const;
 
 export const FORGE_OUTFIT_STYLES = [

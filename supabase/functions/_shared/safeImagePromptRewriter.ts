@@ -69,6 +69,15 @@ export type RewritePromptForImagineArgs = {
   rewriteMode?: ImagineRewriteMode;
 };
 
+function compactPromptText(input: string, maxChars: number): string {
+  const normalized = input
+    .replace(/\s+/g, " ")
+    .replace(/\s*([,.;:!?])\s*/g, "$1 ")
+    .trim();
+  if (normalized.length <= maxChars) return normalized;
+  return `${normalized.slice(0, maxChars).trimEnd()}…`;
+}
+
 function stripCodeFences(text: string): string {
   let s = text.trim();
   if (s.startsWith("```")) {
@@ -150,5 +159,6 @@ export async function rewritePromptForImagine(args: RewritePromptForImagineArgs)
     throw new Error("Rewriter: model returned an empty or unusable prompt. Try again.");
   }
 
-  return content.slice(0, 8000);
+  const maxChars = mode === "portrait_card" ? 2600 : 3800;
+  return compactPromptText(content, maxChars);
 }

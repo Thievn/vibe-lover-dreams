@@ -37,8 +37,13 @@ function resolvePersonalityMatrix(companion: Companion): ForgePersonalityProfile
  */
 export function classifyChatImageMood(input: { rawUserMessage: string; menuBasePrompt: string | null }): FabSelfieTier {
   if (input.menuBasePrompt) {
-    if (input.menuBasePrompt === FAB_SELFIE.nude.imagePrompt) return "nude";
-    if (input.menuBasePrompt === FAB_SELFIE.lewd.imagePrompt) return "lewd";
+    const m = input.menuBasePrompt.trim();
+    const nudeBase = FAB_SELFIE.nude.imagePrompt;
+    const lewdBase = FAB_SELFIE.lewd.imagePrompt;
+    const sfwBase = FAB_SELFIE.sfw.imagePrompt;
+    if (m === nudeBase || m.startsWith(`${nudeBase}\n`)) return "nude";
+    if (m === lewdBase || m.startsWith(`${lewdBase}\n`)) return "lewd";
+    if (m === sfwBase || m.startsWith(`${sfwBase}\n`)) return "sfw";
     return "sfw";
   }
   const t = input.rawUserMessage.toLowerCase();

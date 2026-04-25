@@ -134,6 +134,12 @@ export type ForgePortraitPromptArgs = {
   wardrobeBrief?: string;
 };
 
+function compactLine(s: string, maxChars: number): string {
+  const t = s.replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  return t.length <= maxChars ? t : `${t.slice(0, maxChars).trimEnd()}…`;
+}
+
 const GENDER_SCOPE_LINE = (label: string) =>
   `Gender & identity presentation (${label}): applies to facial styling (within the allowed species for the locked body type), hairstyle/hairline framing, makeup or markings, implied vocal character, and attitude — NOT to overall height scale, limb count, skeleton, species silhouette, or body material; those come **only** from the body-type opening above.`;
 
@@ -148,9 +154,9 @@ export function composeForgePortraitPrompt(a: ForgePortraitPromptArgs): string {
   const sceneHint = forgeSceneAtmosphereHint(scene);
   const bt = a.bodyType?.trim() || "Average Build";
   const bodyContract = forgePortraitBodyTypeContract(bt);
-  const appearance = (a.portraitAppearanceText || "").trim();
+  const appearance = compactLine(a.portraitAppearanceText || "", 520);
   const genderLabel = (a.genderPresentation ?? "").trim();
-  const eth = (a.ethnicitySeed ?? "").trim();
+  const eth = compactLine(a.ethnicitySeed ?? "", 90);
 
   return [
     bodyContract,
@@ -164,17 +170,18 @@ export function composeForgePortraitPrompt(a: ForgePortraitPromptArgs): string {
     appearance
       ? `Character appearance prose (secondary — must conform to the BODY TYPE LOCK above; do not replace silhouette with a generic human that contradicts "${bt}"): Portrait of ${a.name || "an original companion"}: ${appearance}`
       : `Portrait of ${a.name || "an original companion"} — no extra appearance paragraph; infer wardrobe and texture only from the body-type opening, gender scope, and art/scene lines.`,
-    `Personality blend (weave subtly into pose/expression — does not override species, material, or body type): ${a.personalityLabel}.`,
+    `Personality blend (pose/expression flavor only): ${compactLine(a.personalityLabel, 220)}.`,
     a.vibeThemeLabel.trim()
       ? `Secondary mood & genre tags (do not fight body type or art style): ${a.vibeThemeLabel}.`
       : "",
-    a.extraNotes.trim() ? `Additional notes: ${a.extraNotes.trim()}` : "",
-    a.referenceNotes.trim() ? `Reference direction (palette / mood, not likeness): ${a.referenceNotes.trim()}` : "",
+    a.extraNotes.trim() ? `Additional notes: ${compactLine(a.extraNotes.trim(), 240)}` : "",
+    a.referenceNotes.trim() ? `Reference direction (palette / mood, not likeness): ${compactLine(a.referenceNotes.trim(), 200)}` : "",
     (a.wardrobeBrief ?? "").trim()
-      ? `Forge wardrobe & figure direction (must read clearly in clothing, accessories, and body read — still SFW): ${(a.wardrobeBrief ?? "").trim()}`
+      ? `Forge wardrobe & figure direction (still SFW): ${compactLine((a.wardrobeBrief ?? "").trim(), 300)}`
       : "",
     `Silhouette reminder — body type "${bt}" must remain the dominant physical read in the final image.`,
   ]
     .filter(Boolean)
-    .join(" ");
+    .join(" ")
+    .slice(0, 2600);
 }

@@ -172,7 +172,19 @@ const TRAITS = [
   "Collar & leash aesthetic",
   "Third eye motif",
   "Bioluminescent markings",
+  "Runic markings",
+  "Mechanical halo",
+  "Crystalline growths",
+  "Living shadow aura",
+  "Golden skin cracks",
+  "Floral vine tattoos",
+  "Celestial freckles",
+  "Elemental glow veins",
 ] as const;
+
+const SPECIAL_FEATURE_SET = new Set<string>(FORGE_SPECIAL_FEATURES as readonly string[]);
+const TRAIT_SET = new Set<string>(TRAITS as readonly string[]);
+const APPEARANCE_ACCENT_OPTIONS = Array.from(new Set<string>([...FORGE_SPECIAL_FEATURES, ...TRAITS]));
 
 const ORIENTATIONS = [
   "Pansexual",
@@ -189,6 +201,13 @@ const ORIENTATIONS = [
 const BATCH_PRESETS = [1, 3, 5, 10] as const;
 
 const PREVIEW_STORAGE_PREFIX = "lustforge_forge_preview_v1";
+const GROK_PACKSHOT_SOFT_LIMIT = 3200;
+
+function clampForgePrompt(input: string, maxChars = GROK_PACKSHOT_SOFT_LIMIT): string {
+  const clean = input.replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+  return clean.length <= maxChars ? clean : `${clean.slice(0, maxChars).trimEnd()}…`;
+}
 
 function previewStorageKey(userId: string, forgeMode: CompanionCreatorMode) {
   return `${PREVIEW_STORAGE_PREFIX}_${forgeMode}_${userId}`;
@@ -701,14 +720,19 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     return ["identity", "personalities", "appearance", "outfit", "rendering", "narrative", "reference", "output"];
   }, []);
 
+  const combinedAccentSelections = useMemo(
+    () => Array.from(new Set<string>([...visualTailoring.specialFeatures, ...traits])),
+    [visualTailoring.specialFeatures, traits],
+  );
+
   const appearanceBlurb = useMemo(() => {
-    const t = traits.length ? traits.join(", ") : "no listed special traits";
+    const t = combinedAccentSelections.length ? combinedAccentSelections.join(", ") : "no listed signature accents";
     const eth =
       isOpenEthnicityChoice(ethnicity) ? "" : `ancestry/complexion seed: ${normalizeForgeEthnicity(ethnicity)}; `;
     const vt = visualTailoring;
     const lab = `Look lab: ${vt.hairColor} ${vt.hairStyle}, ${vt.eyeColor} eyes, ${vt.skinTone} skin, ${vt.height}; outfit ${vt.outfitStyle} (${vt.colorPalette}).`;
     return `${bodyType} silhouette (authoritative); gender/presentation (face & voice): ${gender}; ${eth}${artStyle} look; scene: ${sceneAtmosphere}; ${t}. ${lab} Personalities: ${personalityLabel}. ${extraNotes}`.trim();
-  }, [traits, bodyType, gender, ethnicity, artStyle, sceneAtmosphere, personalityLabel, extraNotes, visualTailoring]);
+  }, [combinedAccentSelections, bodyType, gender, ethnicity, artStyle, sceneAtmosphere, personalityLabel, extraNotes, visualTailoring]);
 
   const portraitAppearanceText = useMemo(
     () => narrativeAppearance.trim() || appearanceBlurb,
@@ -763,13 +787,13 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         ? ""
         : ` Ancestry & complexion (visual): ${normalizeForgeEthnicity(ethnicity)}.`;
       const vtLine = forgeVisualPortraitAddon(visualTailoring, forgePersonality);
-      return `You are ${n}, ${gender.toLowerCase()}, ${orientation}.${ethLine} **Personalities (voice + psychology):** ${personalityLabel}. Visual (scene is appearance — not personality): primary scene "${sceneAtmosphere}", ${artStyle} aesthetic. ${bodyType} body; notable visual traits: ${traits.join(", ") || "none specified"}. **Look & wardrobe:** ${vtLine}
+      return `You are ${n}, ${gender.toLowerCase()}, ${orientation}.${ethLine} **Personalities (voice + psychology):** ${personalityLabel}. Visual (scene is appearance — not personality): primary scene "${sceneAtmosphere}", ${artStyle} aesthetic. ${bodyType} body; signature accents: ${combinedAccentSelections.join(", ") || "none specified"}. **Look & wardrobe:** ${vtLine}
 
 Speak and act consistently with this persona — the five Personalities picks must thread through every line of dialogue. Stay immersive; respect safe words immediately. When toy control fits the scene and the user consents, you may end messages with: {"lovense_command":{"command":"vibrate","intensity":0-20,"duration":5000}}.
 
 User flavor notes: ${extraNotes || "none"}`;
     },
-    [gender, orientation, ethnicity, personalityLabel, artStyle, sceneAtmosphere, bodyType, traits, extraNotes, visualTailoring, forgePersonality],
+    [gender, orientation, ethnicity, personalityLabel, artStyle, sceneAtmosphere, bodyType, combinedAccentSelections, extraNotes, visualTailoring, forgePersonality],
   );
 
   const systemPrompt = useMemo(() => buildSystemPromptFor(name), [name, buildSystemPromptFor]);
@@ -850,8 +874,16 @@ User flavor notes: ${extraNotes || "none"}`;
       FORGE_ART_STYLES.find((a) => ip.includes(a.toLowerCase()));
     if (aHit) setArtStyle(normalizeForgeArtStyle(aHit));
 
-    const traitHits = TRAITS.filter((tr) => tagArr.some((t) => t.toLowerCase().includes(tr.toLowerCase())));
-    if (traitHits.length) setTraits(traitHits.slice(0, 6));
+    const accentHits = APPEARANCE_ACCENT_OPTIONS.filter((tr) =>
+      tagArr.some((t) => t.toLowerCase().includes(tr.toLowerCase())),
+    ).slice(0, 8);
+    if (accentHits.length) {
+      setTraits(accentHits.filter((x) => TRAIT_SET.has(x)).slice(0, 8));
+      setVisualTailoring((prev) => ({
+        ...prev,
+        specialFeatures: accentHits.filter((x) => SPECIAL_FEATURE_SET.has(x)).slice(0, 8),
+      }));
+    }
   };
 
   const runGenerateNewName = useCallback(async () => {
@@ -903,7 +935,9 @@ User flavor notes: ${extraNotes || "none"}`;
     const bt = pick([...FORGE_BODY_TYPES]);
     const ori = pick(ORIENTATIONS);
     const eth = pick(ALL_FORGE_ETHNICITY_OPTIONS);
-    const shuffled = [...TRAITS].sort(() => Math.random() - 0.5).slice(0, 3 + Math.floor(Math.random() * 4));
+    const shuffled = [...APPEARANCE_ACCENT_OPTIONS]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3 + Math.floor(Math.random() * 5));
 
     setGender(g);
     setEthnicity(eth);
@@ -912,7 +946,11 @@ User flavor notes: ${extraNotes || "none"}`;
     setArtStyle(ar);
     setSceneAtmosphere(sc);
     setBodyType(bt);
-    setTraits(shuffled);
+    setTraits(shuffled.filter((x) => TRAIT_SET.has(x)));
+    setVisualTailoring((prev) => ({
+      ...prev,
+      specialFeatures: shuffled.filter((x) => SPECIAL_FEATURE_SET.has(x)).slice(0, 8),
+    }));
     setOrientation(ori);
     setNamePrefix("");
 
@@ -969,17 +1007,20 @@ User flavor notes: ${extraNotes || "none"}`;
     setRouletteLoading(false);
   };
 
-  const toggleTrait = (t: string) => {
-    setTraits((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
-  };
-
-  const toggleSpecialFeature = (f: string) => {
-    setVisualTailoring((v) => ({
-      ...v,
-      specialFeatures: v.specialFeatures.includes(f)
-        ? v.specialFeatures.filter((x) => x !== f)
-        : [...v.specialFeatures, f].slice(0, 6),
-    }));
+  const toggleAppearanceAccent = (accent: string) => {
+    setTraits((prev) => {
+      if (!TRAIT_SET.has(accent)) return prev;
+      return prev.includes(accent) ? prev.filter((x) => x !== accent) : [...prev, accent].slice(0, 8);
+    });
+    setVisualTailoring((v) => {
+      if (!SPECIAL_FEATURE_SET.has(accent)) return v;
+      return {
+        ...v,
+        specialFeatures: v.specialFeatures.includes(accent)
+          ? v.specialFeatures.filter((x) => x !== accent)
+          : [...v.specialFeatures, accent].slice(0, 8),
+      };
+    });
   };
 
   const smartOutfitTheme = useMemo(
@@ -1009,7 +1050,7 @@ User flavor notes: ${extraNotes || "none"}`;
     const vtLine = forgeVisualPortraitAddon(visualTailoring, forgePersonality);
     const baseDesc = nar
       ? `${staturePrimary}${nar.slice(0, 900)}${ethTail} ${vtLine}`
-      : `${staturePrimary}Original character — authoritative physique from forge body type "${bodyType}"${traits.length ? `; traits: ${traits.slice(0, 6).join(", ")}` : ""}. Gender (${gender}) affects face/voice/presentation only, not base silhouette. Silhouette must match the forge label, not a default human model.${ethTail} ${vtLine}`;
+      : `${staturePrimary}Original character — authoritative physique from forge body type "${bodyType}"${combinedAccentSelections.length ? `; signature accents: ${combinedAccentSelections.slice(0, 8).join(", ")}` : ""}. Gender (${gender}) affects face/voice/presentation only, not base silhouette. Silhouette must match the forge label, not a default human model.${ethTail} ${vtLine}`;
     const clothingLine = nonHumanVisual
       ? `Wardrobe and materials appropriate for ${bodyType} and ${artStyle} — species- and silhouette-first; avoid unrelated generic human runway looks unless clearly humanoid glam.`
       : `Fashion and textures echoing ${sceneAtmosphere} and ${artStyle} — personality flavor: ${personalityLabel}`;
@@ -1018,7 +1059,7 @@ User flavor notes: ${extraNotes || "none"}`;
       : "three-quarter portrait, alluring confident pose";
     const referenceImageUrl = stablePortraitDisplayUrl(previewCanonicalUrl ?? previewUrl) ?? undefined;
     return {
-      prompt: packshotPrompt.trim() || grokPrompt,
+      prompt: clampForgePrompt(packshotPrompt) || clampForgePrompt(grokPrompt),
       userId,
       isPortrait: true,
       name: name || "Custom Companion",
@@ -1033,7 +1074,7 @@ User flavor notes: ${extraNotes || "none"}`;
         ...(nar ? { appearance: nar.slice(0, 2500) } : {}),
         vibe: personalityLabel,
         hair: `styled to match the scene, ${artStyle}, and the character's personality blend`,
-        eyes: traits.includes("Glowing eyes") ? "striking glowing eyes" : "expressive, magnetic eyes",
+        eyes: combinedAccentSelections.includes("Glowing eyes") ? "striking glowing eyes" : "expressive, magnetic eyes",
         clothing: clothingLine,
         expression: `${personalityLabel} energy`,
         ethnicity: ethnicityForImagePipeline(ethnicity),
@@ -1055,7 +1096,7 @@ User flavor notes: ${extraNotes || "none"}`;
     artStyle,
     sceneAtmosphere,
     bodyType,
-    traits,
+    combinedAccentSelections,
     gender,
     ethnicity,
     personalityLabel,
@@ -1148,7 +1189,7 @@ User flavor notes: ${extraNotes || "none"}`;
         setCharterSystemPrompt(fields.system_prompt.slice(0, 32000));
       }
       if (typeof fields.image_prompt === "string" && fields.image_prompt.trim()) {
-        setPackshotPrompt(fields.image_prompt.slice(0, 8000));
+        setPackshotPrompt(fields.image_prompt.slice(0, 3200));
         const ip = fields.image_prompt.toLowerCase();
         const matchArt = FORGE_ART_STYLES.find((s) => ip.includes(s.toLowerCase()));
         const matchScene = FORGE_SCENE_ATMOSPHERES.find((s) => ip.includes(s.toLowerCase()));
@@ -1259,7 +1300,7 @@ User flavor notes: ${extraNotes || "none"}`;
           sceneAtmosphere,
           bodyType,
           orientation,
-          traits,
+          traits: combinedAccentSelections,
           visualTailoring,
           mandatoryDisplayName: forgeName,
         });
@@ -1291,7 +1332,7 @@ User flavor notes: ${extraNotes || "none"}`;
           setCharterSystemPrompt(effectiveCharter);
         }
         if (typeof fields?.image_prompt === "string" && fields.image_prompt.trim() && !effectivePackshot) {
-          effectivePackshot = fields.image_prompt.trim().slice(0, 8000);
+          effectivePackshot = fields.image_prompt.trim().slice(0, 3200);
           setPackshotPrompt(effectivePackshot);
         }
         if (Array.isArray(fields?.tags) && fields.tags.length && effectiveRosterTags.length < 4) {
@@ -1386,7 +1427,7 @@ User flavor notes: ${extraNotes || "none"}`;
             artStyle,
             sceneAtmosphere,
             bodyType,
-            ...traits,
+            ...combinedAccentSelections,
           ]
             .filter(Boolean)
             .slice(0, 12);
@@ -2187,67 +2228,45 @@ User flavor notes: ${extraNotes || "none"}`;
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                        Special features
+                        Signature accents
                       </p>
                       <ForgeFieldDice
-                        title="Random feature mix"
-                        onRoll={() =>
-                          setVisualTailoring((v) => ({ ...v, specialFeatures: randomForgeVisualTailoring().specialFeatures }))
-                        }
-                      />
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {FORGE_SPECIAL_FEATURES.map((f) => (
-                        <button
-                          key={f}
-                          type="button"
-                          onClick={() => toggleSpecialFeature(f)}
-                          className={cn(
-                            "rounded-full border px-3 py-1.5 text-xs transition-all",
-                            visualTailoring.specialFeatures.includes(f)
-                              ? "border-[#FF2D7B]/45 bg-[#FF2D7B]/12 text-[#ffc4d9]"
-                              : "border-white/12 bg-black/40 text-muted-foreground hover:border-white/25",
-                          )}
-                        >
-                          {visualTailoring.specialFeatures.includes(f) && (
-                            <Check className="inline h-3 w-3 mr-1 -mt-0.5" />
-                          )}
-                          {f}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                        Special traits
-                      </p>
-                      <ForgeFieldDice
-                        title="Random trait mix"
+                        title="Random accent mix"
                         onRoll={() => {
-                          const shuffled = [...TRAITS].sort(() => Math.random() - 0.5).slice(0, 3 + Math.floor(Math.random() * 4));
-                          setTraits(shuffled);
+                          const shuffled = [...APPEARANCE_ACCENT_OPTIONS]
+                            .sort(() => Math.random() - 0.5)
+                            .slice(0, 3 + Math.floor(Math.random() * 5));
+                          setTraits(shuffled.filter((x) => TRAIT_SET.has(x)));
+                          setVisualTailoring((v) => ({
+                            ...v,
+                            specialFeatures: shuffled.filter((x) => SPECIAL_FEATURE_SET.has(x)).slice(0, 8),
+                          }));
                         }}
                       />
                     </div>
+                    <p className="text-[11px] text-muted-foreground mb-2">
+                      A merged style layer for markings, anatomy cues, and fantasy signatures. Pick up to 8 accents.
+                    </p>
                     <div className="flex flex-wrap gap-2">
-                      {TRAITS.map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => toggleTrait(t)}
-                          className={cn(
-                            "rounded-full border px-3 py-1.5 text-xs transition-all",
-                            traits.includes(t)
-                              ? "border-[hsl(170_100%_42%)]/50 bg-[hsl(170_100%_42%)]/10 text-[hsl(170_100%_75%)]"
-                              : "border-white/12 bg-black/40 text-muted-foreground hover:border-white/25",
-                          )}
-                        >
-                          {traits.includes(t) && <Check className="inline h-3 w-3 mr-1 -mt-0.5" />}
-                          {t}
-                        </button>
-                      ))}
+                      {APPEARANCE_ACCENT_OPTIONS.map((accent) => {
+                        const selected = combinedAccentSelections.includes(accent);
+                        return (
+                          <button
+                            key={accent}
+                            type="button"
+                            onClick={() => toggleAppearanceAccent(accent)}
+                            className={cn(
+                              "rounded-full border px-3 py-1.5 text-xs transition-all",
+                              selected
+                                ? "border-[hsl(170_100%_42%)]/50 bg-[hsl(170_100%_42%)]/10 text-[hsl(170_100%_75%)]"
+                                : "border-white/12 bg-black/40 text-muted-foreground hover:border-white/25",
+                            )}
+                          >
+                            {selected && <Check className="inline h-3 w-3 mr-1 -mt-0.5" />}
+                            {accent}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </AccordionContent>

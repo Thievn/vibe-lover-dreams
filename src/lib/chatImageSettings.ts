@@ -326,9 +326,19 @@ export function isExplicitImageRequest(text: string): boolean {
 export function resolveChatImageGenerationPrompt(args: {
   messageText: string;
   menuImagePrompt?: string | null;
+  /** Merged after tier base when user picks a smart menu style (still uses exact FAB tier string for mood). */
+  styledSceneExtension?: string | null;
 }): string {
   const menu = args.menuImagePrompt?.trim();
-  if (menu) return menu;
+  const styled = args.styledSceneExtension?.trim();
+  if (menu) {
+    if (styled) {
+      const coherence =
+        "\n\nHonor this companion's personality matrix, written appearance, and usual wardrobe vibe — change outfit only when this framing clearly implies it (e.g. shower, gym, lingerie set). Same face and body as the roster portrait.";
+      return `${menu}\n\n— Requested framing (from menu) —\n${styled}${coherence}`.trim();
+    }
+    return menu;
+  }
 
   const raw = args.messageText.trim();
   if (!raw) return raw;
