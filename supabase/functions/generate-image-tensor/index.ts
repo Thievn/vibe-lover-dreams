@@ -14,6 +14,9 @@ import {
   runTensorImageToVideoJobWithRetries,
   waitForTensorJobResult,
 } from "../_shared/tensorClient.ts";
+import { pickNudeImageModelId, pickNudeVideoModelId } from "../_shared/nudeTensorModelPick.server.ts";
+import type { NudeRenderGroup } from "../_shared/nudeTensorRenderGroup.server.ts";
+import { resolveNudeRenderGroupForCompanion } from "../_shared/resolveNudeRenderGroupForCompanion.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -216,6 +219,8 @@ Deno.serve(async (req) => {
         ? body.denoisingStrength
         : DEFAULT_DENOISE;
     const generateVideo = body.generateVideo === true;
+    /** LustForge nude-only path: pick realistic vs stylized model + cache `nude_tensor_render_group` on the companion. */
+    const nudeTensorGeneration = body.nudeTensorGeneration === true;
     const requestedVideoSource = toOptionalUrl(body.videoSourceImageUrl);
     const videoDurationSeconds = clampVideoDuration(body.videoDurationSeconds);
     tokenCost =
@@ -261,19 +266,51 @@ Deno.serve(async (req) => {
     }
 
     // Chat stills: prefer `TENSOR_CHAT_IMAGE_MODEL` (FLUX.2 Dev) when set; else `TENSOR_IMAGE_MODEL` (also defaults to FLUX.2).
+    // Nude chat stills: `nudeTensorGeneration` → dual model (realistic vs stylized) on Tensor + DB cache.
     const isChatSession = String(characterData.style ?? "") === "chat-session";
-    const imageModelRaw = isChatSession
-      ? (Deno.env.get("TENSOR_CHAT_IMAGE_MODEL") ?? Deno.env.get("TENSOR_IMAGE_MODEL") ?? DEFAULT_TENSOR_IMAGE_MODEL)
-          .trim()
-      : (Deno.env.get("TENSOR_IMAGE_MODEL") ?? DEFAULT_TENSOR_IMAGE_MODEL).trim();
-    const model = assertTensorSdModelId(
-      imageModelRaw,
-      isChatSession ? "TENSOR_CHAT_IMAGE_MODEL|TENSOR_IMAGE_MODEL" : "TENSOR_IMAGE_MODEL",
-    );
-    const videoModel = assertTensorSdModelId(
-      (Deno.env.get("TENSOR_VIDEO_MODEL") ?? DEFAULT_TENSOR_VIDEO_MODEL).trim(),
-      "TENSOR_VIDEO_MODEL",
-    );
+    const companionIdForNude = String(characterData.companionId ?? "").trim();
+
+    let nudeGroup: NudeRenderGroup | null = null;
+    if (nudeTensorGeneration) {
+      if (companionIdForNude) {
+        nudeGroup = await resolveNudeRenderGroupForCompanion((k) => Deno.env.get(k) ?? undefined, supabase, companionIdForNude);
+      } else {
+        nudeGroup = "realistic";
+      }
+    }
+
+    const genericImageFallback = (
+      isChatSession
+        ? (Deno.env.get("TENSOR_CHAT_IMAGE_MODEL") ?? Deno.env.get("TENSOR_IMAGE_MODEL") ?? DEFAULT_TENSOR_IMAGE_MODEL)
+        : (Deno.env.get("TENSOR_IMAGE_MODEL") ?? DEFAULT_TENSOR_IMAGE_MODEL)
+    ).trim();
+
+    const model: string =
+      nudeTensorGeneration && nudeGroup
+        ? pickNudeImageModelId(
+            (k) => Deno.env.get(k) ?? undefined,
+            nudeGroup,
+            assertTensorSdModelId,
+            assertTensorSdModelId(genericImageFallback, isChatSession ? "TENSOR_CHAT_IMAGE_MODEL" : "TENSOR_IMAGE_MODEL"),
+          )
+        : assertTensorSdModelId(
+            isChatSession
+              ? (Deno.env.get("TENSOR_CHAT_IMAGE_MODEL") ?? Deno.env.get("TENSOR_IMAGE_MODEL") ?? DEFAULT_TENSOR_IMAGE_MODEL)
+                  .trim()
+              : (Deno.env.get("TENSOR_IMAGE_MODEL") ?? DEFAULT_TENSOR_IMAGE_MODEL).trim(),
+            isChatSession ? "TENSOR_CHAT_IMAGE_MODEL|TENSOR_IMAGE_MODEL" : "TENSOR_IMAGE_MODEL",
+          );
+
+    const genericVideoFallback = (Deno.env.get("TENSOR_VIDEO_MODEL") ?? DEFAULT_TENSOR_VIDEO_MODEL).trim();
+    const videoModel: string =
+      nudeTensorGeneration && nudeGroup
+        ? pickNudeVideoModelId(
+            (k) => Deno.env.get(k) ?? undefined,
+            nudeGroup,
+            assertTensorSdModelId,
+            assertTensorSdModelId(genericVideoFallback, "TENSOR_VIDEO_MODEL"),
+          )
+        : assertTensorSdModelId(genericVideoFallback, "TENSOR_VIDEO_MODEL");
     const tensorPrompt = buildTensorPrompt(prompt, characterData, isPortrait);
 
     console.log("generate-image-tensor: submitting image job", {
@@ -411,10 +448,12 @@ Deno.serve(async (req) => {
       bucket: imageBucket,
       isPortrait,
       tensorModel: model,
+      tensorVideoModel: generateVideo ? videoModel : undefined,
       denoisingStrength: referenceImageUrl ? Math.max(0.1, Math.min(0.85, denoisingStrength)) : undefined,
       tokensDeducted: tokenCost > 0 ? tokenCost : undefined,
       newTokensBalance,
       videoUrl: publicVideoUrl,
+      nudeRenderGroup: nudeGroup ?? undefined,
     });
   } catch (err) {
     console.error("generate-image-tensor:", err);

@@ -14,6 +14,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
+import { invokeGenerateImageTensor } from "@/lib/invokeGenerateImageTensor";
 import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
 import { getLiveCallPresetsFallback } from "@/lib/liveCallPresetsFallback";
 import { matchesSafeWord } from "@/lib/matchesSafeWord";
@@ -634,13 +635,17 @@ const Chat = () => {
         menuImagePrompt: genOpts.menuImagePrompt,
       });
       const prompt = masterPrompt;
+      const imageMood = classifyChatImageMood({
+        rawUserMessage: genOpts.rawUserMessage,
+        menuBasePrompt: genOpts.menuImagePrompt,
+      });
+      const nudePath = imageMood === "nude";
 
       const resolvedBodyType =
         inferForgeBodyTypeFromTags(dbComp.tags ?? []) ??
         inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
         "Average Build";
       const artLabel = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
-      const packSnap = (dbComp.image_prompt || "").trim().slice(0, 900);
       const referenceImageUrl =
         (typeof (dbComp as Record<string, unknown>).static_image_url === "string" &&
           ((dbComp as Record<string, unknown>).static_image_url as string)) ||
@@ -648,26 +653,44 @@ const Chat = () => {
           ((dbComp as Record<string, unknown>).image_url as string)) ||
         null;
 
-      const { data, error } = await invokeGenerateImage({
-        prompt,
-        userId,
-        isPortrait: false,
-        tokenCost,
-        ...(referenceImageUrl ? { referenceImageUrl } : {}),
-        ...(referenceImageUrl && explicit ? { denoisingStrength: 0.74 } : {}),
-        characterData: {
-          companionId: companion.id,
-          style: "chat-session",
-          artStyleLabel: artLabel,
-          bodyType: resolvedBodyType,
-          silhouetteCategory: forgeBodyCategoryIdForType(resolvedBodyType),
-          portraitConsistencyLock,
-          tags: dbComp.tags ?? [],
-          baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
-          vibe: companion.personality,
-          clothing: companion.role ? `fits ${companion.role} energy` : undefined,
-        },
-      });
+      if (nudePath && !referenceImageUrl) {
+        toast.error("Nude stills use Tensor with your profile as reference — add a main profile image first.");
+        return null;
+      }
+
+      const commonCharacterData = {
+        companionId: companion.id,
+        style: "chat-session" as const,
+        artStyleLabel: artLabel,
+        bodyType: resolvedBodyType,
+        silhouetteCategory: forgeBodyCategoryIdForType(resolvedBodyType),
+        portraitConsistencyLock,
+        tags: dbComp.tags ?? [],
+        baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
+        vibe: companion.personality,
+        clothing: companion.role ? `fits ${companion.role} energy` : undefined,
+      };
+
+      const { data, error } = nudePath
+        ? await invokeGenerateImageTensor({
+            prompt,
+            userId,
+            isPortrait: false,
+            tokenCost,
+            ...(referenceImageUrl ? { referenceImageUrl } : {}),
+            ...(referenceImageUrl && explicit ? { denoisingStrength: 0.74 } : {}),
+            characterData: commonCharacterData,
+            nudeTensorGeneration: true,
+          })
+        : await invokeGenerateImage({
+            prompt,
+            userId,
+            isPortrait: false,
+            tokenCost,
+            ...(referenceImageUrl ? { referenceImageUrl } : {}),
+            ...(referenceImageUrl && explicit ? { denoisingStrength: 0.74 } : {}),
+            characterData: commonCharacterData,
+          });
 
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Image generation failed");
@@ -732,26 +755,40 @@ const Chat = () => {
         null;
 
       const rewardExplicit = kind === "nude" || (kind === "lewd" && isExplicitImageRequest(tierPrompt));
-      const { data, error } = await invokeGenerateImage({
-        prompt,
-        userId: user.id,
-        isPortrait: false,
-        tokenCost: 0,
-        ...(referenceImageUrl ? { referenceImageUrl } : {}),
-        ...(referenceImageUrl && rewardExplicit ? { denoisingStrength: 0.74 } : {}),
-        characterData: {
-          companionId: companion.id,
-          style: "chat-session",
-          artStyleLabel: artLabel,
-          bodyType: resolvedBodyType,
-          silhouetteCategory: forgeBodyCategoryIdForType(resolvedBodyType),
-          portraitConsistencyLock,
-          tags: dbComp.tags ?? [],
-          baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
-          vibe: companion.personality,
-          clothing: companion.role ? `fits ${companion.role} energy` : undefined,
-        },
-      });
+      const nudeAffection = kind === "nude";
+      if (nudeAffection && !referenceImageUrl) return null;
+      const cd = {
+        companionId: companion.id,
+        style: "chat-session" as const,
+        artStyleLabel: artLabel,
+        bodyType: resolvedBodyType,
+        silhouetteCategory: forgeBodyCategoryIdForType(resolvedBodyType),
+        portraitConsistencyLock,
+        tags: dbComp.tags ?? [],
+        baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
+        vibe: companion.personality,
+        clothing: companion.role ? `fits ${companion.role} energy` : undefined,
+      };
+      const { data, error } = nudeAffection
+        ? await invokeGenerateImageTensor({
+            prompt,
+            userId: user.id,
+            isPortrait: false,
+            tokenCost: 0,
+            ...(referenceImageUrl ? { referenceImageUrl } : {}),
+            ...(referenceImageUrl && rewardExplicit ? { denoisingStrength: 0.74 } : {}),
+            characterData: cd,
+            nudeTensorGeneration: true,
+          })
+        : await invokeGenerateImage({
+            prompt,
+            userId: user.id,
+            isPortrait: false,
+            tokenCost: 0,
+            ...(referenceImageUrl ? { referenceImageUrl } : {}),
+            ...(referenceImageUrl && rewardExplicit ? { denoisingStrength: 0.74 } : {}),
+            characterData: cd,
+          });
 
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Image generation failed");

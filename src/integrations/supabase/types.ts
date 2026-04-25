@@ -118,6 +118,7 @@ export type Database = {
           is_active: boolean
           kinks: string[]
           name: string
+          nude_tensor_render_group: string | null
           orientation: string
           personality: string
           rarity: string
@@ -147,6 +148,7 @@ export type Database = {
           is_active?: boolean
           kinks?: string[]
           name: string
+          nude_tensor_render_group?: string | null
           orientation?: string
           personality?: string
           rarity?: string
@@ -176,6 +178,7 @@ export type Database = {
           is_active?: boolean
           kinks?: string[]
           name?: string
+          nude_tensor_render_group?: string | null
           orientation?: string
           personality?: string
           rarity?: string
@@ -216,6 +219,7 @@ export type Database = {
           merge_stats: Json | null
           name: string
           nexus_cooldown_until: string | null
+          nude_tensor_render_group: string | null
           orientation: string
           personality: string
           personality_forge: Json
@@ -258,6 +262,7 @@ export type Database = {
           merge_stats?: Json | null
           name: string
           nexus_cooldown_until?: string | null
+          nude_tensor_render_group?: string | null
           orientation?: string
           personality?: string
           personality_forge?: Json
@@ -300,6 +305,7 @@ export type Database = {
           merge_stats?: Json | null
           name?: string
           nexus_cooldown_until?: string | null
+          nude_tensor_render_group?: string | null
           orientation?: string
           personality?: string
           personality_forge?: Json
