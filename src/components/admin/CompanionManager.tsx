@@ -1704,7 +1704,7 @@ const CompanionManager = () => {
           onClick={() => openEdit(companion.id)}
         >
           <div className="flex items-center gap-3 p-4">
-            <div className="w-12 h-12 shrink-0 overflow-visible p-0.5">
+            <div className="w-14 h-[4.5rem] shrink-0 overflow-visible p-0.5">
               <TierHaloPortraitFrame
                 variant="compact"
                 frameStyle="clean"
@@ -1712,7 +1712,8 @@ const CompanionManager = () => {
                 gradientFrom={companion.gradient_from}
                 gradientTo={companion.gradient_to}
                 overlayUrl={companion.rarity_border_overlay_url}
-                aspectClassName="aspect-square w-full h-full"
+                aspectClassName="aspect-[9/16] w-full h-full"
+                rarityFrameBleed
               >
                 <div
                   className="absolute inset-0 z-0"

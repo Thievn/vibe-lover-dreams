@@ -2,6 +2,7 @@
 const KEY = "lustforge-admin-forge-stash-v1";
 
 import { DEFAULT_FORGE_PERSONALITY, normalizeForgePersonality, type ForgePersonalityProfile } from "@/lib/forgePersonalityProfile";
+import { normalizeForgeVisualTailoring, type ForgeVisualTailoring } from "@/lib/forgeVisualTailoring";
 
 export type ForgeStashPayload = {
   savedAt: string;
@@ -35,6 +36,8 @@ export type ForgeStashPayload = {
   fantasyStartersJson: string;
   previewUrl: string | null;
   previewCanonicalUrl: string | null;
+  /** Appearance + outfit lab (optional on older stashes). */
+  visualTailoring?: ForgeVisualTailoring;
 };
 
 export function loadForgeStash(): ForgeStashPayload | null {
@@ -45,6 +48,7 @@ export function loadForgeStash(): ForgeStashPayload | null {
     if (!p || typeof p !== "object") return null;
     if (!p.forgePersonality) p.forgePersonality = DEFAULT_FORGE_PERSONALITY;
     p.forgePersonality = normalizeForgePersonality(p.forgePersonality);
+    p.visualTailoring = normalizeForgeVisualTailoring(p.visualTailoring);
     return p;
   } catch {
     return null;

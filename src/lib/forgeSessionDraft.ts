@@ -4,6 +4,7 @@
  */
 import { DEFAULT_FORGE_PERSONALITY, normalizeForgePersonality, type ForgePersonalityProfile } from "@/lib/forgePersonalityProfile";
 import type { ForgeStashPayload } from "@/lib/forgeDraftStash";
+import { normalizeForgeVisualTailoring } from "@/lib/forgeVisualTailoring";
 
 const PREFIX = "lustforge-forge-session-v1";
 
@@ -21,6 +22,7 @@ export function loadForgeSessionDraft(userId: string, mode: "user" | "admin"): F
     const p = JSON.parse(raw) as ForgeSessionDraft;
     if (!p || typeof p !== "object") return null;
     p.forgePersonality = p.forgePersonality ? normalizeForgePersonality(p.forgePersonality) : DEFAULT_FORGE_PERSONALITY;
+    p.visualTailoring = normalizeForgeVisualTailoring(p.visualTailoring);
     return p;
   } catch {
     return null;

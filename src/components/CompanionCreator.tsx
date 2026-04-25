@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -94,6 +94,27 @@ import {
 import { FORGE_CREATE_COMPANION_FC, FORGE_PREVIEW_FC } from "@/lib/forgeEconomy";
 import { creditForgeCoins, spendForgeCoins } from "@/lib/forgeCoinsClient";
 import { serializeBaseDisplayTraitsForInsert } from "@/lib/vibeDisplayTraits";
+import {
+  DEFAULT_FORGE_VISUAL_TAILORING,
+  FORGE_ACCESSORIES,
+  FORGE_ASS_SIZES,
+  FORGE_BREAST_SIZES,
+  FORGE_COLOR_PALETTES,
+  FORGE_EYE_COLORS,
+  FORGE_FOOTWEAR,
+  FORGE_HAIR_COLORS,
+  FORGE_HAIR_STYLES,
+  FORGE_HEIGHTS,
+  FORGE_OUTFIT_STYLES,
+  FORGE_SKIN_TONES,
+  FORGE_SPECIAL_FEATURES,
+  deriveSmartOutfitTheme,
+  forgeVisualTailoringSeedsProse,
+  forgeVisualPortraitAddon,
+  normalizeForgeVisualTailoring,
+  randomForgeVisualTailoring,
+  type ForgeVisualTailoring,
+} from "@/lib/forgeVisualTailoring";
 
 const NEON = "#FF2D7B";
 const PREVIEW_COST = FORGE_PREVIEW_FC;
@@ -211,6 +232,25 @@ function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;
 }
 
+function ForgeFieldDice({
+  onRoll,
+  title = "Randomize",
+}: {
+  onRoll: () => void;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onRoll}
+      title={title}
+      className="shrink-0 rounded-lg border border-white/12 bg-black/40 p-1.5 sm:p-2 text-[hsl(170_100%_70%)] hover:border-[hsl(170_100%_42%)]/45 hover:bg-white/[0.04] transition-colors active:scale-[0.97]"
+    >
+      <Dices className="h-3.5 w-3.5" />
+    </button>
+  );
+}
+
 function normalizeFantasyStartersFromFields(raw: unknown): { title: string; description: string }[] {
   if (!Array.isArray(raw)) return [];
   return (raw as Record<string, unknown>[])
@@ -270,6 +310,7 @@ function buildForgeDesignLabSeedPrompt(o: {
   bodyType: string;
   orientation: string;
   traits: string[];
+  visualTailoring?: ForgeVisualTailoring;
   /** If set, model must use this display name (from forge name engine or user-typed). */
   mandatoryDisplayName?: string;
 }): string {
@@ -295,6 +336,14 @@ ${forgePersonalitySeedsProse(o.forgePersonality)
 - body type: ${o.bodyType}
 - orientation: ${o.orientation}
 - notable traits: ${o.traits.length ? o.traits.join(", ") : "(none)"}
+${
+  o.visualTailoring
+    ? `\n- **Appearance & outfit lab (must propagate into appearance prose, wardrobe, and image_prompt — stay SFW):**\n${forgeVisualTailoringSeedsProse(o.visualTailoring, o.forgePersonality)
+        .split("\n")
+        .map((line) => `  ${line}`)
+        .join("\n")}`
+    : ""
+}
 
 Hard requirements:
 ${forgeCompactStatureInstruction(o.bodyType)}${nameRule1}
@@ -324,6 +373,8 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   const [tagline, setTagline] = useState("");
   const [gender, setGender] = useState<string>(() => pickOne(GENDERS));
   const [forgePersonality, setForgePersonality] = useState<ForgePersonalityProfile>(() => randomForgePersonality());
+  const [visualTailoring, setVisualTailoring] = useState<ForgeVisualTailoring>(() => ({ ...DEFAULT_FORGE_VISUAL_TAILORING }));
+  const [profileLoopJob, setProfileLoopJob] = useState<"idle" | "queued" | "running" | "done" | "error">("idle");
   const [artStyle, setArtStyle] = useState<string>(() => "Photorealistic");
   const [sceneAtmosphere, setSceneAtmosphere] = useState<string>(() =>
     normalizeForgeScene("No Background / Transparent"),
@@ -506,6 +557,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       setForgePersonality(
         draft.forgePersonality ? normalizeForgePersonality(draft.forgePersonality) : DEFAULT_FORGE_PERSONALITY,
       );
+      setVisualTailoring(normalizeForgeVisualTailoring(draft.visualTailoring));
       setArtStyle(normalizeForgeArtStyle(draft.artStyle));
       setSceneAtmosphere(normalizeForgeScene(draft.sceneAtmosphere));
       setBodyType(normalizeForgeBodyType(draft.bodyType));
@@ -594,6 +646,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         fantasyStartersJson: JSON.stringify(fantasyStartersVault),
         previewUrl,
         previewCanonicalUrl,
+        visualTailoring: { ...visualTailoring },
       };
       saveForgeSessionDraft(userId, mode, payload);
     }, 750);
@@ -626,6 +679,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     fantasyStartersVault,
     previewUrl,
     previewCanonicalUrl,
+    visualTailoring,
   ]);
 
   const clearForgePreview = useCallback(
@@ -644,15 +698,17 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   );
 
   const accordionDefaultOpen = useMemo((): string[] => {
-    return ["identity", "personalities", "body", "narrative", "reference", "output"];
+    return ["identity", "personalities", "appearance", "outfit", "rendering", "narrative", "reference", "output"];
   }, []);
 
   const appearanceBlurb = useMemo(() => {
     const t = traits.length ? traits.join(", ") : "no listed special traits";
     const eth =
       isOpenEthnicityChoice(ethnicity) ? "" : `ancestry/complexion seed: ${normalizeForgeEthnicity(ethnicity)}; `;
-    return `${bodyType} silhouette (authoritative); gender/presentation (face & voice): ${gender}; ${eth}${artStyle} look; scene: ${sceneAtmosphere}; ${t}. Personalities: ${personalityLabel}. ${extraNotes}`.trim();
-  }, [traits, bodyType, gender, ethnicity, artStyle, sceneAtmosphere, personalityLabel, extraNotes]);
+    const vt = visualTailoring;
+    const lab = `Look lab: ${vt.hairColor} ${vt.hairStyle}, ${vt.eyeColor} eyes, ${vt.skinTone} skin, ${vt.height}; outfit ${vt.outfitStyle} (${vt.colorPalette}).`;
+    return `${bodyType} silhouette (authoritative); gender/presentation (face & voice): ${gender}; ${eth}${artStyle} look; scene: ${sceneAtmosphere}; ${t}. ${lab} Personalities: ${personalityLabel}. ${extraNotes}`.trim();
+  }, [traits, bodyType, gender, ethnicity, artStyle, sceneAtmosphere, personalityLabel, extraNotes, visualTailoring]);
 
   const portraitAppearanceText = useMemo(
     () => narrativeAppearance.trim() || appearanceBlurb,
@@ -673,6 +729,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         sceneAtmosphere,
         extraNotes,
         referenceNotes,
+        wardrobeBrief: forgeVisualPortraitAddon(visualTailoring, forgePersonality),
       }),
     [
       name,
@@ -685,6 +742,8 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       sceneAtmosphere,
       extraNotes,
       referenceNotes,
+      visualTailoring,
+      forgePersonality,
     ],
   );
 
@@ -703,13 +762,14 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       const ethLine = isOpenEthnicityChoice(ethnicity)
         ? ""
         : ` Ancestry & complexion (visual): ${normalizeForgeEthnicity(ethnicity)}.`;
-      return `You are ${n}, ${gender.toLowerCase()}, ${orientation}.${ethLine} **Personalities (voice + psychology):** ${personalityLabel}. Visual (scene is appearance — not personality): primary scene "${sceneAtmosphere}", ${artStyle} aesthetic. ${bodyType} body; notable visual traits: ${traits.join(", ") || "none specified"}.
+      const vtLine = forgeVisualPortraitAddon(visualTailoring, forgePersonality);
+      return `You are ${n}, ${gender.toLowerCase()}, ${orientation}.${ethLine} **Personalities (voice + psychology):** ${personalityLabel}. Visual (scene is appearance — not personality): primary scene "${sceneAtmosphere}", ${artStyle} aesthetic. ${bodyType} body; notable visual traits: ${traits.join(", ") || "none specified"}. **Look & wardrobe:** ${vtLine}
 
 Speak and act consistently with this persona — the five Personalities picks must thread through every line of dialogue. Stay immersive; respect safe words immediately. When toy control fits the scene and the user consents, you may end messages with: {"lovense_command":{"command":"vibrate","intensity":0-20,"duration":5000}}.
 
 User flavor notes: ${extraNotes || "none"}`;
     },
-    [gender, orientation, ethnicity, personalityLabel, artStyle, sceneAtmosphere, bodyType, traits, extraNotes],
+    [gender, orientation, ethnicity, personalityLabel, artStyle, sceneAtmosphere, bodyType, traits, extraNotes, visualTailoring, forgePersonality],
   );
 
   const systemPrompt = useMemo(() => buildSystemPromptFor(name), [name, buildSystemPromptFor]);
@@ -848,6 +908,7 @@ User flavor notes: ${extraNotes || "none"}`;
     setGender(g);
     setEthnicity(eth);
     setForgePersonality(fp);
+    setVisualTailoring(randomForgeVisualTailoring());
     setArtStyle(ar);
     setSceneAtmosphere(sc);
     setBodyType(bt);
@@ -912,6 +973,26 @@ User flavor notes: ${extraNotes || "none"}`;
     setTraits((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
   };
 
+  const toggleSpecialFeature = (f: string) => {
+    setVisualTailoring((v) => ({
+      ...v,
+      specialFeatures: v.specialFeatures.includes(f)
+        ? v.specialFeatures.filter((x) => x !== f)
+        : [...v.specialFeatures, f].slice(0, 6),
+    }));
+  };
+
+  const smartOutfitTheme = useMemo(
+    () => deriveSmartOutfitTheme(forgePersonality, visualTailoring.outfitStyle),
+    [forgePersonality, visualTailoring.outfitStyle],
+  );
+
+  useEffect(() => {
+    if (profileLoopJob !== "done") return;
+    const t = window.setTimeout(() => setProfileLoopJob("idle"), 6500);
+    return () => window.clearTimeout(t);
+  }, [profileLoopJob]);
+
   const buildPortraitGeneratePayload = useCallback((narrativeOverride?: string): Record<string, unknown> | null => {
     if (!userId) return null;
     const nar = (narrativeOverride ?? narrativeAppearance).trim();
@@ -925,9 +1006,10 @@ User flavor notes: ${extraNotes || "none"}`;
     const ethTail = isOpenEthnicityChoice(ethnicity)
       ? ""
       : ` Ancestry/complexion direction: ${normalizeForgeEthnicity(ethnicity)}.`;
+    const vtLine = forgeVisualPortraitAddon(visualTailoring, forgePersonality);
     const baseDesc = nar
-      ? `${staturePrimary}${nar.slice(0, 900)}${ethTail}`
-      : `${staturePrimary}Original character — authoritative physique from forge body type "${bodyType}"${traits.length ? `; traits: ${traits.slice(0, 6).join(", ")}` : ""}. Gender (${gender}) affects face/voice/presentation only, not base silhouette. Silhouette must match the forge label, not a default human model.${ethTail}`;
+      ? `${staturePrimary}${nar.slice(0, 900)}${ethTail} ${vtLine}`
+      : `${staturePrimary}Original character — authoritative physique from forge body type "${bodyType}"${traits.length ? `; traits: ${traits.slice(0, 6).join(", ")}` : ""}. Gender (${gender}) affects face/voice/presentation only, not base silhouette. Silhouette must match the forge label, not a default human model.${ethTail} ${vtLine}`;
     const clothingLine = nonHumanVisual
       ? `Wardrobe and materials appropriate for ${bodyType} and ${artStyle} — species- and silhouette-first; avoid unrelated generic human runway looks unless clearly humanoid glam.`
       : `Fashion and textures echoing ${sceneAtmosphere} and ${artStyle} — personality flavor: ${personalityLabel}`;
@@ -981,6 +1063,8 @@ User flavor notes: ${extraNotes || "none"}`;
     referenceNotes,
     previewCanonicalUrl,
     previewUrl,
+    visualTailoring,
+    forgePersonality,
   ]);
 
   const runPreview = async () => {
@@ -1126,6 +1210,7 @@ User flavor notes: ${extraNotes || "none"}`;
       }
     }
     setFinalLoading(true);
+    setProfileLoopJob("idle");
     setForgeRunStartedAt(Date.now());
     setForgeElapsedTick(0);
     if (isAdmin) {
@@ -1175,6 +1260,7 @@ User flavor notes: ${extraNotes || "none"}`;
           bodyType,
           orientation,
           traits,
+          visualTailoring,
           mandatoryDisplayName: forgeName,
         });
         const { data: labData, error: labErr } = await supabase.functions.invoke("parse-companion-prompt", {
@@ -1235,6 +1321,7 @@ User flavor notes: ${extraNotes || "none"}`;
         sceneAtmosphere,
         extraNotes,
         referenceNotes,
+        wardrobeBrief: forgeVisualPortraitAddon(visualTailoring, forgePersonality),
       });
       const rowImagePrompt = rowGrokPrompt;
 
@@ -1443,7 +1530,9 @@ User flavor notes: ${extraNotes || "none"}`;
           );
         }
 
+        setProfileLoopJob("queued");
         void (async () => {
+          setProfileLoopJob("running");
           try {
             toast.info(isAdmin ? "Generating looping profile video…" : "Creating your looping portrait video…", {
               duration: 6000,
@@ -1458,10 +1547,12 @@ User flavor notes: ${extraNotes || "none"}`;
             if ((vidData as { error?: string })?.error) throw new Error(String((vidData as { error?: string }).error));
             toast.success("Profile loop video saved — enable on profile if needed.");
             if (isAdmin) pushForgeOp("Profile loop video finished and saved.", "ok");
+            setProfileLoopJob("done");
             void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
             void queryClient.invalidateQueries({ queryKey: ["companions"] });
           } catch (e) {
             console.error(e);
+            setProfileLoopJob("error");
             if (isAdmin) {
               pushForgeOp(
                 e instanceof Error
@@ -1522,15 +1613,20 @@ User flavor notes: ${extraNotes || "none"}`;
     value,
     onChange,
     cols = "grid-cols-2 sm:grid-cols-3",
+    headerRight,
   }: {
     label: string;
     options: readonly string[];
     value: string;
     onChange: (v: string) => void;
     cols?: string;
+    headerRight?: ReactNode;
   }) => (
     <div className="space-y-2.5">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">{label}</p>
+      <div className="flex items-center justify-between gap-2 min-h-[1.25rem]">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">{label}</p>
+        {headerRight}
+      </div>
       <div className={cn("grid gap-2", cols)}>
         {options.map((opt) => (
           <button
@@ -1594,6 +1690,7 @@ User flavor notes: ${extraNotes || "none"}`;
       fantasyStartersJson: JSON.stringify(fantasyStartersVault),
       previewUrl,
       previewCanonicalUrl,
+      visualTailoring: { ...visualTailoring },
     };
     saveForgeStash(payload);
     toast.success("Forge stashed on this device — switch ideas or restore anytime.");
@@ -1621,6 +1718,7 @@ User flavor notes: ${extraNotes || "none"}`;
     fantasyStartersVault,
     previewUrl,
     previewCanonicalUrl,
+    visualTailoring,
   ]);
 
   const restoreStashedForge = useCallback(() => {
@@ -1639,6 +1737,7 @@ User flavor notes: ${extraNotes || "none"}`;
         ? normalizeForgePersonality(p.forgePersonality)
         : DEFAULT_FORGE_PERSONALITY,
     );
+    setVisualTailoring(normalizeForgeVisualTailoring(p.visualTailoring));
     setArtStyle(normalizeForgeArtStyle(p.artStyle));
     setSceneAtmosphere(normalizeForgeScene(p.sceneAtmosphere));
     setBodyType(normalizeForgeBodyType(p.bodyType));
@@ -1663,6 +1762,46 @@ User flavor notes: ${extraNotes || "none"}`;
     setPreviewCanonicalUrl(p.previewCanonicalUrl);
     toast.success("Restored stashed forge.");
   }, []);
+
+  function VisualSelectRow({
+    label,
+    field,
+    options,
+  }: {
+    label: string;
+    field: Exclude<keyof ForgeVisualTailoring, "specialFeatures">;
+    options: readonly string[];
+  }) {
+    const value = String(visualTailoring[field]);
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">{label}</p>
+          <ForgeFieldDice
+            title={`Random: ${label}`}
+            onRoll={() =>
+              setVisualTailoring((v) => ({
+                ...v,
+                [field]: pick([...options]) as ForgeVisualTailoring[typeof field],
+              }))
+            }
+          />
+        </div>
+        <Select value={value} onValueChange={(vv) => setVisualTailoring((v) => ({ ...v, [field]: vv }))}>
+          <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
+            <SelectValue placeholder={label} />
+          </SelectTrigger>
+          <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
+            {options.map((opt) => (
+              <SelectItem key={opt} value={opt} className="focus:bg-white/10 focus:text-white cursor-pointer">
+                {opt}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  }
 
   if (loadingProfile) {
     return (
@@ -1781,24 +1920,76 @@ User flavor notes: ${extraNotes || "none"}`;
                 : "Instant random roll: Personalities, scene, body, name, and a starter story pass — all from the forge’s own options, on your device."}
             </p>
 
+            <AnimatePresence>
+              {(profileLoopJob === "queued" ||
+                profileLoopJob === "running" ||
+                profileLoopJob === "done" ||
+                profileLoopJob === "error") && (
+                <motion.div
+                  key={profileLoopJob}
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.22 }}
+                  className={cn(
+                    "rounded-xl border px-4 py-3 text-sm flex flex-col sm:flex-row sm:items-center gap-2",
+                    profileLoopJob === "error"
+                      ? "border-amber-500/35 bg-amber-500/10 text-amber-50"
+                      : profileLoopJob === "done"
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-50"
+                        : "border-[#FF2D7B]/28 bg-[#FF2D7B]/[0.08] text-white",
+                  )}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {profileLoopJob === "running" || profileLoopJob === "queued" ? (
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[#FF2D7B]" />
+                    ) : profileLoopJob === "done" ? (
+                      <Check className="h-4 w-4 shrink-0 text-emerald-400" />
+                    ) : (
+                      <ScanEye className="h-4 w-4 shrink-0 text-amber-300" />
+                    )}
+                    <span className="font-medium leading-snug">
+                      {profileLoopJob === "queued" && "Profile loop video queued…"}
+                      {profileLoopJob === "running" && "Rendering your looping profile video…"}
+                      {profileLoopJob === "done" && "Loop video saved — you can keep browsing the forge."}
+                      {profileLoopJob === "error" && "Loop video hit a snag — retry from Character management when ready."}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-white/65 sm:ml-auto sm:text-right leading-snug">
+                    Runs in the background after save — safe to plan your next character.
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <Accordion type="multiple" defaultValue={accordionDefaultOpen} className={cn(panelClass, "px-1")}>
               <AccordionItem value="identity" className="border-white/10 px-4">
                 <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
                   Gender, identity & ancestry
                 </AccordionTrigger>
                 <AccordionContent className="pb-5 space-y-5">
-                  <PillGroup label="Identity" options={GENDERS} value={gender} onChange={setGender} />
+                  <PillGroup
+                    label="Identity"
+                    options={GENDERS}
+                    value={gender}
+                    onChange={setGender}
+                    headerRight={<ForgeFieldDice title="Random gender" onRoll={() => setGender(pick(GENDERS))} />}
+                  />
                   <PillGroup
                     label="Orientation"
                     options={ORIENTATIONS}
                     value={orientation}
                     onChange={setOrientation}
                     cols="grid-cols-2 sm:grid-cols-3"
+                    headerRight={<ForgeFieldDice title="Random orientation" onRoll={() => setOrientation(pick(ORIENTATIONS))} />}
                   />
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
-                      Ancestry & complexion
-                    </p>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                        Ancestry & complexion
+                      </p>
+                      <ForgeFieldDice title="Random ancestry seed" onRoll={() => setEthnicity(pick(ALL_FORGE_ETHNICITY_OPTIONS))} />
+                    </div>
                     <Select
                       value={ethnicitySelectValue}
                       onValueChange={(v) => setEthnicity(normalizeForgeEthnicity(v))}
@@ -1842,16 +2033,8 @@ User flavor notes: ${extraNotes || "none"}`;
                     <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#ff7eb3]/90">Personality &amp; voice</p>
                     <h3 className="font-gothic text-xl sm:text-2xl text-white leading-tight">Personalities</h3>
                     <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed max-w-2xl">
-                      Everything here steers <strong className="text-white/90">how they speak, flirt, and relate</strong> — the
-                      {isAdmin ? (
-                        <> psychology and relationship frame for xAI (Grok) chat and Live Call.</>
-                      ) : (
-                        <> psychology and relationship frame for in-session <strong className="text-white/80">text chat &amp; live call</strong>. </>
-                      )}{" "}
-                      It is separate from the look of the
-                      body and the painted scene. More forge sections (appearance refinements, wardrobe, etc.) will layer on
-                      later; for now, use <strong className="text-white/90">Art style, scene &amp; body</strong> below for the
-                      visual card.
+                      Voice, flirt cadence, and relationship frame — separate from silhouette and wardrobe. Feeds Grok chat and
+                      Live Call the same way it will for players.
                     </p>
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                       <p className="text-[10px] font-medium uppercase tracking-wider text-white/50">
@@ -1879,6 +2062,17 @@ User flavor notes: ${extraNotes || "none"}`;
                           value={forgePersonality[key]}
                           onChange={(v) => setPersonalityPillar(key, v)}
                           cols={cols}
+                          headerRight={
+                            <ForgeFieldDice
+                              title={`Random: ${label}`}
+                              onRoll={() =>
+                                setForgePersonality((prev) => ({
+                                  ...prev,
+                                  [key]: pick([...FORGE_PERSONALITY_BY_KEY[key]]),
+                                }))
+                              }
+                            />
+                          }
                         />
                       </div>
                     ))}
@@ -1886,16 +2080,220 @@ User flavor notes: ${extraNotes || "none"}`;
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="body" className="border-white/10 px-4">
+              <AccordionItem value="appearance" className="border-white/10 px-4">
                 <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
-                  Art style, scene &amp; body
+                  Appearance
+                </AccordionTrigger>
+                <AccordionContent className="pb-5 space-y-5">
+                  <motion.div
+                    initial={{ opacity: 0.85, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="rounded-2xl border border-white/10 bg-gradient-to-br from-black/50 to-[#1a0a14]/80 p-4 sm:p-5 space-y-2"
+                  >
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#ff7eb3]/85">Silhouette &amp; surface</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed max-w-2xl">
+                      Body type stays the silhouette anchor; the lab fields refine hair, skin, proportions, and surface reads for
+                      portraits and prompts.
+                    </p>
+                  </motion.div>
+
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Body type</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Category</p>
+                          <ForgeFieldDice
+                            title="Random category"
+                            onRoll={() => {
+                              const g = pick(FORGE_BODY_GROUPS);
+                              if (g.types?.length) setBodyType(normalizeForgeBodyType(g.types[0]!));
+                            }}
+                          />
+                        </div>
+                        <Select
+                          value={bodyCategoryId}
+                          onValueChange={(catId) => {
+                            const g = FORGE_BODY_GROUPS.find((x) => x.id === catId);
+                            if (g?.types?.length) setBodyType(normalizeForgeBodyType(g.types[0]!));
+                          }}
+                        >
+                          <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
+                            <SelectValue placeholder="Category" />
+                          </SelectTrigger>
+                          <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
+                            {FORGE_BODY_GROUPS.map((g) => (
+                              <SelectItem
+                                key={g.id}
+                                value={g.id}
+                                className="focus:bg-white/10 focus:text-white cursor-pointer"
+                              >
+                                {g.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Shape</p>
+                          <ForgeFieldDice
+                            title="Random shape in this category"
+                            onRoll={() => {
+                              if (bodyTypesInCategory.length)
+                                setBodyType(normalizeForgeBodyType(pick(bodyTypesInCategory)));
+                              else setBodyType(normalizeForgeBodyType(pick(FORGE_BODY_TYPES)));
+                            }}
+                          />
+                        </div>
+                        <Select
+                          value={bodyTypeSelectValue}
+                          onValueChange={(v) => setBodyType(normalizeForgeBodyType(v))}
+                        >
+                          <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
+                            <SelectValue placeholder="Pick a body type" />
+                          </SelectTrigger>
+                          <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
+                            {bodyTypesInCategory.map((opt) => (
+                              <SelectItem
+                                key={opt}
+                                value={opt}
+                                className="focus:bg-white/10 focus:text-white cursor-pointer"
+                              >
+                                {opt}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      Humanoid, anthro, hybrid, and non-human silhouettes — combine with rendering &amp; wardrobe; stay SFW and
+                      respectful for compact-stature and mobility picks.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <VisualSelectRow label="Breast size" field="breastSize" options={FORGE_BREAST_SIZES} />
+                    <VisualSelectRow label="Ass size" field="assSize" options={FORGE_ASS_SIZES} />
+                    <VisualSelectRow label="Hair style" field="hairStyle" options={FORGE_HAIR_STYLES} />
+                    <VisualSelectRow label="Hair color" field="hairColor" options={FORGE_HAIR_COLORS} />
+                    <VisualSelectRow label="Eye color" field="eyeColor" options={FORGE_EYE_COLORS} />
+                    <VisualSelectRow label="Skin tone" field="skinTone" options={FORGE_SKIN_TONES} />
+                    <VisualSelectRow label="Height" field="height" options={FORGE_HEIGHTS} />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                        Special features
+                      </p>
+                      <ForgeFieldDice
+                        title="Random feature mix"
+                        onRoll={() =>
+                          setVisualTailoring((v) => ({ ...v, specialFeatures: randomForgeVisualTailoring().specialFeatures }))
+                        }
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {FORGE_SPECIAL_FEATURES.map((f) => (
+                        <button
+                          key={f}
+                          type="button"
+                          onClick={() => toggleSpecialFeature(f)}
+                          className={cn(
+                            "rounded-full border px-3 py-1.5 text-xs transition-all",
+                            visualTailoring.specialFeatures.includes(f)
+                              ? "border-[#FF2D7B]/45 bg-[#FF2D7B]/12 text-[#ffc4d9]"
+                              : "border-white/12 bg-black/40 text-muted-foreground hover:border-white/25",
+                          )}
+                        >
+                          {visualTailoring.specialFeatures.includes(f) && (
+                            <Check className="inline h-3 w-3 mr-1 -mt-0.5" />
+                          )}
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                        Special traits
+                      </p>
+                      <ForgeFieldDice
+                        title="Random trait mix"
+                        onRoll={() => {
+                          const shuffled = [...TRAITS].sort(() => Math.random() - 0.5).slice(0, 3 + Math.floor(Math.random() * 4));
+                          setTraits(shuffled);
+                        }}
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {TRAITS.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => toggleTrait(t)}
+                          className={cn(
+                            "rounded-full border px-3 py-1.5 text-xs transition-all",
+                            traits.includes(t)
+                              ? "border-[hsl(170_100%_42%)]/50 bg-[hsl(170_100%_42%)]/10 text-[hsl(170_100%_75%)]"
+                              : "border-white/12 bg-black/40 text-muted-foreground hover:border-white/25",
+                          )}
+                        >
+                          {traits.includes(t) && <Check className="inline h-3 w-3 mr-1 -mt-0.5" />}
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="outfit" className="border-white/10 px-4">
+                <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
+                  Outfit &amp; aesthetic
+                </AccordionTrigger>
+                <AccordionContent className="pb-5 space-y-5">
+                  <motion.div
+                    initial={{ opacity: 0.85, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.28 }}
+                    className="rounded-2xl border border-[hsl(170_100%_42%)]/20 bg-black/40 p-4 space-y-2"
+                  >
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[hsl(170_100%_72%)]">
+                      Smart outfit theme
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{smartOutfitTheme}</p>
+                  </motion.div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <VisualSelectRow label="Default outfit style" field="outfitStyle" options={FORGE_OUTFIT_STYLES} />
+                    <VisualSelectRow label="Color palette" field="colorPalette" options={FORGE_COLOR_PALETTES} />
+                    <VisualSelectRow label="Footwear" field="footwear" options={FORGE_FOOTWEAR} />
+                    <VisualSelectRow label="Accessories" field="accessories" options={FORGE_ACCESSORIES} />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    The outfit label stays the same (e.g. Bikini) but is re-costumed to your time period + personality — no
+                    accidental modern beach defaults in medieval or mythic worlds.
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="rendering" className="border-white/10 px-4">
+                <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
+                  Art style &amp; scene
                 </AccordionTrigger>
                 <AccordionContent className="pb-5 space-y-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
-                        Art style
-                      </p>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Art style</p>
+                        <ForgeFieldDice title="Random art style" onRoll={() => setArtStyle(normalizeForgeArtStyle(pick([...FORGE_ART_STYLES])))} />
+                      </div>
                       <Select value={artStyle} onValueChange={(v) => setArtStyle(normalizeForgeArtStyle(v))}>
                         <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
                           <SelectValue placeholder="Art style" />
@@ -1913,10 +2311,16 @@ User flavor notes: ${extraNotes || "none"}`;
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
-                        Scene &amp; atmosphere
-                      </p>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                          Scene &amp; atmosphere
+                        </p>
+                        <ForgeFieldDice
+                          title="Random scene"
+                          onRoll={() => setSceneAtmosphere(normalizeForgeScene(pick([...FORGE_SCENE_ATMOSPHERES])))}
+                        />
+                      </div>
                       <Select
                         value={sceneAtmosphere}
                         onValueChange={(v) => setSceneAtmosphere(normalizeForgeScene(v))}
@@ -1946,90 +2350,8 @@ User flavor notes: ${extraNotes || "none"}`;
                     </div>
                   </div>
                   <p className="text-[10px] text-muted-foreground leading-relaxed">
-                    Portrait prompts merge your cinematic description with these choices (lighting, lens, mood, and
-                    set dressing). Regenerate preview after changing them.
+                    Lighting, lens, and set dressing — pair with the portrait prose tab; regenerate preview after big changes.
                   </p>
-                  <div className="space-y-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                      Body type
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Category</p>
-                        <Select
-                          value={bodyCategoryId}
-                          onValueChange={(catId) => {
-                            const g = FORGE_BODY_GROUPS.find((x) => x.id === catId);
-                            if (g?.types?.length) setBodyType(normalizeForgeBodyType(g.types[0]!));
-                          }}
-                        >
-                          <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
-                            <SelectValue placeholder="Category" />
-                          </SelectTrigger>
-                          <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
-                            {FORGE_BODY_GROUPS.map((g) => (
-                              <SelectItem
-                                key={g.id}
-                                value={g.id}
-                                className="focus:bg-white/10 focus:text-white cursor-pointer"
-                              >
-                                {g.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Shape</p>
-                        <Select
-                          value={bodyTypeSelectValue}
-                          onValueChange={(v) => setBodyType(normalizeForgeBodyType(v))}
-                        >
-                          <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
-                            <SelectValue placeholder="Pick a body type" />
-                          </SelectTrigger>
-                          <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
-                            {bodyTypesInCategory.map((opt) => (
-                              <SelectItem
-                                key={opt}
-                                value={opt}
-                                className="focus:bg-white/10 focus:text-white cursor-pointer"
-                              >
-                                {opt}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground leading-relaxed">
-                      Portraits follow this body label: humanoid, anthro, hybrid, and non-human silhouettes are all
-                      supported — combine with art style; little-person and mobility options stay respectful and SFW.
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
-                      Special traits
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {TRAITS.map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => toggleTrait(t)}
-                          className={cn(
-                            "rounded-full border px-3 py-1.5 text-xs transition-all",
-                            traits.includes(t)
-                              ? "border-[hsl(170_100%_42%)]/50 bg-[hsl(170_100%_42%)]/10 text-[hsl(170_100%_75%)]"
-                              : "border-white/12 bg-black/40 text-muted-foreground hover:border-white/25",
-                          )}
-                        >
-                          {traits.includes(t) && <Check className="inline h-3 w-3 mr-1 -mt-0.5" />}
-                          {t}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </AccordionContent>
               </AccordionItem>
 

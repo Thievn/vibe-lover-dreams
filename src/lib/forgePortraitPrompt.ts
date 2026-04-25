@@ -130,6 +130,8 @@ export type ForgePortraitPromptArgs = {
   sceneAtmosphere: string;
   extraNotes: string;
   referenceNotes: string;
+  /** Wardrobe / figure micro-brief from forge Appearance & Outfit sections. */
+  wardrobeBrief?: string;
 };
 
 const GENDER_SCOPE_LINE = (label: string) =>
@@ -168,6 +170,9 @@ export function composeForgePortraitPrompt(a: ForgePortraitPromptArgs): string {
       : "",
     a.extraNotes.trim() ? `Additional notes: ${a.extraNotes.trim()}` : "",
     a.referenceNotes.trim() ? `Reference direction (palette / mood, not likeness): ${a.referenceNotes.trim()}` : "",
+    (a.wardrobeBrief ?? "").trim()
+      ? `Forge wardrobe & figure direction (must read clearly in clothing, accessories, and body read — still SFW): ${(a.wardrobeBrief ?? "").trim()}`
+      : "",
     `Silhouette reminder — body type "${bt}" must remain the dominant physical read in the final image.`,
   ]
     .filter(Boolean)
