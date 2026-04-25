@@ -96,6 +96,12 @@ import {
   setChatAutoSpendImages,
 } from "@/lib/chatImageSettings";
 import {
+  buildMasterChatImagePrompt,
+  classifyChatImageMood,
+  pickMenuImageTeaserLine,
+} from "@/lib/masterChatImagePrompt";
+import { fetchChatImageTeaserLine } from "@/lib/fetchChatImageTeaserLine";
+import {
   CHAT_VIDEO_TIMING_USER_NOTE,
   inferChatMediaRoute,
   inferClipMoodFromUserText,
@@ -122,6 +128,8 @@ const TOKEN_COST = 15;
 type SendMessageOptions = {
   imageGenerationPrompt?: string;
   bypassImageConfirmation?: boolean;
+  /** True for + menu / media bar / FAB — may use free NSFW slots. Typed free-text requests are always charged. */
+  imageRequestFromMenu?: boolean;
   /** User row already inserted (e.g. live voice transcript) — do not insert again. */
   skipUserMessageInsert?: boolean;
   existingUserMessageId?: string;
@@ -190,7 +198,13 @@ const Chat = () => {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [savingBackupImageId, setSavingBackupImageId] = useState<string | null>(null);
   /** User asked for an image; waiting for "Generate" tap (when auto-spend is off). */
-  const [imageGenPending, setImageGenPending] = useState<{ userMessageId: string; prompt: string } | null>(null);
+  const [imageGenPending, setImageGenPending] = useState<{
+    userMessageId: string;
+    prompt: string;
+    rawUserMessage: string;
+    fromMenu: boolean;
+    menuImagePrompt: string | null;
+  } | null>(null);
   const [autoSpendChatImages, setAutoSpendChatImages] = useState(false);
   const starterSentRef = useRef(false);
   /** Keeps token checks in sync with async `fetchTokens` before React state flushes (fantasy starters). */
@@ -598,20 +612,28 @@ const Chat = () => {
     tokensBalanceRef.current = newBalance;
   };
 
-  const generateImage = async (userRequest: string, userId: string): Promise<any> => {
+  const generateImage = async (
+    userRequest: string,
+    userId: string,
+    genOpts: { fromMenu: boolean; rawUserMessage: string; menuImagePrompt: string | null },
+  ): Promise<any> => {
     if (!companion || !dbComp) return null;
 
     try {
-      const explicit = isExplicitImageRequest(userRequest);
+      const explicit =
+        isExplicitImageRequest(genOpts.rawUserMessage) || isExplicitImageRequest(userRequest);
       const freeUsed = getFreeNsfwImagesUsed(userId, companion.id);
-      const useFreeNsfwSlot = explicit && freeUsed < FREE_NSFW_CHAT_IMAGES;
-      const tokenCost = isAdminUser ? 0 : useFreeNsfwSlot ? 0 : IMAGE_TOKEN_COST;
+      const useFreeNsfwSlot = genOpts.fromMenu && explicit && freeUsed < FREE_NSFW_CHAT_IMAGES;
+      const tokenCost = isAdminUser || useFreeNsfwSlot ? 0 : IMAGE_TOKEN_COST;
 
-      /** Raw desire text — `generate-image` (Grok Imagine) rewrites the final prompt; explicit chat requests follow xAI / product rules. */
-      const prompt = `${userRequest}\n\n(Character: ${companion.name}, ${companion.gender}. ${companion.appearance})`.slice(
-        0,
-        8000,
-      );
+      const { prompt: masterPrompt, portraitConsistencyLock } = buildMasterChatImagePrompt({
+        companion,
+        dbComp,
+        sceneRequest: userRequest,
+        rawUserMessage: genOpts.rawUserMessage,
+        menuImagePrompt: genOpts.menuImagePrompt,
+      });
+      const prompt = masterPrompt;
 
       const resolvedBodyType =
         inferForgeBodyTypeFromTags(dbComp.tags ?? []) ??
@@ -625,16 +647,6 @@ const Chat = () => {
         (typeof (dbComp as Record<string, unknown>).image_url === "string" &&
           ((dbComp as Record<string, unknown>).image_url as string)) ||
         null;
-      const portraitConsistencyLock = [
-        `Roster identity lock: depict the SAME individual as ${companion.name} — not a different person, species, or unrelated stock model.`,
-        `Locked forge body type: ${resolvedBodyType}.`,
-        `Locked render style: ${artLabel}.`,
-        packSnap ? `Packshot / catalog intent (match discipline): ${packSnap}` : "",
-        `Appearance continuity (face, hair, skin or fur, silhouette): ${(companion.appearance || "").trim().slice(0, 1500)}`,
-        `Forbidden: drifting from the roster look (e.g. anime-style character → unrelated photoreal different body) unless the user's message explicitly requests that alternate.`,
-      ]
-        .filter(Boolean)
-        .join(" ");
 
       const { data, error } = await invokeGenerateImage({
         prompt,
@@ -698,10 +710,13 @@ const Chat = () => {
     if (!companion || !dbComp || !user) return null;
     try {
       const tierPrompt = kind === "lewd" ? FAB_SELFIE.lewd.imagePrompt : FAB_SELFIE.nude.imagePrompt;
-      const prompt = `${tierPrompt}\n\n(Character: ${companion.name}, ${companion.gender}. ${companion.appearance})`.slice(
-        0,
-        8000,
-      );
+      const { prompt, portraitConsistencyLock } = buildMasterChatImagePrompt({
+        companion,
+        dbComp,
+        sceneRequest: tierPrompt,
+        rawUserMessage: tierPrompt,
+        menuImagePrompt: tierPrompt,
+      });
 
       const resolvedBodyType =
         inferForgeBodyTypeFromTags(dbComp.tags ?? []) ??
@@ -715,15 +730,6 @@ const Chat = () => {
         (typeof (dbComp as Record<string, unknown>).image_url === "string" &&
           ((dbComp as Record<string, unknown>).image_url as string)) ||
         null;
-      const portraitConsistencyLock = [
-        `Roster identity lock: depict the SAME individual as ${companion.name}.`,
-        `Locked forge body type: ${resolvedBodyType}.`,
-        `Locked render style: ${artLabel}.`,
-        packSnap ? `Packshot / catalog intent: ${packSnap}` : "",
-        `Appearance continuity: ${(companion.appearance || "").trim().slice(0, 1500)}`,
-      ]
-        .filter(Boolean)
-        .join(" ");
 
       const rewardExplicit = kind === "nude" || (kind === "lewd" && isExplicitImageRequest(tierPrompt));
       const { data, error } = await invokeGenerateImage({
@@ -1469,7 +1475,11 @@ const Chat = () => {
     if (!user || !companion || !dbComp) return;
     try {
       if (req.kind === "image") {
-        const result = await generateImage(req.brief, user.id);
+        const result = await generateImage(req.brief, user.id, {
+          fromMenu: false,
+          rawUserMessage: req.brief,
+          menuImagePrompt: null,
+        });
         if (result) {
           const cap = `*${companion.name} sends you a still — just for you.*`;
           const rowId = await insertAssistantImageMessage({
@@ -1515,6 +1525,7 @@ const Chat = () => {
       void sendMessage(resolveFabDisplay(FAB_SELFIE.sfw.display), {
         imageGenerationPrompt: FAB_SELFIE.sfw.imagePrompt,
         bypassImageConfirmation: true,
+        imageRequestFromMenu: true,
       });
       return;
     }
@@ -1522,6 +1533,7 @@ const Chat = () => {
       void sendMessage(resolveFabDisplay(FAB_SELFIE.lewd.display), {
         imageGenerationPrompt: FAB_SELFIE.lewd.imagePrompt,
         bypassImageConfirmation: true,
+        imageRequestFromMenu: true,
       });
       return;
     }
@@ -1529,6 +1541,7 @@ const Chat = () => {
       void sendMessage(resolveFabDisplay(FAB_SELFIE.nude.display), {
         imageGenerationPrompt: FAB_SELFIE.nude.imagePrompt,
         bypassImageConfirmation: true,
+        imageRequestFromMenu: true,
       });
     }
   };
@@ -1638,10 +1651,14 @@ const Chat = () => {
 
   const confirmPendingImageGeneration = async () => {
     if (!imageGenPending || !user || !companion) return;
-    const { prompt } = imageGenPending;
-    const explicit = isExplicitImageRequest(prompt);
+    const { prompt, rawUserMessage, fromMenu, menuImagePrompt } = imageGenPending;
+    const explicit = isExplicitImageRequest(prompt) || isExplicitImageRequest(rawUserMessage);
     const freeUsed = getFreeNsfwImagesUsed(user.id, companion.id);
-    const needTokens = isAdminUser ? 0 : explicit && freeUsed < FREE_NSFW_CHAT_IMAGES ? 0 : IMAGE_TOKEN_COST;
+    const needTokens = isAdminUser
+      ? 0
+      : fromMenu && explicit && freeUsed < FREE_NSFW_CHAT_IMAGES
+        ? 0
+        : IMAGE_TOKEN_COST;
     if (!isAdminUser && tokensBalanceRef.current < needTokens) {
       toast.error(
         `Not enough tokens. You need ${needTokens} forge credits (or use one of ${FREE_NSFW_CHAT_IMAGES} free NSFW generations — ${freeUsed} used).`,
@@ -1651,7 +1668,11 @@ const Chat = () => {
     }
     setLoading(true);
     try {
-      const imageResult = await generateImage(prompt, user.id);
+      const imageResult = await generateImage(prompt, user.id, {
+        fromMenu,
+        rawUserMessage,
+        menuImagePrompt,
+      });
       if (imageResult) {
         const rowId = await insertAssistantImageMessage({
           content: CHAT_STILL_DELIVERY_CAPTION,
@@ -1726,9 +1747,15 @@ const Chat = () => {
     const autoSpendImages = getChatAutoSpendImages(companion.id);
     const holdForImageButton =
       requestingImage && !autoSpendImages && !options?.bypassImageConfirmation;
-    const explicitReq = isExplicitImageRequest(promptForImage);
+    const imageRequestFromMenu = options?.imageRequestFromMenu === true;
+    const explicitReq =
+      isExplicitImageRequest(promptForImage) || isExplicitImageRequest(messageText);
     const freeUsed = getFreeNsfwImagesUsed(user.id, companion.id);
-    const imageCharge = isAdminUser ? 0 : explicitReq && freeUsed < FREE_NSFW_CHAT_IMAGES ? 0 : IMAGE_TOKEN_COST;
+    const imageCharge = isAdminUser
+      ? 0
+      : imageRequestFromMenu && explicitReq && freeUsed < FREE_NSFW_CHAT_IMAGES
+        ? 0
+        : IMAGE_TOKEN_COST;
     const videoCharge = isAdminUser ? 0 : CHAT_VIDEO_TOKEN_COST;
     const requiredTokens = holdForImageButton
       ? 0
@@ -1811,14 +1838,40 @@ const Chat = () => {
       }
 
       if (holdForImageButton) {
-        setImageGenPending({ userMessageId: savedUserMessageId, prompt: promptForImage });
+        setImageGenPending({
+          userMessageId: savedUserMessageId,
+          prompt: promptForImage,
+          rawUserMessage: messageText,
+          fromMenu: imageRequestFromMenu,
+          menuImagePrompt: options?.imageGenerationPrompt ?? null,
+        });
         return;
       }
 
-      setLoading(true);
-
       if (requestingImage) {
-        const imageResult = await generateImage(promptForImage, user.id);
+        const menuImagePrompt = options?.imageGenerationPrompt ?? null;
+        const teaser = imageRequestFromMenu
+          ? pickMenuImageTeaserLine(
+              classifyChatImageMood({ rawUserMessage: messageText, menuBasePrompt: menuImagePrompt }),
+            )
+          : (await fetchChatImageTeaserLine({
+              systemPrompt: composeChatSystemPrompt(),
+              userRequest: messageText,
+            })) ||
+            pickMenuImageTeaserLine(
+              classifyChatImageMood({ rawUserMessage: messageText, menuBasePrompt: menuImagePrompt }),
+            );
+        const teaserId = await insertAssistantMessage(teaser, null);
+        setMessages((prev) => [
+          ...prev,
+          { id: teaserId, role: "assistant", content: teaser, timestamp: new Date() },
+        ]);
+        setLoading(true);
+        const imageResult = await generateImage(promptForImage, user.id, {
+          fromMenu: imageRequestFromMenu,
+          rawUserMessage: messageText,
+          menuImagePrompt,
+        });
 
         if (imageResult) {
           const rowId = await insertAssistantImageMessage({
@@ -1863,12 +1916,14 @@ const Chat = () => {
           clearOpeningStarterContext();
           await applyChatAffectionAfterExchange();
         }
-      } else if (requestingVideo) {
-        const mood = inferClipMoodFromUserText(messageText);
-        await generateChatVideoClip({ mood, silent: false });
-        clearOpeningStarterContext();
-        await applyChatAffectionAfterExchange();
       } else {
+        setLoading(true);
+        if (requestingVideo) {
+          const mood = inferClipMoodFromUserText(messageText);
+          await generateChatVideoClip({ mood, silent: false });
+          clearOpeningStarterContext();
+          await applyChatAffectionAfterExchange();
+        } else {
         const chatFn = "grok-chat";
         const { data, error } = await supabase.functions.invoke(chatFn, {
           body: {
@@ -1927,6 +1982,7 @@ const Chat = () => {
         await deductTokens(user.id);
         clearOpeningStarterContext();
         await applyChatAffectionAfterExchange();
+        }
       }
     } catch (err: unknown) {
       console.error("Chat error:", err);
@@ -1959,6 +2015,7 @@ const Chat = () => {
       void sendMessage("New still with the same heat as that pick — upper body, lingerie or tease.", {
         imageGenerationPrompt: brief,
         bypassImageConfirmation: true,
+        imageRequestFromMenu: false,
       });
     },
     [user, companion, sendMessage],
@@ -1973,6 +2030,7 @@ const Chat = () => {
       void sendMessage(resolveFabDisplay(FAB_SELFIE.sfw.display), {
         imageGenerationPrompt: FAB_SELFIE.sfw.imagePrompt,
         bypassImageConfirmation: true,
+        imageRequestFromMenu: true,
       });
       return;
     }
@@ -1980,6 +2038,7 @@ const Chat = () => {
       void sendMessage(resolveFabDisplay(FAB_SELFIE.lewd.display), {
         imageGenerationPrompt: FAB_SELFIE.lewd.imagePrompt,
         bypassImageConfirmation: true,
+        imageRequestFromMenu: true,
       });
       return;
     }
@@ -1987,6 +2046,7 @@ const Chat = () => {
       void sendMessage(resolveFabDisplay(FAB_SELFIE.nude.display), {
         imageGenerationPrompt: FAB_SELFIE.nude.imagePrompt,
         bypassImageConfirmation: true,
+        imageRequestFromMenu: true,
       });
       return;
     }

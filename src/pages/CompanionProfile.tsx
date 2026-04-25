@@ -621,7 +621,7 @@ const CompanionProfile = () => {
                       <video
                         key={animatedPortrait}
                         className={cn(
-                          "absolute inset-0 z-[2] h-full w-full object-cover object-center transition-opacity duration-500 ease-out ring-0 outline-none",
+                          "absolute inset-0 z-[2] h-full w-full object-cover object-center origin-center scale-[1.05] transition-opacity duration-500 ease-out ring-0 outline-none",
                           loopVideoReady ? "opacity-100" : "opacity-0",
                         )}
                         src={animatedPortrait}

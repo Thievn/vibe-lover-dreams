@@ -37,6 +37,8 @@ import {
 } from "@/components/ui/select";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
 import { clearForgeStash, loadForgeStash, saveForgeStash, type ForgeStashPayload } from "@/lib/forgeDraftStash";
+import { buildLocalSpinForgeFields } from "@/lib/forgeLocalSpinContent";
+import { clearForgeSessionDraft, loadForgeSessionDraft, saveForgeSessionDraft } from "@/lib/forgeSessionDraft";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
 import { formatSupabaseError } from "@/lib/supabaseError";
@@ -221,7 +223,7 @@ function normalizeFantasyStartersFromFields(raw: unknown): { title: string; desc
     .filter((x): x is { title: string; description: string } => x !== null);
 }
 
-/** If Grok returns fewer than 4, pad with tasteful in-character openers so chat UI always has buttons. */
+/** If a profile parse returns fewer than 4, pad with in-character openers so chat UI always has buttons. */
 function padFantasyStartersToFour(
   starters: { title: string; description: string }[],
   displayName: string,
@@ -361,8 +363,11 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   const [adminForgeRarity, setAdminForgeRarity] = useState<Exclude<CompanionRarity, "abyssal">>("epic");
   const [adminAbyssalForge, setAdminAbyssalForge] = useState(false);
 
-  /** Grok-filled narrative pack (forge roulette + design lab). */
+  /** Local spin / design-lab fill in progress. */
   const [rouletteLoading, setRouletteLoading] = useState(false);
+  const forgeRestoreRanRef = useRef(false);
+  const [forgeSessionHydrated, setForgeSessionHydrated] = useState(false);
+  const sessionSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [narrativeAppearance, setNarrativeAppearance] = useState("");
   const [chronicleBackstory, setChronicleBackstory] = useState("");
   const [hookBio, setHookBio] = useState("");
@@ -483,49 +488,142 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     void loadProfile();
   }, [loadProfile]);
 
-  /** Restore paid preview URL if the user leaves the forge mid-flow (user forge only). */
+  /** Restore full forge session (or legacy preview-only) when returning to the page. */
   useEffect(() => {
-    if (!userId || isAdmin) return;
-    try {
-      const raw = localStorage.getItem(previewStorageKey(userId, "user"));
-      if (!raw) return;
-      const j = JSON.parse(raw) as { previewUrl?: string; previewCanonicalUrl?: string };
-      if (j?.previewUrl && typeof j.previewUrl === "string") {
-        setPreviewUrl(stablePortraitDisplayUrl(j.previewUrl) ?? j.previewUrl);
-      }
-      if (j?.previewCanonicalUrl && typeof j.previewCanonicalUrl === "string") {
-        setPreviewCanonicalUrl(stablePortraitDisplayUrl(j.previewCanonicalUrl) ?? j.previewCanonicalUrl);
-      } else if (j?.previewUrl && typeof j.previewUrl === "string") {
-        setPreviewCanonicalUrl(stablePortraitDisplayUrl(j.previewUrl) ?? j.previewUrl);
-      }
-    } catch {
-      /* ignore corrupt storage */
-    }
-  }, [userId, isAdmin]);
-
-  useEffect(() => {
-    if (!userId || isAdmin) return;
-    if (!previewUrl) {
+    if (!userId || loadingProfile || forgeRestoreRanRef.current) return;
+    forgeRestoreRanRef.current = true;
+    const mode = isAdmin ? "admin" : "user";
+    const draft = loadForgeSessionDraft(userId, mode);
+    if (draft) {
+      setName(draft.name ?? "");
+      setNamePrefix(draft.namePrefix?.trim() ?? "");
+      setTagline(draft.tagline ?? "");
+      setGender(draft.gender);
+      setEthnicity(normalizeForgeEthnicity(typeof draft.ethnicity === "string" ? draft.ethnicity : FORGE_ETHNICITY_ANY_LABEL));
+      setForgePersonality(
+        draft.forgePersonality ? normalizeForgePersonality(draft.forgePersonality) : DEFAULT_FORGE_PERSONALITY,
+      );
+      setArtStyle(normalizeForgeArtStyle(draft.artStyle));
+      setSceneAtmosphere(normalizeForgeScene(draft.sceneAtmosphere));
+      setBodyType(normalizeForgeBodyType(draft.bodyType));
+      setTraits(draft.traits?.length ? draft.traits : pickRandom(TRAITS, randomTraitCount()));
+      setOrientation(draft.orientation);
+      setExtraNotes(draft.extraNotes ?? "");
+      setReferenceNotes(draft.referenceNotes?.trim() ?? "");
+      setNarrativeAppearance(draft.narrativeAppearance ?? "");
+      setChronicleBackstory(draft.chronicleBackstory ?? "");
+      setHookBio(draft.hookBio ?? "");
+      setCharterSystemPrompt(draft.charterSystemPrompt ?? "");
+      setPackshotPrompt(draft.packshotPrompt ?? "");
+      setRosterTags(Array.isArray(draft.rosterTags) ? draft.rosterTags : []);
+      setRosterKinks(Array.isArray(draft.rosterKinks) ? draft.rosterKinks : []);
       try {
-        localStorage.removeItem(previewStorageKey(userId, "user"));
+        const st = JSON.parse(draft.fantasyStartersJson || "[]") as { title: string; description: string }[];
+        if (Array.isArray(st)) setFantasyStartersVault(st);
       } catch {
         /* ignore */
       }
+      if (draft.previewUrl) {
+        setPreviewUrl(stablePortraitDisplayUrl(draft.previewUrl) ?? draft.previewUrl);
+        setPreviewCanonicalUrl(
+          draft.previewCanonicalUrl
+            ? (stablePortraitDisplayUrl(draft.previewCanonicalUrl) ?? draft.previewCanonicalUrl)
+            : (stablePortraitDisplayUrl(draft.previewUrl) ?? draft.previewUrl),
+        );
+      }
+      toast.message("Your forge is still here", {
+        description: "We kept your last mix, story fields, and preview on this device.",
+      });
+      setForgeSessionHydrated(true);
       return;
     }
-    try {
-      localStorage.setItem(
-        previewStorageKey(userId, "user"),
-        JSON.stringify({
-          previewUrl,
-          previewCanonicalUrl: previewCanonicalUrl ?? previewUrl,
-          savedAt: Date.now(),
-        }),
-      );
-    } catch {
-      /* quota / private mode */
+    if (!isAdmin) {
+      try {
+        const raw = localStorage.getItem(previewStorageKey(userId, "user"));
+        if (!raw) {
+          setForgeSessionHydrated(true);
+          return;
+        }
+        const j = JSON.parse(raw) as { previewUrl?: string; previewCanonicalUrl?: string };
+        if (j?.previewUrl && typeof j.previewUrl === "string") {
+          setPreviewUrl(stablePortraitDisplayUrl(j.previewUrl) ?? j.previewUrl);
+        }
+        if (j?.previewCanonicalUrl && typeof j.previewCanonicalUrl === "string") {
+          setPreviewCanonicalUrl(stablePortraitDisplayUrl(j.previewCanonicalUrl) ?? j.previewCanonicalUrl);
+        } else if (j?.previewUrl && typeof j.previewUrl === "string") {
+          setPreviewCanonicalUrl(stablePortraitDisplayUrl(j.previewUrl) ?? j.previewUrl);
+        }
+      } catch {
+        /* ignore corrupt storage */
+      }
     }
-  }, [previewUrl, previewCanonicalUrl, userId, isAdmin]);
+    setForgeSessionHydrated(true);
+  }, [userId, isAdmin, loadingProfile]);
+
+  /** Auto-save full session (debounced) so a paid preview and copy survive navigation. */
+  useEffect(() => {
+    if (!userId || !forgeSessionHydrated) return;
+    const mode = isAdmin ? "admin" : "user";
+    if (sessionSaveTimerRef.current) clearTimeout(sessionSaveTimerRef.current);
+    sessionSaveTimerRef.current = setTimeout(() => {
+      const payload: ForgeStashPayload = {
+        savedAt: new Date().toISOString(),
+        name,
+        namePrefix: namePrefix.trim() || undefined,
+        tagline,
+        gender,
+        ethnicity: normalizeForgeEthnicity(ethnicity),
+        forgePersonality: { ...forgePersonality },
+        artStyle,
+        sceneAtmosphere,
+        bodyType,
+        traits: [...traits],
+        orientation,
+        extraNotes,
+        referenceNotes: referenceNotes.trim() || undefined,
+        narrativeAppearance,
+        chronicleBackstory,
+        hookBio,
+        charterSystemPrompt,
+        packshotPrompt,
+        rosterTags: [...rosterTags],
+        rosterKinks: [...rosterKinks],
+        fantasyStartersJson: JSON.stringify(fantasyStartersVault),
+        previewUrl,
+        previewCanonicalUrl,
+      };
+      saveForgeSessionDraft(userId, mode, payload);
+    }, 750);
+    return () => {
+      if (sessionSaveTimerRef.current) clearTimeout(sessionSaveTimerRef.current);
+    };
+  }, [
+    userId,
+    isAdmin,
+    name,
+    namePrefix,
+    tagline,
+    gender,
+    ethnicity,
+    forgePersonality,
+    artStyle,
+    sceneAtmosphere,
+    bodyType,
+    traits,
+    orientation,
+    extraNotes,
+    referenceNotes,
+    narrativeAppearance,
+    chronicleBackstory,
+    hookBio,
+    charterSystemPrompt,
+    packshotPrompt,
+    rosterTags,
+    rosterKinks,
+    fantasyStartersVault,
+    previewUrl,
+    previewCanonicalUrl,
+  ]);
 
   const clearForgePreview = useCallback(
     (opts?: { silent?: boolean }) => {
@@ -771,7 +869,9 @@ User flavor notes: ${extraNotes || "none"}`;
 
   const randomizeForgeCharacter = async () => {
     setRouletteLoading(true);
-    if (isAdmin) pushForgeOp("Forge roulette: rolled local seeds; calling Grok for the full profile pack…", "info");
+    if (isAdmin) {
+      pushForgeOp("The veil spun — new Personalities mix and local story pass (no model wait).", "info");
+    }
     const g = pick(GENDERS);
     const fp = randomForgePersonality();
     const ar = pick([...FORGE_ART_STYLES]);
@@ -809,61 +909,39 @@ User flavor notes: ${extraNotes || "none"}`;
       setName(lockedName);
     }
 
-    const seedPrompt = `FORGE ROULETTE — treat the lines below as creative SEEDS only. Interpret into a cohesive original character. Do NOT paste the seed list into "appearance" or "backstory".
+    const pl = forgePersonalityLabel(fp);
+    const local = buildLocalSpinForgeFields({
+      displayName: lockedName,
+      gender: g,
+      orientation: ori,
+      ethnicity: eth,
+      forgePersonality: fp,
+      artStyle: ar,
+      sceneAtmosphere: sc,
+      bodyType: bt,
+      traits: shuffled,
+    });
 
-Seeds:
-- **MANDATORY display name (the "name" field must be this exact string):** ${lockedName}
-- gender leaning: ${g}
-- **Personalities (all lines below — this is the voice + psychology + relationship contract):**
-${forgePersonalitySeedsProse(fp)
-  .split("\n")
-  .map((line) => `  ${line}`)
-  .join("\n")}
-- art style: ${ar}
-- scene anchor: ${sc}
-- body type: ${bt}
-- orientation: ${ori}
-- ancestry / complexion: ${eth}
-- notable traits: ${shuffled.join(", ")}
+    setName(lockedName);
+    setTagline(local.tagline);
+    setNarrativeAppearance(local.narrativeAppearance);
+    setChronicleBackstory(local.chronicleBackstory);
+    setHookBio(local.hookBio);
+    setCharterSystemPrompt(local.charterSystemPrompt);
+    setPackshotPrompt(local.packshotPrompt);
+    setRosterTags(local.rosterTags);
+    setRosterKinks(local.rosterKinks);
+    setFantasyStartersVault(local.fantasyStarters);
 
-Hard requirements:
-${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" — the app already generated a period- and personality-appropriate name; do not replace it with a gothic, alias, or "cooler" catalog name.
-2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps. Forge body type "${bt}" is the **spine of the physique** — lead with scale and proportion; theme species/fashion/setting around it. For compact / short-stature / little-person / pixie / micro picks, establish unmistakable adult compact proportions first — nothing may read like a default average-height human silhouette.
-3) backstory: 3–4 paragraphs of premium dark-romance storytelling that weaves every Personalities line into one coherent history — not a bullet recap of tags.
-4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
-5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences). Bold NSFW when persona fits; never end with meta questions ("Are you ready?", "Want to start?") — close on dialogue or action.
-6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
-7) image_prompt: one dense SFW paragraph for a vertical portrait card. **EXTREMELY IMPORTANT — OPEN WITH BODY TYPE "${bt}":** First sentences must lock "${bt}" for silhouette/species/proportions; forbidden: generic tall human with token props. Non-human / hybrid / extreme types need explicit visible anatomy. Then art "${ar}" and scene "${sc}"; scene must not override body type. If "${sc}" is "No Background", neutral cyclorama only.
-8) system_prompt: full chat charter for this persona.`;
-
-    try {
-      const { data, error } = await supabase.functions.invoke("parse-companion-prompt", {
-        body: { mode: "companion_design_lab", prompt: seedPrompt },
-      });
-      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
-      if (data?.error) throw new Error(String(data.error));
-      const fields = data?.fields as Record<string, unknown> | undefined;
-      if (!fields || typeof fields.name !== "string") throw new Error("No profile returned");
-
-      setName(lockedName);
-      if (typeof fields.tagline === "string" && fields.tagline.trim()) setTagline(fields.tagline.slice(0, 240));
-      syncPillsFromGrokFields(fields);
-
-      setNarrativeAppearance(String(fields.appearance || "").slice(0, 12000));
-      setChronicleBackstory(String(fields.backstory || "").slice(0, 24000));
-      setHookBio(String(fields.bio || "").slice(0, 12000));
-      setCharterSystemPrompt(String(fields.system_prompt || "").slice(0, 32000));
-      setPackshotPrompt(fields.image_prompt != null ? String(fields.image_prompt).slice(0, 8000) : "");
-      setRosterTags(Array.isArray(fields.tags) ? (fields.tags as string[]).map(String).slice(0, 24) : []);
-      setRosterKinks(Array.isArray(fields.kinks) ? (fields.kinks as string[]).map(String).slice(0, 24) : []);
-      setFantasyStartersVault(normalizeFantasyStartersFromFields(fields.fantasy_starters));
-      if (isAdmin) pushForgeOp("Roulette filled narrative, starters, tags, and portrait prompt.", "ok");
-    } catch (e: unknown) {
-      if (isAdmin) pushForgeOp(e instanceof Error ? e.message : "Roulette failed", "err");
-      toast.error(e instanceof Error ? e.message : "Roulette failed");
-    } finally {
-      setRouletteLoading(false);
+    if (isAdmin) {
+      pushForgeOp(
+        `Spin complete: ${g} · ${ar} · ${sc} — ${pl.slice(0, 80)}${pl.length > 80 ? "…" : ""}. Story fields are template-filled; edit in Narrative if you want a longer custom chronicle.`,
+        "ok",
+      );
+    } else {
+      toast.success("New mix sealed — preview your portrait when you are ready.");
     }
+    setRouletteLoading(false);
   };
 
   const toggleTrait = (t: string) => {
@@ -1099,6 +1177,11 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
         endFinalForgeLoading();
         return;
       }
+      if (!isAdmin) {
+        toast.message("Weaving your companion into the vault…", {
+          description: "This can take a little while — keep the tab open until we finish.",
+        });
+      }
 
       if (isAdmin) pushForgeOp("Validating copy, portrait, and DB payload…", "info");
 
@@ -1111,8 +1194,8 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
       let effectiveRosterTags = rosterTags;
 
       if (effectiveChronicle.length < MIN_CHRONICLE_CHARS) {
-        toast.info("Writing full chronicle & profile copy…");
-        if (isAdmin) pushForgeOp("Chronicle short — calling design lab to expand prose & starters…", "info");
+        toast.info("Your chronicle is short — expanding prose from your seeds…");
+        if (isAdmin) pushForgeOp("Chronicle short — design lab expanding prose & starters…", "info");
         const seedPrompt = buildForgeDesignLabSeedPrompt({
           gender,
           ethnicity: normalizeForgeEthnicity(ethnicity),
@@ -1134,7 +1217,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
         const bs = typeof fields?.backstory === "string" ? fields.backstory.trim() : "";
         if (!bs) {
           throw new Error(
-            "Could not generate a full chronicle. Use Forge Roulette to fill the profile, or paste a longer Chronicle, then try again.",
+            "Could not generate a full chronicle. Spin the forge to refill the profile, or paste a longer Chronicle, then try again.",
           );
         }
         effectiveChronicle = bs.slice(0, 24000);
@@ -1407,7 +1490,15 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
           }
         })();
       }
-      if (!isAdmin) clearForgePreview({ silent: true });
+      clearForgeSessionDraft(userId, isAdmin ? "admin" : "user");
+      if (!isAdmin) {
+        try {
+          localStorage.removeItem(previewStorageKey(userId, "user"));
+        } catch {
+          /* ignore */
+        }
+        clearForgePreview({ silent: true });
+      }
       if (isAdmin && onForged) onForged();
       else if (!embedded && mode === "user") navigate("/dashboard", { state: { activeNav: "collection" } });
     } catch (e: unknown) {
@@ -1421,7 +1512,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
   useImperativeHandle(ref, () => ({
     async runRandomRouletteAndForge(opts?: { forcePrivate?: boolean }) {
       if (!isAdmin) return;
-      pushForgeOp("Scheduled forge: roulette + create companion chain starting…", "info");
+      pushForgeOp("Scheduled forge: spin the forge + create companion chain starting…", "info");
       forcePrivateForgeRef.current = Boolean(opts?.forcePrivate);
       try {
         await randomizeForgeCharacter();
@@ -1493,6 +1584,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
     const payload: ForgeStashPayload = {
       savedAt: new Date().toISOString(),
       name,
+      namePrefix: namePrefix.trim() || undefined,
       tagline,
       gender,
       ethnicity: normalizeForgeEthnicity(ethnicity),
@@ -1503,6 +1595,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
       traits: [...traits],
       orientation,
       extraNotes,
+      referenceNotes: referenceNotes.trim() || undefined,
       narrativeAppearance,
       chronicleBackstory,
       hookBio,
@@ -1518,6 +1611,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
     toast.success("Forge stashed on this device — switch ideas or restore anytime.");
   }, [
     name,
+    namePrefix,
     tagline,
     gender,
     ethnicity,
@@ -1528,6 +1622,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
     traits,
     orientation,
     extraNotes,
+    referenceNotes,
     narrativeAppearance,
     chronicleBackstory,
     hookBio,
@@ -1547,6 +1642,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
       return;
     }
     setName(p.name);
+    setNamePrefix(p.namePrefix?.trim() ?? "");
     setTagline(p.tagline);
     setGender(p.gender);
     setEthnicity(normalizeForgeEthnicity(typeof p.ethnicity === "string" ? p.ethnicity : FORGE_ETHNICITY_ANY_LABEL));
@@ -1561,6 +1657,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
     setTraits(p.traits?.length ? p.traits : pickRandom(TRAITS, randomTraitCount()));
     setOrientation(p.orientation);
     setExtraNotes(p.extraNotes ?? "");
+    setReferenceNotes(p.referenceNotes?.trim() ?? "");
     setNarrativeAppearance(p.narrativeAppearance ?? "");
     setChronicleBackstory(p.chronicleBackstory ?? "");
     setHookBio(p.hookBio ?? "");
@@ -1684,11 +1781,16 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
               }}
             >
               {rouletteLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Dices className="h-5 w-5" />}
-              {rouletteLoading ? "Grok is forging…" : "Randomize / Roulette"}
+              {rouletteLoading
+                ? isAdmin
+                  ? "Writing local draft…"
+                  : "The veil is spinning…"
+                : "Spin the forge"}
             </motion.button>
             <p className="text-[10px] text-muted-foreground leading-relaxed -mt-2">
-              Spins pills, then calls Grok for a full premium draft: name, cinematic appearance prose, 3–4 paragraph
-              backstory, bio, 4 fantasy starters, tags &amp; interests, SFW packshot prompt, and chat charter.
+              {isAdmin
+                ? "Draws a new mix from the same lists, locks a name, and fills copy + starters locally (no model round-trip) — edit the Narrative tab if you want a longer hand-written chronicle."
+                : "Instant random roll: Personalities, scene, body, name, and a starter story pass — all from the forge’s own options, on your device."}
             </p>
 
             <Accordion type="multiple" defaultValue={accordionDefaultOpen} className={cn(panelClass, "px-1")}>
@@ -1753,7 +1855,12 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
                     <h3 className="font-gothic text-xl sm:text-2xl text-white leading-tight">Personalities</h3>
                     <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed max-w-2xl">
                       Everything here steers <strong className="text-white/90">how they speak, flirt, and relate</strong> — the
-                      psychology and relationship frame for Grok chat and Live Call. It is separate from the look of the
+                      {isAdmin ? (
+                        <> psychology and relationship frame for xAI (Grok) chat and Live Call.</>
+                      ) : (
+                        <> psychology and relationship frame for in-session <strong className="text-white/80">text chat &amp; live call</strong>. </>
+                      )}{" "}
+                      It is separate from the look of the
                       body and the painted scene. More forge sections (appearance refinements, wardrobe, etc.) will layer on
                       later; for now, use <strong className="text-white/90">Art style, scene &amp; body</strong> below for the
                       visual card.
@@ -1767,7 +1874,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
                         onClick={() => setForgePersonality(randomForgePersonality())}
                         className="text-[10px] font-semibold uppercase tracking-wider px-3 py-1.5 rounded-lg border border-white/15 bg-black/50 text-[hsl(170_100%_70%)] hover:border-[hsl(170_100%_42%)]/50 transition-colors"
                       >
-                        Randomize all
+                        {isAdmin ? "Randomize all" : "Shuffle the pillars"}
                       </button>
                     </div>
                   </div>
@@ -1944,8 +2051,18 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
                 </AccordionTrigger>
                 <AccordionContent className="pb-5 space-y-4">
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Filled by <strong className="text-white/90">Randomize / Roulette</strong> (full profile at once). Edit freely
-                    — this is what saves to your vault (appearance, bio, backstory, packshot prompt, chat charter). The{" "}
+                    {isAdmin ? (
+                      <>
+                        Filled by <strong className="text-white/90">Spin the forge</strong> or the design-lab when your chronicle is
+                        short. Edit freely
+                      </>
+                    ) : (
+                      <>
+                        Filled by <strong className="text-white/90">Spin the forge</strong> (a starter pass you can edit). This is what
+                        saves
+                      </>
+                    )}{" "}
+                    to your vault (appearance, bio, backstory, packshot prompt, chat charter). The{" "}
                     <strong className="text-white/90">profile card</strong> under Live preview mirrors these fields.
                   </p>
                   <div>
@@ -1986,7 +2103,8 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
                   </div>
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">
-                      SFW packshot prompt (Grok Imagine)
+                      SFW packshot prompt
+                      {isAdmin ? " (Grok / Imagine — pipeline)" : " (portrait engine)"}
                     </p>
                     <textarea
                       value={packshotPrompt}
@@ -2004,7 +2122,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
                       value={charterSystemPrompt}
                       onChange={(e) => setCharterSystemPrompt(e.target.value)}
                       rows={6}
-                      placeholder="Full persona rules for Grok chat…"
+                      placeholder={isAdmin ? "Full persona rules (xAI / chat pipeline)…" : "Full persona rules for their chat voice…"}
                       className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm resize-y focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
                     />
                   </div>
@@ -2379,14 +2497,15 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
                 </span>
               </div>
               <div className="p-4 sm:p-5">
-                <div className="w-full max-w-[min(100%,340px)] mx-auto lg:mx-0 overflow-visible p-1.5 max-sm:p-1">
+                <div className="w-full max-w-[min(100%,340px)] mx-auto lg:mx-0 overflow-visible p-2 max-sm:p-1.5">
                   <TierHaloPortraitFrame
                     variant="compact"
                     frameStyle="clean"
                     rarity={forgePreviewTier}
                     gradientFrom="#7B2D8E"
                     gradientTo={NEON}
-                    aspectClassName="aspect-[63/88] w-full"
+                    rarityFrameBleed
+                    className="overflow-visible"
                   >
                     <AnimatePresence mode="wait">
                       {previewUrl ? (
@@ -2537,7 +2656,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
                         type="button"
                         onClick={() => {
                           const bundle = {
-                            grokPrompt,
+                            composedPortraitPrompt: grokPrompt,
                             systemPrompt,
                             gender,
                             ethnicity: normalizeForgeEthnicity(ethnicity),
@@ -2649,7 +2768,7 @@ ${forgeCompactStatureInstruction(bt)}1) name: MUST be exactly "${lockedName}" �
                   className="max-h-[220px] overflow-y-auto rounded-xl border border-white/10 bg-black/50 p-3 space-y-2 text-left"
                 >
                   {forgeOpLines.length === 0 ? (
-                    <p className="text-[11px] text-muted-foreground">No events yet — run roulette, portrait, or Create companion.</p>
+                    <p className="text-[11px] text-muted-foreground">No events yet — spin the forge, portrait, or create companion.</p>
                   ) : (
                     forgeOpLines.map((line) => (
                       <div

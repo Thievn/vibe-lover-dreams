@@ -6,6 +6,8 @@ import { DEFAULT_FORGE_PERSONALITY, normalizeForgePersonality, type ForgePersona
 export type ForgeStashPayload = {
   savedAt: string;
   name: string;
+  /** Optional title / clan — shown before first name in batch forges. */
+  namePrefix?: string;
   tagline: string;
   gender: string;
   /** Ancestry / complexion forge choice; absent in older stashes → treated as open. */
@@ -21,6 +23,8 @@ export type ForgeStashPayload = {
   traits: string[];
   orientation: string;
   extraNotes: string;
+  /** Reference image notes (optional; session restore). */
+  referenceNotes?: string;
   narrativeAppearance: string;
   chronicleBackstory: string;
   hookBio: string;

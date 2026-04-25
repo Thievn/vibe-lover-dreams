@@ -103,7 +103,13 @@ export function RarityBorderOverlay({
         <img
           src={src}
           alt=""
-          className={cn("absolute inset-0 z-[1] h-full w-full object-fill", clean ? "opacity-[0.93]" : "opacity-[0.92]")}
+          className={cn(
+            "absolute z-[1] h-full w-full object-fill",
+            frameBleed
+              ? "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 origin-center scale-[1.09]"
+              : "inset-0",
+            clean ? "opacity-[0.93]" : "opacity-[0.92]",
+          )}
           style={{ filter: rarityCardOverlayGlowFilter(rarity) }}
         />
       )}

@@ -1548,7 +1548,7 @@ const CompanionManager = () => {
                 key={String(fr.id)}
                 className="flex items-stretch gap-3 text-xs border border-border/60 rounded-xl p-3 bg-gradient-to-br from-black/40 to-muted/20"
               >
-                <div className="w-14 h-20 shrink-0 overflow-visible p-0.5">
+                <div className="w-14 h-[4.5rem] shrink-0 overflow-visible p-0.5">
                   <TierHaloPortraitFrame
                     variant="compact"
                     frameStyle="clean"
@@ -1556,7 +1556,8 @@ const CompanionManager = () => {
                     gradientFrom={frGf}
                     gradientTo={frGt}
                     overlayUrl={frOb}
-                    aspectClassName="aspect-[7/10] w-full h-full"
+                    aspectClassName="aspect-[9/16] w-full h-full"
+                    rarityFrameBleed
                   >
                     <div
                       className="absolute inset-0 z-0"

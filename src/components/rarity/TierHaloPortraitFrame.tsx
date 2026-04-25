@@ -20,6 +20,8 @@ type Props = {
   aspectClassName?: string;
   /** Soft pulsing tier neon (e.g. chat header round portrait). */
   neonEdgeBreathing?: boolean;
+  /** Slight scale on vector frame so the rim / glow meets the card edge (stills + 9:16 video). */
+  rarityFrameBleed?: boolean;
   className?: string;
   children: ReactNode;
 };
@@ -34,8 +36,9 @@ export function TierHaloPortraitFrame({
   gradientFrom,
   gradientTo,
   overlayUrl,
-  aspectClassName = "aspect-[3/4] w-full",
+  aspectClassName = "aspect-[9/16] w-full",
   neonEdgeBreathing = false,
+  rarityFrameBleed = false,
   className,
   children,
 }: Props) {
@@ -60,6 +63,7 @@ export function TierHaloPortraitFrame({
           overlayUrl={overlayUrl}
           abyssal={isAbyssal}
           frameStyle={frameStyle}
+          frameBleed={rarityFrameBleed}
           className={innerRound}
         />
       </div>

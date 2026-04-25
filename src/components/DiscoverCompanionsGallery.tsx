@@ -333,6 +333,7 @@ export default function DiscoverCompanionsGallery() {
                       gradientFrom={c.gradientFrom}
                       gradientTo={c.gradientTo}
                       overlayUrl={c.rarityBorderOverlayUrl}
+                      rarityFrameBleed
                     >
                       <div
                         className="absolute inset-0 z-0"

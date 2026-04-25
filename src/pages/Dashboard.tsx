@@ -897,7 +897,8 @@ function DashboardHome({
                       gradientFrom={c.gradientFrom}
                       gradientTo={c.gradientTo}
                       overlayUrl={c.rarityBorderOverlayUrl ?? null}
-                      aspectClassName="aspect-[5/6] w-full h-full"
+                      aspectClassName="aspect-[9/16] w-full h-full"
+                      rarityFrameBleed
                     >
                       <div
                         className="absolute inset-0 z-0"
@@ -994,6 +995,7 @@ function MiniCompanionCard({ companion: c, index }: { companion: Companion; inde
           gradientFrom={c.gradientFrom}
           gradientTo={c.gradientTo}
           overlayUrl={c.rarityBorderOverlayUrl}
+          rarityFrameBleed
         >
           <div
             className="absolute inset-0 z-0"

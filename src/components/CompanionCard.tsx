@@ -44,6 +44,7 @@ export default function CompanionCard({ companion, index, imageOverride, gallery
           gradientFrom={companion.gradientFrom}
           gradientTo={companion.gradientTo}
           overlayUrl={companion.rarityBorderOverlayUrl}
+          rarityFrameBleed
         >
           <div
             className="absolute inset-0 z-0"

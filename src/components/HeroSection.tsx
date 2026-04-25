@@ -213,6 +213,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
                     gradientFrom={comp.gradientFrom}
                     gradientTo={comp.gradientTo}
                     overlayUrl={comp.rarityBorderOverlayUrl}
+                    rarityFrameBleed
                   >
                     <div
                       className="absolute inset-0 z-0"
