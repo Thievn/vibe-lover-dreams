@@ -183,7 +183,7 @@ export function ChatMessageThread({
                     type="button"
                     onClick={() => onConfirmPendingImage()}
                     disabled={loading}
-                    className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-center text-sm font-semibold text-primary-foreground shadow-[0_0_20px_rgba(255,45,123,0.2)] ring-1 ring-white/10 hover:bg-black/55 disabled:opacity-40 transition-colors"
+                    className="w-full rounded-lg border border-white/10 bg-black/35 px-2.5 py-1.5 text-center text-xs font-semibold text-primary-foreground shadow-[0_0_14px_rgba(255,45,123,0.16)] ring-1 ring-white/10 hover:bg-black/50 disabled:opacity-40 transition-colors"
                   >
                     {pendingImageButtonLabel}
                   </button>

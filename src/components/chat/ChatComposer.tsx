@@ -241,7 +241,7 @@ export function ChatComposer({
         <div className="flex items-center justify-end gap-2 pt-0.5">
           <motion.button
             type="submit"
-            whileTap={{ scale: 0.98 }}
+            whileTap={{ scale: 0.99 }}
             disabled={loading || !input.trim() || disabled}
             className="inline-flex h-14 min-w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-fuchsia-700 text-primary-foreground transition-opacity disabled:opacity-30 shadow-[0_4px_24px_hsl(320_85%_50%_/_0.35),0_0_40px_hsl(320_85%_50%_/_0.2)] sm:min-w-[3.75rem] sm:px-2"
             title={submitTitle}
@@ -417,7 +417,7 @@ function PhotoMoodMenu({
     <>
       <motion.button
         type="button"
-        whileTap={{ scale: 0.98 }}
+        whileTap={{ scale: 0.99 }}
         disabled={disabled}
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
@@ -454,8 +454,8 @@ function PhotoMoodMenu({
                     type="button"
                     disabled={disabled}
                     onClick={() => pickStill(opt)}
-                    className={cn(
-                      "group relative flex flex-col overflow-hidden rounded-2xl border text-left transition-all duration-200",
+                      className={cn(
+                        "group relative flex flex-col overflow-hidden rounded-xl border text-left transition-all duration-300",
                       "border-white/[0.1] bg-white/[0.025] hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.06]",
                       "hover:shadow-[0_16px_48px_rgba(0,0,0,0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
                       disabled && "pointer-events-none opacity-40",
@@ -464,23 +464,23 @@ function PhotoMoodMenu({
                   >
                     <div
                       className={cn(
-                        "relative h-[7.25rem] shrink-0 sm:h-36",
+                        "relative h-[5.4rem] shrink-0 sm:h-[6.4rem]",
                         cardGradientForOption(tier, opt.paletteIndex),
                       )}
                     >
                       <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_70%_at_50%_-10%,rgba(255,255,255,0.22),transparent_55%)]" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
                       <ImageIcon
-                        className="pointer-events-none absolute right-3 top-3 h-9 w-9 text-white/25 transition-transform duration-200 group-hover:scale-105 group-hover:text-white/35"
+                        className="pointer-events-none absolute right-2.5 top-2.5 h-5 w-5 text-white/20 transition-transform duration-300 group-hover:scale-105 group-hover:text-white/28"
                         aria-hidden
                       />
-                      <div className="absolute bottom-0 left-0 right-0 p-3 pt-8">
-                        <p className="text-[13px] font-semibold leading-tight text-white drop-shadow-md">{opt.label}</p>
+                      <div className="absolute bottom-0 left-0 right-0 p-2.5 pt-6">
+                        <p className="text-[12px] font-semibold leading-tight text-white drop-shadow-md">{opt.label}</p>
                       </div>
                     </div>
-                    <div className="flex flex-1 flex-col gap-1.5 p-3.5 pt-3">
-                      <p className="text-[11px] leading-snug text-muted-foreground/95 line-clamp-2">{opt.hint}</p>
-                      <p className="mt-auto text-[9px] font-semibold uppercase tracking-[0.18em] text-primary/70">
+                    <div className="flex flex-1 flex-col gap-1 p-2.5 pt-2.5">
+                      <p className="text-[10px] leading-snug text-muted-foreground/95 line-clamp-2">{opt.hint}</p>
+                      <p className="mt-auto text-[8px] font-semibold uppercase tracking-[0.16em] text-primary/70">
                         Still · {imageCostLabel}
                       </p>
                     </div>
