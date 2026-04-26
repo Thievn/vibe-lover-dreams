@@ -839,7 +839,7 @@ function DashboardHome({
               Signature tiers
             </span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-3 sm:gap-4">
             {companionsLoading ? (
               Array.from({ length: 8 }).map((_, idx) => (
                 <div
@@ -1031,19 +1031,19 @@ function MiniCompanionCard({ companion: c, index }: { companion: Companion; inde
           ) : null}
           <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
           {c.isNexusHybrid ? (
-            <div className="absolute left-2 top-2 z-[3] text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-950/50 text-fuchsia-100/90">
+            <div className="absolute left-2 top-2 z-[3] max-w-[44%] truncate text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-950/50 text-fuchsia-100/90">
               Nexus
             </div>
           ) : null}
-          <div className="absolute top-2 right-2 z-[3] px-1.5 py-0.5 rounded-md bg-black/50 border border-white/10 text-[9px] font-bold uppercase tracking-wider text-white/90">
+          <div className="absolute top-2 right-2 z-[3] max-w-[52%] truncate px-1.5 py-0.5 rounded-md bg-black/60 border border-white/10 text-[8px] font-bold uppercase tracking-wide text-white/90">
             {c.role}
           </div>
           {cardTraits.length > 0 ? (
             <div
-              className="absolute bottom-[3.25rem] left-0 right-0 z-[3] px-1 pointer-events-auto"
+              className="absolute bottom-[3.5rem] left-0 right-0 z-[3] px-1 pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <CompanionVibeTraitStrip traits={cardTraits} className="justify-center" size="sm" max={4} />
+              <CompanionVibeTraitStrip traits={cardTraits} className="justify-center" size="sm" max={3} />
             </div>
           ) : null}
           <div className="absolute inset-x-0 bottom-0 z-[3] p-3 space-y-0.5">
@@ -1076,7 +1076,7 @@ function CollectionView({
         </p>
       </div>
       {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="rounded-2xl border border-border/60 bg-card/40 aspect-[3/4] animate-pulse" />
           ))}
@@ -1097,7 +1097,7 @@ function CollectionView({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           {list.map((c, i) => (
             <MiniCompanionCard key={c.id} companion={c} index={i} />
           ))}

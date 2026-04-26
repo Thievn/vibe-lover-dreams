@@ -823,9 +823,9 @@ export default function XMarketingHub() {
           ) : null}
 
           {hubTab === "compose" ? (
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 xl:gap-8 2xl:gap-10 items-start w-full max-w-[1920px] xl:mx-auto">
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 xl:gap-6 2xl:gap-8 items-start w-full">
             {/* LEFT — companion context (sticky scroll on desktop only) */}
-            <div className="xl:col-span-5 2xl:col-span-4 min-w-0 space-y-4 xl:sticky xl:top-4 xl:max-h-[calc(100dvh-5rem)] xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
+            <div className="xl:col-span-6 2xl:col-span-5 min-w-0 space-y-4 xl:sticky xl:top-4 xl:max-h-[calc(100dvh-5rem)] xl:overflow-y-auto xl:overscroll-contain xl:pr-1.5">
               <details
                 key={`xhub-pulse-${isMobileLayout}`}
                 defaultOpen={!isMobileLayout}
@@ -952,7 +952,7 @@ export default function XMarketingHub() {
               <div
                 ref={companionPickRef}
                 id="x-marketing-companion-pick"
-                className="rounded-2xl border border-border/70 bg-black/40 p-3 md:p-4 space-y-3 scroll-mt-6"
+                className="rounded-2xl border border-border/70 bg-black/40 p-4 md:p-5 space-y-4 scroll-mt-6"
               >
                 <div>
                   <h3 className="text-[10px] font-bold uppercase tracking-[0.28em] text-muted-foreground flex items-center gap-2">
@@ -964,9 +964,9 @@ export default function XMarketingHub() {
                     <strong className="text-foreground/90">Use in Tweet</strong>. Catalog + Forge personas.
                   </p>
                 </div>
-                <div className="flex flex-col xl:flex-row gap-2 flex-wrap xl:items-end">
+                <div className="flex flex-col xl:flex-row gap-2.5 flex-wrap xl:items-end">
                   <div className="flex flex-col gap-1 min-w-[10rem]">
-                    <label className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Rarity</label>
+                    <label className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">Rarity</label>
                     <select
                       value={rarityFilter}
                       onChange={(e) => {
@@ -975,7 +975,7 @@ export default function XMarketingHub() {
                         else if (v === "all") setRarityFilter("all");
                         else setRarityFilter(v as CompanionRarity);
                       }}
-                      className="rounded-xl bg-black/50 border border-border px-2 py-1.5 text-sm text-foreground"
+                      className="rounded-xl bg-black/50 border border-border px-2.5 py-2 text-sm text-foreground"
                     >
                       <option value="unset">Choose rarity to browse…</option>
                       <option value="all">All rarities</option>
@@ -987,11 +987,11 @@ export default function XMarketingHub() {
                     </select>
                   </div>
                   <div className="flex flex-col gap-1 min-w-[8rem]">
-                    <label className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Sort</label>
+                    <label className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">Sort</label>
                     <select
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value as "newest" | "most_saved" | "name")}
-                      className="rounded-xl bg-black/50 border border-border px-2 py-1.5 text-sm text-foreground"
+                      className="rounded-xl bg-black/50 border border-border px-2.5 py-2 text-sm text-foreground"
                     >
                       <option value="newest">Newest</option>
                       <option value="most_saved">Most saved</option>
@@ -999,30 +999,30 @@ export default function XMarketingHub() {
                     </select>
                   </div>
                   <div className="flex flex-col gap-1 flex-1 min-w-[10rem]">
-                    <label className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Tags</label>
+                    <label className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">Tags</label>
                     <input
                       value={tagFilter}
                       onChange={(e) => setTagFilter(e.target.value)}
                       list="xhub-tags-v2"
-                      className="rounded-xl bg-black/50 border border-border px-2 py-1.5 text-sm"
+                      className="rounded-xl bg-black/50 border border-border px-2.5 py-2 text-sm"
                     />
                   </div>
                   <div className="flex flex-col gap-1 flex-1 min-w-[10rem]">
-                    <label className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Kinks</label>
+                    <label className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">Kinks</label>
                     <input
                       value={kinkFilter}
                       onChange={(e) => setKinkFilter(e.target.value)}
                       list="xhub-kinks-v2"
-                      className="rounded-xl bg-black/50 border border-border px-2 py-1.5 text-sm"
+                      className="rounded-xl bg-black/50 border border-border px-2.5 py-2 text-sm"
                     />
                   </div>
                   <div className="flex flex-col gap-1 flex-[2] min-w-[12rem]">
-                    <label className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Search</label>
+                    <label className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">Search</label>
                     <input
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                       placeholder="Name, tagline…"
-                      className="rounded-xl bg-black/50 border border-border px-2 py-1.5 text-sm"
+                      className="rounded-xl bg-black/50 border border-border px-2.5 py-2 text-sm"
                     />
                   </div>
                 </div>
@@ -1051,7 +1051,7 @@ export default function XMarketingHub() {
                     No companions match these filters. Clear search, tags, or kinks — or pick another rarity.
                   </p>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-2.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3 gap-2.5 sm:gap-3">
                     {filteredCompanions.map((c, idx) => {
                       const rarity = normalizeCompanionRarity(c.rarity);
                       const img = galleryStaticPortraitUrl(c, c.id);
@@ -1063,11 +1063,11 @@ export default function XMarketingHub() {
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: Math.min(idx * 0.012, 0.2) }}
                           className={cn(
-                            "rounded-xl border overflow-visible flex flex-col bg-black/50 backdrop-blur-md p-1 max-md:p-0.5",
+                            "rounded-xl border overflow-visible flex flex-col bg-black/50 backdrop-blur-md p-1.5 max-md:p-1",
                             selected?.id === c.id ? "border-primary/60 ring-1 ring-primary/25" : "border-border/60 hover:border-primary/30",
                           )}
                         >
-                          <div className="relative aspect-[3/4] max-h-[min(52vh,420px)] w-full mx-auto">
+                          <div className="relative aspect-[3/4] max-h-[min(56vh,520px)] w-full mx-auto">
                             <TierHaloPortraitFrame
                               variant="card"
                               frameStyle="clean"
@@ -1104,9 +1104,9 @@ export default function XMarketingHub() {
                                   {saves}
                                 </div>
                               ) : null}
-                              <div className="absolute inset-x-0 bottom-0 z-[4] bg-gradient-to-t from-black via-black/70 to-transparent p-2">
-                                <p className="font-gothic text-xs font-bold text-white line-clamp-2 leading-tight">{c.name}</p>
-                                <p className="text-[10px] text-white/70 line-clamp-2 mt-0.5">{c.tagline}</p>
+                              <div className="absolute inset-x-0 bottom-0 z-[4] bg-gradient-to-t from-black via-black/70 to-transparent p-2.5">
+                                <p className="font-gothic text-sm font-bold text-white line-clamp-2 leading-tight">{c.name}</p>
+                                <p className="text-[11px] text-white/75 line-clamp-2 mt-0.5 leading-snug">{c.tagline}</p>
                               </div>
                             </TierHaloPortraitFrame>
                           </div>
@@ -1114,7 +1114,7 @@ export default function XMarketingHub() {
                             <button
                               type="button"
                               onClick={() => useInTweet(c)}
-                              className="w-full flex items-center justify-center gap-1.5 rounded-lg py-2 text-[11px] font-bold text-primary-foreground shadow-md border border-primary/35"
+                              className="w-full flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-bold text-primary-foreground shadow-md border border-primary/35"
                               style={{ background: `linear-gradient(135deg, ${NEON}, hsl(280 45% 38%))` }}
                             >
                               <Zap className="h-3.5 w-3.5 shrink-0" />
@@ -1200,7 +1200,7 @@ export default function XMarketingHub() {
             </div>
 
             {/* RIGHT — compose (preview first, no nested column scroll) */}
-            <div ref={workspaceRef} className="xl:col-span-7 2xl:col-span-8 min-w-0 space-y-5">
+            <div ref={workspaceRef} className="xl:col-span-6 2xl:col-span-7 min-w-0 space-y-5">
               <div className="flex flex-wrap gap-2 text-[11px] items-center rounded-2xl border border-white/[0.08] bg-black/35 px-3 py-2.5">
                 {selected ? (
                   <span className="rounded-full border border-primary/35 bg-primary/10 px-3 py-1 text-primary font-semibold truncate max-w-full">
