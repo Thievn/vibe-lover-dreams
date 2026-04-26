@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-04-26T02:47:57.328Z",
+  "generatedAt": "2026-04-26T03:37:57.970Z",
   "items": [
     {
       "id": "dashboard",
@@ -73,6 +73,12 @@
       "kind": "route",
       "label": "Settings",
       "path": "/settings"
+    },
+    {
+      "id": "route-buy-credits",
+      "kind": "route",
+      "label": "/buy-credits",
+      "path": "/buy-credits"
     },
     {
       "id": "admin",
