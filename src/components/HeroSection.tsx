@@ -254,7 +254,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
                       <img
                         src={comp.img}
                         alt=""
-                        className="absolute inset-0 z-[1] w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500 ease-out"
+                        className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.02] object-cover object-top transition-transform duration-500 ease-out group-hover:scale-105"
                         loading="lazy"
                         referrerPolicy="no-referrer"
                         onError={() =>

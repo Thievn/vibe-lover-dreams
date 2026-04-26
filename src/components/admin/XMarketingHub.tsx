@@ -1083,7 +1083,7 @@ export default function XMarketingHub() {
                                 }}
                               />
                               {img ? (
-                                <img src={img} alt="" className="absolute inset-0 z-[1] h-full w-full object-cover object-top" />
+                                <img src={img} alt="" className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.02] object-cover object-top" />
                               ) : (
                                 <span className="absolute inset-0 z-[2] flex items-center justify-center font-gothic text-4xl text-white/85">
                                   {c.name.charAt(0)}

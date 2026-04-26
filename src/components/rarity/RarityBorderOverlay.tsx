@@ -106,7 +106,7 @@ export function RarityBorderOverlay({
           className={cn(
             "absolute z-[1] h-full w-full object-fill",
             frameBleed
-              ? "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 origin-center scale-[1.09]"
+              ? "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 origin-center scale-[1.12]"
               : "inset-0",
             clean ? "opacity-[0.93]" : "opacity-[0.92]",
           )}

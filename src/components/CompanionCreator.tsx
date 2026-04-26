@@ -2949,7 +2949,7 @@ User flavor notes: ${extraNotes || "none"}`;
                           alt="Preview"
                           referrerPolicy="no-referrer"
                           onClick={() => setPreviewExpandOpen(true)}
-                          className="absolute inset-0 z-[1] w-full h-full object-cover cursor-zoom-in outline-none ring-0"
+                          className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.02] object-cover cursor-zoom-in outline-none ring-0"
                           title="Click to expand preview"
                           onError={() => {
                             toast.error("Preview image failed to load — check Storage bucket is public, then try Live preview again.");

@@ -141,10 +141,11 @@ export function rarityNeonInnerBoxShadow(
     case "mythic": {
       const red = RARITY_NEON.mythic.from;
       const purp = RARITY_NEON.mythic.to;
+      const blackRim = opts?.cardBoost ? 0 : 0.15 * outer;
       return joinShadows([
         `inset ${b(5)}px 0 ${b(24)}px ${red}38`,
         `inset -${b(5)}px 0 ${b(24)}px ${purp}36`,
-        `inset 0 0 ${b(12)}px rgba(0,0,0,${0.15 * outer})`,
+        ...(blackRim > 0 ? [`inset 0 0 ${b(12)}px rgba(0,0,0,${blackRim})`] : []),
       ]);
     }
     case "abyssal":

@@ -57,7 +57,7 @@ export function TierHaloPortraitFrame({
       neonEdgeBreathing={neonEdgeBreathing}
       className={className}
     >
-      <div className={cn("relative", aspectClassName)}>
+      <div className={cn("relative min-h-0 overflow-hidden", innerRound, aspectClassName)}>
         {children}
         <RarityBorderOverlay
           rarity={rarity}

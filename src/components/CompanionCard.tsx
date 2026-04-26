@@ -60,7 +60,7 @@ export default function CompanionCard({ companion, index, imageOverride, gallery
             <img
               src={img}
               alt={companion.name}
-              className="absolute inset-0 z-[1] w-full h-full object-cover object-top"
+              className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.02] object-cover object-top"
               loading="lazy"
             />
           ) : null}

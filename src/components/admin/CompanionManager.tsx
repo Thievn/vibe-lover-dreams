@@ -1678,7 +1678,7 @@ const CompanionManager = () => {
                       <img
                         src={(row.image_url || row.avatar_url)!}
                         alt=""
-                        className="absolute inset-0 z-[1] h-full w-full object-cover"
+                        className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.02] object-cover"
                         referrerPolicy="no-referrer"
                       />
                     ) : (
@@ -1833,7 +1833,7 @@ const CompanionManager = () => {
                   <img
                     src={(companion.static_image_url || companion.image_url)!}
                     alt={companion.name}
-                    className="absolute inset-0 z-[1] h-full w-full object-cover"
+                    className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.02] object-cover"
                   />
                 ) : (
                   <span className="absolute inset-0 z-[2] flex items-center justify-center text-lg font-bold text-white/80">
