@@ -3,15 +3,16 @@
  * preview/save, optional Lovense strip, and lightweight phrase→toy sync from the assistant
  * final transcript.
  */
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompanions, dbToCompanion, type DbCompanion } from "@/hooks/useCompanions";
 import { useCompanionRelationship } from "@/hooks/useCompanionRelationship";
-import { buildLiveCallRealtimeInstructions } from "@/lib/buildLiveCallRealtimeInstructions";
+import { buildLiveCallRealtimeInstructions, type LiveCallMoodId } from "@/lib/buildLiveCallRealtimeInstructions";
 import { invokeGrokVoiceClientSecret } from "@/lib/invokeGrokVoiceClientSecret";
 import { startGrokRealtimeVoiceSession } from "@/lib/grokRealtimeVoiceSession";
 import type { LiveCallOption } from "@/lib/liveCallTypes";
+import { resolveLiveCallOptionBySlug } from "@/lib/resolveLiveCallOptionFromSlug";
 import { resolveUxVoiceId, uxVoiceToXaiVoice, type TtsUxVoiceId, type XaiVoiceId } from "@/lib/ttsVoicePresets";
 import { getToys, sendCommand, type LovenseToy } from "@/lib/lovense";
 import { liveCallToyCommandFromAssistantLine } from "@/lib/liveCallToyFromAssistantSpeech";
@@ -22,6 +23,8 @@ import { LiveCallPhoneShell, type LiveCallUiPhase } from "@/components/liveCall/
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { notifyIncomingCallWithFallback } from "@/lib/companionCallNotifications";
+import { LIVE_CALL_QUICK_ACTIONS, type LiveCallQuickActionId } from "@/lib/liveCallQuickActions";
 
 type LocationState = { callOption?: LiveCallOption };
 
@@ -34,7 +37,9 @@ const LiveCallPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const callOption = (location.state as LocationState | null)?.callOption;
+  const [searchParams] = useSearchParams();
+  const slugFromUrl = searchParams.get("call");
+  const callOptionFromState = (location.state as LocationState | null)?.callOption ?? null;
 
   const { data: dbRows = [], isLoading } = useCompanions();
   const companion = useMemo(() => {
@@ -53,6 +58,12 @@ const LiveCallPage = () => {
     [dbComp, id],
   );
 
+  const activeCallOption = useMemo(() => {
+    if (callOptionFromState) return callOptionFromState;
+    if (!companion || !id || !slugFromUrl) return null;
+    return resolveLiveCallOptionBySlug(id, companion, slugFromUrl);
+  }, [callOptionFromState, companion, id, slugFromUrl]);
+
   const { relationship, loading: relationshipLoading, refresh: refreshRelationship } = useCompanionRelationship(
     companion?.id ?? "",
   );
@@ -67,15 +78,18 @@ const LiveCallPage = () => {
   const [phase, setPhase] = useState<LiveCallUiPhase>("preparing");
   const [statusLine, setStatusLine] = useState("Preparing…");
   const [liveElapsedSec, setLiveElapsedSec] = useState(0);
+  const [callMood, setCallMood] = useState<LiveCallMoodId | null>(null);
 
   const stopRef = useRef<(() => void) | null>(null);
   const updateSessionRef = useRef<((p: { instructions?: string; voice?: XaiVoiceId }) => void) | null>(null);
+  const sendUserTextRef = useRef<(text: string) => void>(() => {});
   const sessionStartedFor = useRef<string | null>(null);
   const callVoiceRef = useRef<TtsUxVoiceId>("velvet_whisper");
   const toyForSessionRef = useRef<LovenseToy | null>(null);
   const userIdRef = useRef<string | null>(null);
   const liveAtRef = useRef<number | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ringNotifiedRef = useRef(false);
 
   useEffect(() => {
     userIdRef.current = userId;
@@ -158,9 +172,22 @@ const LiveCallPage = () => {
 
   const primaryToy = useMemo(() => pickPrimaryToy(toyList), [toyList]);
   const toyBarProps =
-    userId && primaryToy
-      ? { userId, toyId: primaryToy.id, toyName: primaryToy.name }
-      : null;
+    userId && primaryToy ? { userId, toyId: primaryToy.id, toyName: primaryToy.name } : null;
+
+  useEffect(() => {
+    ringNotifiedRef.current = false;
+  }, [id, activeCallOption?.slug]);
+
+  useEffect(() => {
+    if (phase !== "ringing" || !companion || !id || !activeCallOption) return;
+    if (ringNotifiedRef.current) return;
+    ringNotifiedRef.current = true;
+    void notifyIncomingCallWithFallback({
+      companionName: companion.name,
+      companionId: id,
+      callSlug: activeCallOption.slug,
+    });
+  }, [phase, companion, id, activeCallOption]);
 
   const hangUp = useCallback(() => {
     const billSec =
@@ -178,6 +205,7 @@ const LiveCallPage = () => {
     }
     stopRef.current = null;
     updateSessionRef.current = null;
+    sendUserTextRef.current = () => {};
     sessionStartedFor.current = null;
     setPhase("ended");
     if (uid && companionId && minutesBilled > 0) {
@@ -258,17 +286,24 @@ const LiveCallPage = () => {
   }, []);
 
   useEffect(() => {
-    if (!id || !callOption) {
-      if (id) navigate(`/companions/${id}`, { replace: true });
-      else navigate("/", { replace: true });
+    if (!id) return;
+    if (isLoading) return;
+    if (!companion) return;
+    if (callOptionFromState) return;
+    if (!slugFromUrl) {
+      navigate(`/companions/${id}`, { replace: true });
+      return;
     }
-  }, [id, callOption, navigate]);
+    if (!activeCallOption) {
+      navigate(`/companions/${id}`, { replace: true });
+    }
+  }, [id, isLoading, companion, slugFromUrl, callOptionFromState, activeCallOption, navigate]);
 
   useEffect(() => {
-    if (!companion || !callOption || !id || isLoading) return;
+    if (!companion || !activeCallOption || !id || isLoading) return;
     if (relationshipLoading) return;
 
-    const key = `${id}::${callOption.slug}`;
+    const key = `${id}::${activeCallOption.slug}`;
     if (sessionStartedFor.current === key) return;
     sessionStartedFor.current = key;
 
@@ -290,7 +325,7 @@ const LiveCallPage = () => {
         toyForSessionRef.current = null;
       }
 
-      const hasLinked = (toyForSessionRef.current != null);
+      const linked = toyForSessionRef.current != null;
 
       const sec = await invokeGrokVoiceClientSecret();
       if (cancelled) return;
@@ -310,7 +345,10 @@ const LiveCallPage = () => {
       setPhase("connecting");
       setStatusLine("Connecting…");
 
-      const instructions = buildLiveCallRealtimeInstructions(companion, callOption, { hasLinkedToy: hasLinked });
+      const instructions = buildLiveCallRealtimeInstructions(companion, activeCallOption, {
+        hasLinkedToy: linked,
+        callMood: null,
+      });
       const voice = uxVoiceToXaiVoice(callVoiceRef.current);
 
       const api = startGrokRealtimeVoiceSession({
@@ -343,6 +381,7 @@ const LiveCallPage = () => {
       });
       stopRef.current = api.stop;
       updateSessionRef.current = api.updateSession;
+      sendUserTextRef.current = api.sendUserTextPrompt;
     })();
 
     return () => {
@@ -354,11 +393,37 @@ const LiveCallPage = () => {
       }
       stopRef.current = null;
       updateSessionRef.current = null;
+      sendUserTextRef.current = () => {};
       sessionStartedFor.current = null;
     };
-  }, [companion, callOption, id, isLoading, relationshipLoading]);
+  }, [companion, activeCallOption, id, isLoading, relationshipLoading]);
 
-  if (!id || !callOption) {
+  /** Re-steer session when in-call mood changes. */
+  useEffect(() => {
+    if (phase !== "live" || !companion || !activeCallOption) return;
+    const linked = toyForSessionRef.current != null;
+    const instructions = buildLiveCallRealtimeInstructions(companion, activeCallOption, {
+      hasLinkedToy: linked,
+      callMood,
+    });
+    updateSessionRef.current?.({ instructions });
+  }, [callMood, phase, companion, activeCallOption]);
+
+  const onQuickAction = useCallback((actionId: LiveCallQuickActionId) => {
+    const row = LIVE_CALL_QUICK_ACTIONS.find((a) => a.id === actionId);
+    if (!row) return;
+    sendUserTextRef.current(row.prompt);
+  }, []);
+
+  if (!id) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!activeCallOption) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -386,7 +451,7 @@ const LiveCallPage = () => {
   return (
     <LiveCallPhoneShell
       companion={companion}
-      option={callOption}
+      option={activeCallOption}
       phase={phase}
       statusLine={statusLine}
       onHangUp={hangUp}
@@ -400,6 +465,9 @@ const LiveCallPage = () => {
       previewLoadingId={previewLoadingId}
       saveVoicePending={saveVoicePending}
       toyBar={toyBarProps}
+      callMood={callMood}
+      onCallMoodChange={setCallMood}
+      onQuickAction={onQuickAction}
     />
   );
 };

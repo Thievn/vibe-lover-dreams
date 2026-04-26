@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import ParticleBackground from "@/components/ParticleBackground";
 import { motion } from "framer-motion";
-import { Save, Trash2, Shield, Loader2, Wifi, WifiOff, QrCode, Volume2 } from "lucide-react";
+import { Save, Trash2, Shield, Loader2, Wifi, WifiOff, QrCode, Volume2, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { disconnectToy, getToys, type LovenseToy } from "@/lib/lovense";
 import { useLovensePairing } from "@/hooks/useLovensePairing";
@@ -18,6 +18,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TTS_UX_LABELS, TTS_UX_VOICE_IDS, resolveUxVoiceId } from "@/lib/ttsVoicePresets";
+import { dispatchRequestInstallHint, getVapidPublicKey, needsInstallForIosWebPush } from "@/lib/pwaCallAlerts";
+import {
+  countWebPushSubscriptionsForUser,
+  subscribeCurrentDeviceToWebPush,
+  unsubscribeCurrentDeviceWebPush,
+} from "@/lib/webPushUserRegistration";
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -29,10 +35,16 @@ const Settings = () => {
   const [ttsGlobalVoice, setTtsGlobalVoice] = useState("");
   const [saving, setSaving] = useState(false);
   const [linkedToys, setLinkedToys] = useState<LovenseToy[]>([]);
+  const [pushCount, setPushCount] = useState(0);
+  const [pushBusy, setPushBusy] = useState(false);
 
   const refreshLinkedToys = useCallback(async (userId: string) => {
     const toys = await getToys(userId);
     setLinkedToys(toys);
+  }, []);
+
+  const refreshPushCount = useCallback(async (userId: string) => {
+    setPushCount(await countWebPushSubscriptionsForUser(userId));
   }, []);
 
   const loadProfileSettings = useCallback(async (userId: string) => {
@@ -78,8 +90,9 @@ const Settings = () => {
       setUser(session.user);
       void loadProfileSettings(session.user.id);
       void refreshLinkedToys(session.user.id);
+      void refreshPushCount(session.user.id);
     });
-  }, [navigate, refreshLinkedToys, loadProfileSettings]);
+  }, [navigate, refreshLinkedToys, loadProfileSettings, refreshPushCount]);
 
   useEffect(() => {
     if (window.location.hash === "#device-connection") {
@@ -94,9 +107,48 @@ const Settings = () => {
       if (!user?.id) return;
       void loadProfileSettings(user.id);
       void refreshLinkedToys(user.id);
+      void refreshPushCount(user.id);
     },
     Boolean(user?.id),
   );
+
+  const handleEnableCallPush = async () => {
+    if (!user) return;
+    if (!getVapidPublicKey()) {
+      toast.error("Web Push is not configured (missing VITE_VAPID_PUBLIC_KEY on this build).");
+      return;
+    }
+    if (needsInstallForIosWebPush()) {
+      toast.message("Install for the best call alerts", {
+        description: "On iPhone, add LustForge to your Home Screen from Safari — then alerts can reach you when the browser is closed.",
+      });
+      dispatchRequestInstallHint();
+    }
+    setPushBusy(true);
+    try {
+      const r = await subscribeCurrentDeviceToWebPush();
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
+      toast.success("This device is registered for call alerts.");
+      await refreshPushCount(user.id);
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const handleDisableCallPush = async () => {
+    if (!user) return;
+    setPushBusy(true);
+    try {
+      await unsubscribeCurrentDeviceWebPush();
+      toast.success("Call alerts removed for this browser profile.");
+      await refreshPushCount(user.id);
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const handleDisconnect = async () => {
     if (!user) return;
@@ -234,6 +286,63 @@ const Settings = () => {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Web Push — voice call alerts */}
+          <div className="rounded-xl border border-border bg-card p-6 mb-6">
+            <h2 className="font-gothic text-lg font-bold text-foreground mb-2 flex items-center gap-2">
+              <Bell className="h-5 w-5 text-primary" />
+              Voice call alerts
+            </h2>
+            <p className="text-xs leading-relaxed text-muted-foreground mb-4">
+              Register this device so an <strong className="text-foreground/90">incoming companion call</strong> can
+              reach you through the system even when LustForge is in the background. Uses standard browser Web Push
+              (VAPID) — no extra paid service.
+            </p>
+            {!getVapidPublicKey() ? (
+              <p className="text-xs text-amber-200/90 rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-2">
+                Not available on this deployment yet: add{" "}
+                <code className="text-[10px] text-foreground/90">VITE_VAPID_PUBLIC_KEY</code> to the build and VAPID
+                secrets on Edge Functions (see <code className="text-[10px]">.env.example</code>).
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-[11px] text-muted-foreground">
+                  Status:{" "}
+                  <span className="font-medium text-foreground">
+                    {pushCount > 0 ? `${pushCount} saved device subscription(s)` : "Not registered on this device"}
+                  </span>
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    disabled={pushBusy}
+                    onClick={() => void handleEnableCallPush()}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-95 disabled:opacity-50"
+                  >
+                    {pushBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+                    Enable on this device
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pushBusy}
+                    onClick={() => void handleDisableCallPush()}
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted/50 disabled:opacity-40"
+                  >
+                    Remove alerts
+                  </button>
+                </div>
+                {needsInstallForIosWebPush() ? (
+                  <button
+                    type="button"
+                    onClick={() => dispatchRequestInstallHint()}
+                    className="text-xs text-primary font-medium hover:underline"
+                  >
+                    Show “Add to Home Screen” steps (iPhone)
+                  </button>
+                ) : null}
+              </div>
+            )}
           </div>
 
           {/* Device Connection */}

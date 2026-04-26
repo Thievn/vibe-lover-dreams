@@ -104,6 +104,8 @@ export function startGrokRealtimeVoiceSession(opts: GrokRealtimeVoiceOptions): {
    * Omitted fields keep the last values the session was started or updated with.
    */
   updateSession: (partial: { instructions?: string; voice?: XaiVoiceId }) => void;
+  /** Inject a user line and request a spoken reply (in-character voice response). */
+  sendUserTextPrompt: (text: string) => void;
 } {
   let stopped = false;
   let ws: WebSocket | null = null;
@@ -144,6 +146,28 @@ export function startGrokRealtimeVoiceSession(opts: GrokRealtimeVoiceOptions): {
     if (!sock || sock.readyState !== WebSocket.OPEN) return;
     try {
       sock.send(JSON.stringify(sessionUpdatePayload(sessionInstructions, sessionVoice)));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const sendUserTextPrompt = (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const sock = ws;
+    if (!sock || sock.readyState !== WebSocket.OPEN || !sessionReady) return;
+    try {
+      sock.send(
+        JSON.stringify({
+          type: "conversation.item.create",
+          item: {
+            type: "message",
+            role: "user",
+            content: [{ type: "input_text", text: trimmed }],
+          },
+        }),
+      );
+      sock.send(JSON.stringify({ type: "response.create" }));
     } catch {
       /* ignore */
     }
@@ -320,5 +344,5 @@ export function startGrokRealtimeVoiceSession(opts: GrokRealtimeVoiceOptions): {
     }
   })();
 
-  return { stop, updateSession };
+  return { stop, updateSession, sendUserTextPrompt };
 }

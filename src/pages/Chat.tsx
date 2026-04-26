@@ -2147,12 +2147,12 @@ const Chat = () => {
           toast.error("No call style available right now.");
           return;
         }
-        navigate(`/live-call/${companion.id}`, { state: { callOption: opt } });
+        navigate(`/live-call/${companion.id}?call=${encodeURIComponent(opt.slug)}`, { state: { callOption: opt } });
       } catch (e) {
         const options = getLiveCallPresetsFallback(companion);
         const opt = options[0];
         if (opt) {
-          navigate(`/live-call/${companion.id}`, { state: { callOption: opt } });
+          navigate(`/live-call/${companion.id}?call=${encodeURIComponent(opt.slug)}`, { state: { callOption: opt } });
           toast.message("Using offline call themes", {
             description: e instanceof Error ? e.message : "Could not reach the call designer.",
           });

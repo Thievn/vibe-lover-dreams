@@ -26,10 +26,11 @@ export default function InstallPrompt() {
   const [open, setOpen] = useState(false);
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
 
-  const markAutoShown = () => sessionStorage.setItem(AUTO_SESSION_KEY, "1");
+  const markAutoShown = useCallback(() => sessionStorage.setItem(AUTO_SESSION_KEY, "1"), []);
 
   useEffect(() => {
     if (isStandalone()) return;
+    if (!isMobileOrTablet()) return;
 
     const onBip = (e: Event) => {
       if (!isMobileOrTablet()) return;
@@ -53,7 +54,20 @@ export default function InstallPrompt() {
       window.removeEventListener("beforeinstallprompt", onBip);
       window.clearTimeout(t);
     };
-  }, []);
+  }, [markAutoShown]);
+
+  /** Let other screens (Settings, live call) surface the same install sheet when alerts need a PWA. */
+  useEffect(() => {
+    const onHint = () => {
+      if (!isMobileOrTablet()) return;
+      if (isStandalone()) return;
+      if (localStorage.getItem(DISMISS_KEY)) return;
+      markAutoShown();
+      setOpen(true);
+    };
+    window.addEventListener("lustforge-request-install-hint", onHint);
+    return () => window.removeEventListener("lustforge-request-install-hint", onHint);
+  }, [markAutoShown]);
 
   const dismiss = useCallback(() => {
     localStorage.setItem(DISMISS_KEY, String(Date.now()));
@@ -72,6 +86,7 @@ export default function InstallPrompt() {
   };
 
   if (isStandalone()) return null;
+  if (!isMobileOrTablet()) return null;
 
   return (
     <AnimatePresence>

@@ -12,7 +12,7 @@ function cacheKey(companionId: string): string {
   return `${CACHE_PREFIX}${companionId}`;
 }
 
-function readCache(companionId: string): LiveCallOption[] | null {
+export function readLiveCallOptionsSessionCache(companionId: string): LiveCallOption[] | null {
   if (typeof sessionStorage === "undefined") return null;
   try {
     const raw = sessionStorage.getItem(cacheKey(companionId));
@@ -51,7 +51,7 @@ export async function invokeGenerateLiveCallOptions(
   opts?: { skipCache?: boolean },
 ): Promise<GenerateLiveCallOptionsResult> {
   if (!opts?.skipCache) {
-    const hit = readCache(companionId);
+    const hit = readLiveCallOptionsSessionCache(companionId);
     if (hit?.length) return { ok: true, options: hit, source: "cache" };
   }
 

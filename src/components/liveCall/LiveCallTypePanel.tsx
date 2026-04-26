@@ -7,6 +7,8 @@ import type { Companion } from "@/data/companions";
 import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
 import { getLiveCallPresetsFallback } from "@/lib/liveCallPresetsFallback";
 import type { LiveCallOption } from "@/lib/liveCallTypes";
+import { ensureCompanionCallNotifications } from "@/lib/companionCallNotifications";
+import { dispatchRequestInstallHint, needsInstallForIosWebPush } from "@/lib/pwaCallAlerts";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -43,7 +45,11 @@ export function LiveCallTypePanel({ companion, className }: Props) {
   }, [load]);
 
   const pick = (opt: LiveCallOption) => {
-    navigate(`/live-call/${companion.id}`, {
+    void ensureCompanionCallNotifications();
+    if (needsInstallForIosWebPush()) {
+      dispatchRequestInstallHint();
+    }
+    navigate(`/live-call/${companion.id}?call=${encodeURIComponent(opt.slug)}`, {
       state: { callOption: opt },
     });
   };
@@ -53,6 +59,23 @@ export function LiveCallTypePanel({ companion, className }: Props) {
 
   return (
     <div className={cn("space-y-4", className)}>
+      {needsInstallForIosWebPush() ? (
+        <div className="rounded-xl border border-amber-500/35 bg-amber-950/25 px-3 py-2.5 text-[11px] leading-snug text-amber-100/95 backdrop-blur-sm">
+          <p className="font-semibold text-amber-50/95">Call alerts work best from the installed app</p>
+          <p className="mt-1 text-amber-100/80">
+            On iPhone, add LustForge to your <strong className="text-amber-50">Home Screen</strong>, then enable{" "}
+            <strong className="text-amber-50">Voice call alerts</strong> in Settings. Otherwise the browser may not
+            ring you when the tab is in the background.
+          </p>
+          <button
+            type="button"
+            onClick={() => dispatchRequestInstallHint()}
+            className="mt-2 text-[11px] font-semibold text-amber-200 underline-offset-2 hover:underline"
+          >
+            Show install steps
+          </button>
+        </div>
+      ) : null}
       <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.08] via-black/40 to-black/50 p-4 sm:p-5 backdrop-blur-md">
         <div className="flex items-start gap-3">
           <div

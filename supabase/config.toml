@@ -77,5 +77,11 @@ verify_jwt = false
 [functions.generate-chat-companion-video]
 verify_jwt = false
 
+[functions.web-push-subscribe]
+verify_jwt = false
+
+[functions.web-push-send]
+verify_jwt = false
+
 [functions.nowpayments-fc]
 verify_jwt = false

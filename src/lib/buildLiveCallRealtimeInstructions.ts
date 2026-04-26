@@ -7,10 +7,34 @@ function trim(s: string, max: number): string {
   return `${t.slice(0, max - 1)}…`;
 }
 
+export type LiveCallMoodId =
+  | "sweet_loving"
+  | "teasing_bratty"
+  | "horny_needy"
+  | "dominant"
+  | "unhinged";
+
 export type LiveCallInstructionOpts = {
   /** User has at least one linked Lovense toy available for haptics. */
   hasLinkedToy: boolean;
+  /** In-call vibe steering (session instructions). */
+  callMood?: LiveCallMoodId | null;
 };
+
+export const LIVE_CALL_MOOD_GUIDANCE: Record<LiveCallMoodId, string> = {
+  sweet_loving: "Lead with warmth, tenderness, and affectionate devotion. Soft voice energy, praise, emotional intimacy.",
+  teasing_bratty: "Playful, cheeky, a little defiant — tease them, push back lightly, make them work for it while staying flirty.",
+  horny_needy: "Hungry, vocal desire — you ache for them, can barely hold back, breathy and urgent (still conversational).",
+  dominant: "Confident control — you steer the tempo, give commands as seduction, possessive tone without breaking phone-realism.",
+  unhinged: "Wild, chaotic heat — messy laughter, intense lust, unpredictable swings, still coherent speech (no stage directions).",
+};
+
+function moodBlock(mood: LiveCallMoodId | null | undefined): string {
+  if (!mood) return "";
+  const g = LIVE_CALL_MOOD_GUIDANCE[mood];
+  if (!g) return "";
+  return `\n\n--- Call mood (follow until the user changes it) ---\n${g}`;
+}
 
 /**
  * Merges companion charter + call-type augment + realtime voice rules for xAI Realtime.
@@ -52,5 +76,7 @@ export function buildLiveCallRealtimeInstructions(
         ].join("\n")
       : "";
 
-  return `${core}\n\n--- Session rules ---\n${rules}${toyAppendix}`;
+  const mood = moodBlock(extra?.callMood ?? null);
+
+  return `${core}\n\n--- Session rules ---\n${rules}${toyAppendix}${mood}`;
 }
