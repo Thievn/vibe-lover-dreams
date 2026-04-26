@@ -58,10 +58,41 @@ export interface DbCompanion {
   display_traits?: unknown;
 }
 
+function parseStringList(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .filter((v): v is string => Boolean(v));
+  }
+  if (typeof raw === "string") {
+    const t = raw.trim();
+    if (!t) return [];
+    if (t.startsWith("[") && t.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(t) as unknown;
+        if (Array.isArray(parsed)) {
+          return parsed
+            .map((v) => (typeof v === "string" ? v.trim() : ""))
+            .filter((v): v is string => Boolean(v));
+        }
+      } catch {
+        /* fall through */
+      }
+    }
+    return t
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
 function coerceStockRow(row: Record<string, unknown>): DbCompanion {
   const r = row as unknown as DbCompanion;
   return {
     ...r,
+    tags: parseStringList(row.tags),
+    kinks: parseStringList(row.kinks),
     rarity: normalizeCompanionRarity((row.rarity as string | undefined) ?? undefined),
     backstory: (row.backstory as string | undefined) ?? "",
     static_image_url: (row.static_image_url as string | null | undefined) ?? null,
@@ -103,8 +134,8 @@ export function mapSupabaseCustomCharacterRow(row: Record<string, unknown>): DbC
     gender: (row.gender as string) || "—",
     orientation: (row.orientation as string) || "",
     role: (row.role as string) || "",
-    tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
-    kinks: Array.isArray(row.kinks) ? (row.kinks as string[]) : [],
+    tags: parseStringList(row.tags),
+    kinks: parseStringList(row.kinks),
     appearance: (row.appearance as string) || "",
     personality: (row.personality as string) || "",
     bio: (row.bio as string) || "",
@@ -124,12 +155,8 @@ export function mapSupabaseCustomCharacterRow(row: Record<string, unknown>): DbC
     animated_image_url: (row.animated_image_url as string | null | undefined) ?? null,
     profile_loop_video_enabled: Boolean(row.profile_loop_video_enabled),
     rarity_border_overlay_url: (row.rarity_border_overlay_url as string | null | undefined) ?? null,
-    personality_archetypes: Array.isArray(row.personality_archetypes)
-      ? (row.personality_archetypes as string[])
-      : null,
-    vibe_theme_selections: Array.isArray(row.vibe_theme_selections)
-      ? (row.vibe_theme_selections as string[])
-      : null,
+    personality_archetypes: parseStringList(row.personality_archetypes),
+    vibe_theme_selections: parseStringList(row.vibe_theme_selections),
     personality_forge:
       row.personality_forge && typeof row.personality_forge === "object"
         ? (row.personality_forge as Record<string, unknown>)

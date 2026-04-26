@@ -30,8 +30,8 @@ export function CompanionVibeTraitStrip({ traits, className, size = "sm", max = 
                 <button
                   type="button"
                   className={cn(
-                    "inline-flex items-center justify-center rounded-lg border border-white/10 bg-black/50 text-primary/90",
-                    "hover:border-primary/40 hover:bg-primary/10 hover:text-primary transition-colors",
+                    "inline-flex items-center justify-center rounded-lg border border-primary/22 bg-black/50 text-primary/90",
+                    "hover:border-primary/35 hover:bg-primary/10 hover:text-primary transition-colors",
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
                     pad,
                   )}

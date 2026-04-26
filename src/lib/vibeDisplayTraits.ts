@@ -37,12 +37,22 @@ export function parseStoredDisplayTraits(raw: unknown): { id: string; inherited?
   if (!Array.isArray(raw) || raw.length === 0) return null;
   const out: { id: string; inherited?: boolean }[] = [];
   for (const row of raw) {
+    if (typeof row === "string" && row.trim()) {
+      out.push({ id: row.trim() });
+      continue;
+    }
     if (!row || typeof row !== "object") continue;
-    const id = typeof (row as Record<string, unknown>).id === "string" ? (row as Record<string, unknown>).id : null;
+    const rec = row as Record<string, unknown>;
+    const id =
+      typeof rec.id === "string"
+        ? rec.id
+        : typeof rec.trait_id === "string"
+          ? rec.trait_id
+          : null;
     if (!id) continue;
     out.push({
       id,
-      inherited: Boolean((row as Record<string, unknown>).inherited),
+      inherited: Boolean(rec.inherited),
     });
   }
   return out.length ? out : null;

@@ -35,6 +35,10 @@ import {
   Orbit,
   Megaphone,
   CalendarClock,
+  MessageCircle,
+  ShoppingBag,
+  Trophy,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -65,6 +69,7 @@ type AdminSection =
   | "users"
   | "waitlist"
   | "analytics"
+  | "cardstats"
   | "settings";
 
 const ADMIN_SECTION_IDS = new Set<AdminSection>([
@@ -77,6 +82,7 @@ const ADMIN_SECTION_IDS = new Set<AdminSection>([
   "users",
   "waitlist",
   "analytics",
+  "cardstats",
   "settings",
 ]);
 
@@ -96,6 +102,7 @@ const NAV: { id: AdminSection; label: string; icon: typeof LayoutDashboard }[] =
   { id: "users", label: "User Management", icon: Users },
   { id: "waitlist", label: "Waitlist", icon: ScrollText },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
+  { id: "cardstats", label: "Card Stats", icon: Trophy },
   { id: "settings", label: "Settings", icon: Settings2 },
 ];
 
@@ -146,6 +153,21 @@ type TrendPoint = {
   forged: number;
 };
 
+type CardStatsRow = {
+  companionId: string;
+  name: string;
+  rarity: string | null;
+  tagline: string;
+  purchases: number;
+  uniqueBuyers: number;
+  uses: number;
+  uniqueUsers: number;
+  lastPurchaseAt: string | null;
+  lastUsedAt: string | null;
+};
+
+type CardStatsRange = "7d" | "30d" | "all";
+
 const chartTooltipStyle = {
   backgroundColor: "hsl(240 15% 8%)",
   border: "1px solid hsl(280 30% 25%)",
@@ -191,6 +213,9 @@ function AdminShell() {
   const [trendData, setTrendData] = useState<TrendPoint[]>([]);
   const [barData, setBarData] = useState<{ name: string; value: number }[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [cardStatsRows, setCardStatsRows] = useState<CardStatsRow[]>([]);
+  const [cardStatsLoading, setCardStatsLoading] = useState(false);
+  const [cardStatsRange, setCardStatsRange] = useState<CardStatsRange>("30d");
   const [overviewDataIssues, setOverviewDataIssues] = useState<string | null>(null);
   const [weeklyDrops, setWeeklyDrops] = useState<WeeklyDropRow[]>([]);
   const [weeklyDropsLoading, setWeeklyDropsLoading] = useState(false);
@@ -368,6 +393,130 @@ function AdminShell() {
     }
   }, []);
 
+  const loadCardStats = useCallback(async (range: CardStatsRange) => {
+    setCardStatsLoading(true);
+    try {
+      const startIso =
+        range === "all"
+          ? null
+          : (() => {
+              const d = new Date();
+              const days = range === "7d" ? 7 : 30;
+              d.setUTCDate(d.getUTCDate() - (days - 1));
+              d.setUTCHours(0, 0, 0, 0);
+              return d.toISOString();
+            })();
+
+      const txQuery = supabase
+        .from("user_transactions")
+        .select("user_id, created_at, metadata, transaction_type")
+        .eq("transaction_type", "card_purchase");
+      const useQuery = supabase.from("chat_messages").select("user_id, created_at, companion_id");
+
+      const [txRes, useRes, stockRes, customRes] = await Promise.all([
+        startIso ? txQuery.gte("created_at", startIso) : txQuery,
+        startIso ? useQuery.gte("created_at", startIso) : useQuery,
+        supabase.from("companions").select("id, name, tagline, rarity"),
+        supabase.from("custom_characters").select("id, name, tagline, rarity"),
+      ]);
+
+      if (txRes.error) throw txRes.error;
+      if (useRes.error) throw useRes.error;
+      if (stockRes.error) throw stockRes.error;
+      if (customRes.error) throw customRes.error;
+
+      const metaById = new Map<
+        string,
+        { name: string; tagline: string; rarity: string | null }
+      >();
+      for (const row of stockRes.data ?? []) {
+        metaById.set(row.id, {
+          name: row.name ?? row.id,
+          tagline: row.tagline ?? "",
+          rarity: row.rarity ?? null,
+        });
+      }
+      for (const row of customRes.data ?? []) {
+        const key = `cc-${row.id}`;
+        metaById.set(key, {
+          name: row.name ?? key,
+          tagline: row.tagline ?? "",
+          rarity: row.rarity ?? null,
+        });
+      }
+
+      const agg = new Map<
+        string,
+        {
+          purchases: number;
+          uniqueBuyers: Set<string>;
+          uses: number;
+          uniqueUsers: Set<string>;
+          lastPurchaseAt: string | null;
+          lastUsedAt: string | null;
+        }
+      >();
+      const get = (id: string) => {
+        const current = agg.get(id);
+        if (current) return current;
+        const created = {
+          purchases: 0,
+          uniqueBuyers: new Set<string>(),
+          uses: 0,
+          uniqueUsers: new Set<string>(),
+          lastPurchaseAt: null as string | null,
+          lastUsedAt: null as string | null,
+        };
+        agg.set(id, created);
+        return created;
+      };
+
+      for (const row of txRes.data ?? []) {
+        const md = row.metadata as Record<string, unknown> | null;
+        const companionId = typeof md?.companion_id === "string" ? md.companion_id : null;
+        if (!companionId) continue;
+        const bucket = get(companionId);
+        bucket.purchases += 1;
+        bucket.uniqueBuyers.add(row.user_id);
+        if (!bucket.lastPurchaseAt || row.created_at > bucket.lastPurchaseAt) bucket.lastPurchaseAt = row.created_at;
+      }
+
+      for (const row of useRes.data ?? []) {
+        if (!row.companion_id) continue;
+        const bucket = get(row.companion_id);
+        bucket.uses += 1;
+        bucket.uniqueUsers.add(row.user_id);
+        if (!bucket.lastUsedAt || row.created_at > bucket.lastUsedAt) bucket.lastUsedAt = row.created_at;
+      }
+
+      const rows: CardStatsRow[] = [...agg.entries()]
+        .map(([companionId, a]) => {
+          const m = metaById.get(companionId);
+          return {
+            companionId,
+            name: m?.name || companionId,
+            rarity: m?.rarity ?? null,
+            tagline: m?.tagline ?? "",
+            purchases: a.purchases,
+            uniqueBuyers: a.uniqueBuyers.size,
+            uses: a.uses,
+            uniqueUsers: a.uniqueUsers.size,
+            lastPurchaseAt: a.lastPurchaseAt,
+            lastUsedAt: a.lastUsedAt,
+          };
+        })
+        .sort((a, b) => b.purchases - a.purchases || b.uses - a.uses || a.name.localeCompare(b.name));
+
+      setCardStatsRows(rows);
+    } catch (e) {
+      console.error(e);
+      toast.error("Could not load card stats.");
+      setCardStatsRows([]);
+    } finally {
+      setCardStatsLoading(false);
+    }
+  }, []);
+
   const loadWaitlist = useCallback(async () => {
     setWaitlistLoading(true);
     setWaitlistError(null);
@@ -469,7 +618,8 @@ function AdminShell() {
     if (section === "users") void loadProfiles();
     if (section === "waitlist") void loadWaitlist();
     if (section === "weeklydrops") void loadWeeklyDrops();
-  }, [authLoading, section, loadProfiles, loadWaitlist, loadWeeklyDrops]);
+    if (section === "cardstats") void loadCardStats(cardStatsRange);
+  }, [authLoading, section, loadProfiles, loadWaitlist, loadWeeklyDrops, loadCardStats, cardStatsRange]);
 
   const openUserPanel = async (p: ProfileRow) => {
     setSelectedUser(p);
@@ -784,6 +934,15 @@ function AdminShell() {
               stats={stats}
               loading={analyticsLoading}
               gaMeasurementId={gaMeasurementId}
+            />
+          )}
+          {section === "cardstats" && (
+            <CardStatsSection
+              rows={cardStatsRows}
+              loading={cardStatsLoading}
+              range={cardStatsRange}
+              onRangeChange={setCardStatsRange}
+              onRefresh={() => void loadCardStats(cardStatsRange)}
             />
           )}
           {section === "settings" && <AdminSettingsSection onExportUsers={() => exportCsv(
@@ -1621,6 +1780,192 @@ function AnalyticsSection({
           ? "Refreshing analytics…"
           : "Telemetry is live from profiles, waitlist, generated_images, custom_characters, and chat_messages."}
       </p>
+    </div>
+  );
+}
+
+function CardStatsSection({
+  rows,
+  loading,
+  range,
+  onRangeChange,
+  onRefresh,
+}: {
+  rows: CardStatsRow[];
+  loading: boolean;
+  range: CardStatsRange;
+  onRangeChange: (next: CardStatsRange) => void;
+  onRefresh: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"purchases" | "uses" | "buyers" | "users">("purchases");
+
+  const totals = useMemo(
+    () =>
+      rows.reduce(
+        (acc, r) => {
+          acc.purchases += r.purchases;
+          acc.uses += r.uses;
+          acc.uniqueBuyers += r.uniqueBuyers;
+          acc.uniqueUsers += r.uniqueUsers;
+          return acc;
+        },
+        { purchases: 0, uses: 0, uniqueBuyers: 0, uniqueUsers: 0 },
+      ),
+    [rows],
+  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const matched = q
+      ? rows.filter(
+          (r) =>
+            r.name.toLowerCase().includes(q) ||
+            r.companionId.toLowerCase().includes(q) ||
+            (r.tagline || "").toLowerCase().includes(q),
+        )
+      : rows;
+    const sorted = [...matched];
+    sorted.sort((a, b) => {
+      if (sortBy === "uses") return b.uses - a.uses || b.purchases - a.purchases;
+      if (sortBy === "buyers") return b.uniqueBuyers - a.uniqueBuyers || b.purchases - a.purchases;
+      if (sortBy === "users") return b.uniqueUsers - a.uniqueUsers || b.uses - a.uses;
+      return b.purchases - a.purchases || b.uses - a.uses;
+    });
+    return sorted;
+  }, [query, rows, sortBy]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="font-gothic text-3xl gradient-vice-text">Card Stats</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Privacy-safe card performance: aggregate counts only, no user identities.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={range}
+            onChange={(e) => onRangeChange(e.target.value as CardStatsRange)}
+            className="rounded-xl border border-border bg-black/40 px-3 py-2 text-sm"
+          >
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="all">All time</option>
+          </select>
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm hover:border-primary/40 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-2xl border border-border/80 bg-card/40 p-5 backdrop-blur-md">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Total purchases</p>
+          <p className="mt-2 font-gothic text-3xl text-primary">{totals.purchases}</p>
+        </div>
+        <div className="rounded-2xl border border-border/80 bg-card/40 p-5 backdrop-blur-md">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Total uses</p>
+          <p className="mt-2 font-gothic text-3xl text-accent">{totals.uses}</p>
+        </div>
+        <div className="rounded-2xl border border-border/80 bg-card/40 p-5 backdrop-blur-md">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Unique buyer sum</p>
+          <p className="mt-2 font-gothic text-3xl text-foreground">{totals.uniqueBuyers}</p>
+        </div>
+        <div className="rounded-2xl border border-border/80 bg-card/40 p-5 backdrop-blur-md">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Unique user sum</p>
+          <p className="mt-2 font-gothic text-3xl text-foreground">{totals.uniqueUsers}</p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border/80 bg-card/40 backdrop-blur-md overflow-hidden">
+        <div className="px-5 py-4 border-b border-border/60 flex flex-col lg:flex-row lg:items-center gap-3 lg:justify-between">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by card name, id, or tagline..."
+            className="w-full lg:max-w-md rounded-lg border border-border bg-black/40 px-3 py-2 text-sm"
+          />
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-muted-foreground">Sort</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as "purchases" | "uses" | "buyers" | "users")}
+              className="rounded-lg border border-border bg-black/40 px-3 py-2 text-sm"
+            >
+              <option value="purchases">Purchases</option>
+              <option value="uses">Uses</option>
+              <option value="buyers">Unique buyers</option>
+              <option value="users">Unique users</option>
+            </select>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-14">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-12">No card stats found yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/60 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <th className="p-4">Card</th>
+                  <th className="p-4 text-right"><span className="inline-flex items-center gap-1"><ShoppingBag className="h-3.5 w-3.5" /> Purchases</span></th>
+                  <th className="p-4 text-right">Unique buyers</th>
+                  <th className="p-4 text-right"><span className="inline-flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> Uses</span></th>
+                  <th className="p-4 text-right">Unique users</th>
+                  <th className="p-4">Last activity</th>
+                  <th className="p-4 text-right">Profile</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r) => {
+                  const lastAt = r.lastUsedAt && r.lastPurchaseAt
+                    ? (r.lastUsedAt > r.lastPurchaseAt ? r.lastUsedAt : r.lastPurchaseAt)
+                    : (r.lastUsedAt ?? r.lastPurchaseAt);
+                  return (
+                    <tr key={r.companionId} className="border-b border-border/40 hover:bg-white/[0.03]">
+                      <td className="p-4">
+                        <p className="font-medium">{r.name}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono">{r.companionId}</p>
+                        {r.tagline ? <p className="text-[11px] text-muted-foreground mt-1 line-clamp-1">{r.tagline}</p> : null}
+                      </td>
+                      <td className="p-4 text-right tabular-nums">{r.purchases}</td>
+                      <td className="p-4 text-right tabular-nums">{r.uniqueBuyers}</td>
+                      <td className="p-4 text-right tabular-nums">{r.uses}</td>
+                      <td className="p-4 text-right tabular-nums">{r.uniqueUsers}</td>
+                      <td className="p-4 text-xs text-muted-foreground">
+                        {lastAt ? new Date(lastAt).toLocaleString() : "—"}
+                      </td>
+                      <td className="p-4 text-right">
+                        <Link
+                          to={`/companions/${r.companionId}`}
+                          state={{ from: "/admin?section=cardstats" }}
+                          className="inline-flex items-center gap-1 text-primary hover:underline text-xs font-semibold"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Open
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

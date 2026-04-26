@@ -1083,7 +1083,7 @@ const CompanionProfile = () => {
             <VibeTraitProfilePanel traits={vibeTraits} isNexus={Boolean(companion.isNexusHybrid)} />
 
             {companion.kinks.length > 0 ? (
-              <div className="rounded-2xl border border-fuchsia-500/20 bg-black/40 p-5 backdrop-blur-xl ring-1 ring-fuchsia-500/10">
+              <div className="rounded-2xl border border-primary/20 bg-black/40 p-5 backdrop-blur-xl ring-1 ring-primary/10">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground/90 mb-1">
                   Kinks &amp; interests
                 </p>
@@ -1092,7 +1092,7 @@ const CompanionProfile = () => {
                   {companion.kinks.map((kink) => (
                     <span
                       key={kink}
-                      className="rounded-full border border-fuchsia-400/40 bg-fuchsia-950/25 px-3 py-1 text-xs font-medium text-fuchsia-100/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                      className="rounded-full border border-primary/28 bg-black/35 px-3 py-1 text-xs font-medium text-foreground/92 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
                     >
                       {kink}
                     </span>
