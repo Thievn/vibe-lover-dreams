@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarClock, Loader2, Play } from "lucide-react";
+import { CalendarClock, ChevronDown, Loader2, Play } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -134,16 +134,25 @@ export function AdminForgeSchedulePanel({ onAutoForge, className }: Props) {
   };
 
   return (
-    <div
+    <details
       className={cn(
-        "rounded-xl border border-violet-500/25 bg-gradient-to-br from-violet-950/40 via-black/50 to-black/40 p-4 space-y-3",
+        "group rounded-xl border border-violet-500/25 bg-gradient-to-br from-violet-950/40 via-black/50 to-black/40 overflow-hidden [&_summary::-webkit-details-marker]:hidden",
         className,
       )}
     >
-      <div className="flex items-center gap-2 text-sm font-bold text-violet-200">
-        <CalendarClock className="h-4 w-4 text-violet-400" />
-        Scheduled random forges
-      </div>
+      <summary className="cursor-pointer list-none flex items-center justify-between gap-2 px-4 py-3 hover:bg-violet-950/25">
+        <div className="flex items-center gap-2 text-sm font-bold text-violet-200 min-w-0">
+          <CalendarClock className="h-4 w-4 text-violet-400 shrink-0" />
+          <span className="truncate">Scheduled random forges</span>
+          {cfg.enabled ? (
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-violet-300/90 shrink-0">· on</span>
+          ) : (
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground shrink-0">· off</span>
+          )}
+        </div>
+        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="px-4 pb-4 space-y-3 border-t border-violet-500/20 pt-3">
       <p className="text-[11px] text-muted-foreground leading-relaxed">
         After your chosen local time, you can run random roulette + save up to your daily cap. Use the button below
         (or &quot;Forge random companion now&quot;) — new rows stay <strong className="text-foreground/90">private</strong> until you publish from Character management.
@@ -216,6 +225,7 @@ export function AdminForgeSchedulePanel({ onAutoForge, className }: Props) {
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
         Forge random companion now
       </button>
-    </div>
+      </div>
+    </details>
   );
 }

@@ -125,6 +125,217 @@ const QUICK_GUIDE: Record<string, string> = {
 
 type ChatMsg = { role: "system" | "user" | "assistant"; content: string };
 
+const REQUIRED_BASE_HASHTAGS = ["GrokAI", "Lovense"] as const;
+
+function cleanHashtag(tag: string): string {
+  return tag.replace(/^#/, "").replace(/[^a-zA-Z0-9_]/g, "").trim();
+}
+
+function titleToTag(raw: string): string {
+  return cleanHashtag(
+    raw
+      .split(/[\s/_-]+/)
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(""),
+  );
+}
+
+function uniquePush(list: string[], val: string) {
+  const t = cleanHashtag(val);
+  if (!t) return;
+  if (list.some((x) => x.toLowerCase() === t.toLowerCase())) return;
+  list.push(t);
+}
+
+function rotatePick(pool: string[], count: number, offset: number): string[] {
+  if (pool.length === 0 || count <= 0) return [];
+  const out: string[] = [];
+  for (let i = 0; i < pool.length && out.length < count; i++) {
+    const p = pool[(offset + i) % pool.length]!;
+    uniquePush(out, p);
+  }
+  return out;
+}
+
+function buildRelatedHashtagPool(args: {
+  tone: string;
+  quickKind: string;
+  portraitTier: "selfie" | "lewd" | "nude";
+  companion: Record<string, unknown> | null;
+}): string[] {
+  const out: string[] = [];
+  const companion = args.companion;
+  const add = (raw: string) => uniquePush(out, raw);
+
+  // Strong platform/product anchors.
+  add("LustForge");
+  add("AICompanion");
+  add("AIGirlfriend");
+  add("18Plus");
+
+  if (args.portraitTier === "lewd") add("LewdAI");
+  if (args.portraitTier === "nude") add("NSFWAI");
+  if (args.portraitTier === "selfie") add("AISelfie");
+
+  const tone = args.tone.toLowerCase();
+  if (tone.includes("mysterious")) add("DarkFantasy");
+  if (tone.includes("elegant")) add("LuxuryAesthetic");
+  if (tone.includes("aggressive")) add("FOMO");
+  if (tone.includes("teasing") || tone.includes("horny")) add("SpicyAI");
+
+  const quick = args.quickKind.toLowerCase();
+  if (quick === "hype_nexus") add("NexusForge");
+  if (quick === "rarity_drop") add("AIDrop");
+  if (quick === "promote_new") add("NewDrop");
+  if (quick === "community") add("AICommunity");
+
+  if (companion) {
+    const rarity = typeof companion.rarity === "string" ? companion.rarity : "";
+    if (rarity) add(`${titleToTag(rarity)}Tier`);
+    const role = typeof companion.role === "string" ? companion.role : "";
+    if (role) add(titleToTag(role));
+    const tags = Array.isArray(companion.tags) ? (companion.tags as unknown[]).map((x) => String(x)) : [];
+    for (const t of tags.slice(0, 8)) add(titleToTag(t));
+    const kinks = Array.isArray(companion.kinks) ? (companion.kinks as unknown[]).map((x) => String(x)) : [];
+    for (const k of kinks.slice(0, 6)) add(titleToTag(k));
+  }
+
+  return out.filter(Boolean);
+}
+
+function enforceMarketingHashtags(args: {
+  variations: { text: string; hashtags: string[] }[];
+  tone: string;
+  quickKind: string;
+  portraitTier: "selfie" | "lewd" | "nude";
+  companion: Record<string, unknown> | null;
+}): { text: string; hashtags: string[] }[] {
+  const pool = buildRelatedHashtagPool({
+    tone: args.tone,
+    quickKind: args.quickKind,
+    portraitTier: args.portraitTier,
+    companion: args.companion,
+  });
+  return args.variations.map((v, idx) => {
+    const mergedRelated = rotatePick(pool, 3, idx * 2);
+    const finalTags: string[] = [];
+    for (const t of REQUIRED_BASE_HASHTAGS) uniquePush(finalTags, t);
+    for (const t of mergedRelated) uniquePush(finalTags, t);
+    // Backfill from model-proposed tags if pool is unexpectedly too small.
+    if (finalTags.length < 5) {
+      for (const t of v.hashtags) {
+        uniquePush(finalTags, t);
+        if (finalTags.length >= 5) break;
+      }
+    }
+    return { text: v.text, hashtags: finalTags.slice(0, 5) };
+  });
+}
+
+function inferCompanionStyleRules(companion: Record<string, unknown> | null): string {
+  if (!companion) {
+    return "No single companion selected: stay brand-forward, modern, and avoid forcing gothic language unless requested.";
+  }
+  const tags = Array.isArray(companion.tags) ? (companion.tags as unknown[]).map((x) => String(x).toLowerCase()) : [];
+  const kinks = Array.isArray(companion.kinks) ? (companion.kinks as unknown[]).map((x) => String(x).toLowerCase()) : [];
+  const appearance = String(companion.appearance ?? "").toLowerCase();
+  const personality = String(companion.personality ?? "").toLowerCase();
+  const timePeriod = String(companion.timePeriod ?? "").toLowerCase();
+  const mergedCorpus = `${tags.join(" ")} ${kinks.join(" ")} ${appearance} ${personality} ${timePeriod}`;
+  const gothicSignals = /(goth|gothic|vamp|cathedral|victorian|dark fantasy|occult|shadow queen|blood|abyss)/i.test(
+    mergedCorpus,
+  );
+  const cyberSignals = /(cyber|neon|android|futur|tech|holo)/i.test(mergedCorpus);
+  const softSignals = /(cute|sweet|soft|innocent|girl next door|romantic|gentle)/i.test(mergedCorpus);
+  const luxurySignals = /(luxury|elegant|high fashion|editorial|classy)/i.test(mergedCorpus);
+
+  const style: string[] = [];
+  if (gothicSignals) {
+    style.push("Gothic/dark-romance tone is allowed because companion data supports it.");
+  } else {
+    style.push("Do NOT force gothic/dark-vampire wording unless companion data explicitly supports it.");
+  }
+  if (cyberSignals) style.push("Lean into futuristic/neon language.");
+  if (softSignals) style.push("Use warmer playful-romantic wording over harsh dark language.");
+  if (luxurySignals) style.push("Use polished luxury/editorial wording.");
+  style.push("Copy must mirror this companion's actual profile settings and vibe first, brand second.");
+  return style.join(" ");
+}
+
+function companionGothicSignalsAllowed(companion: Record<string, unknown> | null): boolean {
+  if (!companion) return false;
+  const tags = Array.isArray(companion.tags) ? (companion.tags as unknown[]).map((x) => String(x).toLowerCase()) : [];
+  const kinks = Array.isArray(companion.kinks) ? (companion.kinks as unknown[]).map((x) => String(x).toLowerCase()) : [];
+  const appearance = String(companion.appearance ?? "").toLowerCase();
+  const personality = String(companion.personality ?? "").toLowerCase();
+  const timePeriod = String(companion.timePeriod ?? "").toLowerCase();
+  const mergedCorpus = `${tags.join(" ")} ${kinks.join(" ")} ${appearance} ${personality} ${timePeriod}`;
+  return /(goth|gothic|vamp|cathedral|victorian|dark fantasy|occult|shadow queen|blood|abyss)/i.test(mergedCorpus);
+}
+
+function buildStyleSourcePayload(args: {
+  companion: Record<string, unknown> | null;
+  tone: string;
+  tweetStyle: string;
+  quickKind: string;
+  portraitTier: string;
+  siteSurface: Record<string, unknown> | null;
+}): Record<string, unknown> {
+  const c = args.companion;
+  const chips: { label: string; value: string }[] = [];
+  const push = (label: string, value: string) => {
+    const v = value.trim();
+    if (!v) return;
+    chips.push({ label, value: v.length > 80 ? `${v.slice(0, 77)}…` : v });
+  };
+
+  if (c) {
+    push("Companion", String(c.name ?? ""));
+    push("Tagline", String(c.tagline ?? ""));
+    push("Rarity", String(c.rarity ?? ""));
+    push("Role", String(c.role ?? ""));
+    push("Time period", String(c.timePeriod ?? ""));
+    push("Personality type", String(c.personalityType ?? ""));
+    push("Speech style", String(c.speechStyle ?? ""));
+    push("Relationship vibe", String(c.relationshipVibe ?? ""));
+    push("Sexual energy", String(c.sexualEnergy ?? ""));
+    if (Boolean(c.isNexusHybrid)) {
+      const lineage = Array.isArray(c.lineageParentIds)
+        ? (c.lineageParentIds as unknown[]).map((x) => String(x)).filter(Boolean).slice(0, 3).join(", ")
+        : "";
+      push("Nexus", lineage ? `Hybrid · parents: ${lineage}` : "Hybrid merge");
+    }
+    const tagList = Array.isArray(c.tags) ? (c.tags as string[]).slice(0, 6).join(", ") : "";
+    const kinkList = Array.isArray(c.kinks) ? (c.kinks as string[]).slice(0, 4).join(", ") : "";
+    if (tagList) push("Tags (sample)", tagList);
+    if (kinkList) push("Interests (sample)", kinkList);
+  }
+
+  push("Portrait tier", args.portraitTier);
+  push("Marketing tone", args.tone);
+  push("Post shape", args.tweetStyle);
+  if (args.quickKind.trim()) push("Quick campaign", args.quickKind);
+  if (args.siteSurface && typeof args.siteSurface.label === "string") {
+    push("Site surface", String(args.siteSurface.label));
+  }
+
+  const gothicOk = companionGothicSignalsAllowed(c);
+  return {
+    generatedAt: new Date().toISOString(),
+    companionId: c && typeof c.id === "string" ? c.id : null,
+    companionName: c && typeof c.name === "string" ? c.name : null,
+    styleLock: gothicOk ? "gothic_ok" : "gothic_avoid",
+    styleLockHint: gothicOk
+      ? "Profile signals allow gothic / dark-romance wording."
+      : "Style lock: avoid default gothic — mirror this profile’s actual vibe.",
+    chips,
+    summaryLine: c
+      ? `${String(c.name ?? "Companion")} · ${args.portraitTier} hero · ${args.tone}${args.quickKind ? ` · ${args.quickKind}` : ""}`
+      : `Brand post · ${args.portraitTier} hero · ${args.tone}`,
+  };
+}
+
 function normalizeChatMessages(raw: unknown): ChatMsg[] {
   if (!Array.isArray(raw)) return [];
   const out: ChatMsg[] = [];
@@ -255,6 +466,16 @@ Deno.serve(async (req) => {
     const bio = companion && typeof companion.bio === "string" ? (companion.bio as string).trim().slice(0, 700) : "";
     const appearance =
       companion && typeof companion.appearance === "string" ? (companion.appearance as string).trim().slice(0, 900) : "";
+    const timePeriod = companion && typeof companion.timePeriod === "string" ? companion.timePeriod : "";
+    const speechStyle = companion && typeof companion.speechStyle === "string" ? companion.speechStyle : "";
+    const relationshipVibe = companion && typeof companion.relationshipVibe === "string" ? companion.relationshipVibe : "";
+    const sexualEnergy = companion && typeof companion.sexualEnergy === "string" ? companion.sexualEnergy : "";
+    const personalityType = companion && typeof companion.personalityType === "string" ? companion.personalityType : "";
+    const isNexusHybrid = companion ? Boolean(companion.isNexusHybrid) : false;
+    const lineageParentIds = companion && Array.isArray(companion.lineageParentIds)
+      ? (companion.lineageParentIds as unknown[]).map((x) => String(x)).slice(0, 4)
+      : [];
+    const styleRules = inferCompanionStyleRules(companion);
 
     const quickLine = quickKind && QUICK_GUIDE[quickKind] ? `\nCampaign angle: ${QUICK_GUIDE[quickKind]}` : "";
     const styleLine = tweetStyle ? `\nPost shape / format preference: ${tweetStyle}\n` : "";
@@ -283,9 +504,10 @@ Deno.serve(async (req) => {
       `{"text":"tweet body without hashtags, max 240 chars each","hashtags":["TagOne","TagTwo"]}` +
       `]}\n` +
       `Rules: exactly 5 objects in "variations". Each "text" must be ≤ 240 characters, punchy, on-brand. ` +
-      `3–6 hashtags per variation in the array (no # prefix in JSON values). ` +
+      `Exactly 5 hashtags per variation in the array (no # prefix in JSON values). Always include GrokAI and Lovense, plus 3 context-relevant hashtags. ` +
       `No minors, no non-consensual themes. Tone for all copy: ${tone}. ` +
-      `Hashtags can include LustForge, AI, 18Plus, NSFW as appropriate.`;
+      `Hashtags can include LustForge, AI, 18Plus, NSFW as appropriate.\n` +
+      `Critical style lock: never default every companion to gothic/noir language. Match each selected companion profile precisely.`;
 
     const userBlock =
       `Product: LustForge AI — premium AI companions with chat, forge, Nexus hybrid merges, Lovense haptics, Discover gallery, and TCG-style stat flavor.\n` +
@@ -295,7 +517,15 @@ Deno.serve(async (req) => {
         ? `Companion focus:\n- Name: ${name}\n- Tagline: ${tagline}\n- Rarity: ${rarity}\n- Role: ${role}\n- Gender: ${gender}\n- Tags: ${tags}\n- Interests/kinks labels: ${kinks}\n` +
           (personality ? `- Personality / voice: ${personality}\n` : "") +
           (bio ? `- Bio / hook lines: ${bio}\n` : "") +
-          (appearance ? `- Look & aesthetic (for language and vibe, not explicit): ${appearance}\n` : "")
+          (appearance ? `- Look & aesthetic (for language and vibe, not explicit): ${appearance}\n` : "") +
+          (timePeriod ? `- Time period / world: ${timePeriod}\n` : "") +
+          (speechStyle ? `- Speech style: ${speechStyle}\n` : "") +
+          (relationshipVibe ? `- Relationship vibe: ${relationshipVibe}\n` : "") +
+          (sexualEnergy ? `- Sexual energy: ${sexualEnergy}\n` : "") +
+          (personalityType ? `- Personality type: ${personalityType}\n` : "") +
+          `- Nexus hybrid: ${isNexusHybrid ? "yes" : "no"}\n` +
+          (lineageParentIds.length ? `- Nexus lineage parent ids: ${lineageParentIds.join(", ")}\n` : "") +
+          `- Style lock: ${styleRules}\n`
         : `No specific companion selected — write brand-level X posts that still feel premium and seductive.\n`) +
       styleLine +
       portraitHeatLine +
@@ -354,7 +584,24 @@ Deno.serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ variations: variations.slice(0, 5) }), {
+    const normalized = enforceMarketingHashtags({
+      variations: variations.slice(0, 5),
+      tone,
+      quickKind,
+      portraitTier,
+      companion,
+    });
+
+    const styleSource = buildStyleSourcePayload({
+      companion,
+      tone,
+      tweetStyle,
+      quickKind,
+      portraitTier,
+      siteSurface,
+    });
+
+    return new Response(JSON.stringify({ variations: normalized, styleSource }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {

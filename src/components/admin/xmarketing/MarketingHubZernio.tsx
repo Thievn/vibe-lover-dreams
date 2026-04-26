@@ -411,7 +411,7 @@ export function MarketingHubZernioPanels({
       <div>
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Post to X via Zernio</p>
         <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
-          Media uses public image URLs (portrait, marketing still, or generated art). Screen captures stay local unless you upload or use a still.
+          Media uses public image URLs — profile portrait, marketing still, or other hosted art from this hub.
         </p>
       </div>
 

@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart3,
-  Camera,
   ChevronDown,
   ChevronUp,
   Copy,
@@ -16,9 +15,9 @@ import {
   Megaphone,
   MessageSquare,
   RefreshCw,
+  ScanLine,
   Send,
   Sparkles,
-  Trash2,
   UserCircle2,
   Zap,
 } from "lucide-react";
@@ -58,6 +57,17 @@ const HISTORY_KEY = "lustforge-x-marketing-history-v2";
 
 export type TweetVariation = { text: string; hashtags: string[] };
 
+/** Echoes what admin-x-marketing sent to Grok for this run (profile + controls). */
+export type XMarketingStyleSource = {
+  generatedAt: string;
+  companionId: string | null;
+  companionName: string | null;
+  styleLock: "gothic_ok" | "gothic_avoid";
+  styleLockHint: string;
+  chips: { label: string; value: string }[];
+  summaryLine: string;
+};
+
 export type XMarketingHistoryEntry = {
   id: string;
   at: string;
@@ -68,6 +78,7 @@ export type XMarketingHistoryEntry = {
   tone: string;
   quickKind: string | null;
   variations: TweetVariation[];
+  styleSource?: XMarketingStyleSource | null;
 };
 
 type StatsPayload = {
@@ -157,51 +168,6 @@ function fullTweetText(v: TweetVariation): string {
   return tags ? `${v.text} ${tags}` : v.text;
 }
 
-async function captureScreenToDataUrl(): Promise<string | null> {
-  if (!navigator.mediaDevices?.getDisplayMedia) {
-    toast.error("Screen capture is not supported in this browser.");
-    return null;
-  }
-  let stream: MediaStream | null = null;
-  try {
-    stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-  } catch {
-    return null;
-  }
-  const video = document.createElement("video");
-  video.playsInline = true;
-  video.muted = true;
-  video.srcObject = stream;
-  try {
-    await video.play();
-  } catch {
-    stream.getTracks().forEach((t) => t.stop());
-    toast.error("Could not read display stream.");
-    return null;
-  }
-  await new Promise((r) => setTimeout(r, 320));
-  const w = video.videoWidth;
-  const h = video.videoHeight;
-  stream.getTracks().forEach((t) => t.stop());
-  video.srcObject = null;
-  if (!w || !h) {
-    toast.error("No video frame captured.");
-    return null;
-  }
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
-  ctx.drawImage(video, 0, 0, w, h);
-  try {
-    return canvas.toDataURL("image/png");
-  } catch {
-    toast.error("Could not export image (try another window or disable HDR capture).");
-    return null;
-  }
-}
-
 export default function XMarketingHub() {
   const { data: companions = [], isLoading: companionsLoading } = useAdminCompanions();
   const { data: forgeCompanions = [], isLoading: forgeLoading } = useQuery({
@@ -254,16 +220,12 @@ export default function XMarketingHub() {
   const [quickKind, setQuickKind] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [variations, setVariations] = useState<TweetVariation[] | null>(null);
-
-  const [screenshotDataUrl, setScreenshotDataUrl] = useState<string | null>(null);
-  const [captureBusy, setCaptureBusy] = useState(false);
+  const [styleSource, setStyleSource] = useState<XMarketingStyleSource | null>(null);
 
   const [sessionUser, setSessionUser] = useState<User | null>(null);
   const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
   const [marketingRenders, setMarketingRenders] = useState<{ id: string; url: string }[]>([]);
-  const [heroSource, setHeroSource] = useState<
-    { type: "portrait" } | { type: "capture" } | { type: "render"; id: string }
-  >({ type: "portrait" });
+  const [heroSource, setHeroSource] = useState<{ type: "portrait" } | { type: "render"; id: string }>({ type: "portrait" });
   const [marketingScene, setMarketingScene] = useState("");
   const [marketingGenBusy, setMarketingGenBusy] = useState(false);
   const [tweetPostStyle, setTweetPostStyle] = useState<string>(POST_STYLES[0]!.label);
@@ -280,6 +242,17 @@ export default function XMarketingHub() {
   const [chatInput, setChatInput] = useState("");
   const [chatSending, setChatSending] = useState(false);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+
+  const [isMobileLayout, setIsMobileLayout] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const onChange = () => setIsMobileLayout(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
@@ -382,12 +355,6 @@ export default function XMarketingHub() {
   }, [selected?.id]);
 
   useEffect(() => {
-    if (heroSource.type === "capture" && !screenshotDataUrl) {
-      setHeroSource({ type: "portrait" });
-    }
-  }, [heroSource.type, screenshotDataUrl]);
-
-  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, chatSending]);
 
@@ -408,6 +375,12 @@ export default function XMarketingHub() {
     }
     return [...s].sort((a, b) => a.localeCompare(b));
   }, [roster]);
+
+  const styleSourceStale = useMemo(() => {
+    if (!styleSource?.companionId) return false;
+    if (!selected?.id) return true;
+    return styleSource.companionId !== selected.id;
+  }, [styleSource?.companionId, selected?.id]);
 
   const filteredCompanions = useMemo(() => {
     if (rarityFilter === "unset") {
@@ -491,6 +464,7 @@ export default function XMarketingHub() {
   const runGenerate = async () => {
     setGenerating(true);
     setVariations(null);
+    setStyleSource(null);
     try {
       const companionPayload = selected
         ? {
@@ -505,6 +479,15 @@ export default function XMarketingHub() {
             personality: selected.personality.slice(0, 800),
             bio: selected.bio.slice(0, 900),
             appearance: selected.appearance.slice(0, 1200),
+            timePeriod: (selected as unknown as { time_period?: string }).time_period ?? null,
+            speechStyle: (selected as unknown as { speech_style?: string }).speech_style ?? null,
+            relationshipVibe: (selected as unknown as { relationship_vibe?: string }).relationship_vibe ?? null,
+            sexualEnergy: (selected as unknown as { sexual_energy?: string }).sexual_energy ?? null,
+            personalityType: (selected as unknown as { personality_type?: string }).personality_type ?? null,
+            isNexusHybrid: Boolean((selected as unknown as { is_nexus_hybrid?: boolean }).is_nexus_hybrid),
+            lineageParentIds: Array.isArray((selected as unknown as { lineage_parent_ids?: unknown }).lineage_parent_ids)
+              ? ((selected as unknown as { lineage_parent_ids?: string[] }).lineage_parent_ids ?? []).slice(0, 4)
+              : [],
           }
         : null;
       const siteSurface = selectedSurface
@@ -531,9 +514,34 @@ export default function XMarketingHub() {
         },
       });
       if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
-      const vars = (data as { variations?: TweetVariation[] })?.variations;
+      const payload = data as { variations?: TweetVariation[]; styleSource?: XMarketingStyleSource };
+      const vars = payload?.variations;
       if (!Array.isArray(vars) || vars.length < 1) throw new Error("No variations returned");
+      const src = payload?.styleSource;
+      const normalizedSource: XMarketingStyleSource | null =
+        src &&
+        typeof src === "object" &&
+        typeof src.generatedAt === "string" &&
+        Array.isArray(src.chips) &&
+        typeof src.summaryLine === "string"
+          ? {
+              generatedAt: src.generatedAt,
+              companionId: typeof src.companionId === "string" ? src.companionId : null,
+              companionName: typeof src.companionName === "string" ? src.companionName : null,
+              styleLock: src.styleLock === "gothic_ok" ? "gothic_ok" : "gothic_avoid",
+              styleLockHint: typeof src.styleLockHint === "string" ? src.styleLockHint : "",
+              chips: src.chips.filter(
+                (c): c is { label: string; value: string } =>
+                  Boolean(c) &&
+                  typeof c === "object" &&
+                  typeof (c as { label?: string }).label === "string" &&
+                  typeof (c as { value?: string }).value === "string",
+              ),
+              summaryLine: src.summaryLine,
+            }
+          : null;
       setVariations(vars);
+      setStyleSource(normalizedSource);
       const entry: XMarketingHistoryEntry = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         at: new Date().toISOString(),
@@ -544,6 +552,7 @@ export default function XMarketingHub() {
         tone,
         quickKind,
         variations: vars,
+        styleSource: normalizedSource,
       };
       const next = [entry, ...history].slice(0, 40);
       setHistory(next);
@@ -608,17 +617,6 @@ export default function XMarketingHub() {
     }
   };
 
-  const copyScreenshot = async () => {
-    if (!screenshotDataUrl) return;
-    try {
-      const res = await fetch(screenshotDataUrl);
-      const blob = await res.blob();
-      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-    } catch {
-      await copyText(screenshotDataUrl);
-    }
-  };
-
   const portraitHeroFromTier = useMemo(() => {
     if (!selected) return { url: null as string | null, usedFallback: false };
     const rows = portraitTierForX === "selfie" ? undefined : generatedImagesForTier;
@@ -626,18 +624,17 @@ export default function XMarketingHub() {
   }, [selected, portraitTierForX, generatedImagesForTier]);
 
   const heroVisual = useMemo(() => {
-    if (heroSource.type === "capture" && screenshotDataUrl) return screenshotDataUrl;
     if (heroSource.type === "render") {
       const row = marketingRenders.find((r) => r.id === heroSource.id);
       if (row?.url) return row.url;
       if (selected) return portraitHeroFromTier.url ?? galleryStaticPortraitUrl(selected, selected.id) ?? null;
-      return screenshotDataUrl ?? null;
+      return null;
     }
     if (selected) return portraitHeroFromTier.url ?? galleryStaticPortraitUrl(selected, selected.id) ?? null;
-    return screenshotDataUrl ?? null;
-  }, [heroSource, screenshotDataUrl, marketingRenders, selected, portraitHeroFromTier]);
+    return null;
+  }, [heroSource, marketingRenders, selected, portraitHeroFromTier]);
 
-  /** Zernio can only fetch public http(s) URLs — not data: or blob: captures. */
+  /** Zernio can only fetch public http(s) URLs — not data: or blob: URLs. */
   const { mediaUrlsForZernio, zernioMediaBlockedReason } = useMemo(() => {
     if (!heroVisual) {
       return { mediaUrlsForZernio: [] as string[], zernioMediaBlockedReason: null as string | null };
@@ -646,7 +643,7 @@ export default function XMarketingHub() {
       return {
         mediaUrlsForZernio: [],
         zernioMediaBlockedReason:
-          "Screen capture can’t be sent to X automatically (not a public URL). Use Profile portrait or Generate marketing still, or paste the image manually on X.",
+          "This image isn’t a public URL, so Zernio can’t attach it. Use profile portrait, a marketing still, or paste media manually on X.",
       };
     }
     if (heroVisual.startsWith("blob:")) {
@@ -786,10 +783,9 @@ export default function XMarketingHub() {
               <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-primary/90 mb-1">Social command</p>
               <h2 className="font-gothic text-2xl md:text-3xl gradient-vice-text leading-tight">X Marketing Hub</h2>
               <p className="text-sm text-muted-foreground mt-2 max-w-3xl leading-relaxed">
-                One workspace: roster pulse, <strong className="text-foreground/90">living product atlas</strong>, smart
-                angles, <strong className="text-foreground/90">companion-themed posts</strong> (tone + post shape), optional
-                marketing stills per character, screen capture, Grok tweet generation, and sidecar chat — same noir forge
-                energy as Command.
+                Roster pulse, <strong className="text-foreground/90">living product atlas</strong>, smart angles,{" "}
+                <strong className="text-foreground/90">companion-themed posts</strong> (tone + post shape), optional marketing
+                stills, Grok generation + refine chat, and Zernio — wide desktop layout with the X mock-up up front.
               </p>
             </div>
           </div>
@@ -827,115 +823,131 @@ export default function XMarketingHub() {
           ) : null}
 
           {hubTab === "compose" ? (
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_min(400px,100%)] gap-4 xl:gap-6 items-start">
-            {/* LEFT */}
-            <div className="space-y-6 min-w-0">
-              <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 md:p-5 space-y-4">
-                <div className="flex flex-wrap gap-3 items-center justify-between">
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 xl:gap-8 2xl:gap-10 items-start w-full max-w-[1920px] xl:mx-auto">
+            {/* LEFT — companion context (sticky scroll on desktop only) */}
+            <div className="xl:col-span-5 2xl:col-span-4 min-w-0 space-y-4 xl:sticky xl:top-4 xl:max-h-[calc(100dvh-5rem)] xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
+              <details
+                key={`xhub-pulse-${isMobileLayout}`}
+                defaultOpen={!isMobileLayout}
+                className="group rounded-2xl border border-white/[0.08] bg-black/40 overflow-hidden [&_summary::-webkit-details-marker]:hidden"
+              >
+                <summary className="cursor-pointer list-none flex items-center justify-between gap-2 px-4 py-3 md:px-5 md:py-4 hover:bg-white/[0.03]">
                   <h3 className="text-[10px] font-bold uppercase tracking-[0.28em] text-muted-foreground flex items-center gap-2">
                     <BarChart3 className="h-4 w-4 text-primary" style={{ color: NEON }} />
                     Roster pulse
                   </h3>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { k: "Stock", v: statsLoading ? "—" : String(stats?.totalStock ?? 0) },
-                    { k: "Forge", v: statsLoading ? "—" : String(stats?.totalCustom ?? 0) },
-                    { k: "Total", v: statsLoading ? "—" : String(stats?.totalCompanions ?? 0) },
-                  ].map((c) => (
-                    <div key={c.k} className="rounded-xl border border-border/50 bg-white/[0.03] px-3 py-2 text-center">
-                      <p className="text-[9px] uppercase tracking-widest text-muted-foreground">{c.k}</p>
-                      <p className="font-gothic text-xl text-white mt-0.5">{c.v}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Hot saves (7d)</p>
-                    {statsLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    ) : (stats?.mostSavedWeek?.length ?? 0) === 0 ? (
-                      <p className="text-xs text-muted-foreground">No pins this week.</p>
-                    ) : (
-                      <ul className="space-y-1 max-h-28 overflow-y-auto pr-1">
-                        {stats!.mostSavedWeek.slice(0, 8).map((row) => (
-                          <li key={row.companion_id} className="flex justify-between gap-2 text-xs text-foreground/90">
-                            <span className="truncate">{row.name}</span>
-                            <span className="text-primary shrink-0">{row.count}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1">
-                      <Hash className="h-3 w-3" /> Trending tags
-                    </p>
-                    <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto">
-                      {(stats?.trendingTags ?? []).slice(0, 18).map((t) => (
-                        <button
-                          key={t.tag}
-                          type="button"
-                          onClick={() => setTagFilter(t.tag)}
-                          className="text-[10px] px-2 py-0.5 rounded-full border border-white/10 bg-white/[0.04] hover:border-primary/40"
-                        >
-                          {t.tag}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-[0.28em] text-muted-foreground mb-2">
-                  Marketable surfaces · grows with the codebase
-                </h3>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-                  {mergedSurfaces.map((s) => {
-                    const active = selectedSurface?.id === s.id;
-                    return (
-                      <div
-                        key={s.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => pickSurface(s)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            pickSurface(s);
-                          }
-                        }}
-                        className={cn(
-                          "text-left rounded-xl border p-3 transition-all hover:border-primary/35 cursor-pointer",
-                          active ? "border-primary/55 bg-primary/10 ring-1 ring-primary/25" : "border-border/60 bg-black/45",
-                        )}
-                      >
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <p className="text-[8px] uppercase tracking-widest text-muted-foreground">{s.category}</p>
-                          {!s.reviewed ? (
-                            <span className="text-[7px] font-bold uppercase tracking-wider px-1 py-0.5 rounded border border-amber-500/50 text-amber-200/90 bg-amber-500/10">
-                              Unreviewed
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="font-gothic text-sm text-white mt-0.5 line-clamp-2">{s.label}</p>
-                        <p className="text-[10px] text-muted-foreground mt-1.5 line-clamp-2 leading-snug">{s.pitch}</p>
-                        <button
-                          type="button"
-                          className="mt-2 inline-flex items-center gap-1 text-[9px] font-semibold text-primary hover:underline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.open(`${siteOrigin}${s.path}`, "_blank", "noopener,noreferrer");
-                          }}
-                        >
-                          Open <ExternalLink className="h-3 w-3" />
-                        </button>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="px-4 pb-4 md:px-5 md:pb-5 space-y-4 border-t border-white/[0.06] pt-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { k: "Stock", v: statsLoading ? "—" : String(stats?.totalStock ?? 0) },
+                      { k: "Forge", v: statsLoading ? "—" : String(stats?.totalCustom ?? 0) },
+                      { k: "Total", v: statsLoading ? "—" : String(stats?.totalCompanions ?? 0) },
+                    ].map((c) => (
+                      <div key={c.k} className="rounded-xl border border-border/50 bg-white/[0.03] px-3 py-2 text-center">
+                        <p className="text-[9px] uppercase tracking-widest text-muted-foreground">{c.k}</p>
+                        <p className="font-gothic text-xl text-white mt-0.5">{c.v}</p>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Hot saves (7d)</p>
+                      {statsLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : (stats?.mostSavedWeek?.length ?? 0) === 0 ? (
+                        <p className="text-xs text-muted-foreground">No pins this week.</p>
+                      ) : (
+                        <ul className="space-y-1">
+                          {stats!.mostSavedWeek.slice(0, 8).map((row) => (
+                            <li key={row.companion_id} className="flex justify-between gap-2 text-xs text-foreground/90">
+                              <span className="truncate">{row.name}</span>
+                              <span className="text-primary shrink-0">{row.count}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1">
+                        <Hash className="h-3 w-3" /> Trending tags
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {(stats?.trendingTags ?? []).slice(0, 18).map((t) => (
+                          <button
+                            key={t.tag}
+                            type="button"
+                            onClick={() => setTagFilter(t.tag)}
+                            className="text-[10px] px-2 py-0.5 rounded-full border border-white/10 bg-white/[0.04] hover:border-primary/40"
+                          >
+                            {t.tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </details>
+
+              <details
+                key={`xhub-surfaces-${isMobileLayout}`}
+                defaultOpen={!isMobileLayout}
+                className="group rounded-2xl border border-white/[0.08] bg-black/40 overflow-hidden [&_summary::-webkit-details-marker]:hidden"
+              >
+                <summary className="cursor-pointer list-none flex items-center justify-between gap-2 px-4 py-3 hover:bg-white/[0.03]">
+                  <h3 className="text-[10px] font-bold uppercase tracking-[0.28em] text-muted-foreground text-left">
+                    Marketable surfaces · grows with the codebase
+                  </h3>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="px-3 pb-3 border-t border-white/[0.06] pt-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[min(70vh,520px)] overflow-y-auto pr-0.5">
+                    {mergedSurfaces.map((s) => {
+                      const active = selectedSurface?.id === s.id;
+                      return (
+                        <div
+                          key={s.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => pickSurface(s)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              pickSurface(s);
+                            }
+                          }}
+                          className={cn(
+                            "text-left rounded-xl border p-3 transition-all hover:border-primary/35 cursor-pointer",
+                            active ? "border-primary/55 bg-primary/10 ring-1 ring-primary/25" : "border-border/60 bg-black/45",
+                          )}
+                        >
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="text-[8px] uppercase tracking-widest text-muted-foreground">{s.category}</p>
+                            {!s.reviewed ? (
+                              <span className="text-[7px] font-bold uppercase tracking-wider px-1 py-0.5 rounded border border-amber-500/50 text-amber-200/90 bg-amber-500/10">
+                                Unreviewed
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="font-gothic text-sm text-white mt-0.5 line-clamp-2">{s.label}</p>
+                          <p className="text-[10px] text-muted-foreground mt-1.5 line-clamp-2 leading-snug">{s.pitch}</p>
+                          <button
+                            type="button"
+                            className="mt-2 inline-flex items-center gap-1 text-[9px] font-semibold text-primary hover:underline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(`${siteOrigin}${s.path}`, "_blank", "noopener,noreferrer");
+                            }}
+                          >
+                            Open <ExternalLink className="h-3 w-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </details>
 
               <div
                 ref={companionPickRef}
@@ -1162,6 +1174,7 @@ export default function XMarketingHub() {
                                   className="px-2 py-1 rounded-lg border border-primary/40 text-[10px] font-semibold text-primary"
                                   onClick={() => {
                                     setVariations(h.variations);
+                                    setStyleSource(h.styleSource ?? null);
                                     setTone(h.tone);
                                     setQuickKind(h.quickKind);
                                     const surf = mergedSurfaces.find((x) => x.id === h.surfaceId);
@@ -1186,239 +1199,9 @@ export default function XMarketingHub() {
               </div>
             </div>
 
-            {/* RIGHT workspace */}
-            <div
-              ref={workspaceRef}
-              className="xl:sticky xl:top-4 space-y-4 rounded-2xl border border-primary/20 bg-gradient-to-b from-black/55 to-black/80 p-4 md:p-5 max-h-[calc(100dvh-8rem)] overflow-y-auto shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-            >
-              <div className="rounded-2xl border border-white/[0.08] bg-black/50 overflow-hidden">
-                <div className="px-3 pt-3 flex items-center justify-between gap-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Post hero image</p>
-                  {heroVisual ? (
-                    <button
-                      type="button"
-                      onClick={() => void copyHeroImage()}
-                      className="text-[10px] font-semibold text-primary hover:underline"
-                    >
-                      Copy hero
-                    </button>
-                  ) : null}
-                </div>
-                <div className="aspect-[16/10] max-h-52 w-full bg-black/70 relative flex items-center justify-center">
-                  {heroVisual ? (
-                    <img src={heroVisual} alt="" className="absolute inset-0 h-full w-full object-contain object-top bg-black" />
-                  ) : (
-                    <div className="text-center px-6 py-10">
-                      <ImageIcon className="h-10 w-10 mx-auto text-muted-foreground mb-2 opacity-60" />
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        In the <strong className="text-foreground/85">left column</strong>, scroll to{" "}
-                        <strong className="text-foreground/85">Who is this post about?</strong> and click{" "}
-                        <strong className="text-foreground/85">Use in Tweet</strong> on a card. Then choose portrait / capture /
-                        marketing still here.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => companionPickRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                        className="mt-4 text-[11px] font-semibold text-primary hover:underline"
-                      >
-                        Jump to companion picker
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-3 border-t border-white/[0.06] space-y-3">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Which image goes with the post</p>
-                  <div className="flex flex-wrap gap-2">
-                    {selected ? (
-                      <button
-                        type="button"
-                        onClick={() => setHeroSource({ type: "portrait" })}
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[10px] font-semibold transition-colors",
-                          heroSource.type === "portrait"
-                            ? "border-primary/50 bg-primary/15 text-primary"
-                            : "border-border/60 bg-black/40 text-muted-foreground hover:border-primary/30",
-                        )}
-                      >
-                        <UserCircle2 className="h-3.5 w-3.5" />
-                        Profile portrait
-                      </button>
-                    ) : null}
-                    {screenshotDataUrl ? (
-                      <button
-                        type="button"
-                        onClick={() => setHeroSource({ type: "capture" })}
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[10px] font-semibold transition-colors",
-                          heroSource.type === "capture"
-                            ? "border-accent/50 bg-accent/15 text-accent"
-                            : "border-border/60 bg-black/40 text-muted-foreground hover:border-accent/30",
-                        )}
-                      >
-                        <Camera className="h-3.5 w-3.5" />
-                        Screen capture
-                      </button>
-                    ) : null}
-                    {marketingRenders.map((r, idx) => (
-                      <button
-                        key={r.id}
-                        type="button"
-                        onClick={() => setHeroSource({ type: "render", id: r.id })}
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[10px] font-semibold transition-colors",
-                          heroSource.type === "render" && heroSource.id === r.id
-                            ? "border-velvet-purple/50 bg-velvet-purple/15 text-accent"
-                            : "border-border/60 bg-black/40 text-muted-foreground hover:border-primary/30",
-                        )}
-                      >
-                        <ImagePlus className="h-3.5 w-3.5" />
-                        Render {idx + 1}
-                      </button>
-                    ))}
-                  </div>
-
-                  {selected ? (
-                    <div className="space-y-1.5 rounded-xl border border-white/[0.06] bg-black/35 px-3 py-2.5">
-                      <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-                        Portrait heat (X hero when Profile portrait is selected)
-                      </label>
-                      <select
-                        value={portraitTierForX}
-                        onChange={(e) => {
-                          const v = e.target.value as XMarketingPortraitTier;
-                          setPortraitTierForX(v);
-                          savePortraitTierForCompanion(selected.id, v);
-                        }}
-                        className="w-full max-w-md rounded-xl bg-black/60 border border-border px-3 py-2 text-sm text-foreground"
-                      >
-                        {X_MARKETING_PORTRAIT_TIERS.map((t) => (
-                          <option key={t.id} value={t.id} title={t.hint}>
-                            {t.label}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-[9px] text-muted-foreground leading-snug">
-                        {X_MARKETING_PORTRAIT_TIERS.find((x) => x.id === portraitTierForX)?.hint}
-                      </p>
-                      {heroSource.type !== "portrait" ? (
-                        <p className="text-[9px] text-amber-200/85 border border-amber-500/25 rounded-lg px-2 py-1 bg-amber-500/5">
-                          Tier affects the catalog/generated portrait when you switch back to <strong className="text-foreground/90">Profile portrait</strong>. Generate & Grok use this tier now.
-                        </p>
-                      ) : null}
-                      {portraitHeroFromTier.usedFallback && portraitTierForX !== "selfie" && heroSource.type === "portrait" ? (
-                        <p className="text-[9px] text-amber-200/90 border border-amber-500/30 rounded-lg px-2 py-1.5 bg-amber-500/10">
-                          No generated image matched this tier’s keywords yet — showing catalog portrait. Add chat gens or marketing stills for this companion, or pick Lewd/Nude after prompts contain those themes.
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={captureBusy}
-                      onClick={() => {
-                        void (async () => {
-                          setCaptureBusy(true);
-                          try {
-                            const url = await captureScreenToDataUrl();
-                            if (url) {
-                              setScreenshotDataUrl(url);
-                              setHeroSource({ type: "capture" });
-                            }
-                          } finally {
-                            setCaptureBusy(false);
-                          }
-                        })();
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2 text-xs font-semibold text-accent hover:bg-accent/20 disabled:opacity-50"
-                    >
-                      {captureBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-                      Capture screen / tab
-                    </button>
-                    {screenshotDataUrl ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => void copyScreenshot()}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary"
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                          Copy capture
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setScreenshotDataUrl(null);
-                          }}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-xs font-semibold text-muted-foreground"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Clear capture
-                        </button>
-                      </>
-                    ) : null}
-                    {selected ? (
-                      <button
-                        type="button"
-                        onClick={() => void copyImage(selected)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 px-3 py-2 text-xs font-semibold text-foreground"
-                      >
-                        <ImageIcon className="h-3.5 w-3.5" />
-                        Copy catalog portrait
-                      </button>
-                    ) : null}
-                  </div>
-
-                  {selected ? (
-                    <div className="rounded-xl border border-primary/20 bg-primary/[0.06] p-3 space-y-2">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <p className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
-                          <Sparkles className="h-3.5 w-3.5 text-primary" />
-                          New marketing still — {selected.name}
-                        </p>
-                        <span className="text-[10px] text-muted-foreground">
-                          {isAdminSession ? "Admin · credits waived" : `${MARKETING_IMAGE_TOKEN_COST} credits each`}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground leading-snug">
-                        Generates a fresh SFW promo image themed to this companion (same pipeline as chat images). Describe a scene or tap a preset, then generate. Latest render is selected as hero automatically.
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        {SCENE_PRESETS.map((p) => (
-                          <button
-                            key={p.label}
-                            type="button"
-                            onClick={() => setMarketingScene(p.text)}
-                            className="text-[9px] px-2 py-0.5 rounded-lg border border-border/60 bg-black/40 text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                          >
-                            {p.label}
-                          </button>
-                        ))}
-                      </div>
-                      <textarea
-                        value={marketingScene}
-                        onChange={(e) => setMarketingScene(e.target.value)}
-                        rows={2}
-                        placeholder="Optional scene: lighting, setting, mood — or use a preset above."
-                        className="w-full rounded-lg bg-black/50 border border-border/70 px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground resize-y min-h-[52px]"
-                      />
-                      <button
-                        type="button"
-                        disabled={marketingGenBusy}
-                        onClick={() => void generateMarketingStill()}
-                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-primary/40 bg-gradient-to-r from-primary/20 to-purple-900/30 py-2.5 text-xs font-bold text-primary disabled:opacity-50"
-                      >
-                        {marketingGenBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
-                        Generate marketing still
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2 text-[11px]">
+            {/* RIGHT — compose (preview first, no nested column scroll) */}
+            <div ref={workspaceRef} className="xl:col-span-7 2xl:col-span-8 min-w-0 space-y-5">
+              <div className="flex flex-wrap gap-2 text-[11px] items-center rounded-2xl border border-white/[0.08] bg-black/35 px-3 py-2.5">
                 {selected ? (
                   <span className="rounded-full border border-primary/35 bg-primary/10 px-3 py-1 text-primary font-semibold truncate max-w-full">
                     {selected.name}
@@ -1435,11 +1218,10 @@ export default function XMarketingHub() {
                 )}
                 <button
                   type="button"
-                  className="text-primary hover:underline ml-auto"
+                  className="text-primary hover:underline ml-auto text-[11px] font-semibold"
                   onClick={() => {
                     setSelected(null);
                     setSelectedSurface(null);
-                    setScreenshotDataUrl(null);
                     setMarketingRenders([]);
                     setHeroSource({ type: "portrait" });
                   }}
@@ -1448,23 +1230,262 @@ export default function XMarketingHub() {
                 </button>
               </div>
 
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-2">Smart angles</p>
-                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-1">
-                  {smartAngles.map((a) => (
-                    <button
-                      key={a.id}
-                      type="button"
-                      onClick={() => applyAngle(a.prompt)}
-                      className="text-left text-[11px] px-2.5 py-1.5 rounded-xl border border-border/70 bg-white/[0.03] hover:border-primary/40 text-foreground/90 max-w-[18rem]"
-                      title={a.prompt}
-                    >
-                      <span className="font-semibold text-primary/90">{a.label}</span>
-                      <span className="block text-muted-foreground line-clamp-2 mt-0.5">{a.prompt}</span>
-                    </button>
-                  ))}
+              <div className="rounded-2xl border border-primary/35 bg-gradient-to-b from-black/60 via-black/75 to-black/90 p-4 md:p-6 lg:p-7 shadow-[0_0_60px_rgba(255,45,123,0.08)] space-y-5">
+                <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-primary/90">X post mock-up</p>
+                    <p className="text-sm text-muted-foreground mt-2 max-w-2xl leading-relaxed">
+                      Preview and Zernio post bar stay together — pick copy from the variations list below or from the post
+                      dropdown.
+                    </p>
+                  </div>
+                  {variations?.length ? (
+                    <div className="shrink-0 text-right">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Selected variation</p>
+                      <p
+                        className={cn(
+                          "text-lg font-mono font-bold tabular-nums",
+                          composePreviewChars > 280
+                            ? "text-destructive"
+                            : composePreviewChars > 260
+                              ? "text-amber-300"
+                              : "text-accent",
+                        )}
+                      >
+                        {composePreviewChars} <span className="text-xs font-normal text-muted-foreground">/ 280</span>
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
+                <MarketingTweetPreview
+                  fullText={composePreviewFull}
+                  imageUrl={heroVisual}
+                  charCount={composePreviewChars}
+                  mediaBlockedReason={zernioMediaBlockedReason}
+                />
+                <MarketingHubZernioPanels
+                  hubTab="compose"
+                  onHubTab={setHubTab}
+                  variations={variations}
+                  fullTweetText={fullTweetText}
+                  selected={selected}
+                  composePickVar={composePickVar}
+                  onComposePickVarChange={setComposePickVar}
+                  mediaUrlsForZernio={mediaUrlsForZernio}
+                />
               </div>
+
+              <details
+                key={`xhub-hero-${isMobileLayout}`}
+                defaultOpen={!isMobileLayout}
+                className="group rounded-2xl border border-white/[0.08] bg-black/50 overflow-hidden [&_summary::-webkit-details-marker]:hidden"
+              >
+                <summary className="cursor-pointer list-none flex items-center justify-between gap-2 px-4 py-3 bg-black/45 hover:bg-black/55">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                    Post hero image · portrait tier · marketing still
+                  </span>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="border-t border-white/[0.06] p-4 space-y-4">
+                  <div className="flex items-center justify-end gap-2">
+                    {heroVisual ? (
+                      <button
+                        type="button"
+                        onClick={() => void copyHeroImage()}
+                        className="text-[10px] font-semibold text-primary hover:underline"
+                      >
+                        Copy hero image
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="aspect-[16/9] max-h-48 w-full bg-black/70 relative rounded-xl overflow-hidden flex items-center justify-center">
+                    {heroVisual ? (
+                      <img src={heroVisual} alt="" className="absolute inset-0 h-full w-full object-contain object-top bg-black" />
+                    ) : (
+                      <div className="text-center px-4 py-8">
+                        <ImageIcon className="h-9 w-9 mx-auto text-muted-foreground mb-2 opacity-60" />
+                        <p className="text-xs text-muted-foreground leading-relaxed max-w-md mx-auto">
+                          Use <strong className="text-foreground/85">Use in Tweet</strong> on a card, then choose{" "}
+                          <strong className="text-foreground/85">Profile portrait</strong> or generate a{" "}
+                          <strong className="text-foreground/85">marketing still</strong>. Public URLs attach through Zernio.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => companionPickRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                          className="mt-3 text-[11px] font-semibold text-primary hover:underline"
+                        >
+                          Jump to companion picker
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                      Which image goes with the post
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {selected ? (
+                        <button
+                          type="button"
+                          onClick={() => setHeroSource({ type: "portrait" })}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[10px] font-semibold transition-colors",
+                            heroSource.type === "portrait"
+                              ? "border-primary/50 bg-primary/15 text-primary"
+                              : "border-border/60 bg-black/40 text-muted-foreground hover:border-primary/30",
+                          )}
+                        >
+                          <UserCircle2 className="h-3.5 w-3.5" />
+                          Profile portrait
+                        </button>
+                      ) : null}
+                      {marketingRenders.map((r, idx) => (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => setHeroSource({ type: "render", id: r.id })}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[10px] font-semibold transition-colors",
+                            heroSource.type === "render" && heroSource.id === r.id
+                              ? "border-velvet-purple/50 bg-velvet-purple/15 text-accent"
+                              : "border-border/60 bg-black/40 text-muted-foreground hover:border-primary/30",
+                          )}
+                        >
+                          <ImagePlus className="h-3.5 w-3.5" />
+                          Render {idx + 1}
+                        </button>
+                      ))}
+                    </div>
+
+                    {selected ? (
+                      <div className="space-y-1.5 rounded-xl border border-white/[0.06] bg-black/35 px-3 py-2.5">
+                        <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                          Portrait heat (X hero when Profile portrait is selected)
+                        </label>
+                        <select
+                          value={portraitTierForX}
+                          onChange={(e) => {
+                            const v = e.target.value as XMarketingPortraitTier;
+                            setPortraitTierForX(v);
+                            savePortraitTierForCompanion(selected.id, v);
+                          }}
+                          className="w-full max-w-md rounded-xl bg-black/60 border border-border px-3 py-2 text-sm text-foreground"
+                        >
+                          {X_MARKETING_PORTRAIT_TIERS.map((t) => (
+                            <option key={t.id} value={t.id} title={t.hint}>
+                              {t.label}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-[9px] text-muted-foreground leading-snug">
+                          {X_MARKETING_PORTRAIT_TIERS.find((x) => x.id === portraitTierForX)?.hint}
+                        </p>
+                        {heroSource.type !== "portrait" ? (
+                          <p className="text-[9px] text-amber-200/85 border border-amber-500/25 rounded-lg px-2 py-1 bg-amber-500/5">
+                            Tier affects the catalog/generated portrait when you switch back to{" "}
+                            <strong className="text-foreground/90">Profile portrait</strong>. Generate & Grok use this tier now.
+                          </p>
+                        ) : null}
+                        {portraitHeroFromTier.usedFallback && portraitTierForX !== "selfie" && heroSource.type === "portrait" ? (
+                          <p className="text-[9px] text-amber-200/90 border border-amber-500/30 rounded-lg px-2 py-1.5 bg-amber-500/10">
+                            No generated image matched this tier’s keywords yet — showing catalog portrait. Add chat gens or
+                            marketing stills for this companion, or pick Lewd/Nude after prompts contain those themes.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    <div className="flex flex-wrap gap-2">
+                      {selected ? (
+                        <button
+                          type="button"
+                          onClick={() => void copyImage(selected)}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 px-3 py-2 text-xs font-semibold text-foreground"
+                        >
+                          <ImageIcon className="h-3.5 w-3.5" />
+                          Copy catalog portrait
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {selected ? (
+                      <div className="rounded-xl border border-primary/20 bg-primary/[0.06] p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <p className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                            <Sparkles className="h-3.5 w-3.5 text-primary" />
+                            New marketing still — {selected.name}
+                          </p>
+                          <span className="text-[10px] text-muted-foreground">
+                            {isAdminSession ? "Admin · credits waived" : `${MARKETING_IMAGE_TOKEN_COST} credits each`}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground leading-snug">
+                          Generates a fresh SFW promo image themed to this companion (same pipeline as chat images). Describe a
+                          scene or tap a preset, then generate. Latest render is selected as hero automatically.
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {SCENE_PRESETS.map((p) => (
+                            <button
+                              key={p.label}
+                              type="button"
+                              onClick={() => setMarketingScene(p.text)}
+                              className="text-[9px] px-2 py-0.5 rounded-lg border border-border/60 bg-black/40 text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                        <textarea
+                          value={marketingScene}
+                          onChange={(e) => setMarketingScene(e.target.value)}
+                          rows={2}
+                          placeholder="Optional scene: lighting, setting, mood — or use a preset above."
+                          className="w-full rounded-lg bg-black/50 border border-border/70 px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground resize-y min-h-[52px]"
+                        />
+                        <button
+                          type="button"
+                          disabled={marketingGenBusy}
+                          onClick={() => void generateMarketingStill()}
+                          className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-primary/40 bg-gradient-to-r from-primary/20 to-purple-900/30 py-2.5 text-xs font-bold text-primary disabled:opacity-50"
+                        >
+                          {marketingGenBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                          Generate marketing still
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </details>
+
+              <details
+                key={`xhub-angles-${isMobileLayout}`}
+                defaultOpen={!isMobileLayout}
+                className="group rounded-xl border border-border/60 bg-black/35 [&_summary::-webkit-details-marker]:hidden"
+              >
+                <summary className="cursor-pointer list-none flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-white/[0.03]">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                    Smart angles ({smartAngles.length})
+                  </span>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="px-3 pb-3 border-t border-border/40">
+                  <div className="flex flex-wrap gap-2 pt-3">
+                    {smartAngles.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => applyAngle(a.prompt)}
+                        className="text-left text-[11px] px-2.5 py-1.5 rounded-xl border border-border/70 bg-white/[0.03] hover:border-primary/40 text-foreground/90 max-w-[20rem] lg:max-w-[24rem]"
+                        title={a.prompt}
+                      >
+                        <span className="font-semibold text-primary/90">{a.label}</span>
+                        <span className="block text-muted-foreground line-clamp-2 mt-0.5">{a.prompt}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </details>
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
@@ -1544,6 +1565,68 @@ export default function XMarketingHub() {
                 Generate 5 tweets
               </button>
 
+              {styleSource ? (
+                <details className="group rounded-xl border border-violet-500/25 bg-gradient-to-br from-violet-950/40 to-black/50 open:shadow-[0_0_24px_rgba(139,92,246,0.12)]">
+                  <summary className="cursor-pointer list-none flex flex-wrap items-center gap-2 px-3 py-2.5 text-left [&::-webkit-details-marker]:hidden">
+                    <ScanLine className="h-4 w-4 shrink-0 text-violet-300" aria-hidden />
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-violet-200/90">Style source</span>
+                    <span className="text-[11px] text-foreground/85 min-w-0 flex-1 line-clamp-2">{styleSource.summaryLine}</span>
+                    {styleSourceStale ? (
+                      <span className="shrink-0 rounded-full border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-100">
+                        Stale
+                      </span>
+                    ) : null}
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                        styleSource.styleLock === "gothic_ok"
+                          ? "border-fuchsia-400/35 bg-fuchsia-500/15 text-fuchsia-100"
+                          : "border-emerald-400/35 bg-emerald-500/12 text-emerald-100",
+                      )}
+                    >
+                      {styleSource.styleLock === "gothic_ok" ? "Gothic OK" : "Profile-first"}
+                    </span>
+                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                  </summary>
+                  <div className="px-3 pb-3 pt-0 space-y-2 border-t border-white/[0.06]">
+                    {styleSourceStale ? (
+                      <p className="text-[11px] text-amber-100/95 leading-snug pt-3 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2">
+                        <strong className="text-amber-50">Out of date vs your picker.</strong> This snapshot matches{" "}
+                        {styleSource.companionName ? (
+                          <span className="font-semibold">{styleSource.companionName}</span>
+                        ) : (
+                          "another context"
+                        )}
+                        , not the companion selected now. Generate again or <strong className="text-foreground">Load</strong> from
+                        history after choosing the right card.
+                      </p>
+                    ) : null}
+                    <p className="text-[10px] text-muted-foreground leading-relaxed pt-2">{styleSource.styleLockHint}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {styleSource.chips.map((chip, idx) => (
+                        <span
+                          key={`${chip.label}-${idx}`}
+                          className="inline-flex max-w-full items-start gap-1 rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-[10px] leading-snug"
+                          title={`${chip.label}: ${chip.value}`}
+                        >
+                          <span className="shrink-0 font-semibold text-violet-200/90">{chip.label}</span>
+                          <span className="text-foreground/80 break-words">{chip.value}</span>
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-[9px] text-muted-foreground/70 tabular-nums">
+                      Snapshot · {new Date(styleSource.generatedAt).toLocaleString()}
+                      {styleSource.companionId ? (
+                        <>
+                          {" · "}
+                          <span className="font-mono text-[9px]">{styleSource.companionId}</span>
+                        </>
+                      ) : null}
+                    </p>
+                  </div>
+                </details>
+              ) : null}
+
               <div className="space-y-3">
                 <h3 className="font-gothic text-lg text-white flex items-center gap-2">
                   <Send className="h-5 w-5 text-accent" />
@@ -1616,87 +1699,71 @@ export default function XMarketingHub() {
                 )}
               </div>
 
-              <div className="rounded-2xl border border-violet-500/25 bg-violet-950/20 p-4 space-y-3">
-                <div className="flex items-center gap-2 text-sm font-bold text-white">
-                  <MessageSquare className="h-4 w-4 text-violet-300" />
-                  Grok · refine copy
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Ask for hornier, more mysterious, a thread outline, or punch-up hooks. Context updates as you change companion / surface /
-                  prompt / last generation.
-                </p>
-                <div className="max-h-48 overflow-y-auto space-y-2 rounded-xl border border-white/[0.06] bg-black/40 p-3 text-xs">
-                  {chatMessages.length === 0 ? (
-                    <p className="text-muted-foreground italic">Start a conversation…</p>
-                  ) : (
-                    chatMessages.map((m, i) => (
-                      <div
-                        key={i}
-                        className={cn(
-                          "rounded-lg px-2 py-1.5",
-                          m.role === "user" ? "bg-primary/10 text-foreground ml-4" : "bg-white/[0.05] text-foreground/90 mr-4",
-                        )}
-                      >
-                        {m.content}
-                      </div>
-                    ))
-                  )}
-                  <div ref={chatEndRef} />
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        void sendChat();
-                      }
-                    }}
-                    placeholder="e.g. Make variation 2 more mysterious…"
-                    className="flex-1 rounded-xl bg-black/50 border border-border px-3 py-2 text-sm"
-                  />
+              <details className="group rounded-2xl border border-violet-500/25 bg-violet-950/20 overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+                <summary className="cursor-pointer list-none flex items-center justify-between gap-2 px-4 py-3 hover:bg-violet-950/35">
+                  <span className="flex items-center gap-2 text-sm font-bold text-white">
+                    <MessageSquare className="h-4 w-4 text-violet-300" />
+                    Grok · refine copy
+                  </span>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="px-4 pb-4 border-t border-white/[0.06] space-y-3">
+                  <p className="text-[11px] text-muted-foreground leading-snug pt-3">
+                    Optional side chat — punch up hooks, thread outlines, or tone. Context follows companion, surface, prompt, and
+                    last generation.
+                  </p>
+                  <div className="max-h-56 overflow-y-auto space-y-2 rounded-xl border border-white/[0.06] bg-black/40 p-3 text-xs">
+                    {chatMessages.length === 0 ? (
+                      <p className="text-muted-foreground italic">Open and start a conversation…</p>
+                    ) : (
+                      chatMessages.map((m, i) => (
+                        <div
+                          key={i}
+                          className={cn(
+                            "rounded-lg px-2 py-1.5",
+                            m.role === "user" ? "bg-primary/10 text-foreground ml-4" : "bg-white/[0.05] text-foreground/90 mr-4",
+                          )}
+                        >
+                          {m.content}
+                        </div>
+                      ))
+                    )}
+                    <div ref={chatEndRef} />
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          void sendChat();
+                        }
+                      }}
+                      placeholder="e.g. Make variation 2 more mysterious…"
+                      className="flex-1 rounded-xl bg-black/50 border border-border px-3 py-2 text-sm"
+                    />
+                    <button
+                      type="button"
+                      disabled={chatSending || !chatInput.trim()}
+                      onClick={() => void sendChat()}
+                      className="shrink-0 rounded-xl px-4 py-2 text-sm font-bold text-primary-foreground border border-primary/40 disabled:opacity-40"
+                      style={{ backgroundColor: NEON }}
+                    >
+                      {chatSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </button>
+                  </div>
                   <button
                     type="button"
-                    disabled={chatSending || !chatInput.trim()}
-                    onClick={() => void sendChat()}
-                    className="shrink-0 rounded-xl px-4 py-2 text-sm font-bold text-primary-foreground border border-primary/40 disabled:opacity-40"
-                    style={{ backgroundColor: NEON }}
+                    onClick={() => {
+                      setChatMessages([]);
+                    }}
+                    className="text-[10px] text-muted-foreground hover:text-white underline"
                   >
-                    {chatSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    Clear chat
                   </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setChatMessages([]);
-                  }}
-                  className="text-[10px] text-muted-foreground hover:text-white underline"
-                >
-                  Clear chat
-                </button>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">X preview</p>
-                <MarketingTweetPreview
-                  fullText={composePreviewFull}
-                  imageUrl={heroVisual}
-                  charCount={composePreviewChars}
-                  mediaBlockedReason={zernioMediaBlockedReason}
-                />
-              </div>
-
-              <MarketingHubZernioPanels
-                hubTab="compose"
-                onHubTab={setHubTab}
-                variations={variations}
-                fullTweetText={fullTweetText}
-                selected={selected}
-                composePickVar={composePickVar}
-                onComposePickVarChange={setComposePickVar}
-                mediaUrlsForZernio={mediaUrlsForZernio}
-              />
+              </details>
             </div>
           </div>
           ) : null}
