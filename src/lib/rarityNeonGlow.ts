@@ -14,14 +14,14 @@ function scaleForVariant(variant: ProfilePortraitTierHaloVariant): NeonTierScale
 function glowIntensity(scale: NeonTierScale): { spread: number; blur: number; outer: number } {
   switch (scale) {
     case "avatar":
-      return { spread: 1, blur: 0.55, outer: 0.5 };
+      return { spread: 1.12, blur: 0.62, outer: 0.57 };
     case "compact":
-      return { spread: 0.85, blur: 0.8, outer: 0.75 };
+      return { spread: 0.95, blur: 0.9, outer: 0.86 };
     case "profile":
       /** Profile hero: ~2× rim vs card — thick tier glow + vector frame (see `rarityProfileVectorGlowFilter`). */
-      return { spread: 2.35, blur: 2.2, outer: 2.25 };
+      return { spread: 2.7, blur: 2.55, outer: 2.5 };
     default:
-      return { spread: 1, blur: 1, outer: 1 };
+      return { spread: 1.14, blur: 1.14, outer: 1.12 };
   }
 }
 

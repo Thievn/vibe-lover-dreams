@@ -13,8 +13,17 @@ import {
   Loader2, X, ImageIcon, Palette, ArrowLeft, Sparkles, Trash2, Waves, Video, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AdminCompanionPortraitPreview } from "@/components/admin/AdminCompanionPortraitPreview";
 import { AdminLoopingVideoBlock } from "@/components/admin/AdminLoopingVideoBlock";
 import { galleryStaticPortraitUrl, isVideoPortraitUrl } from "@/lib/companionMedia";
+import { IDENTITY_ANATOMY_CHOICES, normalizeIdentityAnatomyDetail } from "@/lib/identityAnatomyDetail";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type ViewMode = "list" | "edit" | "create";
 
@@ -23,6 +32,7 @@ const emptyCompanion: Omit<DbCompanion, "created_at" | "updated_at"> = {
   name: "",
   tagline: "",
   gender: "Female",
+  identity_anatomy_detail: null,
   orientation: "Bisexual",
   role: "Switch",
   tags: [],
@@ -50,6 +60,7 @@ const CUSTOM_CHARACTER_UPDATE_KEYS = new Set([
   "name",
   "tagline",
   "gender",
+  "identity_anatomy_detail",
   "orientation",
   "role",
   "tags",
@@ -1044,32 +1055,18 @@ const CompanionManager = () => {
                 <ImageIcon className="h-4 w-4 text-primary" />
                 <h4 className="text-sm font-bold text-foreground">Portrait & Appearance</h4>
               </div>
-              <div className="w-24 h-24 shrink-0 overflow-visible p-0.5">
-                <TierHaloPortraitFrame
-                  variant="compact"
-                  frameStyle="clean"
+              <div className="mx-auto w-full max-w-[10.5rem] sm:mx-0">
+                <AdminCompanionPortraitPreview
+                  name={createData.name || "?"}
+                  stillSrc={createData.static_image_url || createData.image_url || null}
+                  animatedSrc={createData.animated_image_url}
+                  profileLoopEnabled={createData.profile_loop_video_enabled}
                   rarity={normalizeCompanionRarity(createData.rarity)}
+                  isAbyssal={createData.rarity === "abyssal"}
                   gradientFrom={createData.gradient_from}
                   gradientTo={createData.gradient_to}
                   overlayUrl={createData.rarity_border_overlay_url}
-                  aspectClassName="aspect-square w-full h-full"
-                >
-                  <div
-                    className="absolute inset-0 z-0"
-                    style={{ background: `linear-gradient(135deg, ${createData.gradient_from}, ${createData.gradient_to})` }}
-                  />
-                  {createData.static_image_url || createData.image_url ? (
-                    <img
-                      src={(createData.static_image_url || createData.image_url)!}
-                      alt=""
-                      className="absolute inset-0 z-[1] h-full w-full object-cover"
-                    />
-                  ) : (
-                    <span className="absolute inset-0 z-[2] flex items-center justify-center text-2xl font-bold text-white/80">
-                      {createData.name.charAt(0) || "?"}
-                    </span>
-                  )}
-                </TierHaloPortraitFrame>
+                />
               </div>
               <TextArea label="Appearance" value={createData.appearance} onChange={(v) => setCreateData(p => ({ ...p, appearance: v }))} rows={4} placeholder="Physical description..." />
               <TextArea label="Image Prompt" value={createData.image_prompt || ""} onChange={(v) => setCreateData(p => ({ ...p, image_prompt: v }))} rows={3} placeholder="Image generation prompt..." />
@@ -1155,6 +1152,16 @@ const CompanionManager = () => {
     }
     const edit = getEdit(companion.id);
     const val = (field: keyof DbCompanion) => edit[field] !== undefined ? edit[field] : companion[field];
+    const editRarity = normalizeCompanionRarity(String(val("rarity")));
+    const adminStillPreview =
+      (val("static_image_url") as string | null) ||
+      (val("image_url") as string | null) ||
+      companion.static_image_url ||
+      companion.image_url ||
+      null;
+    const adminAnimPreview = (val("animated_image_url") as string | null) ?? companion.animated_image_url ?? null;
+    const adminOverlayPreview =
+      (val("rarity_border_overlay_url") as string | null) ?? companion.rarity_border_overlay_url ?? null;
 
     return (
       <div className="space-y-4">
@@ -1205,45 +1212,20 @@ const CompanionManager = () => {
                 </button>
               </div>
 
-              {/* Portrait Preview — clip to frame so tier halo / image align (no overflow bleed) */}
+              {/* Portrait — same frame stack as public profile (incl. 9:16 + frame bleed when loop MP4 is on). */}
               <div className="flex items-start gap-4">
-                <div className="relative w-36 h-36 shrink-0 rounded-xl overflow-hidden ring-1 ring-white/10 shadow-lg bg-black/40">
-                  <TierHaloPortraitFrame
-                    variant="compact"
-                    frameStyle="clean"
-                    rarity={normalizeCompanionRarity(String(val("rarity")))}
+                <div className="w-full max-w-[min(100%,11rem)] shrink-0">
+                  <AdminCompanionPortraitPreview
+                    name={companion.name}
+                    stillSrc={adminStillPreview}
+                    animatedSrc={adminAnimPreview}
+                    profileLoopEnabled={Boolean(val("profile_loop_video_enabled"))}
+                    rarity={editRarity}
+                    isAbyssal={editRarity === "abyssal"}
                     gradientFrom={String(val("gradient_from"))}
                     gradientTo={String(val("gradient_to"))}
-                    overlayUrl={(val("rarity_border_overlay_url") as string | null) ?? companion.rarity_border_overlay_url}
-                    aspectClassName="aspect-square w-full h-full"
-                    className="h-full w-full"
-                  >
-                    <div
-                      className="absolute inset-0 z-0"
-                      style={{
-                        background: `linear-gradient(135deg, ${String(val("gradient_from"))}, ${String(val("gradient_to"))})`,
-                      }}
-                    />
-                    {(val("static_image_url") as string | null) ||
-                    (val("image_url") as string | null) ||
-                    companion.static_image_url ||
-                    companion.image_url ? (
-                      <img
-                        src={
-                          ((val("static_image_url") as string | null) ||
-                            (val("image_url") as string | null) ||
-                            companion.static_image_url ||
-                            companion.image_url)!
-                        }
-                        alt={companion.name}
-                        className="absolute inset-0 z-[1] h-full w-full object-cover object-top"
-                      />
-                    ) : (
-                      <span className="absolute inset-0 z-[2] flex items-center justify-center text-3xl font-bold text-white/80">
-                        {companion.name.charAt(0)}
-                      </span>
-                    )}
-                  </TierHaloPortraitFrame>
+                    overlayUrl={adminOverlayPreview}
+                  />
                 </div>
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center gap-4">
@@ -1335,6 +1317,36 @@ const CompanionManager = () => {
                 </button>
               </div>
               <Field label="Gender" value={val("gender") as string} onChange={(v) => setField(companion.id, "gender", v)} />
+              {companion.id.startsWith("cc-") ? (
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1">Anatomy (optional — adds to identity)</label>
+                  <Select
+                    value={(() => {
+                      const raw = (val("identity_anatomy_detail") as string | null) ?? null;
+                      const n = normalizeIdentityAnatomyDetail(raw);
+                      return n || "_none";
+                    })()}
+                    onValueChange={(v) => {
+                      setField(companion.id, "identity_anatomy_detail", v === "_none" ? null : v);
+                    }}
+                  >
+                    <SelectTrigger className="w-full rounded-lg bg-muted border border-border text-sm text-foreground">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IDENTITY_ANATOMY_CHOICES.map((c) => (
+                        <SelectItem
+                          key={c.value || "_none"}
+                          value={c.value === "" ? "_none" : c.value}
+                          className="cursor-pointer"
+                        >
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
               <Field label="Orientation" value={val("orientation") as string} onChange={(v) => setField(companion.id, "orientation", v)} />
               <Field label="Role" value={val("role") as string} onChange={(v) => setField(companion.id, "role", v)} />
               <Field label="ID" value={companion.id} onChange={() => {}} disabled />

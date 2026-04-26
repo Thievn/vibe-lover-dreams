@@ -95,11 +95,12 @@ const Settings = () => {
   }, [navigate, refreshLinkedToys, loadProfileSettings, refreshPushCount]);
 
   useEffect(() => {
-    if (window.location.hash === "#device-connection") {
-      window.setTimeout(() => {
-        document.getElementById("device-connection")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
-    }
+    const hash = window.location.hash.replace(/^#/, "");
+    const id = hash === "device-connection" || hash === "voice-call-alerts" ? hash : null;
+    if (!id) return;
+    window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
   }, []);
 
   useWindowVisibleRefresh(
@@ -289,7 +290,7 @@ const Settings = () => {
           </div>
 
           {/* Web Push — voice call alerts */}
-          <div className="rounded-xl border border-border bg-card p-6 mb-6">
+          <div id="voice-call-alerts" className="rounded-xl border border-border bg-card p-6 mb-6 scroll-mt-24">
             <h2 className="font-gothic text-lg font-bold text-foreground mb-2 flex items-center gap-2">
               <Bell className="h-5 w-5 text-primary" />
               Voice call alerts
@@ -359,8 +360,9 @@ const Settings = () => {
             {hasLinkedDevice ? (
               <div className="space-y-4">
                 <p className="text-xs text-muted-foreground">
-                  Linked toys receive patterns from chat, companion profiles, and the toy hub. Disconnect to remove all
-                  links from this account.
+                  Linked toys receive patterns from chat, companion profiles, and the toy hub —{" "}
+                  <strong className="text-foreground">same behavior on mobile PWA and PC</strong>. Disconnect to remove
+                  all links from this account.
                 </p>
                 <div className="space-y-2">
                   {linkedToys.map((t) => (
@@ -413,7 +415,9 @@ const Settings = () => {
               <div className="space-y-4">
                 <p className="text-xs text-muted-foreground">
                   Generate a QR code, then scan it with the <strong className="text-foreground">Lovense Remote</strong>{" "}
-                  app (not the browser). Your phone bridges the toy to LustForge.
+                  app (not the browser). Your phone bridges the toy to LustForge. Once linked,{" "}
+                  <strong className="text-foreground">toy control is the same on mobile PWA and on PC</strong> — only
+                  the QR step is awkward on a single phone (see note under the code).
                 </p>
                 <LovensePairingQrBlock
                   qrImageUrl={qrImageUrl}

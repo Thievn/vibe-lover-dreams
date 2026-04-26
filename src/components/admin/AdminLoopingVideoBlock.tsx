@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Loader2, Video } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
@@ -10,22 +12,31 @@ type Props = {
   companionId: string;
   className?: string;
   onSuccess?: () => void;
+  /**
+   * Optional: extra motion / camera / mood text merged into the I2V prompt (server-capped).
+   * Not persisted — use each time you generate.
+   */
+  showMotionNotes?: boolean;
 };
 
 /**
  * `generate-profile-loop-video` — Grok Imagine I2V → Storage MP4.
  * Edge auth: custom-character **owner** or **admin** (catalog rows require admin).
  */
-export function AdminLoopingVideoBlock({ companionId, className, onSuccess }: Props) {
+const MOTION_MAX = 800;
+
+export function AdminLoopingVideoBlock({ companionId, className, onSuccess, showMotionNotes = true }: Props) {
   const [busy, setBusy] = useState(false);
+  const [motionNotes, setMotionNotes] = useState("");
 
   const run = async () => {
     if (!companionId.trim()) return;
     setBusy(true);
     const loadId = toast.loading(pickRandomVideoLoadingLine());
     try {
+      const trimmed = motionNotes.trim().slice(0, MOTION_MAX);
       const { data, error } = await supabase.functions.invoke("generate-profile-loop-video", {
-        body: { companionId: companionId.trim() },
+        body: { companionId: companionId.trim(), motionNotes: trimmed || undefined },
       });
       if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
       const errMsg = (data as { error?: string })?.error;
@@ -59,6 +70,25 @@ export function AdminLoopingVideoBlock({ companionId, className, onSuccess }: Pr
         Uses the current still as first frame — Grok Imagine short loop; motion follows profile fields. {CHAT_VIDEO_TIMING_USER_NOTE}{" "}
         Enable below for profile + chat; not on the landing page.
       </p>
+      {showMotionNotes ? (
+        <div className="space-y-1.5">
+          <Label htmlFor={`loop-motion-${companionId}`} className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Custom motion (optional)
+          </Label>
+          <Textarea
+            id={`loop-motion-${companionId}`}
+            value={motionNotes}
+            onChange={(e) => setMotionNotes(e.target.value.slice(0, MOTION_MAX))}
+            rows={3}
+            placeholder="e.g. slow hair toss, smirk, subtle lean forward, soft idle sway — no dialogue."
+            className="resize-y min-h-[72px] text-xs bg-background/60 border-border/80"
+            disabled={busy}
+          />
+          <p className="text-[10px] text-muted-foreground/90">
+            Merged into the video prompt (max {MOTION_MAX} chars). Leave blank for defaults only.
+          </p>
+        </div>
+      ) : null}
       <button
         type="button"
         disabled={busy || !companionId.trim()}

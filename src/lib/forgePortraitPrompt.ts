@@ -11,6 +11,7 @@ import {
   type ForgeSceneAtmosphere,
 } from "@/lib/forgeScenePresets";
 import { forgePortraitBodyTypeContract } from "@/lib/forgeBodyTypes";
+import { type IdentityAnatomyDetail, identityAnatomyForPortraitPrompt } from "@/lib/identityAnatomyDetail";
 
 export { FORGE_SCENE_ATMOSPHERES, FORGE_SCENE_GROUPS, type ForgeSceneAtmosphere };
 
@@ -132,6 +133,8 @@ export type ForgePortraitPromptArgs = {
   referenceNotes: string;
   /** Wardrobe / figure micro-brief from forge Appearance & Outfit sections. */
   wardrobeBrief?: string;
+  /** Optional: pre_op / post_op / futa — combined with `gender` for SFW-consistent art. */
+  identityAnatomy?: IdentityAnatomyDetail;
 };
 
 function compactLine(s: string, maxChars: number): string {
@@ -161,6 +164,9 @@ export function composeForgePortraitPrompt(a: ForgePortraitPromptArgs): string {
   return [
     bodyContract,
     genderLabel ? GENDER_SCOPE_LINE(genderLabel) : "",
+    a.identityAnatomy && a.identityAnatomy !== ""
+      ? identityAnatomyForPortraitPrompt(a.identityAnatomy)
+      : "",
     eth
       ? `Ancestry & complexion seed (${eth}): inform skin tone, facial structure cues, and hair texture **within** the body-type and species lock above; treat fantasy or game-inspired labels as literal visual cues, not metaphors. Do not replace silhouette with a default human that contradicts the forge body type.`
       : "",

@@ -1,15 +1,21 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, Phone, PhoneOff, Sparkles } from "lucide-react";
+import { ChevronDown, Mic, MicOff, Phone, PhoneOff, Sparkles } from "lucide-react";
 import type { Companion } from "@/data/companions";
 import type { LiveCallOption } from "@/lib/liveCallTypes";
 import type { LiveCallMoodId } from "@/lib/buildLiveCallRealtimeInstructions";
 import type { LiveCallQuickActionId } from "@/lib/liveCallQuickActions";
-import { LIVE_CALL_QUICK_ACTIONS } from "@/lib/liveCallQuickActions";
+import { LIVE_CALL_QUICK_ACTIONS_MORE, LIVE_CALL_QUICK_ACTIONS_PRIMARY } from "@/lib/liveCallQuickActions";
 import { LIVE_CALL_MOOD_CHIPS } from "@/lib/liveCallMoods";
 import { cn } from "@/lib/utils";
 import { LiveCallToyBar } from "./LiveCallToyBar";
 import { LiveCallVoicePickerDialog } from "./LiveCallVoicePickerDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { TtsUxVoiceId } from "@/lib/ttsVoicePresets";
 import { TTS_UX_LABELS } from "@/lib/ttsVoicePresets";
 
@@ -194,14 +200,15 @@ export function LiveCallPhoneShell({
               className="mb-3 w-full max-w-md space-y-2"
             >
               <p className="text-center text-[9px] font-semibold uppercase tracking-[0.28em] text-white/35">Mood</p>
-              <div className="flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {LIVE_CALL_MOOD_CHIPS.map(({ id, label }) => (
+              <div className="grid w-full max-w-md grid-cols-1 gap-1.5 sm:grid-cols-2">
+                {LIVE_CALL_MOOD_CHIPS.map(({ id, label }, i) => (
                   <button
                     key={id}
                     type="button"
                     onClick={() => onCallMoodChange(id)}
                     className={cn(
-                      "shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-medium transition",
+                      "w-full min-h-11 rounded-full border px-2.5 py-1.5 text-center text-[11px] font-medium leading-tight transition",
+                      i === LIVE_CALL_MOOD_CHIPS.length - 1 && "sm:col-span-2 sm:mx-auto sm:max-w-sm",
                       callMood === id
                         ? "border-pink-400/50 bg-pink-500/25 text-pink-50 shadow-[0_0_20px_rgba(236,72,153,0.2)]"
                         : "border-white/[0.08] bg-white/[0.04] text-white/70 hover:border-white/20 hover:bg-white/[0.08]",
@@ -227,17 +234,47 @@ export function LiveCallPhoneShell({
               <p className="mb-1.5 text-center text-[9px] font-semibold uppercase tracking-[0.28em] text-white/35">
                 Quick taps
               </p>
-              <div className="flex flex-wrap justify-center gap-1.5">
-                {LIVE_CALL_QUICK_ACTIONS.map((a) => (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => onQuickAction(a.id)}
-                    className="rounded-full border border-white/[0.1] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/75 backdrop-blur-sm transition hover:border-pink-400/35 hover:bg-pink-500/10 hover:text-white"
-                  >
-                    {a.label}
-                  </button>
-                ))}
+              <div className="w-full max-w-md space-y-1.5">
+                <div className="grid grid-cols-2 gap-1.5">
+                  {LIVE_CALL_QUICK_ACTIONS_PRIMARY.map((a) => (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => onQuickAction(a.id)}
+                      className="min-h-12 w-full rounded-xl border border-white/[0.1] bg-white/[0.04] px-1.5 py-1.5 text-center text-[9px] font-medium leading-tight text-white/85 backdrop-blur-sm transition hover:border-pink-400/35 hover:bg-pink-500/10 hover:text-white"
+                    >
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+                {LIVE_CALL_QUICK_ACTIONS_MORE.length > 0 ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex min-h-11 w-full items-center justify-center gap-1 rounded-xl border border-white/15 bg-white/[0.05] px-2 text-[10px] font-medium text-white/80 transition hover:border-pink-400/30 hover:bg-pink-500/10"
+                      >
+                        More teases & lines
+                        <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      side="top"
+                      align="center"
+                      className="z-50 w-[min(100vw-2rem,20rem)] border border-white/10 bg-[hsl(230_16%_8%)] text-white/90"
+                    >
+                      {LIVE_CALL_QUICK_ACTIONS_MORE.map((a) => (
+                        <DropdownMenuItem
+                          key={a.id}
+                          className="cursor-pointer text-xs focus:bg-pink-500/15"
+                          onSelect={() => onQuickAction(a.id)}
+                        >
+                          {a.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : null}
               </div>
             </motion.div>
           ) : null}

@@ -382,11 +382,19 @@ export default function Dashboard() {
                 {label}
               </button>
             ))}
+            <Link
+              to="/account"
+              state={{ from: `${location.pathname}${location.search}` }}
+              className="flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition-all border border-transparent text-muted-foreground hover:text-foreground hover:bg-white/5 hover:border-border/60 mt-2"
+            >
+              <UserRound className="h-5 w-5 shrink-0" />
+              Account
+            </Link>
             <button
               type="button"
               onClick={handleSettingsNav}
               className={cn(
-                "flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition-all border mt-2",
+                "flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition-all border",
                 settingsOpen
                   ? "bg-velvet-purple/20 text-accent border-accent/30 glow-teal"
                   : "text-muted-foreground border-transparent hover:text-foreground hover:bg-white/5 hover:border-border/60",
@@ -396,7 +404,7 @@ export default function Dashboard() {
                 <span className="absolute h-2 w-2 rounded-full bg-accent animate-pulse opacity-60 left-0 top-0" />
                 <Settings className="h-5 w-5 relative" />
               </span>
-              Settings
+              Preferences
             </button>
           </nav>
 
@@ -609,7 +617,7 @@ export default function Dashboard() {
                 className="fixed right-0 top-0 z-[70] h-full w-full max-w-md border-l border-border/80 bg-[hsl(240_15%_5%)]/95 backdrop-blur-2xl shadow-[-20px_0_60px_rgba(0,0,0,0.5)] flex flex-col"
               >
                 <div className="flex items-center justify-between px-6 py-5 border-b border-border/60">
-                  <h2 className="font-gothic text-2xl gradient-vice-text">Settings</h2>
+                  <h2 className="font-gothic text-2xl gradient-vice-text">Preferences</h2>
                   <button
                     type="button"
                     onClick={() => setSettingsOpen(false)}
@@ -644,6 +652,20 @@ export default function Dashboard() {
                       checked={notifyMarketing}
                       onChange={setNotifyMarketing}
                     />
+                    <div className="rounded-xl border border-border/60 bg-card/30 px-4 py-3 mt-2">
+                      <p className="text-sm font-medium text-foreground">Voice call alerts (browser)</p>
+                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                        Web Push for &ldquo;incoming call&rdquo; when LustForge is in the background — enable on the full
+                        settings page (VAPID + this device).
+                      </p>
+                      <Link
+                        to="/settings#voice-call-alerts"
+                        onClick={() => setSettingsOpen(false)}
+                        className="mt-2 inline-flex items-center gap-1 text-sm text-accent hover:underline font-medium"
+                      >
+                        Open full settings <ChevronRight className="h-4 w-4" />
+                      </Link>
+                    </div>
                   </section>
                   <section>
                     <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">
@@ -697,13 +719,6 @@ export default function Dashboard() {
         </AnimatePresence>
 
       </div>
-      <Link
-        to="/buy-credits"
-        className="fixed z-[80] bottom-20 right-4 md:bottom-6 md:right-6 inline-flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold text-white shadow-xl border border-[#FF2D7B]/45 bg-[#FF2D7B]/22 hover:bg-[#FF2D7B]/30 transition-colors"
-      >
-        <Coins className="h-4 w-4" />
-        Buy Forge Coins
-      </Link>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { requireSessionUser } from "../_shared/requireSessionUser.ts";
+import { isLustforgeAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 
 const corsHeaders = {
@@ -20,6 +20,7 @@ Deno.serve(async (req) => {
   try {
     const session = await requireSessionUser(req);
     if ("response" in session) return session.response;
+    const adminUnrestricted = await isLustforgeAdminUser(session.user);
 
     const { companionName, messages } = (await req.json().catch(() => ({}))) as {
       companionName?: string;
@@ -41,9 +42,12 @@ Deno.serve(async (req) => {
     }
 
     const name = String(companionName ?? "Companion").slice(0, 80);
+    const scopeLine = adminUnrestricted
+      ? ""
+      : ` Suggestions must stay in fantasy/roleplay with the companion — no homework, technical, product/app, or general Q&A prompts.`;
     const system = `You suggest 3 very short optional replies the USER could send next in an adults-only chat with "${name}".
 Rules: JSON only, no markdown. Format: {"suggestions":["...","...","..."]}
-Each string max 72 characters. Match thread energy: flirty, playful, or explicitly sexual language is allowed when it fits; stay consensual-adults fiction.`;
+Each string max 72 characters. Match thread energy: flirty, playful, or explicitly sexual language is allowed when it fits; stay consensual-adults fiction.${scopeLine}`;
 
     const body = {
       model: defaultModel(),

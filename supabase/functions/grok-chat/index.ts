@@ -2,8 +2,9 @@
  * In-chat assistant text (Classic + Live Voice) — xAI Grok only (`XAI_API_KEY` / `GROK_API_KEY`).
  * Same request/response shape as the legacy `together-chat` function for a stable client.
  */
-import { requireSessionUser } from "../_shared/requireSessionUser.ts";
+import { isLustforgeAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { lustforgeNarrowUserScopeBlock } from "../_shared/lustforgeNarrowUserScope.ts";
 import { togetherChatServerSystemPrefix } from "../_shared/togetherRoleplaySystem.ts";
 
 const corsHeaders = {
@@ -28,6 +29,8 @@ Deno.serve(async (req) => {
   try {
     const sessionGate = await requireSessionUser(req);
     if ("response" in sessionGate) return sessionGate.response;
+    const sessionUser = sessionGate.user;
+    const adminUnrestricted = await isLustforgeAdminUser(sessionUser);
 
     const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
     if (!apiKey) {
@@ -53,11 +56,14 @@ Deno.serve(async (req) => {
       return json({ error: "systemPrompt is required" }, 400);
     }
 
+    const scopeBlock = adminUnrestricted ? "" : `${lustforgeNarrowUserScopeBlock()}\n`;
+    const systemContent = `${togetherChatServerSystemPrefix()}\n${scopeBlock}${systemRaw}`.trim();
+
     const threadRaw = Array.isArray(body?.messages) ? body!.messages! : [];
     const messages = [
       {
         role: "system" as const,
-        content: `${togetherChatServerSystemPrefix()}\n${systemRaw}`.slice(0, 120_000),
+        content: systemContent.slice(0, 120_000),
       },
       ...threadRaw.slice(-40).map((m) => {
         const role = m.role === "assistant" ? ("assistant" as const) : ("user" as const);

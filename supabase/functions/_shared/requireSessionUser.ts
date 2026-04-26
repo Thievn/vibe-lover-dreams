@@ -72,13 +72,14 @@ export async function requireSessionUser(req: Request): Promise<
   return { user };
 }
 
-export async function requireAdminUser(req: Request): Promise<
-  | { user: { id: string; email?: string | null } }
-  | { response: Response }
-> {
-  const session = await requireSessionUser(req);
-  if ("response" in session) return session;
-
+/**
+ * True when the user is a LustForge platform admin (email list, id list, or `user_roles.admin`).
+ * Used to skip end-user “stay on fantasy” scoping; never trust client-reported admin flags.
+ */
+export async function isLustforgeAdminUser(user: {
+  id: string;
+  email?: string | null;
+}): Promise<boolean> {
   const adminRaw = (Deno.env.get("ADMIN_EMAIL") ?? "lustforgeapp@gmail.com").trim();
   const adminEmails = new Set(
     [
@@ -89,22 +90,52 @@ export async function requireAdminUser(req: Request): Promise<
         .filter(Boolean),
     ],
   );
-  const em = normalizeAuthEmailForCompare(session.user.email);
+  const em = normalizeAuthEmailForCompare(user.email);
   if (em && adminEmails.has(em)) {
-    return { user: session.user };
+    return true;
   }
 
   const idsRaw = (Deno.env.get("ADMIN_USER_IDS") ?? "").trim();
-  if (idsRaw && session.user.id) {
+  if (idsRaw && user.id) {
     const idSet = new Set(
       idsRaw
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean),
     );
-    if (idSet.has(session.user.id)) {
-      return { user: session.user };
+    if (idSet.has(user.id)) {
+      return true;
     }
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !serviceKey) {
+    return false;
+  }
+
+  const adminClient = createClient(supabaseUrl, serviceKey);
+  const { data: roles, error } = await adminClient
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", user.id)
+    .eq("role", "admin");
+
+  if (error || !roles?.length) {
+    return false;
+  }
+  return true;
+}
+
+export async function requireAdminUser(req: Request): Promise<
+  | { user: { id: string; email?: string | null } }
+  | { response: Response }
+> {
+  const session = await requireSessionUser(req);
+  if ("response" in session) return session;
+
+  if (await isLustforgeAdminUser(session.user)) {
+    return { user: session.user };
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -118,20 +149,10 @@ export async function requireAdminUser(req: Request): Promise<
     };
   }
 
-  const adminClient = createClient(supabaseUrl, serviceKey);
-  const { data: roles, error } = await adminClient
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", session.user.id)
-    .eq("role", "admin");
-
-  if (error || !roles?.length) {
-    return {
-      response: new Response(JSON.stringify({ error: "Admin access required" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }),
-    };
-  }
-  return { user: session.user };
+  return {
+    response: new Response(JSON.stringify({ error: "Admin access required" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    }),
+  };
 }

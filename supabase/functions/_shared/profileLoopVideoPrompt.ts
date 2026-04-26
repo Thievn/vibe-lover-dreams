@@ -99,6 +99,15 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>): strin
   const bio = sliceStr(row.bio, 180);
   const backstory = sliceStr(row.backstory, 220);
   const imagePrompt = sliceStr(row.image_prompt, 200);
+  const identityAnat = typeof row.identity_anatomy_detail === "string" ? row.identity_anatomy_detail.trim() : "";
+  const identityAnatLine =
+    identityAnat === "pre_op"
+      ? "Anatomy presentation: pre-op (stay consistent with identity through the loop)."
+      : identityAnat === "post_op"
+        ? "Anatomy presentation: post-op (stay consistent with identity through the loop)."
+        : identityAnat === "futa"
+          ? "Anatomy presentation: futa fantasy (consistent tease, no explicit genital detail; mouth-still rules apply)."
+          : "";
 
   const themeLines: string[] = [
     `Name: ${name}.`,
@@ -106,6 +115,7 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>): strin
     role && `Role: ${role}.`,
     (gender || orientation) &&
       `Identity cues: ${[gender, orientation].filter(Boolean).join(" · ")}.`,
+    identityAnatLine,
     tags && `Tags / motifs: ${tags}.`,
     kinks && `Interests / tone (inform mood and performance): ${kinks}.`,
     personalityForge && `Personality matrix (forge): ${personalityForge}.`,

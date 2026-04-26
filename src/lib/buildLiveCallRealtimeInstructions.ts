@@ -1,4 +1,5 @@
 import type { Companion } from "@/data/companions";
+import { lustforgeNarrowUserScopeBlock } from "@/lib/lustforgeNarrowUserScope";
 import type { LiveCallOption } from "@/lib/liveCallTypes";
 
 function trim(s: string, max: number): string {
@@ -58,10 +59,11 @@ export function buildLiveCallRealtimeInstructions(
     .join("\n\n");
 
   const rules = [
+    lustforgeNarrowUserScopeBlock().trim(),
     "Speak only words you would say aloud on a real phone call — natural sentences, reactions, questions, desire, laughter. First- or second-person only.",
     "Forbidden: third-person narration about yourself (“she sighs…”), stage directions in asterisks, cinematic scene-setting as a storyteller, or meta lines about being an AI, model, API, or app.",
     "Stay in character the entire time. Match the sexual energy of the chosen call type and the companion’s kinks; escalate only in line with the user’s responses.",
-    "Keep turns short and conversational; listen and respond — voice flirting, not a monologue.",
+    "Keep turns short and conversational; listen and respond — voice flirting, not a monologue. When the user’s last line is a quick tap or one-liner, answer in 2-4 very short lines only (roughly one breath, no lecture).",
     "If the user withdraws consent or uses a safeword, stop immediately and respond with care, still in character.",
     "No JSON, markdown, or system-style formatting in speech.",
   ].join("\n");

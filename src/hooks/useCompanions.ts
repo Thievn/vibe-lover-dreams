@@ -12,6 +12,8 @@ export interface DbCompanion {
   name: string;
   tagline: string;
   gender: string;
+  /** Forge / custom rows: optional pre_op, post_op, or futa — with `gender` for prompts. */
+  identity_anatomy_detail?: string | null;
   orientation: string;
   role: string;
   tags: string[];
@@ -132,6 +134,7 @@ export function mapSupabaseCustomCharacterRow(row: Record<string, unknown>): DbC
     name: row.name as string,
     tagline: (row.tagline as string) || "",
     gender: (row.gender as string) || "—",
+    identity_anatomy_detail: (row.identity_anatomy_detail as string | null | undefined) ?? null,
     orientation: (row.orientation as string) || "",
     role: (row.role as string) || "",
     tags: parseStringList(row.tags),

@@ -24,7 +24,11 @@ import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { notifyIncomingCallWithFallback } from "@/lib/companionCallNotifications";
-import { LIVE_CALL_QUICK_ACTIONS, type LiveCallQuickActionId } from "@/lib/liveCallQuickActions";
+import {
+  LIVE_CALL_QUICK_ACTIONS,
+  LIVE_CALL_QUICK_TAP_BREVITY,
+  type LiveCallQuickActionId,
+} from "@/lib/liveCallQuickActions";
 
 type LocationState = { callOption?: LiveCallOption };
 
@@ -412,7 +416,8 @@ const LiveCallPage = () => {
   const onQuickAction = useCallback((actionId: LiveCallQuickActionId) => {
     const row = LIVE_CALL_QUICK_ACTIONS.find((a) => a.id === actionId);
     if (!row) return;
-    sendUserTextRef.current(row.prompt);
+    const text = `${row.prompt}\n\n${LIVE_CALL_QUICK_TAP_BREVITY}`.trim();
+    sendUserTextRef.current(text);
   }, []);
 
   if (!id) {

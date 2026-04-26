@@ -11,6 +11,8 @@ export type ForgeStashPayload = {
   namePrefix?: string;
   tagline: string;
   gender: string;
+  /** pre_op / post_op / futa; absent in older stashes → "not specified". */
+  identityAnatomyDetail?: string;
   /** Ancestry / complexion forge choice; absent in older stashes → treated as open. */
   ethnicity?: string;
   /** @deprecated Stash v2 uses `forgePersonality` */

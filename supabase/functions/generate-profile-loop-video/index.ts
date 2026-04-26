@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  let body: { companionId?: string };
+  let body: { companionId?: string; motionNotes?: string };
   try {
     body = await req.json();
   } catch {
@@ -72,6 +72,8 @@ Deno.serve(async (req) => {
   if (!companionId) {
     return jsonResponse({ error: "companionId required" }, 400);
   }
+  const motionNotesRaw = typeof body.motionNotes === "string" ? body.motionNotes.trim() : "";
+  const motionNotes = motionNotesRaw.slice(0, 800);
 
   const svc = createClient(supabaseUrl, serviceKey);
 
@@ -122,7 +124,12 @@ Deno.serve(async (req) => {
   try {
     const fullFromBuilder = buildProfileLoopVideoPrompt(row);
     const extra = `\n\n${I2V_MOUTH_STILL_DIRECTIVE_SHORT} Profile page loop: seamless, identity-locked to the still.`;
-    const combined = sanitizePromptForVideoApi(`${fullFromBuilder}\n\n${extra}`);
+    const userMotion = motionNotes
+      ? sanitizePromptForVideoApi(
+        `\n\nEditor motion / camera direction (weigh this for movement if not contradictory): ${motionNotes}`,
+      )
+      : "";
+    const combined = sanitizePromptForVideoApi(`${fullFromBuilder}\n\n${extra}${userMotion}`);
     const prompt =
       combined.length <= 3000
         ? combined

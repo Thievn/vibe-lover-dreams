@@ -91,6 +91,13 @@ import {
   normalizeForgeArtStyle,
   normalizeForgeScene,
 } from "@/lib/forgePortraitPrompt";
+import {
+  type IdentityAnatomyDetail,
+  IDENTITY_ANATOMY_CHOICES,
+  identityAnatomyForSystemOneLiner,
+  labelIdentityAnatomyForTags,
+  normalizeIdentityAnatomyDetail,
+} from "@/lib/identityAnatomyDetail";
 import { FORGE_CREATE_COMPANION_FC, FORGE_PREVIEW_FC } from "@/lib/forgeEconomy";
 import { creditForgeCoins, spendForgeCoins } from "@/lib/forgeCoinsClient";
 import { serializeBaseDisplayTraitsForInsert } from "@/lib/vibeDisplayTraits";
@@ -391,6 +398,8 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   const [namePrefix, setNamePrefix] = useState("");
   const [tagline, setTagline] = useState("");
   const [gender, setGender] = useState<string>(() => pickOne(GENDERS));
+  /** Optional: pre_op / post_op / futa — combined with any identity. */
+  const [identityAnatomyDetail, setIdentityAnatomyDetail] = useState<IdentityAnatomyDetail>("");
   const [forgePersonality, setForgePersonality] = useState<ForgePersonalityProfile>(() => randomForgePersonality());
   const [visualTailoring, setVisualTailoring] = useState<ForgeVisualTailoring>(() => ({ ...DEFAULT_FORGE_VISUAL_TAILORING }));
   const [profileLoopJob, setProfileLoopJob] = useState<"idle" | "queued" | "running" | "done" | "error">("idle");
@@ -572,6 +581,13 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       setNamePrefix(draft.namePrefix?.trim() ?? "");
       setTagline(draft.tagline ?? "");
       setGender(draft.gender);
+      setIdentityAnatomyDetail(
+        normalizeIdentityAnatomyDetail(
+          typeof (draft as { identityAnatomyDetail?: string }).identityAnatomyDetail === "string"
+            ? (draft as { identityAnatomyDetail?: string }).identityAnatomyDetail
+            : undefined,
+        ),
+      );
       setEthnicity(normalizeForgeEthnicity(typeof draft.ethnicity === "string" ? draft.ethnicity : FORGE_ETHNICITY_ANY_LABEL));
       setForgePersonality(
         draft.forgePersonality ? normalizeForgePersonality(draft.forgePersonality) : DEFAULT_FORGE_PERSONALITY,
@@ -646,6 +662,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         namePrefix: namePrefix.trim() || undefined,
         tagline,
         gender,
+        identityAnatomyDetail: identityAnatomyDetail || undefined,
         ethnicity: normalizeForgeEthnicity(ethnicity),
         forgePersonality: { ...forgePersonality },
         artStyle,
@@ -679,6 +696,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     namePrefix,
     tagline,
     gender,
+    identityAnatomyDetail,
     ethnicity,
     forgePersonality,
     artStyle,
@@ -731,8 +749,10 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       isOpenEthnicityChoice(ethnicity) ? "" : `ancestry/complexion seed: ${normalizeForgeEthnicity(ethnicity)}; `;
     const vt = visualTailoring;
     const lab = `Look lab: ${vt.hairColor} ${vt.hairStyle}, ${vt.eyeColor} eyes, ${vt.skinTone} skin, ${vt.height}; outfit ${vt.outfitStyle} (${vt.colorPalette}).`;
-    return `${bodyType} silhouette (authoritative); gender/presentation (face & voice): ${gender}; ${eth}${artStyle} look; scene: ${sceneAtmosphere}; ${t}. ${lab} Personalities: ${personalityLabel}. ${extraNotes}`.trim();
-  }, [combinedAccentSelections, bodyType, gender, ethnicity, artStyle, sceneAtmosphere, personalityLabel, extraNotes, visualTailoring]);
+    const an = labelIdentityAnatomyForTags(identityAnatomyDetail);
+    const anSeg = an ? `; optional anatomy label: ${an} (adult-consistent with identity)` : "";
+    return `${bodyType} silhouette (authoritative); gender/presentation (face & voice): ${gender}${anSeg}; ${eth}${artStyle} look; scene: ${sceneAtmosphere}; ${t}. ${lab} Personalities: ${personalityLabel}. ${extraNotes}`.trim();
+  }, [combinedAccentSelections, bodyType, gender, identityAnatomyDetail, ethnicity, artStyle, sceneAtmosphere, personalityLabel, extraNotes, visualTailoring]);
 
   const portraitAppearanceText = useMemo(
     () => narrativeAppearance.trim() || appearanceBlurb,
@@ -745,6 +765,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         name: name || "an original companion",
         bodyType,
         genderPresentation: gender,
+        identityAnatomy: identityAnatomyDetail,
         ethnicitySeed: isOpenEthnicityChoice(ethnicity) ? undefined : normalizeForgeEthnicity(ethnicity),
         portraitAppearanceText,
         personalityLabel,
@@ -759,6 +780,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       name,
       bodyType,
       gender,
+      identityAnatomyDetail,
       ethnicity,
       portraitAppearanceText,
       personalityLabel,
@@ -786,14 +808,30 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       const ethLine = isOpenEthnicityChoice(ethnicity)
         ? ""
         : ` Ancestry & complexion (visual): ${normalizeForgeEthnicity(ethnicity)}.`;
+      const anLine = identityAnatomyDetail
+        ? ` **${identityAnatomyForSystemOneLiner(identityAnatomyDetail)}**`
+        : "";
       const vtLine = forgeVisualPortraitAddon(visualTailoring, forgePersonality);
-      return `You are ${n}, ${gender.toLowerCase()}, ${orientation}.${ethLine} **Personalities (voice + psychology):** ${personalityLabel}. Visual (scene is appearance — not personality): primary scene "${sceneAtmosphere}", ${artStyle} aesthetic. ${bodyType} body; signature accents: ${combinedAccentSelections.join(", ") || "none specified"}. **Look & wardrobe:** ${vtLine}
+      return `You are ${n}, ${gender.toLowerCase()}, ${orientation}.${ethLine}${anLine} **Personalities (voice + psychology):** ${personalityLabel}. Visual (scene is appearance — not personality): primary scene "${sceneAtmosphere}", ${artStyle} aesthetic. ${bodyType} body; signature accents: ${combinedAccentSelections.join(", ") || "none specified"}. **Look & wardrobe:** ${vtLine}
 
 Speak and act consistently with this persona — the five Personalities picks must thread through every line of dialogue. Stay immersive; respect safe words immediately. When toy control fits the scene and the user consents, you may end messages with: {"lovense_command":{"command":"vibrate","intensity":0-20,"duration":5000}}.
 
 User flavor notes: ${extraNotes || "none"}`;
     },
-    [gender, orientation, ethnicity, personalityLabel, artStyle, sceneAtmosphere, bodyType, combinedAccentSelections, extraNotes, visualTailoring, forgePersonality],
+    [
+      gender,
+      orientation,
+      identityAnatomyDetail,
+      ethnicity,
+      personalityLabel,
+      artStyle,
+      sceneAtmosphere,
+      bodyType,
+      combinedAccentSelections,
+      extraNotes,
+      visualTailoring,
+      forgePersonality,
+    ],
   );
 
   const systemPrompt = useMemo(() => buildSystemPromptFor(name), [name, buildSystemPromptFor]);
@@ -953,6 +991,7 @@ User flavor notes: ${extraNotes || "none"}`;
     }));
     setOrientation(ori);
     setNamePrefix("");
+    setIdentityAnatomyDetail(Math.random() < 0.5 ? "" : (["pre_op", "post_op", "futa"] as const)[Math.floor(Math.random() * 3)]);
 
     let lockedName = "";
     if (userId) {
@@ -1354,6 +1393,7 @@ User flavor notes: ${extraNotes || "none"}`;
         name: forgeName || "an original companion",
         bodyType,
         genderPresentation: gender,
+        identityAnatomy: identityAnatomyDetail,
         ethnicitySeed: isOpenEthnicityChoice(ethnicity) ? undefined : normalizeForgeEthnicity(ethnicity),
         portraitAppearanceText: portraitAppearanceForRow,
         personalityLabel,
@@ -1414,8 +1454,11 @@ User flavor notes: ${extraNotes || "none"}`;
         }
       }
 
-      const defaultBioFor = (n: string) =>
-        `${n} is a ${gender.toLowerCase()} presence shaped by ${personalityLabel.toLowerCase()}, often imagined in ${sceneAtmosphere.toLowerCase()} light. ${tagline ? tagline + "." : ""} They move through the world with ${orientation.toLowerCase()} magnetism.`;
+      const defaultBioFor = (n: string) => {
+        const anat = labelIdentityAnatomyForTags(identityAnatomyDetail);
+        const anatSeg = anat ? ` ${anat}-anatomy presentation where it matters to the fantasy.` : "";
+        return `${n} is a ${gender.toLowerCase()} presence${anatSeg} shaped by ${personalityLabel.toLowerCase()}, often imagined in ${sceneAtmosphere.toLowerCase()} light. ${tagline ? tagline + "." : ""} They move through the world with ${orientation.toLowerCase()} magnetism.`;
+      };
       const defaultBio = defaultBioFor(forgeName);
       const bioOut = effectiveHook || defaultBio;
       const backstoryOut = effectiveChronicle || effectiveHook || bioOut;
@@ -1431,9 +1474,10 @@ User flavor notes: ${extraNotes || "none"}`;
           ]
             .filter(Boolean)
             .slice(0, 12);
+      const anatForTags = labelIdentityAnatomyForTags(identityAnatomyDetail);
       const tagsOut = [
         ...new Set(
-          [...tagsOutRaw, gender, orientation]
+          [...tagsOutRaw, gender, orientation, ...(anatForTags ? [anatForTags] : [])]
             .map((t) => String(t).trim())
             .filter((t) => t && t !== "—"),
         ),
@@ -1465,6 +1509,7 @@ User flavor notes: ${extraNotes || "none"}`;
           vibe_theme_selections: [],
           tagline: tagline || forgePersonality.personalityType,
           gender,
+          identity_anatomy_detail: identityAnatomyDetail || null,
           orientation,
           role: forgePersonality.personalityType,
           tags: tagsOut,
@@ -1517,6 +1562,16 @@ User flavor notes: ${extraNotes || "none"}`;
         if (/exclude_from_personal_vault|rarity|PGRST204/i.test(msg)) {
           attemptRows = attemptRows.map((r) => {
             const { exclude_from_personal_vault: _e, rarity: _r, ...rest } = r;
+            return rest;
+          });
+          insertRes = await supabase.from("custom_characters").insert(attemptRows).select("id");
+        }
+      }
+      if (insertRes.error) {
+        const msg = formatSupabaseError(insertRes.error);
+        if (/identity_anatomy_detail|PGRST204/i.test(msg)) {
+          attemptRows = attemptRows.map((r) => {
+            const { identity_anatomy_detail: _i, ...rest } = r;
             return rest;
           });
           insertRes = await supabase.from("custom_characters").insert(attemptRows).select("id");
@@ -1712,6 +1767,7 @@ User flavor notes: ${extraNotes || "none"}`;
       namePrefix: namePrefix.trim() || undefined,
       tagline,
       gender,
+      identityAnatomyDetail: identityAnatomyDetail || undefined,
       ethnicity: normalizeForgeEthnicity(ethnicity),
       forgePersonality: { ...forgePersonality },
       artStyle,
@@ -1740,6 +1796,7 @@ User flavor notes: ${extraNotes || "none"}`;
     namePrefix,
     tagline,
     gender,
+    identityAnatomyDetail,
     ethnicity,
     forgePersonality,
     artStyle,
@@ -1772,6 +1829,13 @@ User flavor notes: ${extraNotes || "none"}`;
     setNamePrefix(p.namePrefix?.trim() ?? "");
     setTagline(p.tagline);
     setGender(p.gender);
+    setIdentityAnatomyDetail(
+      normalizeIdentityAnatomyDetail(
+        typeof (p as { identityAnatomyDetail?: string }).identityAnatomyDetail === "string"
+          ? (p as { identityAnatomyDetail?: string }).identityAnatomyDetail
+          : undefined,
+      ),
+    );
     setEthnicity(normalizeForgeEthnicity(typeof p.ethnicity === "string" ? p.ethnicity : FORGE_ETHNICITY_ANY_LABEL));
     setForgePersonality(
       p.forgePersonality
@@ -2016,6 +2080,44 @@ User flavor notes: ${extraNotes || "none"}`;
                     onChange={setGender}
                     headerRight={<ForgeFieldDice title="Random gender" onRoll={() => setGender(pick(GENDERS))} />}
                   />
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                        Anatomy (optional)
+                      </p>
+                      <ForgeFieldDice
+                        title="Random anatomy"
+                        onRoll={() =>
+                          setIdentityAnatomyDetail(
+                            (["", "pre_op", "post_op", "futa"] as const)[Math.floor(Math.random() * 4)] ?? "",
+                          )
+                        }
+                      />
+                    </div>
+                    <Select
+                      value={identityAnatomyDetail || "_none"}
+                      onValueChange={(v) => setIdentityAnatomyDetail((v === "_none" ? "" : v) as IdentityAnatomyDetail)}
+                    >
+                      <SelectTrigger className="w-full max-w-md border-white/12 bg-black/40 text-white focus:ring-[#FF2D7B]/35">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,18rem)]">
+                        {IDENTITY_ANATOMY_CHOICES.map((c) => (
+                          <SelectItem
+                            key={c.value || "_none"}
+                            value={c.value === "" ? "_none" : c.value}
+                            className="focus:bg-white/10 focus:text-white cursor-pointer"
+                          >
+                            {c.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed max-w-md">
+                      Adds a pre-op, post-op, or futa layer on top of whatever identity you pick — for consistent fantasy and
+                      model prompts. Leave &quot;Not specified&quot; if you don’t need it.
+                    </p>
+                  </div>
                   <PillGroup
                     label="Orientation"
                     options={ORIENTATIONS}

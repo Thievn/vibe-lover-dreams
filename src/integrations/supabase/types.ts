@@ -211,6 +211,7 @@ export type Database = {
           fantasy_starters: Json
           gallery_credit_name: string | null
           gender: string
+          identity_anatomy_detail: string | null
           gradient_from: string
           gradient_to: string
           id: string
@@ -255,6 +256,7 @@ export type Database = {
           fantasy_starters?: Json
           gallery_credit_name?: string | null
           gender?: string
+          identity_anatomy_detail?: string | null
           gradient_from?: string
           gradient_to?: string
           id?: string
@@ -299,6 +301,7 @@ export type Database = {
           fantasy_starters?: Json
           gallery_credit_name?: string | null
           gender?: string
+          identity_anatomy_detail?: string | null
           gradient_from?: string
           gradient_to?: string
           id?: string
