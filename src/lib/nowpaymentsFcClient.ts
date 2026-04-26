@@ -56,3 +56,11 @@ export async function fetchFcOrderStatus(orderId: string): Promise<{ status: FcO
     balance: data.balance,
   };
 }
+
+export async function resetFcPaymentHistory(scope: "pending" | "all" = "pending"): Promise<{ deleted: number }> {
+  const data = await invoke<{ deleted: number }>({
+    mode: "reset_payment_history",
+    scope,
+  });
+  return { deleted: Number(data.deleted ?? 0) };
+}

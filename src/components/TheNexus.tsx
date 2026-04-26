@@ -383,9 +383,9 @@ export default function TheNexus({
                       Nexus · official rarity odds
                     </DialogTitle>
                     <p className="text-xs text-muted-foreground font-normal leading-relaxed mt-1.5 max-w-2xl">
-                      When you merge, the server rolls the child&apos;s tier from this table (parent order does not
+                      When you merge, the server rolls the ascendant&apos;s tier from this table (parent order does not
                       matter). Each row sums to 100%. All parent rarity combinations are explicitly defined here. Trait
-                      chips = rolled child tier (1–6) plus one Nexus bonus line.
+                      chips = rolled ascendant tier (1–6) plus one Nexus bonus line.
                     </p>
                   </DialogHeader>
                   <div className="overflow-x-auto overflow-y-auto px-0 pb-4 -mx-0 min-h-0">

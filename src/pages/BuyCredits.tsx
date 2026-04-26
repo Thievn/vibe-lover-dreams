@@ -9,6 +9,7 @@ import {
   fetchFcOrderStatus,
   fetchFcPacks,
   fetchFcPaymentHistory,
+  resetFcPaymentHistory,
   type FcOrderRow,
   type FcPack,
 } from "@/lib/nowpaymentsFcClient";
@@ -113,7 +114,8 @@ export default function BuyCredits() {
     if (!activePack) return;
     setSubmitting(true);
     try {
-      const payCurrency = paymentMethod === "card" ? undefined : "btc";
+      // Card checkout should open NOWPayments with fiat rails visible by default.
+      const payCurrency = paymentMethod === "card" ? "usd" : "btc";
       const invoice = await createFcInvoice(activePack.id, payCurrency);
       toast.success("Checkout ready. Redirecting...");
       window.open(invoice.checkoutUrl, "_blank", "noopener,noreferrer");
@@ -123,6 +125,23 @@ export default function BuyCredits() {
       toast.error(e instanceof Error ? e.message : "Could not start checkout.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleResetHistory = async () => {
+    const hasOrders = orders.length > 0;
+    if (!hasOrders) return;
+    const shouldReset = window.confirm(
+      "Reset purchase history for this account?\n\nOK = clear pending test rows only\nCancel = keep history",
+    );
+    if (!shouldReset) return;
+    try {
+      const { deleted } = await resetFcPaymentHistory("pending");
+      toast.success(deleted > 0 ? `Cleared ${deleted} pending test order(s).` : "No pending orders to clear.");
+      await refreshBaseData();
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "Could not reset payment history.");
     }
   };
 
@@ -232,6 +251,9 @@ export default function BuyCredits() {
                   Crypto
                 </button>
               </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Card opens a fiat-first checkout (credit/debit options). Crypto opens with a wallet/asset flow.
+              </p>
             </div>
             <button
               type="button"
@@ -252,7 +274,17 @@ export default function BuyCredits() {
         </div>
 
         <section className="rounded-3xl border border-white/10 bg-black/45 p-5 md:p-6">
-          <h2 className="font-gothic text-2xl mb-4">Forge Coin Purchase History</h2>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-gothic text-2xl">Forge Coin Purchase History</h2>
+            <button
+              type="button"
+              onClick={() => void handleResetHistory()}
+              disabled={orders.length === 0}
+              className="rounded-lg border border-white/15 bg-black/35 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-white hover:border-white/30 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Reset pending tests
+            </button>
+          </div>
           {orders.length === 0 ? (
             <p className="text-sm text-muted-foreground">No purchases yet.</p>
           ) : (

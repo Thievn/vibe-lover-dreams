@@ -87,6 +87,117 @@ function parentAllowedForMerge(
   return false;
 }
 
+function normalizeNameKey(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function titleCaseWords(input: string): string {
+  return input
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function boringPresetName(name: string): boolean {
+  const n = normalizeNameKey(name);
+  if (!n) return true;
+  const banned = new Set([
+    "luna",
+    "raven",
+    "scarlett",
+    "violet",
+    "nova",
+    "lilith",
+    "mistress raven",
+    "dark luna",
+    "velvet raven",
+    "shadow luna",
+    "midnight rose",
+  ]);
+  if (banned.has(n)) return true;
+  // Generic 1-word names are the most repetitive in Nexus output.
+  if (!n.includes(" ") && n.length <= 6) return true;
+  return false;
+}
+
+function pickDeterministic<T>(arr: readonly T[], seedNum: number): T {
+  return arr[Math.abs(seedNum) % arr.length]!;
+}
+
+function hashSeed(input: string): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function buildNexusFallbackName(
+  parentA: Record<string, unknown>,
+  parentB: Record<string, unknown>,
+  salt: string,
+): string {
+  const pAName = String(parentA.name ?? "").trim();
+  const pBName = String(parentB.name ?? "").trim();
+  const aHead = pAName.split(/\s+/).filter(Boolean)[0] ?? "Velvet";
+  const bHead = pBName.split(/\s+/).filter(Boolean).slice(-1)[0] ?? "Echo";
+  const wordsA = String(parentA.tags ?? "")
+    .toLowerCase()
+    .replace(/[^a-z,\s-]/g, "")
+    .split(/[,\s]+/)
+    .filter((x) => x.length >= 4);
+  const wordsB = String(parentB.tags ?? "")
+    .toLowerCase()
+    .replace(/[^a-z,\s-]/g, "")
+    .split(/[,\s]+/)
+    .filter((x) => x.length >= 4);
+  const mood = ["Velvet", "Neon", "Obsidian", "Ember", "Vesper", "Abyss", "Crimson", "Sable"];
+  const tails = ["Muse", "Siren", "Vow", "Halo", "Pulse", "Veil", "Luxe", "Bloom"];
+  const seed = hashSeed(`${pAName}|${pBName}|${salt}`);
+  const m = pickDeterministic(mood, seed);
+  const t = pickDeterministic(tails, seed >> 2);
+  const tagA = wordsA.length > 0 ? titleCaseWords(pickDeterministic(wordsA, seed >> 3)) : titleCaseWords(aHead);
+  const tagB = wordsB.length > 0 ? titleCaseWords(pickDeterministic(wordsB, seed >> 5)) : titleCaseWords(bHead);
+  const candidate = `${m} ${tagA}${tagB === tagA ? "" : ` ${t}`}`.replace(/\s+/g, " ").trim();
+  return candidate.length > 64 ? candidate.slice(0, 64).trim() : candidate;
+}
+
+async function chooseUniqueNexusName(
+  supabase: ReturnType<typeof createClient>,
+  proposedName: string,
+  parentA: Record<string, unknown>,
+  parentB: Record<string, unknown>,
+  userId: string,
+  idA: string,
+  idB: string,
+): Promise<string> {
+  const { data } = await supabase.from("custom_characters").select("name");
+  const used = new Set((data ?? []).map((r) => normalizeNameKey(String(r.name ?? ""))).filter(Boolean));
+  const parentNames = new Set([
+    normalizeNameKey(String(parentA.name ?? "")),
+    normalizeNameKey(String(parentB.name ?? "")),
+  ]);
+  const base = titleCaseWords(proposedName);
+  const baseKey = normalizeNameKey(base);
+  const mustReplace = !baseKey || parentNames.has(baseKey) || used.has(baseKey) || boringPresetName(base);
+  if (!mustReplace && base.length <= 64) return base;
+
+  for (let i = 0; i < 10; i++) {
+    const candidate = buildNexusFallbackName(parentA, parentB, `${userId}|${idA}|${idB}|${Date.now()}|${i}`);
+    const k = normalizeNameKey(candidate);
+    if (k && !used.has(k) && !parentNames.has(k) && !boringPresetName(candidate)) {
+      return candidate;
+    }
+  }
+  return `${buildNexusFallbackName(parentA, parentB, `${userId}|fallback`)} ${Math.floor(100 + Math.random() * 900)}`.slice(
+    0,
+    64,
+  );
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -320,7 +431,7 @@ ${sourceContext} Invent ONE new wholly original hybrid adult companion that beli
 - image_prompt: single dense SFW vertical portrait brief (no nudity, no legible branding/signage)
 - fantasy_starters: exactly 4; each description is the verbatim first USER chat line (in-world; seductive, explicit, or playful per fused persona). FORBIDDEN: meta quiz closers ("Are you ready?", "Tell me when..."). End on dialogue or desire.
 
-Naming: invent a distinctive new name (2–4 words or one rare compound). Never reuse either parent’s full name.${infuseLine}
+Naming: invent a distinctive new name (2–4 words or one rare compound). Avoid repetitive default presets (examples to avoid: Luna, Raven, Scarlett, Nova, Lilith). Never reuse either parent’s full name.${infuseLine}
 
 Rarity: the \`rarity\` field in your tool output is ignored — the server rolls the child’s tier from the Nexus outcome table using both parents’ rarities. Still output a plausible \`rarity\` string for logging only.
 
@@ -479,9 +590,19 @@ Output ONLY via the nexus_merge_companion tool call.`;
       pb as Record<string, unknown>,
     );
 
+    const resolvedName = await chooseUniqueNexusName(
+      supabase,
+      String(fields.name || "Unnamed Hybrid"),
+      pa as Record<string, unknown>,
+      pb as Record<string, unknown>,
+      userId,
+      idA,
+      idB,
+    );
+
     const insertRow: Record<string, unknown> = {
       user_id: userId,
-      name: String(fields.name || "Unnamed Hybrid").slice(0, 120),
+      name: resolvedName.slice(0, 120),
       tagline: String(fields.tagline || "").slice(0, 200),
       gender: String(fields.gender || "—").slice(0, 80),
       orientation: String(fields.orientation || "").slice(0, 80),

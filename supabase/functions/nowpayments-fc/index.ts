@@ -229,6 +229,18 @@ Deno.serve(async (req) => {
       return json(200, { rows: data ?? [] });
     }
 
+    if (mode === "reset_payment_history") {
+      const scopeRaw = String(body.scope ?? "pending").trim().toLowerCase();
+      const scope = scopeRaw === "all" ? "all" : "pending";
+      let q = svc.from("fc_purchase_orders").delete().eq("user_id", session.user.id);
+      if (scope === "pending") {
+        q = q.eq("payment_status", "pending");
+      }
+      const { data, error } = await q.select("id");
+      if (error) return json(400, { error: error.message });
+      return json(200, { ok: true, deleted: Array.isArray(data) ? data.length : 0, scope });
+    }
+
     if (mode === "order_status") {
       const orderId = String(body.orderId ?? "").trim();
       if (!orderId) return json(400, { error: "orderId required" });
@@ -252,7 +264,7 @@ Deno.serve(async (req) => {
 
     return json(400, {
       error: "Invalid mode",
-      valid: ["packs", "create_invoice", "payment_history", "order_status", "webhook"],
+      valid: ["packs", "create_invoice", "payment_history", "order_status", "reset_payment_history", "webhook"],
     });
   } catch (err) {
     console.error("nowpayments-fc:", err);
