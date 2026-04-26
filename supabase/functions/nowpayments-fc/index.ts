@@ -42,6 +42,14 @@ function findPack(packId: string): Pack | undefined {
   return PACKS.find((p) => p.id === packId);
 }
 
+function normalizeCryptoPayCurrency(input: unknown): string | undefined {
+  const raw = String(input ?? "").trim().toLowerCase();
+  if (!raw) return undefined;
+  // NOWPayments /invoice expects a crypto asset for pay_currency; fiat values can fail.
+  if (["usd", "eur", "gbp", "cad", "aud"].includes(raw)) return undefined;
+  return raw;
+}
+
 async function nowFetch(path: string, payload: Record<string, unknown>) {
   const key = getNowPaymentsKey();
   const res = await fetch(`https://api.nowpayments.io/v1${path}`, {
@@ -170,8 +178,7 @@ Deno.serve(async (req) => {
 
     if (mode === "create_invoice") {
       const packId = String(body.packId ?? "").trim();
-      const payCurrencyRaw = String(body.payCurrency ?? "").trim().toLowerCase();
-      const payCurrency = payCurrencyRaw || undefined;
+      const payCurrency = normalizeCryptoPayCurrency(body.payCurrency);
       const pack = findPack(packId);
       if (!pack) return json(400, { error: "Invalid credit pack." });
 

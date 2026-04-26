@@ -33,6 +33,10 @@ export default function BuyCredits() {
   const [paymentMethod, setPaymentMethod] = useState<"card" | "crypto">("card");
   const [submitting, setSubmitting] = useState(false);
   const [polling, setPolling] = useState(false);
+  const [checkoutNotice, setCheckoutNotice] = useState<{
+    tone: "info" | "warn" | "error";
+    message: string;
+  } | null>(null);
 
   const activePack = useMemo(
     () => packs.find((p) => p.id === selectedPackId) ?? packs[0] ?? null,
@@ -113,16 +117,40 @@ export default function BuyCredits() {
   const startCheckout = async () => {
     if (!activePack) return;
     setSubmitting(true);
+    setCheckoutNotice(null);
     try {
-      // Card checkout should open NOWPayments with fiat rails visible by default.
-      const payCurrency = paymentMethod === "card" ? "usd" : "btc";
+      // For card/fiat flow, do not force pay_currency (NOWPayments can reject fiat values here).
+      const payCurrency = paymentMethod === "crypto" ? "btc" : undefined;
       const invoice = await createFcInvoice(activePack.id, payCurrency);
       toast.success("Checkout ready. Redirecting...");
+      if (paymentMethod === "card") {
+        setCheckoutNotice({
+          tone: "info",
+          message:
+            "Opening secure checkout with card-first routing. If card is unavailable in your region/session, NOWPayments may show crypto options instead.",
+        });
+      }
       window.open(invoice.checkoutUrl, "_blank", "noopener,noreferrer");
       await refreshBaseData();
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : "Could not start checkout.");
+      const msg = e instanceof Error ? e.message : "Could not start checkout.";
+      const looksLikeProviderAvailability =
+        /nowpayments|invoice|pay_currency|payment method|unprocessable|invalid/i.test(msg);
+      if (paymentMethod === "card" && looksLikeProviderAvailability) {
+        setCheckoutNotice({
+          tone: "warn",
+          message:
+            "Card checkout is temporarily unavailable from the payment provider for this session. You can retry card in a moment, or switch to crypto checkout instantly.",
+        });
+      } else {
+        setCheckoutNotice({
+          tone: "error",
+          message:
+            "We could not start checkout right now. Please try again in a few seconds. Your balance and packs are safe.",
+        });
+      }
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -230,7 +258,10 @@ export default function BuyCredits() {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setPaymentMethod("card")}
+                  onClick={() => {
+                    setPaymentMethod("card");
+                    setCheckoutNotice(null);
+                  }}
                   className={cn(
                     "rounded-xl border px-3 py-2 text-sm flex items-center justify-center gap-2",
                     paymentMethod === "card" ? "border-[#FF2D7B]/50 bg-[#FF2D7B]/12" : "border-white/10 bg-black/30",
@@ -241,7 +272,10 @@ export default function BuyCredits() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPaymentMethod("crypto")}
+                  onClick={() => {
+                    setPaymentMethod("crypto");
+                    setCheckoutNotice(null);
+                  }}
                   className={cn(
                     "rounded-xl border px-3 py-2 text-sm flex items-center justify-center gap-2",
                     paymentMethod === "crypto" ? "border-[#FF2D7B]/50 bg-[#FF2D7B]/12" : "border-white/10 bg-black/30",
@@ -268,6 +302,43 @@ export default function BuyCredits() {
               <div className="rounded-xl border border-amber-300/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100 flex items-center gap-2">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 Waiting for payment confirmation...
+              </div>
+            ) : null}
+            {checkoutNotice ? (
+              <div
+                className={cn(
+                  "rounded-xl border px-3 py-2.5 text-xs leading-relaxed",
+                  checkoutNotice.tone === "info" && "border-sky-300/30 bg-sky-500/10 text-sky-100",
+                  checkoutNotice.tone === "warn" && "border-amber-300/30 bg-amber-400/10 text-amber-100",
+                  checkoutNotice.tone === "error" && "border-rose-300/30 bg-rose-500/10 text-rose-100",
+                )}
+              >
+                <p>{checkoutNotice.message}</p>
+                {checkoutNotice.tone === "warn" ? (
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentMethod("card");
+                        void startCheckout();
+                      }}
+                      disabled={submitting}
+                      className="rounded-lg border border-amber-200/30 bg-amber-100/10 px-2.5 py-1 text-[11px] font-semibold text-amber-100 hover:bg-amber-100/15 disabled:opacity-50"
+                    >
+                      Retry Card
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentMethod("crypto");
+                        setCheckoutNotice(null);
+                      }}
+                      className="rounded-lg border border-amber-200/30 bg-black/20 px-2.5 py-1 text-[11px] font-semibold text-amber-50 hover:bg-black/30"
+                    >
+                      Switch to Crypto Checkout
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </aside>
