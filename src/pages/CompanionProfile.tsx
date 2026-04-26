@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef, type ReactNode } from "react";
 import { getCompanionBackstoryParagraphs } from "@/lib/companionBackstory";
 import {
   profileAnimatedPortraitUrl,
@@ -68,6 +68,34 @@ import { useLovensePairing } from "@/hooks/useLovensePairing";
 import { useWindowVisibleRefresh } from "@/hooks/useWindowVisibleRefresh";
 import { LovensePairingQrBlock } from "@/components/toy/LovensePairingQrBlock";
 import { LiveCallTypePanel } from "@/components/liveCall/LiveCallTypePanel";
+
+function PremiumDisabledButton({
+  label,
+  hint,
+  className = "",
+  icon,
+}: {
+  label: string;
+  hint: string;
+  className?: string;
+  icon?: ReactNode;
+}) {
+  return (
+    <div className={`relative group ${className}`}>
+      <button
+        type="button"
+        disabled
+        className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-card/40 px-5 py-3.5 text-sm font-semibold text-muted-foreground/70 cursor-not-allowed"
+      >
+        {icon}
+        {label}
+      </button>
+      <div className="pointer-events-none absolute left-1/2 top-[calc(100%+10px)] z-30 w-56 -translate-x-1/2 rounded-lg border border-white/10 bg-black/85 px-3 py-2 text-[11px] leading-relaxed text-white/85 opacity-0 shadow-xl backdrop-blur-md transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
+        {hint}
+      </div>
+    </div>
+  );
+}
 
 const RARITY_BADGE: Record<
   CompanionRarity,
@@ -127,6 +155,7 @@ const CompanionProfile = () => {
   const [loopVideoReady, setLoopVideoReady] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
   const [autoSpendChatImages, setAutoSpendChatImagesState] = useState(false);
+  const [dropClickTracked, setDropClickTracked] = useState(false);
 
   const { data: vibrationPatterns = [], isLoading: vibrationPatternsLoading } = useCompanionVibrationPatterns(id);
 
@@ -140,6 +169,9 @@ const CompanionProfile = () => {
     }
   }, [location.state]);
   const companion = dbComp ? dbToCompanion(dbComp) : null;
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const isDropLanding = searchParams.get("drop") === "1";
+  const weeklyDropId = searchParams.get("wd");
   const vibeTraits = useMemo(
     () => (companion ? resolveDisplayTraitsForCompanion(companion) : []),
     [companion],
@@ -351,6 +383,14 @@ const CompanionProfile = () => {
       cancelled = true;
     };
   }, [id, user?.id]);
+
+  useEffect(() => {
+    if (!isDropLanding || !weeklyDropId || dropClickTracked) return;
+    setDropClickTracked(true);
+    void supabase.functions.invoke("zernio-social", {
+      body: { mode: "track_drop_click", dropId: weeklyDropId },
+    });
+  }, [isDropLanding, weeklyDropId, dropClickTracked]);
 
   const submitVote = async (next: 1 | -1) => {
     if (!id) return;
@@ -747,9 +787,11 @@ const CompanionProfile = () => {
             <div className="flex rounded-2xl border border-white/[0.08] bg-black/45 p-1 gap-0.5 max-w-2xl">
               <button
                 type="button"
+                disabled={isDropLanding}
                 onClick={() => setProfileTab("profile")}
                 className={cn(
                   "flex-1 min-w-0 rounded-xl py-2.5 text-xs sm:text-sm font-semibold transition-colors touch-manipulation",
+                  isDropLanding && "cursor-not-allowed opacity-60",
                   profileTab === "profile"
                     ? "bg-primary/20 text-primary border border-primary/30"
                     : "text-muted-foreground hover:text-foreground",
@@ -759,9 +801,11 @@ const CompanionProfile = () => {
               </button>
               <button
                 type="button"
+                disabled={isDropLanding}
                 onClick={() => setProfileTab("gallery")}
                 className={cn(
                   "flex-1 min-w-0 inline-flex items-center justify-center gap-1 sm:gap-2 rounded-xl py-2.5 text-xs sm:text-sm font-semibold transition-colors touch-manipulation",
+                  isDropLanding && "cursor-not-allowed opacity-60",
                   profileTab === "gallery"
                     ? "bg-primary/20 text-primary border border-primary/30"
                     : "text-muted-foreground hover:text-foreground",
@@ -772,7 +816,9 @@ const CompanionProfile = () => {
               </button>
               <button
                 type="button"
+                disabled={isDropLanding}
                 onClick={() => {
+                  if (isDropLanding) return;
                   if (!user) {
                     navigate("/auth", { state: { from: `/companions/${companion.id}` } });
                     return;
@@ -781,6 +827,7 @@ const CompanionProfile = () => {
                 }}
                 className={cn(
                   "flex-1 min-w-0 inline-flex items-center justify-center gap-1 sm:gap-2 rounded-xl py-2.5 text-xs sm:text-sm font-semibold transition-colors touch-manipulation",
+                  isDropLanding && "cursor-not-allowed opacity-60",
                   profileTab === "live"
                     ? "bg-primary/20 text-primary border border-primary/30"
                     : "text-muted-foreground hover:text-foreground",
@@ -792,23 +839,45 @@ const CompanionProfile = () => {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleStartChat()}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-primary px-6 py-3.5 text-base font-bold text-primary-foreground shadow-lg shadow-primary/30 glow-pink touch-manipulation"
-              >
-                <MessageCircle className="h-5 w-5 shrink-0" />
-                Start chat
-              </motion.button>
-              <Link
-                to="/"
-                className="inline-flex items-center gap-2 rounded-xl border border-white/[0.1] bg-card/60 px-5 py-3.5 text-sm font-semibold text-muted-foreground backdrop-blur-md hover:border-primary/35 hover:text-primary transition-colors"
-              >
-                <Flame className="h-4 w-4" />
-                Browse forge
-              </Link>
+              {isDropLanding ? (
+                <>
+                  <PremiumDisabledButton
+                    label="Start chat"
+                    hint="Chat unlocks full in-character conversation with this companion."
+                    icon={<MessageCircle className="h-5 w-5 shrink-0" />}
+                  />
+                  <PremiumDisabledButton
+                    label="Live call"
+                    hint="Live call opens real-time voice sessions with adaptive responses."
+                    icon={<Phone className="h-4 w-4 shrink-0" />}
+                  />
+                  <PremiumDisabledButton
+                    label="Selfie studio"
+                    hint="Selfie studio generates custom portraits in this companion’s style."
+                    icon={<Images className="h-4 w-4 shrink-0" />}
+                  />
+                </>
+              ) : (
+                <>
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleStartChat()}
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-primary px-6 py-3.5 text-base font-bold text-primary-foreground shadow-lg shadow-primary/30 glow-pink touch-manipulation"
+                  >
+                    <MessageCircle className="h-5 w-5 shrink-0" />
+                    Start chat
+                  </motion.button>
+                  <Link
+                    to="/"
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/[0.1] bg-card/60 px-5 py-3.5 text-sm font-semibold text-muted-foreground backdrop-blur-md hover:border-primary/35 hover:text-primary transition-colors"
+                  >
+                    <Flame className="h-4 w-4" />
+                    Browse forge
+                  </Link>
+                </>
+              )}
             </div>
 
             {(companion.appearance?.trim() || companion.personality?.trim()) ? (
@@ -1115,7 +1184,10 @@ const CompanionProfile = () => {
                   transition={{ delay: 0.04 * i, type: "spring", stiffness: 380, damping: 26 }}
                   whileHover={{ scale: 1.015, y: -2 }}
                   whileTap={{ scale: 0.99 }}
-                  onClick={() => handleStartChat(starter.description, starter.title)}
+                  onClick={() => {
+                    if (isDropLanding) return;
+                    handleStartChat(starter.description, starter.title);
+                  }}
                   className="group relative overflow-hidden rounded-2xl border border-white/[0.1] bg-gradient-to-br from-card/90 via-card/70 to-black/40 p-5 sm:p-6 text-left shadow-lg shadow-black/30 ring-1 ring-white/[0.04] backdrop-blur-xl transition-[border-color,box-shadow] hover:border-primary/45 hover:shadow-[0_0_36px_rgba(255,45,123,0.18)] touch-manipulation"
                 >
                   <div
@@ -1134,9 +1206,16 @@ const CompanionProfile = () => {
                     <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-primary/60 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                   </div>
                   <span className="relative mt-4 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-primary/80">
-                    Begin this fantasy
+                    {isDropLanding ? "Feature preview" : "Begin this fantasy"}
                     <Sparkles className="h-3.5 w-3.5" />
                   </span>
+                  {isDropLanding ? (
+                    <div className="pointer-events-none absolute inset-0 flex items-end justify-center p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                      <div className="rounded-lg border border-white/10 bg-black/85 px-3 py-2 text-[11px] text-white/85 backdrop-blur-md">
+                        Fantasy starters launch straight into immersive chat scenes.
+                      </div>
+                    </div>
+                  ) : null}
                 </motion.button>
               ))}
             </div>

@@ -81,6 +81,8 @@ export default function DiscoverCompanionsGallery() {
   const [rarity, setRarity] = useState<CompanionRarity | null>(null);
   const [vibe, setVibe] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<"newest" | "name" | "rarity">("newest");
+  const [visibleCount, setVisibleCount] = useState(24);
 
   const genders = useMemo(() => [...new Set(pool.map((p) => p.gender))].sort(), [pool]);
   const vibes = useMemo(() => {
@@ -90,7 +92,7 @@ export default function DiscoverCompanionsGallery() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return pool.filter((c) => {
+    const base = pool.filter((c) => {
       const matchQ =
         !q ||
         c.name.toLowerCase().includes(q) ||
@@ -102,13 +104,34 @@ export default function DiscoverCompanionsGallery() {
       const matchV = !vibe || c.vibe === vibe || c.tags.includes(vibe);
       return matchQ && matchG && matchR && matchV;
     });
-  }, [pool, search, gender, rarity, vibe]);
+    if (sortBy === "name") {
+      base.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === "rarity") {
+      const rank: Record<CompanionRarity, number> = {
+        common: 1,
+        rare: 2,
+        epic: 3,
+        legendary: 4,
+        mythic: 5,
+        abyssal: 6,
+      };
+      base.sort((a, b) => rank[b.rarity] - rank[a.rarity]);
+    } else {
+      base.sort((a, b) => new Date((b as Companion).createdAt).getTime() - new Date((a as Companion).createdAt).getTime());
+    }
+    return base;
+  }, [pool, search, gender, rarity, vibe, sortBy]);
+
+  useEffect(() => {
+    setVisibleCount(24);
+  }, [search, gender, rarity, vibe, sortBy, pool.length]);
 
   const clearAll = () => {
     setSearch("");
     setGender(null);
     setRarity(null);
     setVibe(null);
+    setSortBy("newest");
   };
 
   const handleBuyCard = async (c: CommunityGalleryRow) => {
@@ -191,6 +214,15 @@ export default function DiscoverCompanionsGallery() {
             />
           </div>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as "newest" | "name" | "rarity")}
+              className="rounded-xl border border-border/80 bg-black/30 px-3 py-2.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <option value="newest">Newest</option>
+              <option value="name">Name A–Z</option>
+              <option value="rarity">Rarity</option>
+            </select>
             <button
               type="button"
               onClick={() => setFiltersOpen((o) => !o)}
@@ -377,9 +409,10 @@ export default function DiscoverCompanionsGallery() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"
+              className="space-y-4"
             >
-              {filtered.map((c, i) => {
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {filtered.slice(0, visibleCount).map((c, i) => {
                 const img = c.imageUrl;
                 const buyFc = discoverCardPriceFc(c.rarity);
                 const rarityPriceStyle = { color: rarityTierCaptionColor(c.rarity) };
@@ -485,6 +518,18 @@ export default function DiscoverCompanionsGallery() {
                   </motion.div>
                 );
               })}
+              </div>
+              {filtered.length > visibleCount ? (
+                <div className="flex justify-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((v) => v + 24)}
+                    className="rounded-xl border border-primary/35 bg-primary/10 px-5 py-2.5 text-sm font-semibold text-primary hover:bg-primary/20"
+                  >
+                    Load more companions ({filtered.length - visibleCount} remaining)
+                  </button>
+                </div>
+              ) : null}
             </motion.div>
           )}
         </AnimatePresence>

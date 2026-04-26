@@ -34,6 +34,7 @@ import {
   ChevronRight,
   Orbit,
   Megaphone,
+  CalendarClock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -47,6 +48,7 @@ import AdminTheNexus from "@/components/AdminTheNexus";
 import { getGaMeasurementId } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { isPlatformAdmin, platformAdminEmailDisplay } from "@/config/auth";
+import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
 const NEON = "#FF2D7B";
 
 const adminQueryClient = new QueryClient({
@@ -59,6 +61,7 @@ type AdminSection =
   | "nexus"
   | "characters"
   | "xmarketing"
+  | "weeklydrops"
   | "users"
   | "waitlist"
   | "analytics"
@@ -70,6 +73,7 @@ const ADMIN_SECTION_IDS = new Set<AdminSection>([
   "nexus",
   "characters",
   "xmarketing",
+  "weeklydrops",
   "users",
   "waitlist",
   "analytics",
@@ -88,6 +92,7 @@ const NAV: { id: AdminSection; label: string; icon: typeof LayoutDashboard }[] =
   { id: "nexus", label: "The Nexus", icon: Orbit },
   { id: "characters", label: "Character Management", icon: Palette },
   { id: "xmarketing", label: "X Marketing Hub", icon: Megaphone },
+  { id: "weeklydrops", label: "Weekly Drops", icon: CalendarClock },
   { id: "users", label: "User Management", icon: Users },
   { id: "waitlist", label: "Waitlist", icon: ScrollText },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
@@ -120,6 +125,17 @@ interface StatsShape {
   revenueMrr: number;
   toysLinked: number;
 }
+
+type WeeklyDropRow = {
+  id: string;
+  posted_at: string;
+  companion_id: string;
+  companion_name: string;
+  rarity: string | null;
+  landing_url: string;
+  x_post_url: string | null;
+  total_clicks: number;
+};
 
 type TrendPoint = {
   dateKey: string;
@@ -176,6 +192,17 @@ function AdminShell() {
   const [barData, setBarData] = useState<{ name: string; value: number }[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [overviewDataIssues, setOverviewDataIssues] = useState<string | null>(null);
+  const [weeklyDrops, setWeeklyDrops] = useState<WeeklyDropRow[]>([]);
+  const [weeklyDropsLoading, setWeeklyDropsLoading] = useState(false);
+  const [weeklySettingsSaving, setWeeklySettingsSaving] = useState(false);
+  const [weeklyTickLoading, setWeeklyTickLoading] = useState(false);
+  const [weeklySettings, setWeeklySettings] = useState({
+    enabled: false,
+    dropsPerWeek: 2,
+    intervalDays: 3,
+    sourceMode: "mixed" as "mixed" | "catalog_only" | "forge_only",
+    lastRunAt: null as string | null,
+  });
 
   const gaMeasurementId = getGaMeasurementId();
 
@@ -357,6 +384,40 @@ function AdminShell() {
     }
   }, []);
 
+  const loadWeeklyDrops = useCallback(async () => {
+    setWeeklyDropsLoading(true);
+    try {
+      const [{ data: settingsData, error: settingsErr }, { data: rowsData, error: rowsErr }] = await Promise.all([
+        supabase.functions.invoke("zernio-social", { body: { mode: "settings_get" } }),
+        supabase.functions.invoke("zernio-social", { body: { mode: "weekly_drop_stats" } }),
+      ]);
+      if (settingsErr) throw new Error(await getEdgeFunctionInvokeMessage(settingsErr, settingsData));
+      if (rowsErr) throw new Error(await getEdgeFunctionInvokeMessage(rowsErr, rowsData));
+      const s = (settingsData as { settings?: Record<string, unknown> } | null)?.settings ?? {};
+      setWeeklySettings({
+        enabled: Boolean(s.weekly_drop_enabled),
+        dropsPerWeek: Number(s.weekly_drops_per_week ?? 2),
+        intervalDays: Number(s.weekly_drop_interval_days ?? 3),
+        sourceMode:
+          s.weekly_drop_source_mode === "catalog_only" || s.weekly_drop_source_mode === "forge_only"
+            ? (s.weekly_drop_source_mode as "catalog_only" | "forge_only")
+            : "mixed",
+        lastRunAt: typeof s.weekly_drop_last_run_at === "string" ? s.weekly_drop_last_run_at : null,
+      });
+      const rows = ((rowsData as { rows?: WeeklyDropRow[] } | null)?.rows ?? []).map((r) => ({
+        ...r,
+        total_clicks: Number(r.total_clicks ?? 0),
+      }));
+      setWeeklyDrops(rows);
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "Could not load weekly drops.");
+      setWeeklyDrops([]);
+    } finally {
+      setWeeklyDropsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -407,7 +468,8 @@ function AdminShell() {
     if (authLoading) return;
     if (section === "users") void loadProfiles();
     if (section === "waitlist") void loadWaitlist();
-  }, [authLoading, section, loadProfiles, loadWaitlist]);
+    if (section === "weeklydrops") void loadWeeklyDrops();
+  }, [authLoading, section, loadProfiles, loadWaitlist, loadWeeklyDrops]);
 
   const openUserPanel = async (p: ProfileRow) => {
     setSelectedUser(p);
@@ -635,6 +697,54 @@ function AdminShell() {
             </div>
           )}
           {section === "xmarketing" && <XMarketingHub />}
+          {section === "weeklydrops" && (
+            <WeeklyDropsSection
+              rows={weeklyDrops}
+              loading={weeklyDropsLoading}
+              settings={weeklySettings}
+              settingsSaving={weeklySettingsSaving}
+              tickLoading={weeklyTickLoading}
+              onRefresh={() => void loadWeeklyDrops()}
+              onSaveSettings={async (next) => {
+                setWeeklySettingsSaving(true);
+                try {
+                  const { data, error } = await supabase.functions.invoke("zernio-social", {
+                    body: {
+                      mode: "settings_update",
+                      weeklyDropEnabled: next.enabled,
+                      weeklyDropsPerWeek: next.dropsPerWeek,
+                      weeklyDropIntervalDays: next.intervalDays,
+                      weeklyDropSourceMode: next.sourceMode,
+                    },
+                  });
+                  if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
+                  setWeeklySettings(next);
+                  toast.success("Weekly drop settings saved.");
+                  void loadWeeklyDrops();
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Could not save settings.");
+                } finally {
+                  setWeeklySettingsSaving(false);
+                }
+              }}
+              onRunNow={async () => {
+                setWeeklyTickLoading(true);
+                try {
+                  const { data, error } = await supabase.functions.invoke("zernio-social", {
+                    body: { mode: "weekly_drop_tick" },
+                  });
+                  if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
+                  const processed = Number((data as { processed?: number } | null)?.processed ?? 0);
+                  toast.success(processed > 0 ? `Posted ${processed} weekly drop(s) to X.` : "Weekly drop tick completed.");
+                  void loadWeeklyDrops();
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Weekly drop tick failed.");
+                } finally {
+                  setWeeklyTickLoading(false);
+                }
+              }}
+            />
+          )}
           {section === "users" && (
             <UsersSection
               profiles={profiles}
@@ -1116,6 +1226,217 @@ function WaitlistSection({
         ))}
         {!error && rows.length === 0 && (
           <p className="text-center text-muted-foreground py-12 text-sm">No entries yet.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WeeklyDropsSection({
+  rows,
+  loading,
+  settings,
+  settingsSaving,
+  tickLoading,
+  onRefresh,
+  onSaveSettings,
+  onRunNow,
+}: {
+  rows: WeeklyDropRow[];
+  loading: boolean;
+  settings: {
+    enabled: boolean;
+    dropsPerWeek: number;
+    intervalDays: number;
+    sourceMode: "mixed" | "catalog_only" | "forge_only";
+    lastRunAt: string | null;
+  };
+  settingsSaving: boolean;
+  tickLoading: boolean;
+  onRefresh: () => void;
+  onSaveSettings: (next: {
+    enabled: boolean;
+    dropsPerWeek: number;
+    intervalDays: number;
+    sourceMode: "mixed" | "catalog_only" | "forge_only";
+    lastRunAt: string | null;
+  }) => Promise<void>;
+  onRunNow: () => Promise<void>;
+}) {
+  const [local, setLocal] = useState(settings);
+  useEffect(() => {
+    setLocal(settings);
+  }, [settings]);
+
+  const totals = useMemo(() => {
+    const totalDrops = rows.length;
+    const totalClicks = rows.reduce((acc, r) => acc + Number(r.total_clicks || 0), 0);
+    const avg = totalDrops ? totalClicks / totalDrops : 0;
+    return { totalDrops, totalClicks, avg };
+  }, [rows]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-gothic text-3xl gradient-vice-text">Weekly Drops</h2>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm hover:border-primary/40"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </button>
+          <button
+            type="button"
+            disabled={tickLoading}
+            onClick={() => void onRunNow()}
+            className="inline-flex items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary disabled:opacity-50"
+          >
+            {tickLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />}
+            Run now
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border border-border/80 bg-card/40 p-5 backdrop-blur-md">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Total drops</p>
+          <p className="mt-2 font-gothic text-3xl text-primary">{totals.totalDrops}</p>
+        </div>
+        <div className="rounded-2xl border border-border/80 bg-card/40 p-5 backdrop-blur-md">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Total clicks</p>
+          <p className="mt-2 font-gothic text-3xl text-accent">{totals.totalClicks}</p>
+        </div>
+        <div className="rounded-2xl border border-border/80 bg-card/40 p-5 backdrop-blur-md">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Average clicks / drop</p>
+          <p className="mt-2 font-gothic text-3xl text-foreground">{totals.avg.toFixed(1)}</p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border/80 bg-card/40 p-5 backdrop-blur-md space-y-4">
+        <h3 className="font-gothic text-xl text-foreground">Automation settings</h3>
+        <div className="grid gap-4 md:grid-cols-3">
+          <label className="text-sm space-y-2">
+            <span className="text-muted-foreground">Enabled</span>
+            <input
+              type="checkbox"
+              checked={local.enabled}
+              onChange={(e) => setLocal((s) => ({ ...s, enabled: e.target.checked }))}
+              className="h-4 w-4"
+            />
+          </label>
+          <label className="text-sm space-y-2">
+            <span className="text-muted-foreground">Drops per week</span>
+            <input
+              type="number"
+              min={1}
+              max={14}
+              value={local.dropsPerWeek}
+              onChange={(e) => setLocal((s) => ({ ...s, dropsPerWeek: Number(e.target.value || 2) }))}
+              className="w-full rounded-lg border border-border bg-black/40 px-3 py-2"
+            />
+          </label>
+          <label className="text-sm space-y-2">
+            <span className="text-muted-foreground">Run interval (days)</span>
+            <input
+              type="number"
+              min={1}
+              max={30}
+              value={local.intervalDays}
+              onChange={(e) => setLocal((s) => ({ ...s, intervalDays: Number(e.target.value || 3) }))}
+              className="w-full rounded-lg border border-border bg-black/40 px-3 py-2"
+            />
+          </label>
+          <label className="text-sm space-y-2">
+            <span className="text-muted-foreground">Companion source</span>
+            <select
+              value={local.sourceMode}
+              onChange={(e) =>
+                setLocal((s) => ({
+                  ...s,
+                  sourceMode:
+                    e.target.value === "catalog_only" || e.target.value === "forge_only"
+                      ? (e.target.value as "catalog_only" | "forge_only")
+                      : "mixed",
+                }))
+              }
+              className="w-full rounded-lg border border-border bg-black/40 px-3 py-2"
+            >
+              <option value="mixed">Mixed (catalog + forge)</option>
+              <option value="catalog_only">Catalog only</option>
+              <option value="forge_only">Forge only</option>
+            </select>
+          </label>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            disabled={settingsSaving}
+            onClick={() => void onSaveSettings(local)}
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            {settingsSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings2 className="h-4 w-4" />}
+            Save weekly settings
+          </button>
+          <p className="text-xs text-muted-foreground">
+            Last run: {settings.lastRunAt ? new Date(settings.lastRunAt).toLocaleString() : "never"}
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border/80 bg-card/40 backdrop-blur-md overflow-hidden">
+        <div className="px-5 py-4 border-b border-border/60">
+          <h3 className="font-gothic text-xl text-foreground">Drop history</h3>
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-14">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-12">No weekly drops posted yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/60 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <th className="p-4">Posted</th>
+                  <th className="p-4">Companion</th>
+                  <th className="p-4">Rarity</th>
+                  <th className="p-4 text-right">Clicks</th>
+                  <th className="p-4">Links</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id} className="border-b border-border/40 hover:bg-white/[0.03]">
+                    <td className="p-4 text-xs text-muted-foreground">{new Date(r.posted_at).toLocaleString()}</td>
+                    <td className="p-4">
+                      <p className="font-medium">{r.companion_name}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">{r.companion_id}</p>
+                    </td>
+                    <td className="p-4 capitalize">{r.rarity ?? "—"}</td>
+                    <td className="p-4 text-right tabular-nums">{r.total_clicks}</td>
+                    <td className="p-4">
+                      <div className="flex flex-col gap-1 text-xs">
+                        <a className="text-primary hover:underline" href={r.landing_url} target="_blank" rel="noreferrer">
+                          Landing
+                        </a>
+                        {r.x_post_url ? (
+                          <a className="text-accent hover:underline" href={r.x_post_url} target="_blank" rel="noreferrer">
+                            X post
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground">X pending</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
