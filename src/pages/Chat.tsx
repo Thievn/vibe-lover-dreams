@@ -1457,7 +1457,7 @@ const Chat = () => {
           : mood === "nude"
             ? `*${companion.name} sent you an explicit clip…*`
             : `*${companion.name} sent you a steamy clip…*`;
-      const clipPrompt = `[LustForge chat] mood=${mood} — 9:16 vertical clip.`;
+      const clipPrompt = `[LustForge chat] mood=${mood} — 2:3 vertical card clip.`;
       const { data: giRow, error: giErr } = await supabase
         .from("generated_images")
         .insert({

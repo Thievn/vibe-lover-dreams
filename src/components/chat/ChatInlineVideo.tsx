@@ -32,7 +32,7 @@ function readLoopDefault(): boolean {
 }
 
 /**
- * 9:16 inline player — tall frame; optional fullscreen dialog for comfortable viewing.
+ * 2:3 card-style inline player; optional fullscreen dialog for comfortable viewing.
  * Loop defaults on; user can disable per session (persisted).
  */
 export function ChatInlineVideo({
@@ -69,7 +69,7 @@ export function ChatInlineVideo({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <div className="relative mx-auto w-full max-w-[min(92vw,280px)] aspect-[9/16] overflow-hidden rounded-xl bg-black">
+      <div className="relative mx-auto w-full max-w-[min(92vw,280px)] aspect-[2/3] overflow-hidden rounded-xl bg-black">
         {inner}
         <button
           type="button"
@@ -114,7 +114,7 @@ export function ChatInlineVideo({
           </button>
         ) : null}
         <p className="text-xs text-foreground/55">
-          9:16 clip — expand for a centered picture-in-picture view
+          clip — expand for a centered picture-in-picture view
           {showGalleryHint ? (
             <>
               {" "}

@@ -54,7 +54,7 @@ export async function renderPortraitToStorage(opts: {
       model,
       prompt: finalPrompt,
       n: 1,
-      aspect_ratio: "3:4",
+      aspect_ratio: "2:3",
     }),
   });
 

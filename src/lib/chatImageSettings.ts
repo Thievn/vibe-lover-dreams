@@ -353,16 +353,19 @@ export function resolveChatImageGenerationPrompt(args: {
   return inferred;
 }
 
-/** Profile replacement portraits: require ~9:16 vertical (tall). width/height ≈ 9/16. */
-export const PORTRAIT_ASPECT_TARGET = 9 / 16;
-export const PORTRAIT_ASPECT_TOLERANCE = 0.07;
+export {
+  PORTRAIT_CARD_ASPECT,
+  PORTRAIT_ASPECT_TOLERANCE,
+  PORTRAIT_CARD_ASPECT_CLASS,
+  isPortraitCardRatio,
+  isAcceptableChatPortraitUpload,
+} from "./portraitAspect";
 
-export function isPortraitNineSixteen(width: number, height: number): boolean {
-  if (width <= 0 || height <= 0) return false;
-  if (width >= height) return false;
-  const r = width / height;
-  return Math.abs(r - PORTRAIT_ASPECT_TARGET) <= PORTRAIT_ASPECT_TOLERANCE;
-}
+/** @deprecated use PORTRAIT_CARD_ASPECT */
+export { PORTRAIT_CARD_ASPECT as PORTRAIT_ASPECT_TARGET } from "./portraitAspect";
+
+/** @deprecated use isAcceptableChatPortraitUpload */
+export { isAcceptableChatPortraitUpload as isPortraitNineSixteen } from "./portraitAspect";
 
 export function loadImageNaturalSize(src: string): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {

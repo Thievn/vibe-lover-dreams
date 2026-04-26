@@ -26,14 +26,14 @@ type Props = {
   className?: string;
   /** Extra wrapper class for Abyssal outer glow. */
   abyssal?: boolean;
-  /** Profile sheet — diagonal mask + main vector rim (no duplicate glitch layers; avoids “floating” frame on 9:16). */
+  /** Profile sheet — diagonal mask + main vector rim (no duplicate glitch layers; avoids “floating” frame on tall portraits). */
   profilePolish?: boolean;
   /** Companion accent colors for a sharp 135° diagonal split on the profile frame. */
   gradientFrom?: string;
   gradientTo?: string;
   /** Grid cards: single vector pass, no stacked Abyssal pulse on the wrapper. */
   frameStyle?: ProfilePortraitFrameStyle;
-  /** Profile 9:16 — vector frame art can sit inset; slight scale pulls the rim flush with the image edges. */
+  /** Profile hero — vector frame art can sit inset; slight scale pulls the rim flush with the image edges. */
   frameBleed?: boolean;
 };
 

@@ -79,7 +79,7 @@ function NexusCard({
       disabled={locked}
       onClick={onToggle}
       className={cn(
-        "group relative rounded-2xl border overflow-visible text-left transition-all aspect-[9/16] w-full p-0 m-0.5 max-sm:m-0",
+        "group relative rounded-2xl border overflow-visible text-left transition-all aspect-[2/3] w-full p-0 m-0.5 max-sm:m-0",
         orderMark === 1 &&
           "border-primary ring-2 ring-primary/50 shadow-[0_0_32px_rgba(255,45,123,0.38)] z-[1] scale-[1.02]",
         orderMark === 2 &&
@@ -96,7 +96,7 @@ function NexusCard({
         gradientFrom={db.gradient_from}
         gradientTo={db.gradient_to}
         overlayUrl={db.rarity_border_overlay_url}
-        aspectClassName="aspect-[9/16] h-full w-full"
+        aspectClassName="aspect-[2/3] h-full w-full"
         rarityFrameBleed
       >
         {!url ? (

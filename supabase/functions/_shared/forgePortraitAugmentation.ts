@@ -90,7 +90,7 @@ export function maybeAppendForgeStyleSceneBlock(
   const block = [
     `Primary art direction — ${art}: ${artHint(art)}`,
     `Primary environment — ${scene}: ${sceneHint(scene)}`,
-    "Composition: vertical 3:4 portrait, single focal plane, SFW romance-cover quality — no printed titles or typographic footers.",
+    "Composition: vertical 2:3 card portrait, single focal plane, SFW romance-cover quality — no printed titles or typographic footers.",
   ].join(" ");
 
   return `${raw}\n\n${block}`;

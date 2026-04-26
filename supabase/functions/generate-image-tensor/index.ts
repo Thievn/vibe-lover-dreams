@@ -109,7 +109,7 @@ function buildTensorPrompt(prompt: string, characterData: Record<string, unknown
 
   if (isChatSession && !isPortrait) {
     const head =
-      "Chat still: 3:4 vertical phone-style portrait. No watermarks, logos, or overlay text. " +
+      "Chat still: 2:3 vertical card-style portrait. No watermarks, logos, or overlay text. " +
       "The first block below states the user request and character — follow it; it overrides generic defaults that follow.";
     const lockLines = [
       baseDescription ? `Character baseline: ${baseDescription}` : "",
@@ -126,8 +126,8 @@ function buildTensorPrompt(prompt: string, characterData: Record<string, unknown
 
   const lines = [
     isPortrait
-      ? "Catalog-style portrait render. Maintain 3:4 vertical composition and premium framing. No logos, watermarks, typographic footers, or legible text in the frame."
-      : "Chat or gallery portrait render. Maintain 3:4 vertical composition and premium portrait quality. No logos, watermarks, or unrelated typographic overlays.",
+      ? "Catalog-style portrait render. Maintain 2:3 vertical card composition and premium framing. No logos, watermarks, typographic footers, or legible text in the frame."
+      : "Chat or gallery portrait render. Maintain 2:3 vertical card composition and premium portrait quality. No logos, watermarks, or unrelated typographic overlays.",
     baseDescription ? `Character baseline: ${baseDescription}` : "",
     bodyType ? tensorPhysiqueHint(bodyType) : "",
     artStyle ? `Art style: ${artStyle}` : "",

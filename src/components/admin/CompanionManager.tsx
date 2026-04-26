@@ -2,7 +2,8 @@ import { useState, useCallback, useEffect, useRef, type ReactNode } from "react"
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAdminCompanions, mapSupabaseCustomCharacterRow, type DbCompanion } from "@/hooks/useCompanions";
-import { COMPANION_RARITIES, normalizeCompanionRarity } from "@/lib/companionRarity";
+import { COMPANION_RARITIES, defaultProfileGradientForRarity, normalizeCompanionRarity } from "@/lib/companionRarity";
+import { buildNexusStoredDisplayTraits, serializeBaseDisplayTraitsForInsert } from "@/lib/vibeDisplayTraits";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { supabase } from "@/integrations/supabase/client";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
@@ -53,7 +54,46 @@ const emptyCompanion: Omit<DbCompanion, "created_at" | "updated_at"> = {
   animated_image_url: null,
   profile_loop_video_enabled: false,
   rarity_border_overlay_url: null,
+  display_traits: [] as unknown[],
 };
+
+/**
+ * Recompute storable `display_traits` when tier changes. Non-Nexus: keyword-aware roll by rarity count.
+ * Nexus: re-run nexus layout using current row as both parents (same as “remix in place” in admin).
+ */
+function computeDisplayTraitsForRarity(
+  companion: DbCompanion,
+  newRarity: string,
+  getMerged: (field: keyof DbCompanion) => unknown,
+): unknown {
+  const r = normalizeCompanionRarity(newRarity);
+  if (getMerged("is_nexus_hybrid")) {
+    const id = companion.id;
+    const uuid = id.startsWith("cc-") ? id.slice(3) : id;
+    return buildNexusStoredDisplayTraits({
+      childRarity: r,
+      childIdUuid: uuid,
+      parentA: {
+        display_traits: getMerged("display_traits") ?? companion.display_traits,
+        tags: (getMerged("tags") as string[]) ?? companion.tags,
+        personality: String(getMerged("personality") ?? companion.personality ?? ""),
+      },
+      parentB: {
+        display_traits: getMerged("display_traits") ?? companion.display_traits,
+        tags: (getMerged("tags") as string[]) ?? companion.tags,
+        personality: String(getMerged("personality") ?? companion.personality ?? ""),
+      },
+    });
+  }
+  return serializeBaseDisplayTraitsForInsert({
+    seed: companion.id,
+    tags: (getMerged("tags") as string[]) ?? companion.tags,
+    kinks: (getMerged("kinks") as string[]) ?? companion.kinks,
+    personality: String(getMerged("personality") ?? companion.personality ?? ""),
+    bio: String(getMerged("bio") ?? companion.bio ?? ""),
+    rarity: r,
+  });
+}
 
 /** Allowed columns on `custom_characters` when saving from admin forge editor. */
 const CUSTOM_CHARACTER_UPDATE_KEYS = new Set([
@@ -465,6 +505,10 @@ const CompanionManager = () => {
         }
         const { error } = await supabase.from("custom_characters").update(patch as any).eq("id", uuid);
         if (error) throw error;
+        if ("rarity" in changes || "name" in changes) {
+          void queryClient.invalidateQueries({ queryKey: ["companion-vibration-patterns", companion.id] });
+          void queryClient.invalidateQueries({ queryKey: ["admin-vib-rows", companion.id] });
+        }
       } else {
         const { error } = await supabase
           .from("companions")
@@ -837,6 +881,7 @@ const CompanionManager = () => {
         profile_loop_video_enabled: createData.profile_loop_video_enabled,
         rarity_border_overlay_url: createData.rarity_border_overlay_url,
         image_url: createData.image_url,
+        display_traits: createData.display_traits ?? [],
       } as any);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
@@ -886,10 +931,11 @@ const CompanionManager = () => {
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/^-|-$/g, "") || "companion";
       const fantasy_starters = normalizeFantasyStartersFromFields(fields.fantasy_starters);
+      const newId = `${slug}-${Date.now().toString(36)}`;
 
       setCreateData({
         ...emptyCompanion,
-        id: `${slug}-${Date.now().toString(36)}`,
+        id: newId,
         name: String(fields.name || "").slice(0, 120),
         tagline: String(fields.tagline || "").slice(0, 240),
         gender: String(fields.gender || "Female").slice(0, 80),
@@ -914,6 +960,14 @@ const CompanionManager = () => {
         animated_image_url: null,
         profile_loop_video_enabled: false,
         rarity_border_overlay_url: null,
+        display_traits: serializeBaseDisplayTraitsForInsert({
+          seed: newId,
+          tags: Array.isArray(fields.tags) ? (fields.tags as string[]).map(String).slice(0, 24) : [],
+          kinks: Array.isArray(fields.kinks) ? (fields.kinks as string[]).map(String).slice(0, 24) : [],
+          personality: String(fields.personality || "").slice(0, 8000),
+          bio: String(fields.bio || "").slice(0, 8000),
+          rarity: "common",
+        }),
       });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Design roll failed");
@@ -1103,7 +1157,25 @@ const CompanionManager = () => {
               <label className="text-xs text-muted-foreground block mb-1">Rarity</label>
               <select
                 value={createData.rarity}
-                onChange={(e) => setCreateData((p) => ({ ...p, rarity: e.target.value }))}
+                onChange={(e) => {
+                  const newR = e.target.value;
+                  const g = defaultProfileGradientForRarity(newR);
+                  setCreateData((p) => ({
+                    ...p,
+                    rarity: newR,
+                    rarity_border_overlay_url: null,
+                    gradient_from: g.from,
+                    gradient_to: g.to,
+                    display_traits: serializeBaseDisplayTraitsForInsert({
+                      seed: p.id,
+                      tags: p.tags,
+                      kinks: p.kinks,
+                      personality: p.personality,
+                      bio: p.bio,
+                      rarity: newR,
+                    }),
+                  }));
+                }}
                 className="w-full rounded-lg bg-muted border border-border px-3 py-2 text-sm text-foreground"
               >
                 {COMPANION_RARITIES.map((r) => (
@@ -1112,6 +1184,10 @@ const CompanionManager = () => {
                   </option>
                 ))}
               </select>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Changes tier gradients, trait chip count, and the default border (custom overlay is cleared). Save, then
+                use “Reload from rarity” on Lovense if needed.
+              </p>
             </div>
             <Field label="Static portrait URL" value={createData.static_image_url || ""} onChange={(v) => setCreateData(p => ({ ...p, static_image_url: v || null }))} />
             <Field label="Animated portrait URL (gif/webp/mp4)" value={createData.animated_image_url || ""} onChange={(v) => setCreateData(p => ({ ...p, animated_image_url: v || null }))} />
@@ -1212,7 +1288,7 @@ const CompanionManager = () => {
                 </button>
               </div>
 
-              {/* Portrait — same frame stack as public profile (incl. 9:16 + frame bleed when loop MP4 is on). */}
+              {/* Portrait — same frame stack as public profile (2:3 + frame bleed when loop MP4 is on). */}
               <div className="flex items-start gap-4">
                 <div className="w-full max-w-[min(100%,11rem)] shrink-0">
                   <AdminCompanionPortraitPreview
@@ -1400,7 +1476,25 @@ const CompanionManager = () => {
               <label className="text-xs text-muted-foreground block mb-1">Rarity</label>
               <select
                 value={(val("rarity") as string) || "common"}
-                onChange={(e) => setField(companion.id, "rarity", e.target.value)}
+                onChange={(e) => {
+                  const newR = e.target.value;
+                  setEditData((prev) => {
+                    const cur = { ...(prev[companion.id] || {}) } as Record<string, unknown>;
+                    const merged = (field: keyof DbCompanion) => (cur[field] !== undefined ? cur[field] : companion[field]) as unknown;
+                    const g = defaultProfileGradientForRarity(newR);
+                    return {
+                      ...prev,
+                      [companion.id]: {
+                        ...cur,
+                        rarity: newR,
+                        rarity_border_overlay_url: null,
+                        gradient_from: g.from,
+                        gradient_to: g.to,
+                        display_traits: computeDisplayTraitsForRarity(companion, newR, merged as (f: keyof DbCompanion) => unknown),
+                      },
+                    };
+                  });
+                }}
                 className="w-full rounded-lg bg-muted border border-border px-3 py-2 text-sm text-foreground"
               >
                 {COMPANION_RARITIES.map((r) => (
@@ -1409,6 +1503,10 @@ const CompanionManager = () => {
                   </option>
                 ))}
               </select>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Updates tier colors, default frame (clears a custom border URL), and vibe trait chips. Lovense pool
+                rebuilds on save; use the patterns section to reload or repair.
+              </p>
             </div>
             <AdminToyPatternsSection companionId={companion.id} />
             <Field label="Static portrait URL" value={(val("static_image_url") as string) || ""} onChange={(v) => setField(companion.id, "static_image_url", v || null)} />
@@ -1569,7 +1667,7 @@ const CompanionManager = () => {
                     gradientFrom={frGf}
                     gradientTo={frGt}
                     overlayUrl={frOb}
-                    aspectClassName="aspect-[9/16] w-full h-full"
+                    aspectClassName="aspect-[2/3] w-full h-full"
                     rarityFrameBleed
                   >
                     <div
@@ -1724,7 +1822,7 @@ const CompanionManager = () => {
                 gradientFrom={companion.gradient_from}
                 gradientTo={companion.gradient_to}
                 overlayUrl={companion.rarity_border_overlay_url}
-                aspectClassName="aspect-[9/16] w-full h-full"
+                aspectClassName="aspect-[2/3] w-full h-full"
                 rarityFrameBleed
               >
                 <div

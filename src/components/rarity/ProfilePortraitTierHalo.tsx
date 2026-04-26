@@ -68,7 +68,7 @@ export function ProfilePortraitTierHalo({
           !isProfile && !isCleanCard && "shadow-[0_12px_32px_rgba(0,0,0,0.38)]",
         )}
       >
-        {/* Rotating conic sheen — skip on profile hero: on tall 9:16 cards the rotated square reads as a “floating” corner inside the portrait. */}
+        {/* Rotating conic sheen — skip on profile hero: on tall 2:3 cards the rotated square reads as a “floating” corner inside the portrait. */}
         {!isProfile ? (
           <div
             aria-hidden

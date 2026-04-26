@@ -40,6 +40,16 @@ export function normalizeCompanionRarity(raw: string | null | undefined): Compan
   return "common";
 }
 
+/** Default profile/card gradient for a tier (forge default for common; neon pair for rarer tiers). */
+export function defaultProfileGradientForRarity(rarity: CompanionRarity | string): { from: string; to: string } {
+  const r = normalizeCompanionRarity(rarity);
+  if (r === "common") {
+    return { from: "#7B2D8E", to: "#FF2D7B" };
+  }
+  const n = RARITY_NEON[r];
+  return { from: n.from, to: n.to };
+}
+
 /** Profile / card caption (rarity names may change later). */
 export function rarityDisplayLabel(rarity: CompanionRarity): string {
   const map: Record<CompanionRarity, string> = {

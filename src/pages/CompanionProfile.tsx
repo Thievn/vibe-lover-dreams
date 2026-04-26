@@ -53,6 +53,7 @@ import { formatNexusCooldownShort, nexusCooldownRemainingMs } from "@/lib/nexusM
 import { splitProseIntoParagraphs } from "@/lib/profileProseSplit";
 import { buildProfileSearchTags } from "@/lib/companionSearchTags";
 import { getChatAutoSpendImages, setChatAutoSpendImages } from "@/lib/chatImageSettings";
+import { PORTRAIT_CARD_ASPECT_CLASS } from "@/lib/portraitAspect";
 import { ChatAutoSpendImagesToggle } from "@/components/chat/ChatAutoSpendImagesToggle";
 import { CompanionVibeTraitStrip } from "@/components/traits/CompanionVibeTraitStrip";
 import { VibeTraitProfilePanel } from "@/components/traits/VibeTraitProfilePanel";
@@ -196,7 +197,7 @@ const CompanionProfile = () => {
   const loopVideoActive = Boolean(
     showLoopVideo && animatedPortrait && isVideoPortraitUrl(animatedPortrait),
   );
-  const portraitAspectClass = loopVideoActive ? "aspect-[9/16]" : "aspect-[3/4]";
+  const portraitAspectClass = PORTRAIT_CARD_ASPECT_CLASS;
 
   useEffect(() => {
     setLoopVideoReady(false);
@@ -623,7 +624,7 @@ const CompanionProfile = () => {
         </motion.button>
 
         <div className="grid lg:grid-cols-[minmax(0,460px)_1fr] gap-10 lg:gap-14 items-start">
-          {/* Portrait column — wider shell so 9:16 loop video reads less “narrow strip” on desktop */}
+          {/* Portrait column — 2:3 card ratio; loop MP4 object-covers the frame */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

@@ -49,7 +49,7 @@ export async function runGrokImagineImageToVideo(args: {
   sourceImageUrl: string;
   /** Clamped 1–15. */
   durationSeconds: number;
-  /** e.g. "9:16" for portrait, "3:4" for tall stills */
+  /** e.g. "2:3" for card-style portrait video */
   aspectRatio: string;
   resolution?: "480p" | "720p";
   model?: string;

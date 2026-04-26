@@ -4,6 +4,7 @@ import { RarityTierCaption } from "@/components/rarity/RarityTierCaption";
 import { cn } from "@/lib/utils";
 import { isVideoPortraitUrl } from "@/lib/companionMedia";
 import type { CompanionRarity } from "@/lib/companionRarity";
+import { PORTRAIT_CARD_ASPECT_CLASS } from "@/lib/portraitAspect";
 
 type Props = {
   name: string;
@@ -23,7 +24,7 @@ type Props = {
 
 /**
  * WYSIWYG for Character management: same `ProfilePortraitTierHalo` + `RarityBorderOverlay` path as
- * `CompanionProfile` (profile polish, 9:16 + frame bleed when a looping MP4 is on).
+ * `CompanionProfile` (profile polish, 2:3 + frame bleed when a looping MP4 is on).
  */
 export function AdminCompanionPortraitPreview({
   name,
@@ -41,7 +42,7 @@ export function AdminCompanionPortraitPreview({
   const loopVideoActive = Boolean(
     profileLoopEnabled && animatedSrc && isVideoPortraitUrl(animatedSrc),
   );
-  const portraitAspectClass = loopVideoActive ? "aspect-[9/16]" : "aspect-[3/4]";
+  const portraitAspectClass = PORTRAIT_CARD_ASPECT_CLASS;
 
   return (
     <div className={cn("w-full", shellClassName, className)}>

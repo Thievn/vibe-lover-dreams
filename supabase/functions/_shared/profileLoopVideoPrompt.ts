@@ -66,7 +66,7 @@ export function buildMinimalProfileLoopVideoPrompt(row: Record<string, unknown>)
   const oneLine = sliceStr(row.appearance, 220) || sliceStr(row.tagline, 160);
   return sanitizePromptForVideoApi(
     [
-      `${PROFILE_LOOP_VIDEO_FALLBACK_DURATION_SECONDS}s vertical 9:16 seamless loop from the source still. Character: ${name}.`,
+      `${PROFILE_LOOP_VIDEO_FALLBACK_DURATION_SECONDS}s vertical 2:3 seamless loop from the source still. Character: ${name}.`,
       tags ? `Themes: ${tags}.` : "",
       oneLine ? `Visual vibe: ${oneLine}` : "",
       "One cohesive motion arc; first and last frames match for looping; same camera and framing as the still; no new characters or props.",
@@ -131,7 +131,7 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>): strin
   const themeBlock = themeLines.join("\n");
 
   const body = [
-    `Create a ${PROFILE_LOOP_VIDEO_DURATION_SECONDS}-second ultra-smooth vertical portrait loop video (9:16).`,
+    `Create a ${PROFILE_LOOP_VIDEO_DURATION_SECONDS}-second ultra-smooth vertical portrait loop video (2:3).`,
     "Same person and same overall scene as the source image: lighting, environment, and character identity. Do not invent a new character, new location, or new props that are not implied by the frame.",
     "If you show wardrobe or intimacy beats (tease, undress/redress, explicit or nude content), they must be grounded in what the still already shows or strongly implies, and the clip must return to a matching start state so the loop is seamless: first and last frames nearly identical. Examples: slowly lifting a hem or shirt then lowering it back; unbuttoning and re-buttoning; slipping a strap off and back; turning away and back to camera; a slow caress that ends where it began. The runtime allows a full tease-out and tease-back.",
     "",

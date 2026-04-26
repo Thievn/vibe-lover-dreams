@@ -300,7 +300,7 @@ serve(async (req) => {
       ? `
 ${PORTRAIT_IMAGE_DESIGN_BRIEF}
 
-Create a highly seductive, provocative, and artistic portrait of ${baseDescription}.
+Create a highly seductive, provocative, and artistic 2:3 (vertical card) portrait of ${baseDescription}.
 
 ${characterDetailsBlock}
 
@@ -318,7 +318,7 @@ ${safeRewritten}
       : `
 Adults-only companion product. This render is for a private chat / gallery session (not a public catalog card). Follow xAI's content policies; do not depict minors.
 
-Create a highly detailed, cinematic, vertical 3:4 image of ${baseDescription}.
+Create a highly detailed, cinematic, vertical 2:3 (trading-card) image of ${baseDescription}.
 
 ${characterDetailsBlock}
 
@@ -349,7 +349,7 @@ ${safeRewritten}
           model,
           prompt: finalPrompt,
           n: 1,
-          aspect_ratio: "3:4",
+          aspect_ratio: "2:3",
         }),
       });
 

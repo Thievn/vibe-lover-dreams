@@ -18,8 +18,9 @@ export const DEFAULT_TENSOR_IMAGE_MODEL = "935697227794352937";
  */
 export const DEFAULT_TENSOR_VIDEO_MODEL = "890953380564889159";
 
-export const LUSTFORGE_IMAGE_WIDTH = 768;
-export const LUSTFORGE_IMAGE_HEIGHT = 1024;
+/** 2:3 portrait (card ratio). */
+export const LUSTFORGE_IMAGE_WIDTH = 832;
+export const LUSTFORGE_IMAGE_HEIGHT = 1248;
 
 type TensorPrompt = { text?: string; weight?: number };
 
@@ -438,7 +439,7 @@ export async function submitTensorImageToVideoJob(args: {
     sourceImageUrl,
     model = DEFAULT_TENSOR_VIDEO_MODEL,
     durationSeconds = 8,
-    width = 544,
+    width = 640,
     height = 960,
   } = args;
   const base = tensorBaseUrl();

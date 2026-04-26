@@ -859,7 +859,7 @@ function DashboardHome({
               Array.from({ length: 8 }).map((_, idx) => (
                 <div
                   key={idx}
-                  className="rounded-2xl border border-border/60 bg-card/40 aspect-[3/4] animate-pulse"
+                  className="rounded-2xl border border-border/60 bg-card/40 aspect-[2/3] animate-pulse"
                 />
               ))
             ) : collectionCards.length === 0 ? (
@@ -927,7 +927,7 @@ function DashboardHome({
                       gradientFrom={c.gradientFrom}
                       gradientTo={c.gradientTo}
                       overlayUrl={c.rarityBorderOverlayUrl ?? null}
-                      aspectClassName="aspect-[9/16] w-full h-full"
+                      aspectClassName="aspect-[2/3] w-full h-full"
                       rarityFrameBleed
                     >
                       <div
@@ -1093,7 +1093,7 @@ function CollectionView({
       {loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="rounded-2xl border border-border/60 bg-card/40 aspect-[3/4] animate-pulse" />
+            <div key={i} className="rounded-2xl border border-border/60 bg-card/40 aspect-[2/3] animate-pulse" />
           ))}
         </div>
       ) : list.length === 0 ? (

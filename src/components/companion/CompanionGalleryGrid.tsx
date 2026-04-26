@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import type { CompanionGalleryRow } from "@/hooks/useCompanionGeneratedImages";
 import { stablePortraitDisplayUrl } from "@/lib/companionMedia";
 import { ZoomableImageViewport } from "@/components/ZoomableImageViewport";
-import { isPortraitNineSixteen, loadImageNaturalSize } from "@/lib/chatImageSettings";
+import { loadImageNaturalSize } from "@/lib/chatImageSettings";
+import { isAcceptableChatPortraitUpload } from "@/lib/portraitAspect";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -43,9 +44,9 @@ export function CompanionGalleryGrid({
         toast.error("Landscape images can’t be used as profile portraits. Pick a vertical 9∶16 image.");
         return;
       }
-      if (!isPortraitNineSixteen(width, height)) {
+      if (!isAcceptableChatPortraitUpload(width, height)) {
         toast.error(
-          "Profile portraits must be 9∶16 vertical (tall phone-style). This image has a different aspect ratio.",
+          "Profile portraits need a vertical card look (2:3 preferred; 3:4 or 9:16 also work). This image’s ratio doesn’t match.",
         );
         return;
       }
@@ -99,7 +100,7 @@ export function CompanionGalleryGrid({
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: Math.min(i * 0.04, 0.4) }}
-              className="group relative aspect-[3/4] rounded-2xl overflow-hidden border border-white/[0.08] bg-black/50 shadow-lg shadow-black/40"
+              className="group relative aspect-[2/3] rounded-2xl overflow-hidden border border-white/[0.08] bg-black/50 shadow-lg shadow-black/40"
             >
               <button
                 type="button"

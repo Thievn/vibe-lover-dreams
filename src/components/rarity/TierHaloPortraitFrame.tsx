@@ -8,6 +8,7 @@ import {
   type ProfilePortraitTierHaloVariant,
 } from "@/lib/profilePortraitTierHalo";
 import { RarityBorderOverlay } from "@/components/rarity/RarityBorderOverlay";
+import { PORTRAIT_CARD_ASPECT_CLASS } from "@/lib/portraitAspect";
 
 type Props = {
   variant: Extract<ProfilePortraitTierHaloVariant, "card" | "compact" | "avatar">;
@@ -20,7 +21,7 @@ type Props = {
   aspectClassName?: string;
   /** Soft pulsing tier neon (e.g. chat header round portrait). */
   neonEdgeBreathing?: boolean;
-  /** Slight scale on vector frame so the rim / glow meets the card edge (stills + 9:16 video). */
+  /** Slight scale on vector frame so the rim / glow meets the card edge (stills + portrait video). */
   rarityFrameBleed?: boolean;
   className?: string;
   children: ReactNode;
@@ -36,7 +37,7 @@ export function TierHaloPortraitFrame({
   gradientFrom,
   gradientTo,
   overlayUrl,
-  aspectClassName = "aspect-[9/16] w-full",
+  aspectClassName = `${PORTRAIT_CARD_ASPECT_CLASS} w-full`,
   neonEdgeBreathing = false,
   rarityFrameBleed = false,
   className,

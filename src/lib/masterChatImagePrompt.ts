@@ -159,7 +159,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
 
   const tech = [
     "— CAPTURE / FRAMING —",
-    "Single-subject, vertical 9:16 or 2:3 phone / mirror / tripod selfie or POV, matching the time period; premium lens, coherent depth of field.",
+    "Single-subject, vertical 2:3 card-style phone / mirror / tripod selfie or POV, matching the time period; premium lens, coherent depth of field.",
     "Photographic realism; match art direction:" + ` ${art}. Body-type anchor: ${bodyType}.`,
     "No duplicate faces, no collage, no watermark, no app UI, no on-image text, no disembodied parts unless the user explicitly asked.",
   ].join(" ");

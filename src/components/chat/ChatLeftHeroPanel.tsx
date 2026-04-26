@@ -6,7 +6,8 @@ import type { Companion } from "@/data/companions";
 import { normalizeCompanionRarity } from "@/lib/companionRarity";
 import type { CompanionGalleryRow } from "@/hooks/useCompanionGeneratedImages";
 import { stablePortraitDisplayUrl } from "@/lib/companionMedia";
-import { loadImageNaturalSize, isPortraitNineSixteen } from "@/lib/chatImageSettings";
+import { loadImageNaturalSize } from "@/lib/chatImageSettings";
+import { isAcceptableChatPortraitUpload } from "@/lib/portraitAspect";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -61,11 +62,11 @@ export function ChatLeftHeroPanel({
     try {
       const { width, height } = await loadImageNaturalSize(url);
       if (width >= height) {
-        toast.error("Portraits need a vertical 9∶16 look — try another from the full gallery.");
+        toast.error("Portraits must be vertical (taller than wide) — try another from the full gallery.");
         return;
       }
-      if (!isPortraitNineSixteen(width, height)) {
-        toast.error("Aspect must be 9∶16 (tall) for a chat portrait.");
+      if (!isAcceptableChatPortraitUpload(width, height)) {
+        toast.error("Use a 2:3, 3:4, or 9:16 portrait (tall) for chat.");
         return;
       }
       await onSetAsPortrait(url);
@@ -198,7 +199,7 @@ export function ChatLeftHeroPanel({
                       <li key={row.id}>
                         <div
                           className={cn(
-                            "group relative flex aspect-[3/4] w-full overflow-hidden rounded-lg border border-white/10 bg-black/40",
+                            "group relative flex aspect-[2/3] w-full overflow-hidden rounded-lg border border-white/10 bg-black/40",
                             isActive && "ring-1 ring-primary/50",
                           )}
                           draggable

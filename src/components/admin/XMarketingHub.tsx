@@ -1067,7 +1067,7 @@ export default function XMarketingHub() {
                             selected?.id === c.id ? "border-primary/60 ring-1 ring-primary/25" : "border-border/60 hover:border-primary/30",
                           )}
                         >
-                          <div className="relative aspect-[3/4] max-h-[min(56vh,520px)] w-full mx-auto">
+                          <div className="relative aspect-[2/3] max-h-[min(56vh,520px)] w-full mx-auto">
                             <TierHaloPortraitFrame
                               variant="card"
                               frameStyle="clean"

@@ -354,7 +354,7 @@ Deno.serve(async (req) => {
         prompt,
         sourceImageUrl: imageUrl,
         durationSeconds: durationSec,
-        aspectRatio: "9:16",
+        aspectRatio: "2:3",
         resolution: "720p",
         model: videoModel,
         maxWaitMs: 20 * 60_000,

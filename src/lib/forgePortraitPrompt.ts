@@ -172,7 +172,7 @@ export function composeForgePortraitPrompt(a: ForgePortraitPromptArgs): string {
       : "",
     `Primary art direction — ${art}: ${artHint}`,
     `Primary environment — ${scene}: ${sceneHint}`,
-    "Composition: vertical 3:4 or 9:16 portrait, single clear focal plane, flattering portrait lens discipline, SFW pin-up / romance cover quality — no typographic footer, category slug, or printed type line on the artwork. Scene and wardrobe **frame** the forge body — they never replace or erase it.",
+    "Composition: vertical 2:3 card portrait, single clear focal plane, flattering portrait lens discipline, SFW pin-up / romance cover quality — no typographic footer, category slug, or printed type line on the artwork. Scene and wardrobe **frame** the forge body — they never replace or erase it.",
     appearance
       ? `Character appearance prose (secondary — must conform to the BODY TYPE LOCK above; do not replace silhouette with a generic human that contradicts "${bt}"): Portrait of ${a.name || "an original companion"}: ${appearance}`
       : `Portrait of ${a.name || "an original companion"} — no extra appearance paragraph; infer wardrobe and texture only from the body-type opening, gender scope, and art/scene lines.`,
