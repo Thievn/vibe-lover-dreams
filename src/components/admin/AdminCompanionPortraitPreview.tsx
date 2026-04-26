@@ -53,11 +53,19 @@ export function AdminCompanionPortraitPreview({
         gradientTo={gradientTo}
       >
         <div
-          className={cn("relative w-full overflow-hidden rounded-[1.35rem] bg-black/15", portraitAspectClass)}
+          className={cn(
+            "relative w-full overflow-hidden rounded-[1.35rem]",
+            loopVideoActive ? "bg-black" : "bg-black/15",
+            portraitAspectClass,
+          )}
         >
           <div
             className="absolute inset-0 z-0"
-            style={{ background: `linear-gradient(160deg, ${gradientFrom}66, ${gradientTo}55)` }}
+            style={
+              loopVideoActive
+                ? { background: "#000" }
+                : { background: `linear-gradient(160deg, ${gradientFrom}66, ${gradientTo}55)` }
+            }
           />
           {loopVideoActive && animatedSrc ? (
             <>
@@ -65,13 +73,15 @@ export function AdminCompanionPortraitPreview({
                 <img
                   src={stillSrc}
                   alt=""
-                  className="absolute inset-0 z-[1] h-full w-full object-cover object-center"
+                  className="absolute inset-0 z-[1] h-full w-full object-contain object-center"
+                  aria-hidden
                 />
               ) : null}
               <video
                 key={animatedSrc}
-                className="absolute inset-0 z-[2] h-full w-full object-cover object-center"
+                className="absolute inset-0 z-[2] h-full w-full object-contain object-center"
                 src={animatedSrc}
+                poster={stillSrc ?? undefined}
                 autoPlay
                 muted
                 loop

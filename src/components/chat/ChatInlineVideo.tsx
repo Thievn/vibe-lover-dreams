@@ -62,7 +62,7 @@ export function ChatInlineVideo({
       controls
       playsInline
       loop={loopOn}
-      className="absolute inset-0 h-full w-full object-cover"
+      className="absolute inset-0 h-full w-full object-contain bg-black"
       preload="metadata"
     />
   );

@@ -624,7 +624,7 @@ const CompanionProfile = () => {
         </motion.button>
 
         <div className="grid lg:grid-cols-[minmax(0,460px)_1fr] gap-10 lg:gap-14 items-start">
-          {/* Portrait column — 2:3 card ratio; loop MP4 object-covers the frame */}
+          {/* Portrait column — 2:3 shell; loop MP4 uses object-contain (full frame, side letterbox if needed) */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -645,16 +645,21 @@ const CompanionProfile = () => {
               >
                 <div
                   className={cn(
-                    "relative w-full overflow-hidden rounded-[1.35rem] bg-black/15",
+                    "relative w-full overflow-hidden rounded-[1.35rem]",
+                    loopVideoActive ? "bg-black" : "bg-black/15",
                     portraitAspectClass,
                   )}
                 >
                   {isAbyssal && <AbyssalProfileParticles />}
                   <div
                     className="absolute inset-0 z-0"
-                    style={{
-                      background: `linear-gradient(160deg, ${companion.gradientFrom}66, ${companion.gradientTo}55)`,
-                    }}
+                    style={
+                      loopVideoActive
+                        ? { background: "#000" }
+                        : {
+                            background: `linear-gradient(160deg, ${companion.gradientFrom}66, ${companion.gradientTo}55)`,
+                          }
+                    }
                   />
                   {loopVideoActive && animatedPortrait ? (
                     <>
@@ -662,13 +667,14 @@ const CompanionProfile = () => {
                         <img
                           src={stillForProfile}
                           alt=""
-                          className="absolute inset-0 z-[1] h-full w-full object-cover object-center"
+                          className="absolute inset-0 z-[1] h-full w-full object-contain object-center"
+                          aria-hidden
                         />
                       ) : null}
                       <video
                         key={animatedPortrait}
                         className={cn(
-                          "absolute inset-0 z-[2] h-full w-full object-cover object-center origin-center scale-[1.05] transition-opacity duration-500 ease-out ring-0 outline-none",
+                          "absolute inset-0 z-[2] h-full w-full object-contain object-center transition-opacity duration-500 ease-out ring-0 outline-none",
                           loopVideoReady ? "opacity-100" : "opacity-0",
                         )}
                         src={animatedPortrait}
