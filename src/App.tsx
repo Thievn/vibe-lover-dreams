@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useCallback, Component, ReactNode } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { MobileNavGate } from "@/components/mobile/MobileNavGate";
 import { MobileToaster } from "@/components/mobile/MobileToaster";
 import { supabase } from "@/integrations/supabase/client";
@@ -263,6 +264,7 @@ function App() {
           <MobileToaster />
           <MobileNavGate />
           {ageConfirmed ? <InstallPrompt /> : null}
+          <SpeedInsights />
         </div>
       </ErrorBoundary>
     </Router>
