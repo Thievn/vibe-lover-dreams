@@ -62,14 +62,14 @@ export function ChatInlineVideo({
       controls
       playsInline
       loop={loopOn}
-      className="absolute inset-0 h-full w-full object-contain bg-black"
+      className="absolute inset-0 h-full w-full object-cover bg-black"
       preload="metadata"
     />
   );
 
   return (
     <div className={cn("space-y-2", className)}>
-      <div className="relative mx-auto w-full max-w-[min(92vw,280px)] aspect-[2/3] overflow-hidden rounded-xl bg-black">
+      <div className="relative mx-auto w-full max-w-[min(92vw,280px)] aspect-[9/16] overflow-hidden rounded-xl bg-black">
         {inner}
         <button
           type="button"

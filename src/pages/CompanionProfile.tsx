@@ -53,7 +53,7 @@ import { formatNexusCooldownShort, nexusCooldownRemainingMs } from "@/lib/nexusM
 import { splitProseIntoParagraphs } from "@/lib/profileProseSplit";
 import { buildProfileSearchTags } from "@/lib/companionSearchTags";
 import { getChatAutoSpendImages, setChatAutoSpendImages } from "@/lib/chatImageSettings";
-import { PORTRAIT_CARD_ASPECT_CLASS } from "@/lib/portraitAspect";
+import { PORTRAIT_CARD_ASPECT_CLASS, PROFILE_LOOP_VIDEO_ASPECT_CLASS } from "@/lib/portraitAspect";
 import { ChatAutoSpendImagesToggle } from "@/components/chat/ChatAutoSpendImagesToggle";
 import { CompanionVibeTraitStrip } from "@/components/traits/CompanionVibeTraitStrip";
 import { VibeTraitProfilePanel } from "@/components/traits/VibeTraitProfilePanel";
@@ -152,8 +152,6 @@ const CompanionProfile = () => {
   const [livePatternId, setLivePatternId] = useState<string | null>(null);
   const sustainedToySessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
   const [profileTab, setProfileTab] = useState<"profile" | "gallery" | "live">("profile");
-  /** Fade loop MP4 in over the still so we never flash an empty frame while the video buffers */
-  const [loopVideoReady, setLoopVideoReady] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
   const [autoSpendChatImages, setAutoSpendChatImagesState] = useState(false);
   const [dropClickTracked, setDropClickTracked] = useState(false);
@@ -197,11 +195,9 @@ const CompanionProfile = () => {
   const loopVideoActive = Boolean(
     showLoopVideo && animatedPortrait && isVideoPortraitUrl(animatedPortrait),
   );
-  const portraitAspectClass = PORTRAIT_CARD_ASPECT_CLASS;
-
-  useEffect(() => {
-    setLoopVideoReady(false);
-  }, [id, animatedPortrait]);
+  const portraitAspectClass = loopVideoActive
+    ? PROFILE_LOOP_VIDEO_ASPECT_CLASS
+    : PORTRAIT_CARD_ASPECT_CLASS;
 
   useEffect(() => {
     if (companion?.id) setAutoSpendChatImagesState(getChatAutoSpendImages(companion.id));
@@ -624,7 +620,7 @@ const CompanionProfile = () => {
         </motion.button>
 
         <div className="grid lg:grid-cols-[minmax(0,460px)_1fr] gap-10 lg:gap-14 items-start">
-          {/* Portrait column — 2:3 shell; loop MP4 uses object-contain (full frame, side letterbox if needed) */}
+          {/* Still portrait: 2:3. Looping MP4: 9:16 frame to match typical I2V output; single video layer + object-cover. */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -662,31 +658,17 @@ const CompanionProfile = () => {
                     }
                   />
                   {loopVideoActive && animatedPortrait ? (
-                    <>
-                      {stillForProfile ? (
-                        <img
-                          src={stillForProfile}
-                          alt=""
-                          className="absolute inset-0 z-[1] h-full w-full object-contain object-center"
-                          aria-hidden
-                        />
-                      ) : null}
-                      <video
-                        key={animatedPortrait}
-                        className={cn(
-                          "absolute inset-0 z-[2] h-full w-full object-contain object-center transition-opacity duration-500 ease-out ring-0 outline-none",
-                          loopVideoReady ? "opacity-100" : "opacity-0",
-                        )}
-                        src={animatedPortrait}
-                        poster={stillForProfile ?? undefined}
-                        autoPlay
-                        muted
-                        loop
-                        playsInline
-                        preload="auto"
-                        onLoadedData={() => setLoopVideoReady(true)}
-                      />
-                    </>
+                    <video
+                      key={animatedPortrait}
+                      className="absolute inset-0 z-[2] h-full w-full object-cover object-center ring-0 outline-none"
+                      src={animatedPortrait}
+                      poster={stillForProfile ?? undefined}
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      preload="auto"
+                    />
                   ) : animatedPortrait && !isVideoPortraitUrl(animatedPortrait) ? (
                     <img
                       src={animatedPortrait}

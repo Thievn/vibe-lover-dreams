@@ -10,6 +10,13 @@ export const PORTRAIT_ASPECT_TOLERANCE = 0.07;
 /** Tailwind v3 arbitrary ratio for card portraits (width ÷ height = 2/3). */
 export const PORTRAIT_CARD_ASPECT_CLASS = "aspect-[2/3]";
 
+/**
+ * xAI / Grok profile loops often render as ~9:16 even when 2:3 is requested. Using this shell for the
+ * active loop avoids mismatch with a 2:3 still + 9:16 video (ugly double letterboxing) and matches object-cover
+ * to the file so head/feet are not cropped vs a wider card.
+ */
+export const PROFILE_LOOP_VIDEO_ASPECT_CLASS = "aspect-[9/16]";
+
 const LEGACY_VERTICAL_RATIOS = [2 / 3, 3 / 4, 9 / 16] as const;
 
 /** Strict: portrait-oriented image matching the 2:3 card target. */

@@ -4,7 +4,7 @@ import { RarityTierCaption } from "@/components/rarity/RarityTierCaption";
 import { cn } from "@/lib/utils";
 import { isVideoPortraitUrl } from "@/lib/companionMedia";
 import type { CompanionRarity } from "@/lib/companionRarity";
-import { PORTRAIT_CARD_ASPECT_CLASS } from "@/lib/portraitAspect";
+import { PORTRAIT_CARD_ASPECT_CLASS, PROFILE_LOOP_VIDEO_ASPECT_CLASS } from "@/lib/portraitAspect";
 
 type Props = {
   name: string;
@@ -24,7 +24,7 @@ type Props = {
 
 /**
  * WYSIWYG for Character management: same `ProfilePortraitTierHalo` + `RarityBorderOverlay` path as
- * `CompanionProfile` (profile polish, 2:3 + frame bleed when a looping MP4 is on).
+ * `CompanionProfile`: 2:3 for stills; 9:16 when looping MP4 (matches typical I2V) + frame bleed.
  */
 export function AdminCompanionPortraitPreview({
   name,
@@ -42,7 +42,9 @@ export function AdminCompanionPortraitPreview({
   const loopVideoActive = Boolean(
     profileLoopEnabled && animatedSrc && isVideoPortraitUrl(animatedSrc),
   );
-  const portraitAspectClass = PORTRAIT_CARD_ASPECT_CLASS;
+  const portraitAspectClass = loopVideoActive
+    ? PROFILE_LOOP_VIDEO_ASPECT_CLASS
+    : PORTRAIT_CARD_ASPECT_CLASS;
 
   return (
     <div className={cn("w-full", shellClassName, className)}>
@@ -68,26 +70,16 @@ export function AdminCompanionPortraitPreview({
             }
           />
           {loopVideoActive && animatedSrc ? (
-            <>
-              {stillSrc ? (
-                <img
-                  src={stillSrc}
-                  alt=""
-                  className="absolute inset-0 z-[1] h-full w-full object-contain object-center"
-                  aria-hidden
-                />
-              ) : null}
-              <video
-                key={animatedSrc}
-                className="absolute inset-0 z-[2] h-full w-full object-contain object-center"
-                src={animatedSrc}
-                poster={stillSrc ?? undefined}
-                autoPlay
-                muted
-                loop
-                playsInline
-              />
-            </>
+            <video
+              key={animatedSrc}
+              className="absolute inset-0 z-[2] h-full w-full object-cover object-center"
+              src={animatedSrc}
+              poster={stillSrc ?? undefined}
+              autoPlay
+              muted
+              loop
+              playsInline
+            />
           ) : animatedSrc && !isVideoPortraitUrl(animatedSrc) ? (
             <img
               src={animatedSrc}
