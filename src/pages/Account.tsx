@@ -7,6 +7,7 @@ import ParticleBackground from "@/components/ParticleBackground";
 import { cn } from "@/lib/utils";
 import { isPlatformAdmin } from "@/config/auth";
 import type { User } from "@supabase/supabase-js";
+import { fetchFcPaymentHistory, type FcOrderRow } from "@/lib/nowpaymentsFcClient";
 
 type UserTransactionRow = {
   id: string;
@@ -30,6 +31,7 @@ export default function Account() {
   const [accountTab, setAccountTab] = useState<"account" | "history">("account");
   const [txLoading, setTxLoading] = useState(false);
   const [txRows, setTxRows] = useState<UserTransactionRow[]>([]);
+  const [purchaseRows, setPurchaseRows] = useState<FcOrderRow[]>([]);
 
   const load = useCallback(async () => {
     const {
@@ -70,12 +72,15 @@ export default function Account() {
         .order("created_at", { ascending: false })
         .limit(200);
       if (error) throw error;
+      const purchases = await fetchFcPaymentHistory();
       setTxRows(
         (data as UserTransactionRow[] | null)?.filter(Boolean) ?? [],
       );
+      setPurchaseRows(purchases);
     } catch (e) {
       console.error(e);
       setTxRows([]);
+      setPurchaseRows([]);
     } finally {
       setTxLoading(false);
     }
@@ -318,6 +323,30 @@ export default function Account() {
                   Spends and credits in Forge Coins (FC). Most recent first.
                 </p>
               </div>
+              {purchaseRows.length > 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 space-y-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Payments</p>
+                  <ul className="space-y-1.5">
+                    {purchaseRows.slice(0, 6).map((p) => (
+                      <li key={p.id} className="text-xs flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/25 px-2.5 py-2">
+                        <span className="text-foreground/90">${p.usd_amount} → {p.fc_amount} FC</span>
+                        <span className={cn(
+                          "uppercase text-[10px] tracking-wider rounded-full border px-2 py-0.5",
+                          p.payment_status === "completed" && "text-emerald-300 border-emerald-400/35 bg-emerald-500/10",
+                          p.payment_status === "pending" && "text-amber-200 border-amber-300/35 bg-amber-500/10",
+                          (p.payment_status === "failed" || p.payment_status === "expired" || p.payment_status === "refunded") &&
+                            "text-rose-300 border-rose-300/35 bg-rose-500/10",
+                        )}>
+                          {p.payment_status}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Link to="/buy-credits" className="inline-flex text-xs text-[#FF2D7B] hover:underline">
+                    Open Buy Credits →
+                  </Link>
+                </div>
+              ) : null}
               {txLoading ? (
                 <p className="text-sm text-muted-foreground">Loading…</p>
               ) : txRows.length === 0 ? (

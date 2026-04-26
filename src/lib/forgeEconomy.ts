@@ -8,26 +8,26 @@ import type { CompanionRarity } from "@/lib/companionRarity";
 
 export const FC_USD = 0.01;
 
-/** Text chat: one assistant reply round (per message send). */
-export const CHAT_MESSAGE_FC = 3;
+/** Text chat is free. */
+export const CHAT_MESSAGE_FC = 0;
 
 /** xAI Realtime live voice: billed per **started** minute in client (see LiveCallPage on hangup). */
-export const LIVE_VOICE_FC_PER_MINUTE = 35;
+export const LIVE_VOICE_FC_PER_MINUTE = 22;
 
 /** Lewd / selfie (non-nude) image generation. */
-export const CHAT_IMAGE_LEWD_FC = 25;
+export const CHAT_IMAGE_LEWD_FC = 12;
 
 /** Nude / Tensor path still. */
-export const CHAT_IMAGE_NUDE_FC = 45;
+export const CHAT_IMAGE_NUDE_FC = 22;
 
 /** One companion created in Forge (finalize). */
-export const FORGE_CREATE_COMPANION_FC = 80;
+export const FORGE_CREATE_COMPANION_FC = 45;
 
 /** Design-lab / packshot preview (Grok) — cheap iteration. */
 export const FORGE_PREVIEW_FC = 20;
 
 /** The Nexus: standard merge. Optional infusion add-on. */
-export const NEXUS_MERGE_FC = 250;
+export const NEXUS_MERGE_FC = 140;
 export const NEXUS_INFUSE_ADDON_FC = 50;
 
 /** Short video clip in chat. */

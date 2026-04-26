@@ -24,6 +24,7 @@ const CompanionCreator = lazy(() => import("./pages/CompanionCreator"));
 const LiveCallPage = lazy(() => import("./pages/LiveCallPage"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Admin = lazy(() => import("./pages/Admin"));
+const BuyCredits = lazy(() => import("./pages/BuyCredits"));
 
 function AnalyticsTracker() {
   const location = useLocation();
@@ -246,6 +247,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Settings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/buy-credits"
+                element={
+                  <ProtectedRoute>
+                    <BuyCredits />
                   </ProtectedRoute>
                 }
               />

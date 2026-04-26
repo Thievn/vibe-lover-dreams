@@ -1889,7 +1889,7 @@ User flavor notes: ${extraNotes || "none"}`;
                 <p className="text-sm text-muted-foreground mt-2 max-w-md leading-relaxed">
                   {isAdmin
                     ? "Admin forge — no token cost. Shape every variable, then commit."
-                    : "Cheap live previews to iterate. Final binding costs 80 FC per companion."}
+                    : `Cheap live previews to iterate. Final binding costs ${FINAL_COST_PER} FC per companion.`}
                 </p>
               </div>
               {!isAdmin && (

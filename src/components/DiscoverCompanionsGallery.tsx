@@ -494,13 +494,21 @@ export default function DiscoverCompanionsGallery() {
                               <span className="truncate">by {c.galleryCredit}</span>
                             </p>
                           ) : null}
-                          <p
-                            className="pt-1 font-gothic text-lg tabular-nums leading-none drop-shadow-sm"
-                            style={rarityPriceStyle}
-                            aria-label={`${buyFc} Forge Coins`}
-                          >
-                            {buyFc} <span className="text-[11px] font-sans text-white/90">FC</span>
-                          </p>
+                          <div className="pt-1">
+                            <div
+                              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-[0_0_24px_rgba(255,45,123,0.18)]"
+                              style={{
+                                ...rarityPriceStyle,
+                                borderColor: `${rarityTierCaptionColor(c.rarity)}55`,
+                                background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(0,0,0,0.28))",
+                              }}
+                              aria-label={`${buyFc} Forge Coins`}
+                            >
+                              <Sparkles className="h-3.5 w-3.5" />
+                              <span className="font-gothic text-base tabular-nums leading-none">{buyFc}</span>
+                              <span className="text-[10px] uppercase tracking-wider text-white/85">FC</span>
+                            </div>
+                          </div>
                         </div>
                         <div className="absolute inset-0 z-[3] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/[0.07] to-primary/10 pointer-events-none" />
                       </TierHaloPortraitFrame>

@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Flame,
   Gamepad2,
+  Coins,
   Heart,
   ImagePlus,
   Layers,
@@ -457,6 +458,13 @@ export default function Dashboard() {
                   Admin Panel
                 </Link>
               )}
+              <Link
+                to="/buy-credits"
+                className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white border border-[#FF2D7B]/35 bg-[#FF2D7B]/18 hover:bg-[#FF2D7B]/26 transition-colors"
+              >
+                <Coins className="h-4 w-4" />
+                Buy Forge Coins
+              </Link>
 
               <div className="relative" ref={profileRef}>
                 <button
@@ -689,6 +697,13 @@ export default function Dashboard() {
         </AnimatePresence>
 
       </div>
+      <Link
+        to="/buy-credits"
+        className="fixed z-[80] bottom-20 right-4 md:bottom-6 md:right-6 inline-flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold text-white shadow-xl border border-[#FF2D7B]/45 bg-[#FF2D7B]/22 hover:bg-[#FF2D7B]/30 transition-colors"
+      >
+        <Coins className="h-4 w-4" />
+        Buy Forge Coins
+      </Link>
     </div>
   );
 }

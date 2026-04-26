@@ -81,6 +81,7 @@ import {
   type TtsUxVoiceId,
 } from "@/lib/ttsVoicePresets";
 import { CHAT_IMAGE_LEWD_FC, CHAT_IMAGE_NUDE_FC, CHAT_MESSAGE_FC } from "@/lib/forgeEconomy";
+import { LIVE_CALL_CREDITS_PER_MINUTE } from "@/lib/liveCallBilling";
 import { spendForgeCoins } from "@/lib/forgeCoinsClient";
 import { ToyHubPopover } from "@/components/toy/ToyHubPopover";
 import { ChatGallerySheet } from "@/components/chat/ChatGallerySheet";
@@ -1430,8 +1431,8 @@ const Chat = () => {
     const silent = opts?.silent ?? false;
     const cost = isAdminUser ? 0 : CHAT_VIDEO_TOKEN_COST;
     if (!isAdminUser && tokensBalance < cost) {
-      toast.error(`Video clips cost ${cost} forge credits. You have ${tokensBalance}.`, {
-        action: { label: "Upgrade", onClick: () => navigate("/") },
+      toast.error(`Video clips cost ${cost} FC. You have ${tokensBalance} FC.`, {
+        action: { label: "Buy FC", onClick: () => navigate("/buy-credits") },
       });
       return;
     }
@@ -1710,8 +1711,8 @@ const Chat = () => {
         : pendingImageFc;
     if (!isAdminUser && tokensBalanceRef.current < needTokens) {
       toast.error(
-        `Not enough Forge Coins. You need ${needTokens} FC (or use one of ${FREE_NSFW_CHAT_IMAGES} free NSFW stills — ${freeUsed} used).`,
-        { action: { label: "Upgrade", onClick: () => navigate("/") } },
+          `Not enough Forge Coins. You need ${needTokens} FC (or use one of ${FREE_NSFW_CHAT_IMAGES} free NSFW stills — ${freeUsed} used).`,
+        { action: { label: "Buy FC", onClick: () => navigate("/buy-credits") } },
       );
       return;
     }
@@ -1830,8 +1831,8 @@ const Chat = () => {
           : "messaging";
       toast.error(`Not enough FC for ${tokenType}. You need ${requiredTokens} FC but only have ${balanceNow}.`, {
         action: {
-          label: "Upgrade",
-          onClick: () => navigate("/"),
+          label: "Buy FC",
+          onClick: () => navigate("/buy-credits"),
         },
       });
       return;
@@ -2192,11 +2193,11 @@ const Chat = () => {
 
     void (async () => {
       const bal = await fetchTokens(user.id);
-      if (!isAdminUser && bal < CHAT_MESSAGE_FC) {
+      if (!isAdminUser && CHAT_MESSAGE_FC > 0 && bal < CHAT_MESSAGE_FC) {
         starterSentRef.current = false;
         toast.error(
           `Not enough Forge Coins to begin this fantasy. You need ${CHAT_MESSAGE_FC} FC but have ${bal}.`,
-          { action: { label: "Upgrade", onClick: () => navigate("/") } },
+          { action: { label: "Buy FC", onClick: () => navigate("/buy-credits") } },
         );
         return;
       }
@@ -2389,13 +2390,7 @@ const Chat = () => {
             {!isAdminUser && tokensBalance < 100 && tokensBalance > 0 && (
               <div className="shrink-0 border-b border-destructive/20 bg-destructive/10 px-3 py-2 text-center text-xs text-destructive sm:px-4">
                 Low Forge Coins! You have {tokensBalance} FC.{" "}
-                <Link to="/" className="font-medium underline">Top up</Link>
-              </div>
-            )}
-
-            {!isAdminUser && tokensBalance <= 0 && (
-              <div className="shrink-0 border-b border-destructive/30 bg-destructive/20 px-3 py-2.5 text-center text-sm font-medium text-destructive sm:px-4">
-                Out of Forge Coins! <Link to="/" className="underline">Add FC</Link> to keep chatting.
+                <Link to="/buy-credits" className="font-medium underline">Top up</Link>
               </div>
             )}
 
@@ -2430,7 +2425,7 @@ const Chat = () => {
             <div className="z-20 shrink-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1 sm:px-3">
               <ChatSmartReplies
                 suggestions={smartSuggestions}
-                disabled={loading || (!isAdminUser && tokensBalance <= 0)}
+                disabled={loading}
                 loading={loading}
                 onPick={(s) => {
                   setInput(s);
@@ -2442,7 +2437,7 @@ const Chat = () => {
             {sessionMode === "live_voice" ? (
               <div className="z-10 shrink-0 border-t border-white/[0.06] bg-gradient-to-b from-black/40 to-transparent px-2 pb-1 sm:px-3">
                 <LiveVoicePanel
-                  disabled={!isAdminUser && tokensBalance <= 0}
+                  disabled={!isAdminUser && tokensBalance < LIVE_CALL_CREDITS_PER_MINUTE}
                   busy={loading}
                   onRegisterRampAssistFeed={registerLiveRampAssistFeed}
                   onSendText={liveVoiceSendText}
@@ -2488,12 +2483,10 @@ const Chat = () => {
                 input={input}
                 onChange={setInput}
                 onSubmit={() => void sendMessage()}
-                disabled={!isAdminUser && tokensBalance <= 0}
+                disabled={false}
                 loading={loading}
                 placeholder={
-                  !isAdminUser && tokensBalance <= 0
-                    ? "Out of FC — add Forge Coins to continue"
-                    : sessionMode === "live_voice"
+                  sessionMode === "live_voice"
                       ? `Type to ${companion.name} or use the mic above…`
                       : `Message ${companion.name}… stills, clips, or just talk`
                 }
@@ -2516,7 +2509,7 @@ const Chat = () => {
                     imageRequestFromMenu: true,
                   })
                 }
-                mediaMenuDisabled={Boolean(user && !isAdminUser && tokensBalance <= 0)}
+                mediaMenuDisabled={Boolean(user && !isAdminUser && tokensBalance < CHAT_IMAGE_LEWD_FC)}
                 videoMenuDisabled={Boolean(user && !isAdminUser && tokensBalance < CHAT_VIDEO_TOKEN_COST)}
                 imageCostLabel={isAdminUser ? "waived" : `${CHAT_IMAGE_LEWD_FC}–${CHAT_IMAGE_NUDE_FC} FC still`}
                 videoCostLabel={isAdminUser ? "waived" : `${CHAT_VIDEO_TOKEN_COST} FC clip`}
