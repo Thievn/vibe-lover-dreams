@@ -52,6 +52,8 @@ function fallbackFromAssets(): HeroCard[] {
 export default function HeroSection({ onGetStarted }: HeroSectionProps) {
   const { data: dbList, isLoading } = useCompanions();
   const [shuffled, setShuffled] = useState<HeroCard[]>([]);
+  const [isShuffling, setIsShuffling] = useState(false);
+  const [shuffleTick, setShuffleTick] = useState(0);
   /** Portrait URLs that failed to load (expired signed links, etc.) — show gradient + initial instead. */
   const [brokenPortraitIds, setBrokenPortraitIds] = useState<Set<string>>(() => new Set());
 
@@ -73,7 +75,10 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
   const totalCompanions = pool.length;
 
   const reshuffle = useCallback(() => {
+    setIsShuffling(true);
+    setShuffleTick((v) => v + 1);
     setShuffled(shufflePickSix(pool));
+    window.setTimeout(() => setIsShuffling(false), 320);
   }, [pool]);
 
   useEffect(() => {
@@ -185,21 +190,45 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
           <motion.button
             type="button"
             onClick={reshuffle}
-            whileTap={{ rotate: 180 }}
-            transition={{ type: "spring", stiffness: 400, damping: 15 }}
-            className="absolute -top-1 sm:-top-5 right-0 sm:right-1 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-primary/35 bg-black/50 backdrop-blur-md text-primary hover:bg-primary/18 hover:border-primary/55 transition-colors touch-manipulation shadow-[0_0_20px_rgba(255,45,123,0.15)]"
+            whileHover={{ scale: 1.06 }}
+            whileTap={{ scale: 0.94 }}
+            transition={{ type: "spring", stiffness: 360, damping: 20 }}
+            className="absolute top-1 sm:-top-4 -right-2 sm:-right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-primary/25 bg-black/35 backdrop-blur-md text-primary/90 hover:bg-primary/14 hover:border-primary/45 transition-colors touch-manipulation shadow-[0_0_14px_rgba(255,45,123,0.12)]"
             aria-label="Shuffle companions"
           >
-            <RefreshCw className="h-4 w-4" />
+            <motion.span
+              aria-hidden
+              className="absolute inset-0 rounded-full border border-primary/30"
+              animate={{ opacity: isShuffling ? [0.2, 0.55, 0.2] : [0.15, 0.3, 0.15] }}
+              transition={{ duration: isShuffling ? 0.55 : 2.2, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <motion.span
+              animate={{ rotate: isShuffling ? 360 : 0 }}
+              transition={{ duration: 0.55, ease: "easeInOut" }}
+              className="relative z-[1]"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </motion.span>
           </motion.button>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-4 pt-2">
+          <motion.div
+            className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-4 pt-2"
+            animate={isShuffling ? { opacity: [1, 0.82, 1] } : { opacity: 1 }}
+            transition={{ duration: 0.32, ease: "easeInOut" }}
+          >
             {shuffled.map((comp, index) => (
               <motion.div
-                key={`${comp.id}-${index}`}
+                key={`${comp.id}-${shuffleTick}`}
+                layout
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.06, type: "spring", stiffness: 420, damping: 22 }}
+                transition={{
+                  delay: index * 0.04,
+                  type: "spring",
+                  stiffness: 360,
+                  damping: 24,
+                  layout: { type: "spring", stiffness: 260, damping: 26 },
+                }}
                 whileHover={{ y: -4, transition: { type: "spring", stiffness: 500, damping: 12 } }}
                 className="h-full p-1 max-sm:p-0.5"
               >
@@ -249,7 +278,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
                 </div>
               </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </div>
     </section>
