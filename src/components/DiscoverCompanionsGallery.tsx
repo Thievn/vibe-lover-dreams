@@ -434,9 +434,9 @@ export default function DiscoverCompanionsGallery() {
                       boxShadow: `0 10px 30px rgba(0,0,0,0.32), ${glow.glow}`,
                     }}
                   >
-                    <div className="flex flex-col rounded-2xl overflow-hidden border border-white/[0.06] bg-black/20 shadow-inner">
+                    <div className="flex flex-col rounded-2xl overflow-visible border border-white/[0.06] bg-black/20 shadow-inner">
                       <Link
-                        to={`/companions/${c.id}`}
+                        to={`/companions/${c.id}?discover=1`}
                         state={{
                           from: `${location.pathname}${location.search}`,
                           discoverPreview: true as const,

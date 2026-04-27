@@ -168,25 +168,31 @@ const CompanionProfile = () => {
 
   const { dbComp, forgeLookupBusy: forgeRowFetching } = useForgeCompanionOverlay(id, dbCompanions, isLoading);
 
-  /** e.g. Chat “Live call” can deep-link here with `state: { profileTab: "live" }`. */
-  useEffect(() => {
-    const tab = (location.state as { profileTab?: "profile" | "gallery" | "live" } | null)?.profileTab;
-    if (tab === "profile" || tab === "gallery" || tab === "live") {
-      setProfileTab(tab);
-    }
-  }, [location.state]);
   const companion = dbComp ? dbToCompanion(dbComp) : null;
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const isDropLanding = searchParams.get("drop") === "1";
   const weeklyDropId = searchParams.get("wd");
-  const discoverPreview =
+  const discoverPreviewFromState =
     (location.state as { discoverPreview?: boolean } | null)?.discoverPreview === true;
+  const discoverPreviewFromQuery = searchParams.get("discover") === "1";
+  const discoverPreview = discoverPreviewFromState || discoverPreviewFromQuery;
   const isOwnForge = Boolean(
     user?.id && dbComp?.user_id === user.id && companion?.id?.startsWith("cc-"),
   );
   const discoverFeatureLock = Boolean(
-    companion && discoverPreview && !pinned && !isOwnForge && !isDropLanding,
+    companion && discoverPreview && !isOwnForge && !isDropLanding,
   );
+
+  /** e.g. Chat “Live call” can deep-link here with `state: { profileTab: "live" }`. */
+  useEffect(() => {
+    const st = location.state as { profileTab?: "profile" | "gallery" | "live"; discoverPreview?: boolean } | null;
+    const tab = st?.profileTab;
+    if (tab !== "profile" && tab !== "gallery" && tab !== "live") return;
+    const previewLocked =
+      st?.discoverPreview === true || new URLSearchParams(location.search).get("discover") === "1";
+    if (previewLocked && tab !== "profile") return;
+    setProfileTab(tab);
+  }, [location.state, location.search]);
   const vibeTraits = useMemo(
     () => (companion ? resolveDisplayTraitsForCompanion(companion) : []),
     [companion],
@@ -319,6 +325,12 @@ const CompanionProfile = () => {
   }, [stopSustainedToy]);
 
   const triggerProfileVibration = async (row: CompanionVibrationPatternRow) => {
+    if (discoverFeatureLock) {
+      toast.message("Vault sealed", {
+        description: "Acquire this card to use Lovense patterns.",
+      });
+      return;
+    }
     if (!user) {
       navigate("/auth", { state: { from: `/companions/${companion?.id}` } });
       return;
@@ -520,6 +532,12 @@ const CompanionProfile = () => {
   }
 
   const handleStartChat = (starterPrompt?: string, starterTitle?: string) => {
+    if (discoverFeatureLock) {
+      toast.message("Vault sealed", {
+        description: "Acquire this card to unlock chat and fantasies.",
+      });
+      return;
+    }
     if (!user) {
       navigate("/auth", { state: { from: `/companions/${companion.id}` } });
       return;
@@ -577,6 +595,8 @@ const CompanionProfile = () => {
       } else {
         toast.success(`Added to your vault — ${r.priceFc} FC`, { description: companion.name });
       }
+      const from = (location.state as { from?: string } | null)?.from;
+      navigate({ pathname: `/companions/${id}`, search: "" }, { replace: true, state: from ? { from } : {} });
     } finally {
       setPurchasingDiscoverProfile(false);
       setBuyConfirmProfileOpen(false);
@@ -824,7 +844,7 @@ const CompanionProfile = () => {
               </div>
             ) : null}
             <div className="mt-6 hidden lg:block">
-              <ProfileDiscoverRow hideCollectionPin={discoverFeatureLock} />
+              <ProfileDiscoverRow />
             </div>
           </motion.div>
 
@@ -1200,7 +1220,7 @@ const CompanionProfile = () => {
             )}
 
             <div className="lg:hidden">
-              <ProfileDiscoverRow hideCollectionPin={discoverFeatureLock} />
+              <ProfileDiscoverRow />
             </div>
 
             <VibeTraitProfilePanel traits={vibeTraits} isNexus={Boolean(companion.isNexusHybrid)} />
