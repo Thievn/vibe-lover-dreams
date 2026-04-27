@@ -64,7 +64,7 @@ export function ProfilePortraitTierHalo({
           r.outer,
           isProfile &&
             "shadow-[0_2px_16px_rgba(0,0,0,0.28)] motion-reduce:animate-none animate-[profile-tier-pop_1.15s_cubic-bezier(0.22,1,0.36,1)_both]",
-          !isProfile && isCleanCard && "shadow-[0_6px_28px_rgba(0,0,0,0.26)]",
+          !isProfile && isCleanCard && "shadow-none",
           !isProfile && !isCleanCard && "shadow-[0_12px_32px_rgba(0,0,0,0.38)]",
         )}
       >

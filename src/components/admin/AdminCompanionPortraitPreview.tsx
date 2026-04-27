@@ -57,7 +57,7 @@ export function AdminCompanionPortraitPreview({
         <div
           className={cn(
             "relative w-full overflow-hidden rounded-[1.35rem]",
-            loopVideoActive ? "bg-black" : "bg-black/15",
+            loopVideoActive ? "bg-black" : "bg-transparent",
             portraitAspectClass,
           )}
         >
