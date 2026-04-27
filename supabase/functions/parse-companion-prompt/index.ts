@@ -15,7 +15,11 @@ Deno.serve(async (req) => {
   if ("response" in sessionGate) return sessionGate.response;
 
   try {
-    const { prompt, mode } = await req.json() as { prompt?: string; mode?: string };
+    const { prompt, mode, grotesque_gpk } = await req.json() as {
+      prompt?: string;
+      mode?: string;
+      grotesque_gpk?: boolean;
+    };
 
     if (!prompt || typeof prompt !== "string") {
       return new Response(JSON.stringify({ error: "prompt is required" }), {
@@ -25,7 +29,9 @@ Deno.serve(async (req) => {
     }
 
     const parodyLab = mode === "parody_lab";
+    const celebrityParody = mode === "celebrity_parody";
     const companionDesignLab = mode === "companion_design_lab";
+    const grotesqueGpk = celebrityParody && grotesque_gpk === true;
 
     const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
     if (!apiKey) {
@@ -59,6 +65,33 @@ Rules (non-negotiable):
 - Fill every tool field richly: tagline, bio, system_prompt, image_prompt (SFW portrait; no fake shop signs or legible product/app names in-frame), fantasy_starters (exactly 4), gradients, tags, kinks as appropriate for the parody.
 - fantasy_starters: exactly 4; each description = verbatim first USER chat line (in-world). Match parody spice level — satirical but can be crude/lewd in voice when it fits the garbage-pale caricature. No "are you ready?" meta — end in-character.
 Always return data via the extract_companion_fields tool call.`;
+
+    const systemCelebrityParody = `You are an admin-only "Celebrity Parody" generator for a fictional adult companion catalog.
+The operator types a **celebrity, public figure, or famous fictional character name** as inspiration. You output **one wholly satirical parody companion** — not a real person, not an official likeness product, not a claim of affiliation.
+
+**Naming (critical — keep the funny parody energy that’s been working):**
+- \`name\` MUST be a jokey distorted pun, rhyme, spoonerism, or nickname (e.g. "Margot Rubby", "Margo Thiccbbie", "Thickzilla", "Elon Tusk", "Wednesday Sad-dams" style) — **never** the exact authentic spelling of a real full legal name or trademarked stage name as if it were the roster entry.
+- Tagline and voice can wink at the source; stay crass/silly when it fits parody.
+
+**Resemblance vs deepfake:**
+- **image_prompt**: premium vertical **2:3** portrait card, SFW, no nudity. Stylized caricature / key-art that evokes the figure through **hair silhouette, palette, fashion archetype, posture** — readable parody, not photoreal identity-cloning language.
+${
+      grotesqueGpk
+        ? `
+**Garbage Pail / grotesque mode (ON):** Push gross-out trading-card exaggeration — waxy skin, uneven features, sickly sheen, harsh flash, unsettling grin energy — still SFW, no gore.`
+        : `
+**Grotesque mode (OFF):** Favor a cleaner **glam parody caricature** — still exaggerated and funny, but more "premium roast" than body-horror gross-out.`
+    }
+
+**Character depth:**
+- **personality**: one cohesive, funny, in-character voice that matches the parody.
+- **tags**: 8–12 strings; **include at least 4** punchy trait-style labels (e.g. "Chaos blonde", "CEO delusion", "Goth tween venom") — not only generic nouns.
+- **kinks**: 4–10 satirical / romantic-hook strings matching the parody heat.
+- **appearance**: 3+ sentences — caricature body & face prose; **outfit & aesthetic** must read clearly and match the parody (no vague "nice clothes").
+- **backstory**: 3+ paragraphs of satirical lore — prose, not bullet dumps.
+- **fantasy_starters**: exactly 4; each \`description\` = verbatim first USER chat line (in-world). Match spice level; no "are you ready?" meta.
+
+Fill **gradient_from** / **gradient_to** to match the parody palette. Return everything ONLY via extract_companion_fields.`;
 
     const systemCompanionDesignLab =
       `You are a master character designer for a premium catalog of wholly original AI companions for adults seeking romance, fantasy, and emotional chemistry (the product is intimate; you still avoid illegal or exploitative themes).
@@ -94,7 +127,9 @@ Gradients: hex pair matching palette.
 
 Return everything ONLY via the extract_companion_fields tool call (that is your structured JSON channel).`;
 
-    const userContent = parodyLab
+    const userContent = celebrityParody
+      ? `Celebrity / character parody seed:\n"${prompt.trim()}"\n\nGenerate ONE full parody companion via the tool. Remember: parody name only; 2:3 portrait; ${grotesqueGpk ? "grotesque Garbage-Pail exaggeration." : "glam parody caricature (not gross-out)." }`
+      : parodyLab
       ? `Parody lab request (broad archetypes / genres only — no real people named):\n\n${prompt}\n\nGenerate ONE original parody companion profile via the tool.`
       : companionDesignLab
       ? `Invent ONE premium catalog companion.\n\nOperator hints (optional — if blank, maximize surprise and variety):\n${prompt.trim() || "(none — go wild within policy)"}\n\nPopulate all tool fields.`
@@ -116,11 +151,11 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
         },
         required: ["title", "description"],
       },
-      description: companionDesignLab || parodyLab
+      description: companionDesignLab || parodyLab || celebrityParody
         ? "Exactly 4 premium starters (required). Each description = user's first chat line, 1–4 sentences."
         : "3-5 starters when parsing text; exactly 4 when inventing a full catalog character (companion_design_lab)",
     };
-    if (companionDesignLab || parodyLab) {
+    if (companionDesignLab || parodyLab || celebrityParody) {
       fantasyStartersSchema.minItems = 4;
       fantasyStartersSchema.maxItems = 4;
     }
@@ -130,7 +165,9 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
       properties: {
         name: {
           type: "string",
-          description: companionDesignLab
+          description: celebrityParody
+            ? "Funny parody name — pun/rhyme/spoonerism; NEVER pass off the real celebrity/stage name spelling as the roster name."
+            : companionDesignLab
             ? "Highly unique themed name: must reflect species + personality + setting seeds; avoid repeating the same stock surname/adjective patterns as other outputs (no generic 'Velvet X / Storm Y' spam). 2–4 words or one rare compound. NEVER Forge-*, Temp-*, UUIDs, developer slugs."
             : "Character name",
         },
@@ -152,7 +189,9 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
         },
         appearance: {
           type: "string",
-          description: companionDesignLab
+          description: celebrityParody
+            ? "3+ sentences: caricature face/body + outfit & aesthetic that sell the parody; FORBIDDEN: comma-only dumps"
+            : companionDesignLab
             ? "3+ sentences of lush cinematic prose for how they look; FORBIDDEN: comma-only trait dumps or pasting seed lists"
             : "Physical appearance for profile + chat consistency",
         },
@@ -162,7 +201,7 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
           type: "string",
           description: companionDesignLab
             ? "MINIMUM 3 full paragraphs, ~400+ words of continuous narrative lore. FORBIDDEN: tag lists, comma keyword dumps, 'Tags:' lines, or re-listing the tags array. Include concrete scenes, relationships, secrets, and emotional arc — not a catalog recap."
-            : parodyLab
+            : parodyLab || celebrityParody
             ? "3+ paragraphs of satirical parody lore; still prose, not tag dumps"
             : "Profile backstory: 3+ narrative paragraphs when inferring; never a bare trait list",
         },
@@ -172,14 +211,17 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
         gradient_to: { type: "string", description: "Hex color for gradient end" },
         image_prompt: {
           type: "string",
-          description:
-            "Single cinematic SFW portrait brief: species, wardrobe, props, lighting, lens mood, pose, expression. No legible product/app/platform branding, signage-as-logo, watermarks, or UI text in the scene.",
+          description: celebrityParody
+            ? "Single dense SFW brief for a vertical 2:3 trading-card portrait: stylized parody likeness cues, outfit, lighting, pose — no legible branding or UI text in-frame."
+            : "Single cinematic SFW portrait brief: species, wardrobe, props, lighting, lens mood, pose, expression. No legible product/app/platform branding, signage-as-logo, watermarks, or UI text in the scene.",
         },
       },
       required: ["name"],
     };
 
-    const effectiveSystem = parodyLab
+    const effectiveSystem = celebrityParody
+      ? systemCelebrityParody
+      : parodyLab
       ? systemParody
       : companionDesignLab
       ? systemCompanionDesignLab
@@ -214,7 +256,7 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
           },
         ],
         tool_choice: { type: "function", function: { name: "extract_companion_fields" } },
-        temperature: companionDesignLab ? 0.88 : 0.7,
+        temperature: companionDesignLab || celebrityParody ? 0.88 : parodyLab ? 0.8 : 0.7,
       }),
     });
 

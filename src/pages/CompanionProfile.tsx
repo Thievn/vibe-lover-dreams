@@ -11,6 +11,8 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft,
   Bookmark,
+  Crown,
+  Gem,
   GitBranch,
   Heart,
   Images,
@@ -53,6 +55,9 @@ import { formatNexusCooldownShort, nexusCooldownRemainingMs } from "@/lib/nexusM
 import { splitProseIntoParagraphs } from "@/lib/profileProseSplit";
 import { buildProfileSearchTags } from "@/lib/companionSearchTags";
 import { getChatAutoSpendImages, setChatAutoSpendImages } from "@/lib/chatImageSettings";
+import { discoverCardPriceFc } from "@/lib/forgeEconomy";
+import { purchaseDiscoverCompanion } from "@/lib/forgeCoinsClient";
+import { DiscoverPurchaseConfirmDialog } from "@/components/discover/DiscoverPurchaseConfirmDialog";
 import { PORTRAIT_CARD_ASPECT_CLASS, PROFILE_LOOP_VIDEO_ASPECT_CLASS } from "@/lib/portraitAspect";
 import { ChatAutoSpendImagesToggle } from "@/components/chat/ChatAutoSpendImagesToggle";
 import { CompanionVibeTraitStrip } from "@/components/traits/CompanionVibeTraitStrip";
@@ -155,6 +160,9 @@ const CompanionProfile = () => {
   const [bioExpanded, setBioExpanded] = useState(false);
   const [autoSpendChatImages, setAutoSpendChatImagesState] = useState(false);
   const [dropClickTracked, setDropClickTracked] = useState(false);
+  const [fcBalanceProfile, setFcBalanceProfile] = useState<number | null>(null);
+  const [buyConfirmProfileOpen, setBuyConfirmProfileOpen] = useState(false);
+  const [purchasingDiscoverProfile, setPurchasingDiscoverProfile] = useState(false);
 
   const { data: vibrationPatterns = [], isLoading: vibrationPatternsLoading } = useCompanionVibrationPatterns(id);
 
@@ -171,6 +179,14 @@ const CompanionProfile = () => {
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const isDropLanding = searchParams.get("drop") === "1";
   const weeklyDropId = searchParams.get("wd");
+  const discoverPreview =
+    (location.state as { discoverPreview?: boolean } | null)?.discoverPreview === true;
+  const isOwnForge = Boolean(
+    user?.id && dbComp?.user_id === user.id && companion?.id?.startsWith("cc-"),
+  );
+  const discoverFeatureLock = Boolean(
+    companion && discoverPreview && !pinned && !isOwnForge && !isDropLanding,
+  );
   const vibeTraits = useMemo(
     () => (companion ? resolveDisplayTraitsForCompanion(companion) : []),
     [companion],
@@ -382,6 +398,32 @@ const CompanionProfile = () => {
   }, [id, user?.id]);
 
   useEffect(() => {
+    if (!discoverPreview || !user?.id) {
+      setFcBalanceProfile(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("tokens_balance")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!cancelled) {
+        setFcBalanceProfile(typeof profile?.tokens_balance === "number" ? profile.tokens_balance : null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [discoverPreview, user?.id]);
+
+  useEffect(() => {
+    if (!discoverFeatureLock) return;
+    setProfileTab((t) => (t !== "profile" ? "profile" : t));
+  }, [discoverFeatureLock]);
+
+  useEffect(() => {
     if (!isDropLanding || !weeklyDropId || dropClickTracked) return;
     setDropClickTracked(true);
     void supabase.functions.invoke("zernio-social", {
@@ -504,9 +546,52 @@ const CompanionProfile = () => {
     await queryClient.invalidateQueries({ queryKey: ["companion-generated-images", user.id, id] });
   };
 
+  const handleDiscoverPurchase = async () => {
+    if (!id || !companion) return;
+    if (!user) {
+      navigate("/auth", { state: { from: `/companions/${id}` } });
+      return;
+    }
+    const price = discoverCardPriceFc(rarity);
+    if (fcBalanceProfile !== null && fcBalanceProfile < price) {
+      toast.error(`Not enough Forge Coins. This card is ${price} FC — you have ${fcBalanceProfile} FC.`);
+      return;
+    }
+    setPurchasingDiscoverProfile(true);
+    try {
+      const r = await purchaseDiscoverCompanion(id);
+      if (!r.ok) {
+        if (r.err === "insufficient_funds") {
+          toast.error(`Need ${r.priceFc} FC. You have ${r.newBalance} FC.`);
+        } else {
+          toast.error(r.err || "Could not complete purchase.");
+        }
+        setFcBalanceProfile((b) => (b !== null ? r.newBalance : b));
+        return;
+      }
+      setFcBalanceProfile(r.newBalance);
+      setPinned(true);
+      void queryClient.invalidateQueries({ queryKey: [...VAULT_COLLECTION_QUERY_KEY, user.id] });
+      if (r.alreadyOwned) {
+        toast.message("Already in your collection", { description: companion.name });
+      } else {
+        toast.success(`Added to your vault — ${r.priceFc} FC`, { description: companion.name });
+      }
+    } finally {
+      setPurchasingDiscoverProfile(false);
+      setBuyConfirmProfileOpen(false);
+    }
+  };
+
   const badge = RARITY_BADGE[rarity];
 
-  function ProfileDiscoverRow({ className }: { className?: string }) {
+  function ProfileDiscoverRow({
+    className,
+    hideCollectionPin,
+  }: {
+    className?: string;
+    hideCollectionPin?: boolean;
+  }) {
     return (
       <div
         className={cn(
@@ -550,26 +635,28 @@ const CompanionProfile = () => {
             {voteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsDown className="h-4 w-4 shrink-0" />}
             Meh
           </motion.button>
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            disabled={pinBusy}
-            onClick={() => void togglePin()}
-            className={cn(
-              "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50",
-              pinned
-                ? "border-accent/45 bg-accent/15 text-accent"
-                : "border-stone-400/20 bg-stone-400/[0.12] text-stone-200/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-accent/35 hover:bg-stone-500/[0.14] hover:text-white",
-            )}
-          >
-            {pinBusy ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Bookmark className={cn("h-4 w-4 shrink-0", pinned && "fill-current")} />
-            )}
-            {pinned ? "In my collection" : "Save to my collection"}
-          </motion.button>
+          {!hideCollectionPin ? (
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              disabled={pinBusy}
+              onClick={() => void togglePin()}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50",
+                pinned
+                  ? "border-accent/45 bg-accent/15 text-accent"
+                  : "border-stone-400/20 bg-stone-400/[0.12] text-stone-200/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-accent/35 hover:bg-stone-500/[0.14] hover:text-white",
+              )}
+            >
+              {pinBusy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Bookmark className={cn("h-4 w-4 shrink-0", pinned && "fill-current")} />
+              )}
+              {pinned ? "In my collection" : "Save to my collection"}
+            </motion.button>
+          ) : null}
         </div>
       </div>
     );
@@ -706,13 +793,38 @@ const CompanionProfile = () => {
                 </div>
               </PortraitViewLightbox>
             </ProfilePortraitTierHalo>
+            {discoverFeatureLock ? (
+              <div className="mt-4 rounded-2xl border border-primary/35 bg-gradient-to-br from-primary/15 via-black/40 to-fuchsia-950/25 px-4 py-3 space-y-2 shadow-[0_0_28px_rgba(255,45,123,0.12)]">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Preview from Discover — browse everything below. Acquire this card to unlock chat, live calls, your
+                  gallery, and Lovense patterns.
+                </p>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    if (!user) {
+                      navigate("/auth", { state: { from: `/companions/${companion.id}` } });
+                      return;
+                    }
+                    setBuyConfirmProfileOpen(true);
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-primary/50 bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25"
+                >
+                  <Crown className="h-4 w-4 shrink-0" />
+                  Acquire card · {discoverCardPriceFc(rarity)} FC
+                  <Gem className="h-4 w-4 shrink-0 opacity-90" />
+                </motion.button>
+              </div>
+            ) : null}
             {vibeTraits.length > 0 ? (
               <div className="mt-4 flex justify-center px-1 pointer-events-auto">
                 <CompanionVibeTraitStrip traits={vibeTraits} size="md" max={8} />
               </div>
             ) : null}
             <div className="mt-6 hidden lg:block">
-              <ProfileDiscoverRow />
+              <ProfileDiscoverRow hideCollectionPin={discoverFeatureLock} />
             </div>
           </motion.div>
 
@@ -762,7 +874,7 @@ const CompanionProfile = () => {
               </p>
             </div>
 
-            {user && companion ? (
+            {user && companion && !discoverFeatureLock ? (
               <ChatAutoSpendImagesToggle
                 variant="profile"
                 enabled={autoSpendChatImages}
@@ -790,11 +902,12 @@ const CompanionProfile = () => {
               </button>
               <button
                 type="button"
-                disabled={isDropLanding}
+                disabled={isDropLanding || discoverFeatureLock}
+                title={discoverFeatureLock ? "Unlock this card to use your gallery" : undefined}
                 onClick={() => setProfileTab("gallery")}
                 className={cn(
                   "flex-1 min-w-0 inline-flex items-center justify-center gap-1 sm:gap-2 rounded-xl py-2.5 text-xs sm:text-sm font-semibold transition-colors touch-manipulation",
-                  isDropLanding && "cursor-not-allowed opacity-60",
+                  (isDropLanding || discoverFeatureLock) && "cursor-not-allowed opacity-60",
                   profileTab === "gallery"
                     ? "bg-primary/20 text-primary border border-primary/30"
                     : "text-muted-foreground hover:text-foreground",
@@ -805,9 +918,10 @@ const CompanionProfile = () => {
               </button>
               <button
                 type="button"
-                disabled={isDropLanding}
+                disabled={isDropLanding || discoverFeatureLock}
+                title={discoverFeatureLock ? "Unlock this card for live calls" : undefined}
                 onClick={() => {
-                  if (isDropLanding) return;
+                  if (isDropLanding || discoverFeatureLock) return;
                   if (!user) {
                     navigate("/auth", { state: { from: `/companions/${companion.id}` } });
                     return;
@@ -816,7 +930,7 @@ const CompanionProfile = () => {
                 }}
                 className={cn(
                   "flex-1 min-w-0 inline-flex items-center justify-center gap-1 sm:gap-2 rounded-xl py-2.5 text-xs sm:text-sm font-semibold transition-colors touch-manipulation",
-                  isDropLanding && "cursor-not-allowed opacity-60",
+                  (isDropLanding || discoverFeatureLock) && "cursor-not-allowed opacity-60",
                   profileTab === "live"
                     ? "bg-primary/20 text-primary border border-primary/30"
                     : "text-muted-foreground hover:text-foreground",
@@ -845,6 +959,26 @@ const CompanionProfile = () => {
                     hint="Selfie studio generates custom portraits in this companion’s style."
                     icon={<Images className="h-4 w-4 shrink-0" />}
                   />
+                </>
+              ) : discoverFeatureLock ? (
+                <>
+                  <PremiumDisabledButton
+                    label="Start chat"
+                    hint="Acquire this card from Discover to unlock chat and fantasies."
+                    icon={<MessageCircle className="h-5 w-5 shrink-0" />}
+                  />
+                  <PremiumDisabledButton
+                    label="Live call"
+                    hint="Acquire this card to unlock voice sessions."
+                    icon={<Phone className="h-4 w-4 shrink-0" />}
+                  />
+                  <Link
+                    to="/"
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/[0.1] bg-card/60 px-5 py-3.5 text-sm font-semibold text-muted-foreground backdrop-blur-md hover:border-primary/35 hover:text-primary transition-colors"
+                  >
+                    <Flame className="h-4 w-4" />
+                    Browse forge
+                  </Link>
                 </>
               ) : (
                 <>
@@ -1066,7 +1200,7 @@ const CompanionProfile = () => {
             )}
 
             <div className="lg:hidden">
-              <ProfileDiscoverRow />
+              <ProfileDiscoverRow hideCollectionPin={discoverFeatureLock} />
             </div>
 
             <VibeTraitProfilePanel traits={vibeTraits} isNexus={Boolean(companion.isNexusHybrid)} />
@@ -1102,12 +1236,14 @@ const CompanionProfile = () => {
                       Lovense patterns
                     </p>
                     <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-                      {hasLovenseToy
-                        ? `Tap to send ${companion.name}'s curated patterns to your linked toy.`
-                        : "Tap Pair toy to scan the QR, or use Settings → Device connection."}
+                      {discoverFeatureLock
+                        ? "Acquire this card to send patterns to your toy."
+                        : hasLovenseToy
+                          ? `Tap to send ${companion.name}'s curated patterns to your linked toy.`
+                          : "Tap Pair toy to scan the QR, or use Settings → Device connection."}
                     </p>
                   </div>
-                  {!hasLovenseToy ? (
+                  {discoverFeatureLock ? null : !hasLovenseToy ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -1134,7 +1270,7 @@ const CompanionProfile = () => {
                 ) : (
                   <VibrationPatternButtons
                     patterns={vibrationPatterns}
-                    disabled={!hasLovenseToy}
+                    disabled={!hasLovenseToy || discoverFeatureLock}
                     sendingId={sendingVibrationId}
                     activePatternId={livePatternId}
                     onTrigger={(row) => void triggerProfileVibration(row)}
@@ -1174,10 +1310,16 @@ const CompanionProfile = () => {
                   whileHover={{ scale: 1.015, y: -2 }}
                   whileTap={{ scale: 0.99 }}
                   onClick={() => {
-                    if (isDropLanding) return;
+                    if (isDropLanding || discoverFeatureLock) return;
                     handleStartChat(starter.description, starter.title);
                   }}
-                  className="group relative overflow-hidden rounded-2xl border border-white/[0.1] bg-gradient-to-br from-card/90 via-card/70 to-black/40 p-5 sm:p-6 text-left shadow-lg shadow-black/30 ring-1 ring-white/[0.04] backdrop-blur-xl transition-[border-color,box-shadow] hover:border-primary/45 hover:shadow-[0_0_36px_rgba(255,45,123,0.18)] touch-manipulation"
+                  disabled={isDropLanding || discoverFeatureLock}
+                  className={cn(
+                    "group relative overflow-hidden rounded-2xl border border-white/[0.1] bg-gradient-to-br from-card/90 via-card/70 to-black/40 p-5 sm:p-6 text-left shadow-lg shadow-black/30 ring-1 ring-white/[0.04] backdrop-blur-xl transition-[border-color,box-shadow] touch-manipulation",
+                    isDropLanding || discoverFeatureLock
+                      ? "cursor-not-allowed opacity-65"
+                      : "hover:border-primary/45 hover:shadow-[0_0_36px_rgba(255,45,123,0.18)]",
+                  )}
                 >
                   <div
                     className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full opacity-30 blur-3xl transition-opacity group-hover:opacity-50"
@@ -1195,7 +1337,7 @@ const CompanionProfile = () => {
                     <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-primary/60 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                   </div>
                   <span className="relative mt-4 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-primary/80">
-                    {isDropLanding ? "Feature preview" : "Begin this fantasy"}
+                    {isDropLanding ? "Feature preview" : discoverFeatureLock ? "Unlock to begin" : "Begin this fantasy"}
                     <Sparkles className="h-3.5 w-3.5" />
                   </span>
                   {isDropLanding ? (
@@ -1225,6 +1367,20 @@ const CompanionProfile = () => {
         </>
         ) : null}
       </main>
+
+      <DiscoverPurchaseConfirmDialog
+        open={buyConfirmProfileOpen}
+        name={companion.name}
+        tagline={companion.tagline}
+        rarity={rarity}
+        fcBalance={fcBalanceProfile}
+        purchasing={purchasingDiscoverProfile}
+        onClose={() => {
+          if (purchasingDiscoverProfile) return;
+          setBuyConfirmProfileOpen(false);
+        }}
+        onConfirm={() => void handleDiscoverPurchase()}
+      />
 
       <Dialog open={pairDialogOpen} onOpenChange={setPairDialogOpen}>
         <DialogContent className="border-border/80 bg-[hsl(280_25%_8%)]/98 p-0 backdrop-blur-xl sm:max-w-md">

@@ -45,6 +45,7 @@ import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
 import CompanionCreator, { type CompanionCreatorHandle } from "@/components/CompanionCreator";
 import { AdminForgeSchedulePanel } from "@/components/admin/AdminForgeSchedulePanel";
+import { AdminCelebrityParodyPanel } from "@/components/admin/AdminCelebrityParodyPanel";
 import CompanionManager from "@/components/admin/CompanionManager";
 import AdminForgeAssistant from "@/components/admin/AdminForgeAssistant";
 import XMarketingHub from "@/components/admin/XMarketingHub";
@@ -819,6 +820,11 @@ function AdminShell() {
                 <AdminForgeSchedulePanel
                   onAutoForge={async (opts) => {
                     await forgeRef.current?.runRandomRouletteAndForge(opts);
+                  }}
+                />
+                <AdminCelebrityParodyPanel
+                  onGenerate={async (celebrityName, grotesqueGpk) => {
+                    await forgeRef.current?.runCelebrityParody(celebrityName, { grotesqueGpk });
                   }}
                 />
                 <CompanionCreator

@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
+  ChevronDown,
   Coins,
   Dices,
   Gem,
@@ -139,6 +140,8 @@ export interface CompanionCreatorProps {
 /** Imperative admin hooks (embedded forge + scheduled panel). */
 export type CompanionCreatorHandle = {
   runRandomRouletteAndForge: (opts?: { forcePrivate?: boolean }) => Promise<void>;
+  /** Celebrity / character parody — fills forge fields from Grok (same as Parody lab apply). */
+  runCelebrityParody: (celebritySeed: string, opts?: { grotesqueGpk?: boolean }) => Promise<void>;
 };
 
 const GENDERS = [
@@ -924,6 +927,40 @@ User flavor notes: ${extraNotes || "none"}`;
     }
   };
 
+  const applyGrokCompanionProfileFields = useCallback(
+    (fields: Record<string, unknown>) => {
+      if (!fields || typeof fields.name !== "string") throw new Error("No profile returned");
+
+      setName(String(fields.name).slice(0, 120));
+      if (typeof fields.tagline === "string" && fields.tagline) setTagline(fields.tagline.slice(0, 200));
+      syncPillsFromGrokFields(fields);
+
+      if (typeof fields.appearance === "string" && fields.appearance.trim()) {
+        setNarrativeAppearance(fields.appearance.slice(0, 12000));
+      }
+      if (typeof fields.backstory === "string" && fields.backstory.trim()) {
+        setChronicleBackstory(fields.backstory.slice(0, 24000));
+      }
+      if (typeof fields.bio === "string" && fields.bio.trim()) setHookBio(fields.bio.slice(0, 12000));
+      if (typeof fields.system_prompt === "string" && fields.system_prompt.trim()) {
+        setCharterSystemPrompt(fields.system_prompt.slice(0, 32000));
+      }
+      if (typeof fields.image_prompt === "string" && fields.image_prompt.trim()) {
+        setPackshotPrompt(fields.image_prompt.slice(0, 3200));
+        const ip = fields.image_prompt.toLowerCase();
+        const matchArt = FORGE_ART_STYLES.find((s) => ip.includes(s.toLowerCase()));
+        const matchScene = FORGE_SCENE_ATMOSPHERES.find((s) => ip.includes(s.toLowerCase()));
+        if (matchArt) setArtStyle(normalizeForgeArtStyle(matchArt));
+        if (matchScene) setSceneAtmosphere(normalizeForgeScene(matchScene));
+      }
+      if (Array.isArray(fields.tags)) setRosterTags((fields.tags as string[]).map(String).slice(0, 24));
+      if (Array.isArray(fields.kinks)) setRosterKinks((fields.kinks as string[]).map(String).slice(0, 24));
+      const st = normalizeFantasyStartersFromFields(fields.fantasy_starters);
+      if (st.length) setFantasyStartersVault(st);
+    },
+    [],
+  );
+
   const runGenerateNewName = useCallback(async () => {
     setNameGenBusy(true);
     try {
@@ -1211,40 +1248,48 @@ User flavor notes: ${extraNotes || "none"}`;
       if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
       if (data?.error) throw new Error(String(data.error));
       const fields = data?.fields as Record<string, unknown> | undefined;
-      if (!fields || typeof fields.name !== "string") throw new Error("No profile returned");
-
-      setName(String(fields.name).slice(0, 120));
-      if (typeof fields.tagline === "string" && fields.tagline) setTagline(fields.tagline.slice(0, 200));
-      syncPillsFromGrokFields(fields);
-
-      if (typeof fields.appearance === "string" && fields.appearance.trim()) {
-        setNarrativeAppearance(fields.appearance.slice(0, 12000));
-      }
-      if (typeof fields.backstory === "string" && fields.backstory.trim()) {
-        setChronicleBackstory(fields.backstory.slice(0, 24000));
-      }
-      if (typeof fields.bio === "string" && fields.bio.trim()) setHookBio(fields.bio.slice(0, 12000));
-      if (typeof fields.system_prompt === "string" && fields.system_prompt.trim()) {
-        setCharterSystemPrompt(fields.system_prompt.slice(0, 32000));
-      }
-      if (typeof fields.image_prompt === "string" && fields.image_prompt.trim()) {
-        setPackshotPrompt(fields.image_prompt.slice(0, 3200));
-        const ip = fields.image_prompt.toLowerCase();
-        const matchArt = FORGE_ART_STYLES.find((s) => ip.includes(s.toLowerCase()));
-        const matchScene = FORGE_SCENE_ATMOSPHERES.find((s) => ip.includes(s.toLowerCase()));
-        if (matchArt) setArtStyle(normalizeForgeArtStyle(matchArt));
-        if (matchScene) setSceneAtmosphere(normalizeForgeScene(matchScene));
-      }
-      if (Array.isArray(fields.tags)) setRosterTags((fields.tags as string[]).map(String).slice(0, 24));
-      if (Array.isArray(fields.kinks)) setRosterKinks((fields.kinks as string[]).map(String).slice(0, 24));
-      const st = normalizeFantasyStartersFromFields(fields.fantasy_starters);
-      if (st.length) setFantasyStartersVault(st);
+      if (!fields) throw new Error("No profile returned");
+      applyGrokCompanionProfileFields(fields);
+      toast.success("Archetype parody filled — run Live preview when ready.");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Parody lab failed");
     } finally {
       setParodyLoading(false);
     }
   };
+
+  const runCelebrityParodyFromAdmin = useCallback(
+    async (celebritySeed: string, opts?: { grotesqueGpk?: boolean }) => {
+      if (!isAdmin) return;
+      const t = celebritySeed.trim();
+      if (!t) {
+        toast.error("Enter a celebrity or character name.");
+        return;
+      }
+      pushForgeOp("Celebrity parody: Grok profile pass…", "info");
+      try {
+        const { data, error } = await supabase.functions.invoke("parse-companion-prompt", {
+          body: {
+            mode: "celebrity_parody",
+            prompt: t,
+            grotesque_gpk: opts?.grotesqueGpk === true,
+          },
+        });
+        if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
+        if (data?.error) throw new Error(String(data.error));
+        const fields = data?.fields as Record<string, unknown> | undefined;
+        if (!fields) throw new Error("No profile returned");
+        applyGrokCompanionProfileFields(fields);
+        pushForgeOp("Celebrity parody profile applied — review Narrative + Live preview.", "ok");
+        toast.success("Parody profile filled — tweak fields or run Live preview.");
+      } catch (e: unknown) {
+        pushForgeOp(e instanceof Error ? e.message : "Celebrity parody failed", "err");
+        toast.error(e instanceof Error ? e.message : "Celebrity parody failed");
+        throw e;
+      }
+    },
+    [isAdmin, applyGrokCompanionProfileFields],
+  );
 
   const runFinalCreate = async () => {
     if (!userId) return;
@@ -1684,21 +1729,27 @@ User flavor notes: ${extraNotes || "none"}`;
     }
   };
 
-  useImperativeHandle(ref, () => ({
-    async runRandomRouletteAndForge(opts?: { forcePrivate?: boolean }) {
-      if (!isAdmin) return;
-      pushForgeOp("Scheduled forge: spin the forge + create companion chain starting…", "info");
-      forcePrivateForgeRef.current = Boolean(opts?.forcePrivate);
-      try {
-        await randomizeForgeCharacter();
-        await new Promise((r) => setTimeout(r, 400));
-        await runFinalCreate();
-        pushForgeOp("Scheduled forge chain finished successfully.", "ok");
-      } finally {
-        forcePrivateForgeRef.current = false;
-      }
-    },
-  }));
+  useImperativeHandle(
+    ref,
+    () => ({
+      async runRandomRouletteAndForge(opts?: { forcePrivate?: boolean }) {
+        if (!isAdmin) return;
+        pushForgeOp("Scheduled forge: spin the forge + create companion chain starting…", "info");
+        forcePrivateForgeRef.current = Boolean(opts?.forcePrivate);
+        try {
+          await randomizeForgeCharacter();
+          await new Promise((r) => setTimeout(r, 400));
+          await runFinalCreate();
+          pushForgeOp("Scheduled forge chain finished successfully.", "ok");
+        } finally {
+          forcePrivateForgeRef.current = false;
+        }
+      },
+      runCelebrityParody: (celebritySeed: string, opts?: { grotesqueGpk?: boolean }) =>
+        runCelebrityParodyFromAdmin(celebritySeed, opts),
+    }),
+    [isAdmin, runCelebrityParodyFromAdmin],
+  );
 
   const panelClass =
     "rounded-2xl border border-white/[0.08] bg-black/45 backdrop-blur-2xl shadow-[0_0_60px_rgba(255,45,123,0.06),inset_0_1px_0_rgba(255,255,255,0.05)]";
@@ -2856,34 +2907,43 @@ User flavor notes: ${extraNotes || "none"}`;
             )}
 
             {isAdmin && (
-              <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-950/40 to-black/50 px-4 py-4 space-y-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-200/90">Admin · Parody lab</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Separate from the main forge — satire profiles only. Fills the same narrative fields; use{" "}
-                  <strong className="text-white/90">Live preview</strong> on the right to render a portrait from the result.
-                </p>
-                <textarea
-                  value={parodyArchetype}
-                  onChange={(e) => setParodyArchetype(e.target.value)}
-                  rows={3}
-                  placeholder="Broad fictional archetype (no real celebrities)…"
-                  className="w-full rounded-xl border border-amber-500/20 bg-black/50 px-4 py-3 text-sm resize-none focus:outline-none focus:border-amber-500/40 focus:ring-2 focus:ring-amber-500/15"
-                />
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
-                  disabled={parodyLoading}
-                  onClick={() => void runParodyLab()}
-                  className="w-full flex items-center justify-center gap-2 rounded-2xl py-3 font-semibold text-white border border-amber-500/35 disabled:opacity-45"
-                  style={{
-                    background: `linear-gradient(135deg, hsl(35 40% 22%), hsl(280 35% 28%))`,
-                  }}
-                >
-                  {parodyLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
-                  Generate parody profile
-                </motion.button>
-              </div>
+              <details className="group rounded-2xl border border-amber-500/25 bg-gradient-to-br from-amber-950/35 to-black/50 overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+                <summary className="cursor-pointer list-none flex items-center justify-between gap-2 px-4 py-3 hover:bg-amber-950/20">
+                  <div className="flex items-center gap-2 text-sm font-bold text-amber-100/95 min-w-0">
+                    <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
+                    <span className="truncate">Archetype parody lab (no celebrity names)</span>
+                  </div>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="px-4 pb-4 space-y-3 border-t border-amber-500/20 pt-3">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Broad fictional genres / vibes only (no real people). Fills the same fields as{" "}
+                    <strong className="text-white/90">Celebrity Parody</strong> at the top — then use{" "}
+                    <strong className="text-white/90">Live preview</strong>.
+                  </p>
+                  <textarea
+                    value={parodyArchetype}
+                    onChange={(e) => setParodyArchetype(e.target.value)}
+                    rows={3}
+                    placeholder="e.g. “chaotic 90s supermodel energy”, “noir detective ham”…"
+                    className="w-full rounded-xl border border-amber-500/20 bg-black/50 px-4 py-3 text-sm resize-none focus:outline-none focus:border-amber-500/40 focus:ring-2 focus:ring-amber-500/15"
+                  />
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    disabled={parodyLoading}
+                    onClick={() => void runParodyLab()}
+                    className="w-full flex items-center justify-center gap-2 rounded-2xl py-3 font-semibold text-white border border-amber-500/35 disabled:opacity-45"
+                    style={{
+                      background: `linear-gradient(135deg, hsl(35 40% 22%), hsl(280 35% 28%))`,
+                    }}
+                  >
+                    {parodyLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+                    Generate archetype parody
+                  </motion.button>
+                </div>
+              </details>
             )}
           </div>
 
@@ -3121,8 +3181,9 @@ User flavor notes: ${extraNotes || "none"}`;
               <p className="text-xs text-muted-foreground leading-relaxed">
                 {isAdmin ? (
                   <>
-                    <strong className="text-white/90">Admin forge</strong> does not debit profiles. Parody lab is in its own panel on the
-                    left. Previews still hit xAI — keep batches reasonable.
+                    <strong className="text-white/90">Admin forge</strong> does not debit profiles.{" "}
+                    <strong className="text-white/90">Celebrity Parody</strong> lives above the forge column; archetype-only parody is in
+                    the collapsible at the bottom. Previews still hit xAI — keep batches reasonable.
                   </>
                 ) : (
                   <>

@@ -17,25 +17,9 @@ import { VAULT_COLLECTION_QUERY_KEY } from "@/hooks/useVaultCollection";
 import { supabase } from "@/integrations/supabase/client";
 import { discoverCardPriceFc } from "@/lib/forgeEconomy";
 import { purchaseDiscoverCompanion } from "@/lib/forgeCoinsClient";
+import { DiscoverPurchaseConfirmDialog, tierGlowForDiscoverCard } from "@/components/discover/DiscoverPurchaseConfirmDialog";
 
 const NEON_PINK = "#FF2D7B";
-
-function tierGlowForRarity(rarity: CompanionRarity): { border: string; glow: string; accent: string } {
-  switch (rarity) {
-    case "abyssal":
-      return { border: "rgba(168,85,247,0.7)", glow: "0 0 88px rgba(168,85,247,0.45)", accent: "#a855f7" };
-    case "mythic":
-      return { border: "rgba(244,114,182,0.7)", glow: "0 0 78px rgba(244,114,182,0.4)", accent: "#f472b6" };
-    case "legendary":
-      return { border: "rgba(251,191,36,0.65)", glow: "0 0 68px rgba(251,191,36,0.36)", accent: "#fbbf24" };
-    case "epic":
-      return { border: "rgba(34,211,238,0.6)", glow: "0 0 56px rgba(34,211,238,0.3)", accent: "#22d3ee" };
-    case "rare":
-      return { border: "rgba(125,211,252,0.5)", glow: "0 0 44px rgba(125,211,252,0.22)", accent: "#7dd3fc" };
-    default:
-      return { border: "rgba(148,163,184,0.45)", glow: "0 0 32px rgba(148,163,184,0.16)", accent: "#94a3b8" };
-  }
-}
 
 export type CommunityGalleryRow = Companion & {
   rarity: CompanionRarity;
@@ -434,7 +418,7 @@ export default function DiscoverCompanionsGallery() {
                 const img = c.imageUrl;
                 const buyFc = discoverCardPriceFc(c.rarity);
                 const rarityPriceStyle = { color: rarityTierCaptionColor(c.rarity) };
-                const glow = tierGlowForRarity(c.rarity);
+                const glow = tierGlowForDiscoverCard(c.rarity);
                 const buyBusy = purchasingId === c.id;
                 const discoverTraits = resolveDisplayTraitsForCompanion(c);
                 return (
@@ -450,91 +434,89 @@ export default function DiscoverCompanionsGallery() {
                       boxShadow: `0 10px 30px rgba(0,0,0,0.32), ${glow.glow}`,
                     }}
                   >
-                    <Link
-                      to={`/companions/${c.id}`}
-                      state={{ from: `${location.pathname}${location.search}` }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute top-3.5 right-2.5 z-[4] text-[9px] font-semibold uppercase tracking-wider px-2 py-1 rounded-lg bg-black/65 border border-white/15 text-white/90 hover:border-primary/50 hover:text-white transition-colors"
-                    >
-                      Profile
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => setBuyConfirmFor(c)}
-                      disabled={buyBusy}
-                      className="w-full text-left h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl overflow-visible disabled:opacity-70"
-                    >
-                      <TierHaloPortraitFrame
-                        variant="card"
-                        frameStyle="clean"
-                        rarity={c.rarity}
-                        gradientFrom={c.gradientFrom}
-                        gradientTo={c.gradientTo}
-                        overlayUrl={c.rarityBorderOverlayUrl}
-                        rarityFrameBleed
+                    <div className="flex flex-col rounded-2xl overflow-hidden border border-white/[0.06] bg-black/20 shadow-inner">
+                      <Link
+                        to={`/companions/${c.id}`}
+                        state={{
+                          from: `${location.pathname}${location.search}`,
+                          discoverPreview: true as const,
+                        }}
+                        className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-t-2xl"
                       >
-                        <div
-                          className="absolute inset-0 z-0"
-                          style={{
-                            background: img ? undefined : `linear-gradient(160deg, ${c.gradientFrom}, ${c.gradientTo})`,
-                          }}
-                        />
-                        {img ? (
-                          <img
-                            src={img}
-                            alt=""
-                            className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.02] object-cover object-top"
-                            loading="lazy"
-                          />
-                        ) : null}
-                        <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/95 via-black/25 to-transparent pointer-events-none" />
-                        {c.isNexusHybrid ? (
-                          <div className="absolute top-2 left-2 z-[3] text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-950/50 text-fuchsia-100/90">
-                            Nexus
-                          </div>
-                        ) : null}
-                        {discoverTraits.length > 0 ? (
+                        <TierHaloPortraitFrame
+                          variant="card"
+                          frameStyle="clean"
+                          rarity={c.rarity}
+                          gradientFrom={c.gradientFrom}
+                          gradientTo={c.gradientTo}
+                          overlayUrl={c.rarityBorderOverlayUrl}
+                          rarityFrameBleed
+                        >
                           <div
-                            className="absolute bottom-24 left-0 right-0 z-[3] px-2 pointer-events-auto"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <CompanionVibeTraitStrip
-                              traits={discoverTraits}
-                              className="justify-center"
-                              size="sm"
-                              max={4}
+                            className="absolute inset-0 z-0"
+                            style={{
+                              background: img ? undefined : `linear-gradient(160deg, ${c.gradientFrom}, ${c.gradientTo})`,
+                            }}
+                          />
+                          {img ? (
+                            <img
+                              src={img}
+                              alt=""
+                              className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.02] object-cover object-top"
+                              loading="lazy"
                             />
-                          </div>
-                        ) : null}
-                        <div className="absolute inset-x-0 bottom-0 z-[3] p-3 space-y-0.5">
-                          <p className="text-xs font-bold text-white truncate leading-tight font-gothic">{c.name}</p>
-                          <p className="text-[10px] text-white/75 truncate">{c.tagline}</p>
-                          <p className="text-[9px] text-teal-300/90 truncate pt-0.5">{c.vibe}</p>
-                          {c.galleryCredit ? (
-                            <p className="text-[9px] text-[hsl(170_100%_65%)] mt-1 flex items-center gap-1 truncate">
-                              <UserRound className="h-3 w-3 shrink-0" />
-                              <span className="truncate">by {c.galleryCredit}</span>
-                            </p>
                           ) : null}
-                          <div className="pt-1">
-                            <div
-                              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-[0_0_24px_rgba(255,45,123,0.18)]"
-                              style={{
-                                ...rarityPriceStyle,
-                                borderColor: `${rarityTierCaptionColor(c.rarity)}55`,
-                                background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(0,0,0,0.28))",
-                              }}
-                              aria-label={`${buyFc} Forge Coins`}
-                            >
-                              <Gem className="h-3.5 w-3.5" />
-                              <span className="font-gothic text-base tabular-nums leading-none">{buyFc}</span>
-                              <span className="text-[10px] uppercase tracking-wider text-white/85">FC</span>
+                          <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/95 via-black/25 to-transparent pointer-events-none" />
+                          {c.isNexusHybrid ? (
+                            <div className="absolute top-2 left-2 z-[3] text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-950/50 text-fuchsia-100/90">
+                              Nexus
+                            </div>
+                          ) : null}
+                          {discoverTraits.length > 0 ? (
+                            <div className="absolute bottom-24 left-0 right-0 z-[3] px-2 pointer-events-none">
+                              <CompanionVibeTraitStrip
+                                traits={discoverTraits}
+                                className="justify-center"
+                                size="sm"
+                                max={4}
+                              />
+                            </div>
+                          ) : null}
+                          <div className="absolute inset-x-0 bottom-0 z-[3] p-3 space-y-0.5">
+                            <p className="text-xs font-bold text-white truncate leading-tight font-gothic">{c.name}</p>
+                            <p className="text-[10px] text-white/75 truncate">{c.tagline}</p>
+                            <p className="text-[9px] text-teal-300/90 truncate pt-0.5">{c.vibe}</p>
+                            {c.galleryCredit ? (
+                              <p className="text-[9px] text-[hsl(170_100%_65%)] mt-1 flex items-center gap-1 truncate">
+                                <UserRound className="h-3 w-3 shrink-0" />
+                                <span className="truncate">by {c.galleryCredit}</span>
+                              </p>
+                            ) : null}
+                            <div className="pt-1">
+                              <div
+                                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-[0_0_24px_rgba(255,45,123,0.18)]"
+                                style={{
+                                  ...rarityPriceStyle,
+                                  borderColor: `${rarityTierCaptionColor(c.rarity)}55`,
+                                  background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(0,0,0,0.28))",
+                                }}
+                                aria-label={`${buyFc} Forge Coins`}
+                              >
+                                <Gem className="h-3.5 w-3.5" />
+                                <span className="font-gothic text-base tabular-nums leading-none">{buyFc}</span>
+                                <span className="text-[10px] uppercase tracking-wider text-white/85">FC</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="absolute inset-0 z-[3] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/[0.07] to-primary/10 pointer-events-none" />
-                      </TierHaloPortraitFrame>
-                      <div className="px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/50">
+                          <div className="absolute inset-0 z-[3] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/[0.07] to-primary/10 pointer-events-none" />
+                        </TierHaloPortraitFrame>
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => setBuyConfirmFor(c)}
+                        disabled={buyBusy}
+                        className="w-full text-left px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/50 hover:bg-black/60 transition-colors disabled:opacity-70 rounded-b-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-inset"
+                      >
                         <span className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground uppercase tracking-widest">
                           <Crown className="h-3.5 w-3.5 text-amber-300/90" />
                           {buyBusy ? "Unlocking…" : "Acquire card"}
@@ -550,8 +532,8 @@ export default function DiscoverCompanionsGallery() {
                             <Gem className="h-3.5 w-3.5 text-accent" style={rarityPriceStyle} />
                           </motion.span>
                         )}
-                      </div>
-                    </button>
+                      </button>
+                    </div>
                   </motion.div>
                 );
               })}
@@ -572,99 +554,21 @@ export default function DiscoverCompanionsGallery() {
         </AnimatePresence>
       )}
 
-      <AnimatePresence>
-        {buyConfirmFor ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[120] flex items-center justify-center p-4"
-          >
-            <button
-              type="button"
-              aria-label="Close purchase confirmation"
-              onClick={() => (purchasingId ? null : setBuyConfirmFor(null))}
-              className="absolute inset-0 bg-black/75 backdrop-blur-sm"
-            />
-            {(() => {
-              const glow = tierGlowForRarity(buyConfirmFor.rarity);
-              return (
-            <motion.div
-              initial={{ opacity: 0, y: 14, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.97 }}
-              transition={{ type: "spring", stiffness: 270, damping: 32 }}
-              className="relative w-full max-w-md overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-black/90 via-[hsl(300_35%_10%)] to-black/95 p-5"
-              style={{
-                border: `1px solid ${glow.border}`,
-                boxShadow: `0 0 0 1px ${glow.border}22, ${glow.glow}, 0 16px 60px rgba(0,0,0,0.45)`,
-              }}
-            >
-              <div
-                className="pointer-events-none absolute -top-16 -right-12 h-40 w-40 rounded-full blur-[80px]"
-                style={{ backgroundColor: `${glow.accent}55` }}
-              />
-              <div className="relative space-y-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Confirm purchase</p>
-                    <h3 className="mt-1 font-gothic text-2xl text-white leading-tight line-clamp-2">{buyConfirmFor.name}</h3>
-                    <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{buyConfirmFor.tagline}</p>
-                  </div>
-                  <motion.div
-                    animate={{ scale: [1, 1.1, 1], rotate: [0, 5, 0] }}
-                    transition={{ duration: 3.1, repeat: Infinity, ease: "easeInOut" }}
-                    className="shrink-0 rounded-xl p-2"
-                    style={{ border: `1px solid ${glow.border}`, background: `${glow.accent}22` }}
-                  >
-                    <Crown className="h-5 w-5" style={{ color: glow.accent }} />
-                  </motion.div>
-                </div>
-
-                <div className="rounded-xl border border-white/10 bg-black/40 p-3">
-                  <p className="text-[11px] text-muted-foreground">This will unlock this companion into your vault instantly.</p>
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="text-[11px] uppercase tracking-widest text-muted-foreground">Price</span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/15 px-2.5 py-1 font-gothic text-lg text-primary">
-                      <Gem className="h-4 w-4" />
-                      {discoverCardPriceFc(buyConfirmFor.rarity)} FC
-                    </span>
-                  </div>
-                  {fcBalance !== null ? (
-                    <p className="mt-2 text-[11px] text-muted-foreground">
-                      Wallet balance: <span className="font-semibold text-foreground">{fcBalance} FC</span>
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    disabled={Boolean(purchasingId)}
-                    onClick={() => setBuyConfirmFor(null)}
-                    className="flex-1 rounded-xl border border-border/70 bg-black/40 px-4 py-2.5 text-sm font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    disabled={Boolean(purchasingId)}
-                    onClick={() => {
-                      void handleBuyCard(buyConfirmFor).finally(() => setBuyConfirmFor(null));
-                    }}
-                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-primary/45 bg-gradient-to-r from-primary/85 to-fuchsia-700/90 px-4 py-2.5 text-sm font-bold text-primary-foreground shadow-[0_0_28px_rgba(255,45,123,0.28)] disabled:opacity-50"
-                  >
-                    {purchasingId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Gem className="h-4 w-4" />}
-                    Confirm buy
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-              );
-            })()}
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+      <DiscoverPurchaseConfirmDialog
+        open={buyConfirmFor !== null}
+        name={buyConfirmFor?.name ?? ""}
+        tagline={buyConfirmFor?.tagline ?? ""}
+        rarity={buyConfirmFor?.rarity ?? "common"}
+        fcBalance={fcBalance}
+        purchasing={purchasingId !== null}
+        onClose={() => {
+          if (!purchasingId) setBuyConfirmFor(null);
+        }}
+        onConfirm={() => {
+          if (!buyConfirmFor) return;
+          void handleBuyCard(buyConfirmFor).finally(() => setBuyConfirmFor(null));
+        }}
+      />
     </div>
   );
 }
