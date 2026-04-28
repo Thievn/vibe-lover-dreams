@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import type { User } from "@supabase/supabase-js";
@@ -8,19 +9,17 @@ import {
   ChevronRight,
   Flame,
   Gamepad2,
+  Hammer,
   Coins,
   Heart,
-  ImagePlus,
   Layers,
   LogOut,
   MessageSquare,
   Orbit,
   Settings,
   Shield,
-  Sparkles,
   TrendingUp,
   UserRound,
-  Wand2,
   X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,37 +45,28 @@ import {
   type NavId,
 } from "@/lib/dashboardNav";
 import { useWindowVisibleRefresh } from "@/hooks/useWindowVisibleRefresh";
+import { useDashboardInsights, DASHBOARD_INSIGHTS_QUERY_KEY } from "@/hooks/useDashboardInsights";
+import {
+  activityRelativeTime,
+  affectionOverallPct,
+  buildDashboardActivity,
+  chatBondLabel,
+} from "@/lib/dashboardInsights";
 
 const NEON_PINK = "#FF2D7B";
 
-const DASHBOARD_STATS = [
-  { key: "companions", label: "Companions", value: "12", accent: "text-primary" },
-  { key: "hybrids", label: "Nexus-born", value: "0", accent: "text-accent" },
-  { key: "toySessions", label: "Toy Sessions", value: "48", accent: "text-[#FF2D7B]" },
-  { key: "legendaries", label: "Legendaries", value: "3", accent: "text-velvet-purple" },
-  { key: "hours", label: "Hours Chatted", value: "186", accent: "text-primary/80" },
+const DASHBOARD_STAT_DEFS = [
+  { key: "companions", label: "Companions", accent: "text-primary" },
+  { key: "hybrids", label: "Nexus-born", accent: "text-accent" },
+  { key: "toySyncs", label: "Toy syncs", accent: "text-[#FF2D7B]" },
+  { key: "legendaries", label: "Legendaries", accent: "text-velvet-purple" },
+  { key: "messages", label: "Messages", accent: "text-primary/80" },
 ] as const;
-
-const HOT_IDS = ["lilith-vesper", "jax-harlan", "kira-lux", "elara-moon", "zara-eclipse"];
-
-const RECENT_ACTIVITY = [
-  { t: "2m ago", msg: "Lilith Vesper sent a pulse pattern to your toy.", tone: "pink" as const },
-  { t: "18m ago", msg: "Hybrid “Velvet Storm” reached affection tier II.", tone: "teal" as const },
-  { t: "1h ago", msg: "New legendary pull: Elara Moon (shimmer frame).", tone: "purple" as const },
-  { t: "3h ago", msg: "Credit bundle renewed — +500 forge credits.", tone: "pink" as const },
-  { t: "Yesterday", msg: "Session saved to Chat History (private device only).", tone: "teal" as const },
-];
 
 const MOCK_THREADS = [
   { title: "Midnight ritual with Lilith", preview: "Don't move until I say so, pet…", at: "Today" },
   { title: "Jax — cabin aftercare", preview: "Already missin' you. Coffee's on.", at: "Yesterday" },
   { title: "Kira — brat tax", preview: "You owe me three edges. Pay up.", at: "Mon" },
-];
-
-const AFFECTION_ROWS: { name: string; pct: number; tier: string }[] = [
-  { name: "Lilith Vesper", pct: 88, tier: "Obsessed" },
-  { name: "Jax Harlan", pct: 72, tier: "Devoted" },
-  { name: "Kira Lux", pct: 61, tier: "Smitten" },
 ];
 
 /** Uses `profiles.display_name` verbatim (same casing as Account). Uniqueness is enforced case-insensitively in DB/RPC. */
@@ -104,6 +94,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const { data: dbCompanions = [], isLoading: companionsLoading } = useCompanions();
   const allCompanions = useMemo(() => dbCompanions.map(dbToCompanion), [dbCompanions]);
 
@@ -123,17 +114,98 @@ export default function Dashboard() {
   const [tokensBalance, setTokensBalance] = useState(0);
 
   const { vaultCompanions, isLoading: vaultLoading } = useVaultCollection(user?.id ?? null, dbCompanions);
+  const { data: insights, isLoading: insightsLoading } = useDashboardInsights(user?.id ?? null);
   const collectionPreview = useMemo(() => vaultCompanions.slice(0, 12), [vaultCompanions]);
   const forgeParents = useMemo(() => {
     if (!user?.id) return [];
     return dbCompanions.filter((c) => c.id.startsWith("cc-") && c.user_id === user.id);
   }, [dbCompanions, user?.id]);
   const nexusBornCount = useMemo(() => vaultCompanions.filter((c) => c.isNexusHybrid).length, [vaultCompanions]);
+  const legendaryCount = useMemo(
+    () => vaultCompanions.filter((c) => normalizeCompanionRarity(c.rarity) === "legendary").length,
+    [vaultCompanions],
+  );
   const hotPicks = useMemo(() => {
     const pool = user ? vaultCompanions : allCompanions;
-    const hot = pool.filter((c) => HOT_IDS.includes(c.id));
-    return hot.length > 0 ? hot : pool.slice(0, 4);
-  }, [user, vaultCompanions, allCompanions]);
+    const rels = insights?.relationships ?? [];
+    const vaultIds = new Set(pool.map((c) => c.id));
+    const orderIds: string[] = [];
+    const seen = new Set<string>();
+    for (const r of rels) {
+      if (!vaultIds.has(r.companion_id)) continue;
+      if (seen.has(r.companion_id)) continue;
+      orderIds.push(r.companion_id);
+      seen.add(r.companion_id);
+      if (orderIds.length >= 8) break;
+    }
+    for (const c of pool) {
+      if (orderIds.length >= 8) break;
+      if (!seen.has(c.id)) {
+        orderIds.push(c.id);
+        seen.add(c.id);
+      }
+    }
+    const relById = new Map(rels.map((r) => [r.companion_id, r]));
+    return orderIds.slice(0, 6).flatMap((id) => {
+      const companion = pool.find((c) => c.id === id);
+      if (!companion) return [];
+      const rel = relById.get(id);
+      return [{ companion, lastChatAt: rel?.last_interaction ?? null }];
+    });
+  }, [user, vaultCompanions, allCompanions, insights?.relationships]);
+
+  const affectionSnapshot = useMemo(() => {
+    const vaultIds = new Set(vaultCompanions.map((c) => c.id));
+    const rows = (insights?.relationships ?? [])
+      .filter((r) => vaultIds.has(r.companion_id))
+      .slice()
+      .sort((a, b) => {
+        const lv = (b.chat_affection_level ?? 0) - (a.chat_affection_level ?? 0);
+        if (lv !== 0) return lv;
+        return new Date(b.last_interaction).getTime() - new Date(a.last_interaction).getTime();
+      })
+      .slice(0, 5);
+    return rows
+      .map((r) => {
+        const c = vaultCompanions.find((x) => x.id === r.companion_id);
+        if (!c) return null;
+        return {
+          name: c.name,
+          pct: affectionOverallPct(r),
+          tier: chatBondLabel(r.chat_affection_level),
+        };
+      })
+      .filter(Boolean) as { name: string; pct: number; tier: string }[];
+  }, [insights?.relationships, vaultCompanions]);
+
+  const recentActivity = useMemo(() => {
+    if (!insights) return [];
+    const nameById = new Map(vaultCompanions.map((c) => [c.id, c.name]));
+    return buildDashboardActivity(insights, nameById);
+  }, [insights, vaultCompanions]);
+
+  const statRow = useMemo(() => {
+    const c = vaultCompanions.length;
+    const h = nexusBornCount;
+    const l = legendaryCount;
+    const t = insights?.toySyncCount;
+    const m = insights?.chatMessageCount;
+    return DASHBOARD_STAT_DEFS.map((d) => {
+      let value: string;
+      let sub: string | undefined;
+      if (d.key === "companions") value = String(c);
+      else if (d.key === "hybrids") value = String(h);
+      else if (d.key === "legendaries") value = String(l);
+      else if (d.key === "toySyncs") {
+        value = insightsLoading ? "—" : String(t ?? 0);
+        sub = "Haptic messages in chat";
+      } else {
+        value = insightsLoading ? "—" : String(m ?? 0);
+        sub = "All chat lines in your account";
+      }
+      return { ...d, value, sub };
+    });
+  }, [vaultCompanions.length, nexusBornCount, legendaryCount, insights?.toySyncCount, insights?.chatMessageCount, insightsLoading]);
 
   const profileRef = useRef<HTMLDivElement>(null);
   const greetingName = resolveGreetingName(user, profileDisplayName);
@@ -161,7 +233,10 @@ export default function Dashboard() {
 
   useWindowVisibleRefresh(
     () => {
-      if (user?.id) void refreshToy(user.id);
+      if (user?.id) {
+        void refreshToy(user.id);
+        void queryClient.invalidateQueries({ queryKey: DASHBOARD_INSIGHTS_QUERY_KEY });
+      }
     },
     Boolean(user?.id),
   );
@@ -302,10 +377,6 @@ export default function Dashboard() {
     );
   };
 
-  const quickImageGen = () => {
-    // Reserved for image forge entry — no toast (keeps dashboard quiet).
-  };
-
   const refreshProfileCredits = useCallback(async () => {
     if (!user?.id) return;
     const { data } = await supabase
@@ -344,24 +415,24 @@ export default function Dashboard() {
       <div className="relative z-10 flex min-h-screen">
         {/* Sidebar */}
         <aside className="hidden md:flex w-[260px] shrink-0 flex-col border-r border-border/80 bg-black/50 backdrop-blur-xl py-8 px-5">
-          <div className="mb-10 w-full flex justify-center">
-            <div className="flex flex-col items-center gap-2.5 text-center">
-              <Link
-                to="/"
-                className="flex items-center gap-2 sm:gap-2.5 group shrink-0 min-w-0"
-              >
+          <div className="mb-10 w-full flex justify-center px-1">
+            <div className="flex w-full max-w-[14rem] flex-col items-center gap-3 text-center">
+              <Link to="/" className="group flex flex-col items-center gap-2.5 outline-none focus-visible:ring-2 focus-visible:ring-primary/35 rounded-xl px-2 py-1">
                 <Flame
-                  className="h-6 w-6 sm:h-7 sm:w-7 shrink-0 drop-shadow-[0_0_10px_rgba(255,45,123,0.45)]"
+                  className="h-8 w-8 shrink-0 drop-shadow-[0_0_12px_rgba(255,45,123,0.5)] transition-transform group-hover:scale-[1.05]"
                   style={{ color: NEON_PINK }}
+                  aria-hidden
                 />
-                <span className="font-gothic text-xl font-bold leading-none tracking-tight flex items-baseline gap-1 sm:gap-1.5">
-                  <span className="gradient-vice-text">LustForge</span>
-                  <span className="text-foreground/90 text-lg sm:text-xl font-bold">AI</span>
+                <span className="font-gothic text-xl font-bold leading-tight tracking-tight">
+                  <span className="gradient-vice-text">LustForge</span>{" "}
+                  <span className="text-foreground/90 text-lg font-bold">AI</span>
                 </span>
               </Link>
-              <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground max-w-[14rem] leading-relaxed">
-                Command Deck
-              </p>
+              <div className="w-full border-t border-border/50 pt-3">
+                <p className="text-[10px] uppercase tracking-[0.42em] text-muted-foreground text-center font-medium">
+                  Command Deck
+                </p>
+              </div>
             </div>
           </div>
 
@@ -609,13 +680,22 @@ export default function Dashboard() {
                 onCreate={() => navigate("/create-companion")}
                 onOpenNexus={() => {
                   setActiveNav("nexus");
+                  setSearchParams(
+                    (prev) => {
+                      const p = new URLSearchParams(prev);
+                      p.set(DASHBOARD_NAV_QUERY, "nexus");
+                      return p;
+                    },
+                    { replace: true },
+                  );
                 }}
-                quickImageGen={quickImageGen}
                 collectionCards={collectionPreview}
                 hotPicks={hotPicks}
-                companionCount={vaultCompanions.length}
-                nexusBornCount={nexusBornCount}
+                statRow={statRow}
+                affectionRows={affectionSnapshot}
+                recentActivity={recentActivity}
                 companionsLoading={companionsLoading || vaultLoading}
+                insightsLoading={insightsLoading}
                 profileLinkFrom={`${location.pathname}${location.search}`}
               />
             )}
@@ -805,29 +885,31 @@ function ToggleRow({
 function DashboardHome({
   onCreate,
   onOpenNexus,
-  quickImageGen,
   collectionCards,
   hotPicks,
-  companionCount,
-  nexusBornCount,
+  statRow,
+  affectionRows,
+  recentActivity,
   companionsLoading,
+  insightsLoading,
   profileLinkFrom,
 }: {
   onCreate: () => void;
   onOpenNexus: () => void;
-  quickImageGen: () => void;
   collectionCards: Companion[];
-  hotPicks: Companion[];
-  companionCount: number;
-  nexusBornCount: number;
+  hotPicks: { companion: Companion; lastChatAt: string | null }[];
+  statRow: { key: string; label: string; value: string; accent: string; sub?: string }[];
+  affectionRows: { name: string; pct: number; tier: string }[];
+  recentActivity: { t: string; msg: string; tone: "pink" | "teal" | "purple" }[];
   companionsLoading: boolean;
+  insightsLoading: boolean;
   profileLinkFrom: string;
 }) {
   return (
     <div className="space-y-10 max-w-6xl mx-auto">
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-        {DASHBOARD_STATS.map((s, i) => (
+        {statRow.map((s, i) => (
           <motion.div
             key={s.key}
             initial={{ opacity: 0, y: 12 }}
@@ -839,24 +921,23 @@ function DashboardHome({
             <p className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-muted-foreground font-semibold">
               {s.label}
             </p>
-            <p className={cn("font-gothic text-2xl sm:text-3xl mt-2", s.accent)}>
-              {s.key === "companions" ? companionCount : s.key === "hybrids" ? nexusBornCount : s.value}
-            </p>
+            <p className={cn("font-gothic text-2xl sm:text-3xl mt-2", s.accent)}>{s.value}</p>
+            {s.sub ? <p className="text-[10px] text-muted-foreground/80 mt-1.5 leading-snug">{s.sub}</p> : null}
           </motion.div>
         ))}
       </div>
 
-      {/* Quick actions */}
-      <div className="flex flex-col sm:flex-row flex-wrap gap-4">
+      {/* Quick actions — two primary CTAs, equal weight */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-4xl">
         <motion.button
           type="button"
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={onCreate}
-          className="flex-1 min-w-[200px] flex items-center justify-center gap-3 rounded-2xl py-4 px-6 font-semibold text-primary-foreground shadow-lg border border-white/10"
+          className="flex w-full min-h-[3.5rem] items-center justify-center gap-3 rounded-2xl py-4 px-6 font-semibold text-primary-foreground shadow-lg border border-white/10"
           style={{ background: `linear-gradient(135deg, ${NEON_PINK}, hsl(280 50% 35%))` }}
         >
-          <Sparkles className="h-5 w-5" />
+          <Hammer className="h-5 w-5 shrink-0 opacity-95" />
           Create Companion
         </motion.button>
         <motion.button
@@ -864,20 +945,10 @@ function DashboardHome({
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={onOpenNexus}
-          className="flex-1 min-w-[200px] flex items-center justify-center gap-3 rounded-2xl py-4 px-6 font-semibold text-primary-foreground border border-accent/40 bg-accent/20 text-accent hover:bg-accent/30 transition-colors"
+          className="flex w-full min-h-[3.5rem] items-center justify-center gap-3 rounded-2xl py-4 px-6 font-semibold text-primary-foreground border border-accent/40 bg-accent/20 text-accent hover:bg-accent/30 transition-colors"
         >
-          <Orbit className="h-5 w-5" />
+          <Orbit className="h-5 w-5 shrink-0" />
           The Nexus
-        </motion.button>
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={quickImageGen}
-          className="flex items-center justify-center gap-2 rounded-2xl py-4 px-5 border border-border bg-card/60 text-sm font-semibold text-foreground hover:border-primary/40 hover:text-primary transition-colors"
-        >
-          <Wand2 className="h-5 w-5 text-accent" />
-          Quick image gen
         </motion.button>
       </div>
 
@@ -914,7 +985,7 @@ function DashboardHome({
                     className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-primary-foreground"
                     style={{ backgroundColor: NEON_PINK }}
                   >
-                    <Sparkles className="h-4 w-4" />
+                    <Hammer className="h-4 w-4" />
                     Open Companion Forge
                   </button>
                 </div>
@@ -928,16 +999,32 @@ function DashboardHome({
         {/* Right column widgets */}
         <div className="space-y-6">
           <section className="rounded-2xl border border-border/80 bg-card/40 backdrop-blur-md p-5">
-            <h3 className="font-gothic text-lg flex items-center gap-2 text-primary mb-4" style={{ color: NEON_PINK }}>
+            <h3 className="font-gothic text-lg flex items-center gap-2 text-primary mb-1" style={{ color: NEON_PINK }}>
               <Heart className="h-5 w-5" />
               Affection overview
             </h3>
+            <p className="text-[11px] text-muted-foreground mb-4 leading-relaxed">
+              From your chat bond tiers (same progression as in chat).
+            </p>
             <div className="space-y-5">
-              {AFFECTION_ROWS.map((row) => (
+              {insightsLoading && affectionRows.length === 0
+                ? Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="space-y-2">
+                      <div className="h-3 w-1/2 rounded bg-muted/40 animate-pulse" />
+                      <div className="h-2 w-full rounded bg-muted/30 animate-pulse" />
+                    </div>
+                  ))
+                : null}
+              {!insightsLoading && affectionRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  No bond data yet — open a companion in Chat to build your first tier.
+                </p>
+              ) : null}
+              {affectionRows.map((row) => (
                 <div key={row.name}>
-                  <div className="flex justify-between text-xs mb-1.5">
-                    <span className="text-foreground font-medium">{row.name}</span>
-                    <span className="text-muted-foreground">{row.tier}</span>
+                  <div className="flex justify-between text-xs mb-1.5 gap-2">
+                    <span className="text-foreground font-medium min-w-0 truncate">{row.name}</span>
+                    <span className="text-muted-foreground shrink-0">{row.tier}</span>
                   </div>
                   <Progress value={row.pct} className="h-2 bg-secondary/80 [&>div]:bg-gradient-to-r [&>div]:from-primary [&>div]:to-accent" />
                 </div>
@@ -946,20 +1033,28 @@ function DashboardHome({
           </section>
 
           <section className="rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/5 to-transparent p-5">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-start justify-between gap-3 mb-1">
               <h3 className="font-gothic text-lg flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-accent" />
+                <TrendingUp className="h-5 w-5 text-accent shrink-0" />
                 Hot right now
               </h3>
-              <Flame className="h-4 w-4 text-primary opacity-80" style={{ color: NEON_PINK }} />
+              <Flame className="h-4 w-4 text-primary opacity-80 mt-0.5 shrink-0" style={{ color: NEON_PINK }} />
             </div>
+            <p className="text-[11px] text-muted-foreground mb-4 leading-relaxed">
+              Ranked by recent chat, then your vault order — jump back in fast.
+            </p>
             <div className="space-y-3">
-              {hotPicks.slice(0, 4).map((c) => (
+              {hotPicks.length === 0 ? (
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Add companions to your vault or start a chat — this list ranks who you’re spending time with.
+                </p>
+              ) : null}
+              {hotPicks.slice(0, 4).map(({ companion: c, lastChatAt }) => (
                 <Link
                   key={c.id}
                   to={`/companions/${c.id}`}
                   state={{ from: profileLinkFrom }}
-                  className="w-full flex items-center gap-3 rounded-xl border border-border/60 bg-black/30 p-2 text-left hover:border-primary/35 transition-colors group"
+                  className="w-full flex items-center gap-3 rounded-xl border border-border/60 bg-black/30 p-2.5 text-left hover:border-primary/35 transition-colors group"
                 >
                   <div className="h-12 w-10 shrink-0 overflow-visible p-0.5">
                     <TierHaloPortraitFrame
@@ -993,50 +1088,53 @@ function DashboardHome({
                     <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
                       {c.name}
                     </p>
-                    <p className="text-[11px] text-muted-foreground truncate">{c.tagline}</p>
+                    <p className="text-[11px] text-muted-foreground line-clamp-2">{c.tagline}</p>
+                    {lastChatAt ? (
+                      <p className="text-[10px] text-accent/90 mt-1">Last chat · {activityRelativeTime(lastChatAt)}</p>
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground/90 mt-1">In your vault</p>
+                    )}
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary shrink-0" />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary shrink-0 self-center" />
                 </Link>
               ))}
             </div>
           </section>
 
           <section className="rounded-2xl border border-border/80 bg-card/40 backdrop-blur-md p-5">
-            <h3 className="font-gothic text-lg flex items-center gap-2 mb-4">
+            <h3 className="font-gothic text-lg flex items-center gap-2 mb-1">
               <Activity className="h-5 w-5 text-velvet-purple" />
               Recent activity
             </h3>
-            <ul className="space-y-4">
-              {RECENT_ACTIVITY.map((item, i) => (
-                <li key={i} className="flex gap-3 text-sm">
-                  <span
-                    className={cn(
-                      "shrink-0 w-1 rounded-full self-stretch min-h-[2.5rem]",
-                      item.tone === "pink" && "bg-primary",
-                      item.tone === "teal" && "bg-accent",
-                      item.tone === "purple" && "bg-velvet-purple",
-                    )}
-                    style={item.tone === "pink" ? { backgroundColor: NEON_PINK } : undefined}
-                  />
-                  <div>
-                    <p className="text-muted-foreground leading-snug">{item.msg}</p>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground/80 mt-1">{item.t}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <p className="text-[11px] text-muted-foreground mb-4">Forge Coin ledger and your latest chat touches.</p>
+            {recentActivity.length === 0 ? (
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {insightsLoading
+                  ? "Loading your feed…"
+                  : "No ledger or chat history yet — say hi in Chat or visit Buy Forge Coins when you’re ready."}
+              </p>
+            ) : (
+              <ul className="space-y-4">
+                {recentActivity.map((item, i) => (
+                  <li key={`${item.t}-${i}`} className="flex gap-3 text-sm">
+                    <span
+                      className={cn(
+                        "shrink-0 w-1 rounded-full self-stretch min-h-[2.5rem]",
+                        item.tone === "pink" && "bg-primary",
+                        item.tone === "teal" && "bg-accent",
+                        item.tone === "purple" && "bg-velvet-purple",
+                      )}
+                      style={item.tone === "pink" ? { backgroundColor: NEON_PINK } : undefined}
+                    />
+                    <div>
+                      <p className="text-muted-foreground leading-snug">{item.msg}</p>
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground/80 mt-1">{item.t}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
-
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.01 }}
-            onClick={quickImageGen}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/40 py-4 text-sm font-semibold text-primary hover:bg-primary/10 transition-colors"
-            style={{ color: NEON_PINK }}
-          >
-            <ImagePlus className="h-5 w-5" />
-            Forge a new visual
-          </motion.button>
         </div>
       </div>
     </div>
@@ -1149,7 +1247,7 @@ function CollectionView({
             className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-primary-foreground"
             style={{ backgroundColor: NEON_PINK }}
           >
-            <Sparkles className="h-4 w-4" />
+            <Hammer className="h-4 w-4" />
             Companion Forge
           </button>
         </div>
