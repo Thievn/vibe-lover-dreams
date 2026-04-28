@@ -31,6 +31,7 @@ async function refundTokens(
   userId: string,
   amount: number,
   reason: string,
+  metadata: Record<string, unknown> = {},
 ): Promise<void> {
   if (amount <= 0) return;
   try {
@@ -44,7 +45,7 @@ async function refundTokens(
       balanceAfter: nxt,
       transactionType: "nexus_refund",
       description: `Nexus merge refund: ${reason}`,
-      metadata: { fc: amount },
+      metadata: { fc: amount, ...metadata },
     });
   } catch (e) {
     console.error("nexus-merge refundTokens failed", e);
@@ -209,6 +210,8 @@ Deno.serve(async (req) => {
     infuse?: boolean;
     favorParent?: "first" | "second" | null;
     adminMerge?: boolean;
+    reconcile?: boolean;
+    startedAtMs?: number;
   };
   try {
     body = await req.json();
@@ -219,7 +222,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const adminMerge = Boolean(body.adminMerge);
+    const adminMerge = Boolean(body.adminMerge);
   const authGate = adminMerge ? await requireAdminUser(req) : await requireSessionUser(req);
   if ("response" in authGate) return authGate.response;
 
@@ -248,6 +251,119 @@ Deno.serve(async (req) => {
     const totalCost = adminMerge ? 0 : NEXUS_BASE + (infuse ? NEXUS_INFUSE : 0);
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    if (body.reconcile === true) {
+      const startedAtMs =
+        typeof body.startedAtMs === "number" && Number.isFinite(body.startedAtMs) ? Math.floor(body.startedAtMs) : Date.now();
+      const startedIso = new Date(Math.max(0, startedAtMs)).toISOString();
+      const { data: childRows, error: childErr } = await supabase
+        .from("custom_characters")
+        .select("id, created_at")
+        .eq("user_id", userId)
+        .contains("lineage_parent_ids", [idA, idB])
+        .gte("created_at", startedIso)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (childErr) {
+        return new Response(JSON.stringify({ error: childErr.message || "Could not check merge recovery." }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const existingChild = childRows?.[0];
+      if (existingChild?.id) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            status: "completed",
+            childId: `cc-${existingChild.id}`,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const { data: chargeRows, error: chargeErr } = await supabase
+        .from("fc_transactions")
+        .select("id, credits_change, metadata, created_at")
+        .eq("user_id", userId)
+        .eq("transaction_type", "nexus_merge")
+        .gte("created_at", startedIso)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (chargeErr) {
+        return new Response(JSON.stringify({ error: chargeErr.message || "Could not read merge charges." }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const pairMatches = (meta: unknown): boolean => {
+        if (!meta || typeof meta !== "object") return false;
+        const m = meta as Record<string, unknown>;
+        return (
+          (m.parent_a === `cc-${idA}` && m.parent_b === `cc-${idB}`) ||
+          (m.parent_a === `cc-${idB}` && m.parent_b === `cc-${idA}`)
+        );
+      };
+      const chargeTxn = (chargeRows ?? []).find((row) => pairMatches(row.metadata) && Number(row.credits_change ?? 0) < 0);
+      if (!chargeTxn) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            status: "no_charge_found",
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const { data: refundRows, error: refundErr } = await supabase
+        .from("fc_transactions")
+        .select("id, metadata")
+        .eq("user_id", userId)
+        .eq("transaction_type", "nexus_refund")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (refundErr) {
+        return new Response(JSON.stringify({ error: refundErr.message || "Could not inspect prior refunds." }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const alreadyRefunded = (refundRows ?? []).some((row) => {
+        const m = row.metadata;
+        return Boolean(
+          m &&
+            typeof m === "object" &&
+            (m as Record<string, unknown>).reconcile_source_txn_id === chargeTxn.id,
+        );
+      });
+      if (alreadyRefunded) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            status: "already_refunded",
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const refundAmount = Math.abs(Math.floor(Number(chargeTxn.credits_change ?? 0)));
+      if (refundAmount > 0) {
+        await refundTokens(supabase, userId, refundAmount, "interrupted merge recovery", {
+          reconcile_source_txn_id: chargeTxn.id,
+          started_at_ms: startedAtMs,
+          parent_a: `cc-${idA}`,
+          parent_b: `cc-${idB}`,
+        });
+      }
+      return new Response(
+        JSON.stringify({
+          success: true,
+          status: "refunded",
+          refunded: refundAmount,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const { data: rows, error: fetchErr } = await supabase
       .from("custom_characters")

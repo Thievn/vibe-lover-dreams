@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
@@ -58,6 +58,8 @@ function parseMergeStatsNexus(raw: Record<string, unknown> | null | undefined): 
 }
 
 const NEON = "#FF2D7B";
+const NEXUS_PENDING_MERGE_KEY = "lustforge:nexus:pending-merge";
+const NEXUS_LAST_REVEAL_KEY = "lustforge:nexus:last-reveal";
 
 function portraitFor(db: DbCompanion): string | null {
   return galleryStaticPortraitUrl(db, db.id);
@@ -374,6 +376,7 @@ export default function TheNexus({
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [nexusRarityInfoOpen, setNexusRarityInfoOpen] = useState(false);
+  const recoverAttemptedRef = useRef(false);
 
   const nexusRarityTableRows = useMemo(() => {
     const arr = getNexusRarityOutcomesTable();
@@ -416,7 +419,121 @@ export default function TheNexus({
     setRevealFallback(null);
     setBusy(false);
     setPicked([]);
+    try {
+      localStorage.removeItem(NEXUS_LAST_REVEAL_KEY);
+    } catch {
+      /* ignore */
+    }
   }, []);
+
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!busy || phase !== "merging") return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [busy, phase]);
+
+  useEffect(() => {
+    if (recoverAttemptedRef.current) return;
+    recoverAttemptedRef.current = true;
+    const rawPending = localStorage.getItem(NEXUS_PENDING_MERGE_KEY);
+    const rawReveal = localStorage.getItem(NEXUS_LAST_REVEAL_KEY);
+
+    if (rawReveal && phase === "select") {
+      try {
+        const parsed = JSON.parse(rawReveal) as {
+          userId: string;
+          childId: string;
+          name: string;
+          summary: string;
+          merge_stats?: Record<string, unknown>;
+          ts: number;
+        };
+        const freshEnough = Date.now() - (parsed.ts || 0) < 1000 * 60 * 60 * 8;
+        if (parsed.userId === userId && freshEnough) {
+          setRevealFallback({
+            childId: parsed.childId,
+            name: parsed.name,
+            summary: parsed.summary,
+            merge_stats: parsed.merge_stats,
+          });
+          setPhase("revealed");
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    if (!rawPending) return;
+    let pending: {
+      userId: string;
+      parentAId: string;
+      parentBId: string;
+      startedAtMs: number;
+    } | null = null;
+    try {
+      pending = JSON.parse(rawPending) as typeof pending;
+    } catch {
+      localStorage.removeItem(NEXUS_PENDING_MERGE_KEY);
+      return;
+    }
+    if (!pending || pending.userId !== userId) return;
+    const ageMs = Date.now() - pending.startedAtMs;
+    if (ageMs < 10_000) return;
+
+    void (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("nexus-merge", {
+          body: {
+            reconcile: true,
+            parentAId: pending.parentAId,
+            parentBId: pending.parentBId,
+            startedAtMs: pending.startedAtMs,
+          },
+        });
+        if (error) throw error;
+        const payload = data as {
+          success?: boolean;
+          status?: string;
+          childId?: string;
+          refunded?: number;
+        };
+        if (payload.status === "completed" && payload.childId) {
+          const uuid = payload.childId.replace(/^cc-/, "");
+          const { data: row } = await supabase.from("custom_characters").select("*").eq("id", uuid).maybeSingle();
+          if (row) {
+            const db = mapSupabaseCustomCharacterRow(row as Record<string, unknown>);
+            const summary =
+              typeof db.trait_fusion_summary === "string" && db.trait_fusion_summary.trim()
+                ? db.trait_fusion_summary.trim()
+                : "A third ascendant steps forward — adult, deliberate, and entirely their own.";
+            setRevealChild(db);
+            setRevealFallback({
+              childId: payload.childId,
+              name: db.name,
+              summary,
+              merge_stats: db.merge_stats as Record<string, unknown> | undefined,
+            });
+            setPhase("revealed");
+            toast.success("Recovered your Nexus merge.");
+          }
+          localStorage.removeItem(NEXUS_PENDING_MERGE_KEY);
+          return;
+        }
+        if (payload.status === "refunded" && (payload.refunded ?? 0) > 0) {
+          toast.success(`Recovered interrupted merge and refunded ${payload.refunded} FC.`);
+          onCreditsChanged?.();
+          localStorage.removeItem(NEXUS_PENDING_MERGE_KEY);
+          return;
+        }
+      } catch {
+        /* ignore; keep pending marker for a later return */
+      }
+    })();
+  }, [onCreditsChanged, phase, userId, recoverAttemptedRef]);
 
   const runMerge = async () => {
     if (!alpha || !omega || !canMerge) return;
@@ -425,6 +542,20 @@ export default function TheNexus({
     setRevealChild(null);
     setRevealFallback(null);
     setPhase("merging");
+    const startedAtMs = Date.now();
+    try {
+      localStorage.setItem(
+        NEXUS_PENDING_MERGE_KEY,
+        JSON.stringify({
+          userId,
+          parentAId: alpha.id,
+          parentBId: omega.id,
+          startedAtMs,
+        }),
+      );
+    } catch {
+      /* ignore */
+    }
     try {
       const {
         data: { session },
@@ -483,6 +614,21 @@ export default function TheNexus({
         summary: summaryFallback,
         merge_stats: payload.merge_stats,
       });
+      try {
+        localStorage.setItem(
+          NEXUS_LAST_REVEAL_KEY,
+          JSON.stringify({
+            userId,
+            childId: payload.childId,
+            name: payload.name,
+            summary: summaryFallback,
+            merge_stats: payload.merge_stats,
+            ts: Date.now(),
+          }),
+        );
+      } catch {
+        /* ignore */
+      }
 
       if (payload.portraitGenerated === false && payload.portraitError) {
         toast.error(
@@ -526,6 +672,11 @@ export default function TheNexus({
       }
 
       setPhase("revealed");
+      try {
+        localStorage.removeItem(NEXUS_PENDING_MERGE_KEY);
+      } catch {
+        /* ignore */
+      }
       void queryClient.invalidateQueries({ queryKey: ["companions"] });
       void queryClient.invalidateQueries({ queryKey: [...VAULT_COLLECTION_QUERY_KEY, userId] });
       onCreditsChanged?.();

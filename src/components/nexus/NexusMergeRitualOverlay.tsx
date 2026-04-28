@@ -92,11 +92,11 @@ export function NexusMergeRitualOverlay({
   parentB: DbCompanion;
   mergeSubphase: "fusion" | "video";
 }) {
-  const phaseTitle = mergeSubphase === "fusion" ? "Fusion pulse" : "Motion binding";
+  const phaseTitle = mergeSubphase === "fusion" ? "Fusion pulse" : "Loop imprint";
   const phaseSubtitle =
     mergeSubphase === "fusion"
       ? "The Nexus weaves both threads — nothing is revealed until the ritual completes."
-      : "Your portrait exists — now the veil learns to move with them.";
+      : "Portrait complete — now the loop is being bound.";
 
   return (
     <motion.div
@@ -112,20 +112,25 @@ export function NexusMergeRitualOverlay({
       <div className="absolute inset-0 bg-black/88 backdrop-blur-[2px]" />
       <NexusRealmBackdrop className="absolute inset-0" />
 
-      <div className="relative z-[2] w-full max-w-5xl grid lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] gap-6 lg:gap-10 items-center">
-        <div className="flex flex-col items-center text-center space-y-4 order-2 lg:order-1">
-          <div className="space-y-1">
-            <p className="text-[10px] uppercase tracking-[0.45em] text-muted-foreground font-medium">
+      <div className="relative z-[2] w-full max-w-6xl space-y-5">
+        <div className="rounded-2xl border border-white/[0.12] bg-black/40 px-4 py-3 sm:px-6 sm:py-4 backdrop-blur-xl">
+          <div className="space-y-1 text-center">
+            <p className="text-[10px] uppercase tracking-[0.38em] text-muted-foreground font-medium">
               The Nexus · breeding covenant
             </p>
             <h3 className="font-gothic text-2xl sm:text-3xl gradient-vice-text">{phaseTitle}</h3>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">{phaseSubtitle}</p>
+            <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed">{phaseSubtitle}</p>
           </div>
-          <NexusPortalSwirl mergeSubphase={mergeSubphase} />
         </div>
 
-        <div className="order-1 lg:order-2 w-full max-w-md mx-auto lg:max-w-none lg:w-full">
-          <NexusBreedingDirtyChat parentA={parentA} parentB={parentB} active className="max-h-[min(52vh,380px)]" />
+        <div className="grid lg:grid-cols-[minmax(280px,1fr)_minmax(420px,540px)] gap-6 lg:gap-10 items-center">
+          <div className="flex flex-col items-center text-center space-y-4">
+            <NexusPortalSwirl mergeSubphase={mergeSubphase} />
+          </div>
+
+          <div className="w-full max-w-[540px] mx-auto lg:max-w-none lg:w-full">
+            <NexusBreedingDirtyChat parentA={parentA} parentB={parentB} active className="max-h-[min(56vh,420px)]" />
+          </div>
         </div>
       </div>
 
