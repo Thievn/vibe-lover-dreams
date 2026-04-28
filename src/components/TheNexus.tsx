@@ -2,14 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Orbit, Sparkles, Lock, Percent } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Orbit, Sparkles, Lock, Percent, Heart, Waves, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { DbCompanion } from "@/hooks/useCompanions";
+import { mapSupabaseCustomCharacterRow, dbToCompanion } from "@/hooks/useCompanions";
 import { VAULT_COLLECTION_QUERY_KEY } from "@/hooks/useVaultCollection";
-import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
+import { NexusMergeRitualOverlay } from "@/components/nexus/NexusMergeRitualOverlay";
+import { galleryStaticPortraitUrl, isVideoPortraitUrl, shouldShowProfileLoopVideo } from "@/lib/companionMedia";
 import { NEXUS_INFUSE_EXTRA_COST, NEXUS_MERGE_BASE_COST } from "@/lib/nexusCredits";
 import {
   buildTraitFusionPreview,
@@ -33,7 +35,27 @@ import { resolveDisplayTraitsForDb } from "@/lib/vibeDisplayTraits";
 
 export type TheNexusMode = "user" | "admin";
 
-type Phase = "select" | "merging" | "synthesis" | "revealed";
+type Phase = "select" | "merging" | "revealed";
+
+type MergeSubphase = "fusion" | "video";
+
+function parseMergeStatsNexus(raw: Record<string, unknown> | null | undefined): {
+  compatibility: number;
+  resonance: number;
+  pulse: number;
+  affinity: number;
+} {
+  const c = (k: string) => {
+    const v = raw?.[k];
+    return typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : 0;
+  };
+  return {
+    compatibility: c("compatibility"),
+    resonance: c("resonance"),
+    pulse: c("pulse"),
+    affinity: c("affinity"),
+  };
+}
 
 const NEON = "#FF2D7B";
 
@@ -162,6 +184,167 @@ function togglePickOrder(prev: string[], id: string): string[] {
   return [prev[0]!, id];
 }
 
+function NexusRevealPanel({
+  revealChild,
+  revealFallback,
+  profileFrom,
+  onReset,
+  isAdmin,
+  queryClient,
+}: {
+  revealChild: DbCompanion | null;
+  revealFallback: { childId: string; name: string; summary: string; merge_stats?: Record<string, unknown> };
+  profileFrom: string;
+  onReset: () => void;
+  isAdmin: boolean;
+  queryClient: ReturnType<typeof useQueryClient>;
+}) {
+  const stats = parseMergeStatsNexus(revealChild?.merge_stats ?? revealFallback.merge_stats);
+  const companionUi = revealChild ? dbToCompanion(revealChild) : null;
+  const stillUrl = revealChild ? galleryStaticPortraitUrl(revealChild, revealChild.id) : null;
+  const animUrl = revealChild?.animated_image_url?.trim() || null;
+  const showLoop =
+    Boolean(revealChild) &&
+    shouldShowProfileLoopVideo(revealChild!, revealChild!.profile_loop_video_enabled) &&
+    Boolean(animUrl && isVideoPortraitUrl(animUrl));
+
+  return (
+    <motion.div
+      key="revealed"
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="rounded-[2rem] border border-accent/35 bg-gradient-to-b from-card/85 to-black/65 backdrop-blur-2xl p-8 sm:p-12 relative overflow-hidden"
+    >
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: `radial-gradient(circle at 50% 12%, ${NEON}26, transparent 52%), radial-gradient(circle at 80% 90%, hsl(170 100% 42% / 0.08), transparent 45%)`,
+        }}
+      />
+      <div className="relative grid lg:grid-cols-[minmax(0,280px)_1fr] gap-10 items-start text-left">
+        <div className="mx-auto w-full max-w-[280px] space-y-4">
+          {companionUi && stillUrl ? (
+            <TierHaloPortraitFrame
+              variant="card"
+              frameStyle="clean"
+              rarity={companionUi.rarity}
+              gradientFrom={companionUi.gradientFrom}
+              gradientTo={companionUi.gradientTo}
+              overlayUrl={companionUi.rarityBorderOverlayUrl}
+              aspectClassName="aspect-[2/3] w-full"
+              rarityFrameBleed
+              className="w-full"
+            >
+              <img src={stillUrl} alt="" className="absolute inset-0 z-[1] h-full w-full object-cover object-top" />
+              <div className="absolute inset-0 z-[2] bg-gradient-to-t from-black/85 via-transparent to-transparent pointer-events-none" />
+            </TierHaloPortraitFrame>
+          ) : (
+            <div
+              className="aspect-[2/3] rounded-2xl border border-white/10 flex flex-col items-center justify-center gap-2 p-4 text-center bg-black/50"
+              style={{
+                background: `linear-gradient(160deg, ${NEON}22, hsl(280 40% 18%))`,
+              }}
+            >
+              <p className="text-xs text-white/80">Portrait still syncing.</p>
+              <p className="text-[10px] text-muted-foreground">Open their profile if this stays blank.</p>
+            </div>
+          )}
+          {showLoop && animUrl ? (
+            <video
+              src={animUrl}
+              className="w-full rounded-xl border border-white/10 shadow-lg shadow-black/40"
+              autoPlay
+              loop
+              muted
+              playsInline
+            />
+          ) : companionUi ? (
+            <p className="text-[11px] text-muted-foreground text-center">
+              Looping portrait video will appear here when generation completes — check the profile if it&apos;s still
+              processing.
+            </p>
+          ) : null}
+        </div>
+
+        <div className="space-y-6 min-w-0">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground mb-2">Emerges from The Nexus</p>
+            <h3 className="font-gothic text-3xl sm:text-4xl gradient-vice-text break-words">{revealFallback.name}</h3>
+            {companionUi ? (
+              <p className="text-sm text-primary/90 mt-2 font-medium">{companionUi.tagline}</p>
+            ) : null}
+            <p className="mt-4 text-sm text-muted-foreground leading-relaxed">{revealFallback.summary}</p>
+            <p className="mt-2 text-[11px] uppercase tracking-wider text-muted-foreground/90">
+              Tier · {rarityDisplayLabel(companionUi?.rarity ?? "common")}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {(
+              [
+                ["Compatibility", stats.compatibility, Heart],
+                ["Resonance", stats.resonance, Waves],
+                ["Pulse", stats.pulse, Zap],
+                ["Affinity", stats.affinity, Sparkles],
+              ] as const
+            ).map(([label, val, Icon]) => (
+              <div
+                key={label}
+                className="rounded-xl border border-white/[0.08] bg-black/35 px-3 py-3 text-center backdrop-blur-sm"
+              >
+                <Icon className="h-4 w-4 mx-auto mb-1 text-primary opacity-90" style={{ color: NEON }} />
+                <p className="text-[9px] uppercase tracking-wider text-muted-foreground">{label}</p>
+                <p className="font-gothic text-2xl tabular-nums gradient-vice-text mt-0.5">{val}</p>
+              </div>
+            ))}
+          </div>
+
+          {companionUi?.bio ? (
+            <div className="rounded-xl border border-white/[0.06] bg-black/25 p-4">
+              <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Bio</p>
+              <p className="text-sm text-foreground/90 leading-relaxed line-clamp-[12] whitespace-pre-wrap">
+                {companionUi.bio}
+              </p>
+            </div>
+          ) : null}
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <Link
+              to={`/companions/${revealFallback.childId}`}
+              state={{ from: profileFrom }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-8 py-3 font-bold text-primary-foreground glow-pink text-center"
+              style={{ backgroundColor: NEON }}
+            >
+              Open full profile
+            </Link>
+            <button
+              type="button"
+              onClick={onReset}
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-8 py-3 font-semibold border border-white/15 hover:bg-white/5 transition-colors"
+            >
+              Merge again
+            </button>
+          </div>
+
+          {isAdmin ? (
+            <div className="pt-4 border-t border-white/10">
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">Admin · loop tools</p>
+              <AdminLoopingVideoBlock
+                companionId={revealFallback.childId}
+                onSuccess={() => {
+                  void queryClient.invalidateQueries({ queryKey: ["companions"] });
+                  void queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
+                  void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
+                }}
+              />
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 export default function TheNexus({
   userId,
   forgeParents,
@@ -181,8 +364,14 @@ export default function TheNexus({
   const [infuse, setInfuse] = useState(false);
   const [favorParent, setFavorParent] = useState<"first" | "second" | "balanced">("balanced");
   const [phase, setPhase] = useState<Phase>("select");
-  const [meter, setMeter] = useState(0);
-  const [reveal, setReveal] = useState<{ childId: string; name: string; summary: string } | null>(null);
+  const [mergeSubphase, setMergeSubphase] = useState<MergeSubphase>("fusion");
+  const [revealChild, setRevealChild] = useState<DbCompanion | null>(null);
+  const [revealFallback, setRevealFallback] = useState<{
+    childId: string;
+    name: string;
+    summary: string;
+    merge_stats?: Record<string, unknown>;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
   const [nexusRarityInfoOpen, setNexusRarityInfoOpen] = useState(false);
 
@@ -220,18 +409,11 @@ export default function TheNexus({
       (nexusCooldownRemainingMs(alpha.nexus_cooldown_until ?? null) <= 0 &&
         nexusCooldownRemainingMs(omega.nexus_cooldown_until ?? null) <= 0));
 
-  useEffect(() => {
-    if (phase !== "merging") return;
-    const id = window.setInterval(() => {
-      setMeter((m) => (m >= 94 ? m : m + 3 + Math.random() * 5));
-    }, 380);
-    return () => clearInterval(id);
-  }, [phase]);
-
   const resetFlow = useCallback(() => {
     setPhase("select");
-    setMeter(0);
-    setReveal(null);
+    setMergeSubphase("fusion");
+    setRevealChild(null);
+    setRevealFallback(null);
     setBusy(false);
     setPicked([]);
   }, []);
@@ -239,8 +421,10 @@ export default function TheNexus({
   const runMerge = async () => {
     if (!alpha || !omega || !canMerge) return;
     setBusy(true);
+    setMergeSubphase("fusion");
+    setRevealChild(null);
+    setRevealFallback(null);
     setPhase("merging");
-    setMeter(8);
     try {
       const {
         data: { session },
@@ -275,7 +459,6 @@ export default function TheNexus({
         const msg = await messageFromFunctionsInvoke(error, data);
         toast.error(msg);
         setPhase("select");
-        setMeter(0);
         setBusy(false);
         return;
       }
@@ -286,7 +469,20 @@ export default function TheNexus({
         trait_fusion_summary?: string;
         portraitGenerated?: boolean;
         portraitError?: string | null;
+        merge_stats?: Record<string, unknown>;
+        rarity?: string;
       };
+
+      const summaryFallback =
+        payload.trait_fusion_summary?.trim() ||
+        "A third ascendant steps forward — adult, deliberate, and entirely their own.";
+
+      setRevealFallback({
+        childId: payload.childId,
+        name: payload.name,
+        summary: summaryFallback,
+        merge_stats: payload.merge_stats,
+      });
 
       if (payload.portraitGenerated === false && payload.portraitError) {
         toast.error(
@@ -294,16 +490,41 @@ export default function TheNexus({
         );
       }
 
-      setMeter(100);
-      setReveal({
-        childId: payload.childId,
-        name: payload.name,
-        summary:
-          payload.trait_fusion_summary?.trim() ||
-          "A third ascendant steps forward — adult, deliberate, and entirely their own.",
-      });
-      setPhase("synthesis");
-      await new Promise((r) => setTimeout(r, 2600));
+      const portraitReady = payload.portraitGenerated !== false;
+
+      if (portraitReady) {
+        setMergeSubphase("video");
+        try {
+          const { data: vidData, error: vidErr } = await supabase.functions.invoke("generate-profile-loop-video", {
+            headers: { Authorization: `Bearer ${token}` },
+            body: { companionId: payload.childId },
+          });
+          if (vidErr || (vidData as { error?: string })?.error) {
+            const vm = await messageFromFunctionsInvoke(vidErr, vidData);
+            toast.message(`Loop video: ${vm.slice(0, 140)}${vm.length > 140 ? "…" : ""} — open profile to retry.`);
+          }
+        } catch (ve) {
+          toast.message(
+            ve instanceof Error
+              ? `${ve.message.slice(0, 120)}… Open their profile to generate the loop when ready.`
+              : "Loop video pending — open profile to finish.",
+          );
+        }
+      }
+
+      const uuid = payload.childId.replace(/^cc-/, "");
+      const { data: row, error: rowErr } = await supabase
+        .from("custom_characters")
+        .select("*")
+        .eq("id", uuid)
+        .maybeSingle();
+
+      if (!rowErr && row) {
+        setRevealChild(mapSupabaseCustomCharacterRow(row as Record<string, unknown>));
+      } else {
+        setRevealChild(null);
+      }
+
       setPhase("revealed");
       void queryClient.invalidateQueries({ queryKey: ["companions"] });
       void queryClient.invalidateQueries({ queryKey: [...VAULT_COLLECTION_QUERY_KEY, userId] });
@@ -311,7 +532,6 @@ export default function TheNexus({
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Merge failed.");
       setPhase("select");
-      setMeter(0);
     } finally {
       setBusy(false);
     }
@@ -348,7 +568,8 @@ export default function TheNexus({
   }
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-10 overflow-x-hidden px-4 pb-16 sm:px-6">
+    <>
+      <div className="mx-auto w-full min-w-0 max-w-6xl space-y-10 overflow-x-hidden px-4 pb-16 sm:px-6">
       <div className="relative overflow-hidden rounded-[2rem] border border-primary/25 bg-gradient-to-br from-black/60 via-card/40 to-black/50 backdrop-blur-2xl p-8 sm:p-12 shadow-[0_0_80px_rgba(0,0,0,0.45)]">
         <div
           className="pointer-events-none absolute inset-0 opacity-45"
@@ -601,98 +822,33 @@ export default function TheNexus({
           </motion.div>
         )}
 
-        {(phase === "merging" || phase === "synthesis") && (
-          <motion.div
-            key="ritual"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="rounded-[2rem] border border-primary/30 bg-black/60 backdrop-blur-2xl p-10 sm:p-16 text-center space-y-8 relative overflow-hidden min-h-[320px]"
-          >
-            <motion.div
-              className="absolute inset-0 pointer-events-none opacity-50"
-              style={{
-                background: `conic-gradient(from 180deg at 50% 50%, transparent, ${NEON}33, transparent 70%)`,
-              }}
-              animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 14, ease: "linear" }}
-            />
-            <Orbit className="h-16 w-16 mx-auto relative animate-pulse" style={{ color: NEON }} />
-            <div className="relative space-y-2">
-              <h3 className="font-gothic text-2xl sm:text-3xl gradient-vice-text">
-                {phase === "merging" ? "Fusion pulse" : "The veil thins"}
-              </h3>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                {phase === "merging"
-                  ? isAdmin
-                    ? "Essences entwine while the model writes your hybrid ascendant."
-                    : "FC is committed, essences entwine, and the model writes your third ascendant."
-                  : "Carving voice, silhouette, and appetite into a new adult signature beneath velvet static…"}
-              </p>
-            </div>
-            <div className="relative max-w-md mx-auto space-y-2">
-              <div className="flex justify-between text-[10px] uppercase tracking-widest text-muted-foreground">
-                <span>Conception meter</span>
-                <span>{Math.round(Math.min(100, meter))}%</span>
-              </div>
-              <Progress value={Math.min(100, meter)} className="h-3 bg-black/50" />
-            </div>
-          </motion.div>
-        )}
-
-        {phase === "revealed" && reveal && (
-          <motion.div
-            key="revealed"
-            initial={{ opacity: 0, scale: 0.94 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="rounded-[2rem] border border-accent/35 bg-gradient-to-b from-card/80 to-black/60 backdrop-blur-2xl p-10 sm:p-14 text-center space-y-6 relative overflow-hidden"
-          >
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background: `radial-gradient(circle at 50% 20%, ${NEON}22, transparent 50%)`,
-              }}
-            />
-            <Sparkles className="h-12 w-12 mx-auto text-accent relative" />
-            <div className="relative">
-              <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground mb-2">
-                Emerges from The Nexus
-              </p>
-              <h3 className="font-gothic text-3xl sm:text-4xl gradient-vice-text">{reveal.name}</h3>
-              <p className="mt-4 text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">{reveal.summary}</p>
-            </div>
-            <div className="relative flex flex-col sm:flex-row gap-3 justify-center">
-              <Link
-                to={`/companions/${reveal.childId}`}
-                state={{ from: `${location.pathname}${location.search}` }}
-                className="inline-flex items-center justify-center gap-2 rounded-xl px-8 py-3 font-bold text-primary-foreground glow-pink"
-                style={{ backgroundColor: NEON }}
-              >
-                Open profile
-              </Link>
-              <button
-                type="button"
-                onClick={resetFlow}
-                className="inline-flex items-center justify-center gap-2 rounded-xl px-8 py-3 font-semibold border border-white/15 hover:bg-white/5 transition-colors"
-              >
-                Merge again
-              </button>
-            </div>
-            {isAdmin ? (
-              <div className="relative max-w-md mx-auto text-left">
-                <AdminLoopingVideoBlock
-                  companionId={reveal.childId}
-                  onSuccess={() => {
-                    void queryClient.invalidateQueries({ queryKey: ["companions"] });
-                    void queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
-                    void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
-                  }}
-                />
-              </div>
-            ) : null}
-          </motion.div>
+        {phase === "revealed" && revealFallback && (
+          <NexusRevealPanel
+            revealChild={revealChild}
+            revealFallback={revealFallback}
+            profileFrom={`${location.pathname}${location.search}`}
+            onReset={resetFlow}
+            isAdmin={isAdmin}
+            queryClient={queryClient}
+          />
         )}
       </AnimatePresence>
-    </div>
+      </div>
+      {typeof document !== "undefined"
+        ? createPortal(
+            <AnimatePresence mode="wait">
+              {phase === "merging" && alpha && omega ? (
+                <NexusMergeRitualOverlay
+                  key="nexus-ritual"
+                  parentA={alpha}
+                  parentB={omega}
+                  mergeSubphase={mergeSubphase}
+                />
+              ) : null}
+            </AnimatePresence>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }

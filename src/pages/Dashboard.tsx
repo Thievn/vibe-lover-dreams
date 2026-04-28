@@ -59,7 +59,6 @@ const DASHBOARD_STAT_DEFS = [
   { key: "companions", label: "Companions", accent: "text-primary" },
   { key: "hybrids", label: "Nexus-born", accent: "text-accent" },
   { key: "toySyncs", label: "Toy syncs", accent: "text-[#FF2D7B]" },
-  { key: "legendaries", label: "Legendaries", accent: "text-velvet-purple" },
   { key: "messages", label: "Messages", accent: "text-primary/80" },
 ] as const;
 
@@ -121,10 +120,6 @@ export default function Dashboard() {
     return dbCompanions.filter((c) => c.id.startsWith("cc-") && c.user_id === user.id);
   }, [dbCompanions, user?.id]);
   const nexusBornCount = useMemo(() => vaultCompanions.filter((c) => c.isNexusHybrid).length, [vaultCompanions]);
-  const legendaryCount = useMemo(
-    () => vaultCompanions.filter((c) => normalizeCompanionRarity(c.rarity) === "legendary").length,
-    [vaultCompanions],
-  );
   const hotPicks = useMemo(() => {
     const pool = user ? vaultCompanions : allCompanions;
     const rels = insights?.relationships ?? [];
@@ -187,7 +182,6 @@ export default function Dashboard() {
   const statRow = useMemo(() => {
     const c = vaultCompanions.length;
     const h = nexusBornCount;
-    const l = legendaryCount;
     const t = insights?.toySyncCount;
     const m = insights?.chatMessageCount;
     return DASHBOARD_STAT_DEFS.map((d) => {
@@ -195,7 +189,6 @@ export default function Dashboard() {
       let sub: string | undefined;
       if (d.key === "companions") value = String(c);
       else if (d.key === "hybrids") value = String(h);
-      else if (d.key === "legendaries") value = String(l);
       else if (d.key === "toySyncs") {
         value = insightsLoading ? "—" : String(t ?? 0);
         sub = "Haptic messages in chat";
@@ -205,7 +198,7 @@ export default function Dashboard() {
       }
       return { ...d, value, sub };
     });
-  }, [vaultCompanions.length, nexusBornCount, legendaryCount, insights?.toySyncCount, insights?.chatMessageCount, insightsLoading]);
+  }, [vaultCompanions.length, nexusBornCount, insights?.toySyncCount, insights?.chatMessageCount, insightsLoading]);
 
   const profileRef = useRef<HTMLDivElement>(null);
   const greetingName = resolveGreetingName(user, profileDisplayName);
@@ -907,8 +900,8 @@ function DashboardHome({
 }) {
   return (
     <div className="space-y-10 max-w-6xl mx-auto">
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+      {/* Stats — four even tiles */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {statRow.map((s, i) => (
           <motion.div
             key={s.key}
@@ -927,29 +920,31 @@ function DashboardHome({
         ))}
       </div>
 
-      {/* Quick actions — two primary CTAs, equal weight */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-4xl">
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={onCreate}
-          className="flex w-full min-h-[3.5rem] items-center justify-center gap-3 rounded-2xl py-4 px-6 font-semibold text-primary-foreground shadow-lg border border-white/10"
-          style={{ background: `linear-gradient(135deg, ${NEON_PINK}, hsl(280 50% 35%))` }}
-        >
-          <Hammer className="h-5 w-5 shrink-0 opacity-95" />
-          Create Companion
-        </motion.button>
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={onOpenNexus}
-          className="flex w-full min-h-[3.5rem] items-center justify-center gap-3 rounded-2xl py-4 px-6 font-semibold text-primary-foreground border border-accent/40 bg-accent/20 text-accent hover:bg-accent/30 transition-colors"
-        >
-          <Orbit className="h-5 w-5 shrink-0" />
-          The Nexus
-        </motion.button>
+      {/* Quick actions — centered under the stat row */}
+      <div className="flex w-full justify-center pt-1">
+        <div className="grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onCreate}
+            className="flex w-full min-h-[3.5rem] items-center justify-center gap-3 rounded-2xl py-4 px-6 font-semibold text-primary-foreground shadow-lg border border-white/10"
+            style={{ background: `linear-gradient(135deg, ${NEON_PINK}, hsl(280 50% 35%))` }}
+          >
+            <Hammer className="h-5 w-5 shrink-0 opacity-95" />
+            Create Companion
+          </motion.button>
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onOpenNexus}
+            className="flex w-full min-h-[3.5rem] items-center justify-center gap-3 rounded-2xl py-4 px-6 font-semibold text-primary-foreground border border-accent/40 bg-accent/20 text-accent hover:bg-accent/30 transition-colors"
+          >
+            <Orbit className="h-5 w-5 shrink-0" />
+            The Nexus
+          </motion.button>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
