@@ -1,11 +1,32 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Send, ImageIcon, Video, Mic, ChevronDown, Camera, Aperture, Sparkles, Loader2 } from "lucide-react";
+import {
+  Send,
+  ImageIcon,
+  Video,
+  Mic,
+  ChevronDown,
+  Camera,
+  Aperture,
+  Sparkles,
+  Loader2,
+  CircleHelp,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import type { ChatMediaRoute } from "@/lib/chatVisualRouting";
 import { CHAT_VIDEO_TIMING_USER_NOTE } from "@/lib/chatVisualRouting";
 import type { ChatMediaBarAction } from "@/components/chat/ChatMediaRequestBar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FAB_SELFIE, resolveFabDisplay, type FabSelfieTier } from "@/lib/chatImageSettings";
 import {
@@ -38,8 +59,11 @@ type Props = {
   onStyledStillRequest: (p: { tier: FabSelfieTier; userLine: string; sceneExtension: string }) => void;
   mediaMenuDisabled: boolean;
   videoMenuDisabled: boolean;
-  imageCostLabel: string;
-  videoCostLabel: string;
+  chatImageLewdFc: number;
+  chatImageNudeFc: number;
+  videoClipFc: number;
+  /** Gallery “clip” with preset hint (motion steered per card). */
+  onGalleryClipRequest?: (p: { mood: "sfw" | "lewd" | "nude"; motionHint: string }) => void;
   autoSpendEnabled: boolean;
   onAutoSpendChange: (v: boolean) => void;
   /** Media controls + auto-still are only for signed-in users (same as legacy bar). */
@@ -47,6 +71,12 @@ type Props = {
 };
 
 const GALLERY_DND = "application/lustforge-gallery";
+
+const GALLERY_RESULT_DISCLAIMER =
+  "Stills and clips are tailored to the moment — lighting, wardrobe, or motion can land a touch softer or wilder than you pictured. That’s part of the tease; Forge coins still apply when you confirm.";
+
+const CLIP_PURCHASE_DISCLAIMER =
+  "Short clips are built from her portrait plus the vibe you chose; every now and then framing or motion comes out a little unexpected. Forge coins still apply. Continue?";
 
 /**
  * Glowing field + mic (Web Speech) + three mood media dropdowns, send CTA, auto-spend toggle.
@@ -72,8 +102,10 @@ export function ChatComposer({
   onStyledStillRequest,
   mediaMenuDisabled,
   videoMenuDisabled,
-  imageCostLabel,
-  videoCostLabel,
+  chatImageLewdFc,
+  chatImageNudeFc,
+  videoClipFc,
+  onGalleryClipRequest,
   autoSpendEnabled,
   onAutoSpendChange,
   userLoggedIn,
@@ -187,14 +219,14 @@ export function ChatComposer({
               type="button"
               onClick={listening ? undefined : startVoice}
               className={cn(
-                "inline-flex h-12 w-12 items-center justify-center rounded-xl text-[#00ffd4] transition-colors sm:h-14 sm:w-14",
+                "inline-flex h-10 w-10 items-center justify-center rounded-xl text-[#00ffd4] transition-colors sm:h-11 sm:w-11",
                 "hover:bg-[#00ffd4]/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00ffd4]/40",
                 (loading || disabled || listening) && "pointer-events-none opacity-40",
               )}
               title={listening ? "Listening…" : "Dictate (browser voice)"}
               aria-label="Voice input"
             >
-              {listening ? <Loader2 className="h-6 w-6 animate-spin" /> : <Mic className="h-6 w-6" />}
+              {listening ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
             </button>
           </div>
           <input
@@ -216,8 +248,11 @@ export function ChatComposer({
                 videoDisabled={videoMenuDisabled}
                 onRequest={onMediaRequest}
                 onStyledStillRequest={onStyledStillRequest}
-                imageCostLabel={imageCostLabel}
-                videoCostLabel={videoCostLabel}
+                onGalleryClipRequest={onGalleryClipRequest}
+                isAdminUser={isAdminUser}
+                chatImageLewdFc={chatImageLewdFc}
+                chatImageNudeFc={chatImageNudeFc}
+                videoClipFc={videoClipFc}
               />
             </div>
           ) : null}
@@ -231,8 +266,11 @@ export function ChatComposer({
               videoDisabled={videoMenuDisabled}
               onRequest={onMediaRequest}
               onStyledStillRequest={onStyledStillRequest}
-              imageCostLabel={imageCostLabel}
-              videoCostLabel={videoCostLabel}
+              onGalleryClipRequest={onGalleryClipRequest}
+              isAdminUser={isAdminUser}
+              chatImageLewdFc={chatImageLewdFc}
+              chatImageNudeFc={chatImageNudeFc}
+              videoClipFc={videoClipFc}
               compact
             />
           </div>
@@ -285,20 +323,26 @@ function MoodMediaDropdowns({
   videoDisabled,
   onRequest,
   onStyledStillRequest,
-  imageCostLabel,
-  videoCostLabel,
+  onGalleryClipRequest,
+  isAdminUser,
+  chatImageLewdFc,
+  chatImageNudeFc,
+  videoClipFc,
   compact,
 }: {
   disabled: boolean;
   videoDisabled: boolean;
   onRequest: (a: ChatMediaBarAction) => void;
   onStyledStillRequest: (p: { tier: FabSelfieTier; userLine: string; sceneExtension: string }) => void;
-  imageCostLabel: string;
-  videoCostLabel: string;
+  onGalleryClipRequest?: (p: { mood: "sfw" | "lewd" | "nude"; motionHint: string }) => void;
+  isAdminUser: boolean;
+  chatImageLewdFc: number;
+  chatImageNudeFc: number;
+  videoClipFc: number;
   compact?: boolean;
 }) {
   return (
-    <div className={cn("flex flex-wrap items-center justify-end gap-1", compact && "w-full justify-start")}>
+    <div className={cn("flex flex-wrap items-center justify-end gap-0.5", compact && "w-full justify-start")}>
       <PhotoMoodMenu
         label="Selfie"
         icon={Camera}
@@ -309,8 +353,11 @@ function MoodMediaDropdowns({
         videoDisabled={videoDisabled}
         onRequest={onRequest}
         onStyledStillRequest={onStyledStillRequest}
-        imageCostLabel={imageCostLabel}
-        videoCostLabel={videoCostLabel}
+        onGalleryClipRequest={onGalleryClipRequest}
+        isAdminUser={isAdminUser}
+        chatImageLewdFc={chatImageLewdFc}
+        chatImageNudeFc={chatImageNudeFc}
+        videoClipFc={videoClipFc}
       />
       <PhotoMoodMenu
         label="Lewd"
@@ -322,8 +369,11 @@ function MoodMediaDropdowns({
         videoDisabled={videoDisabled}
         onRequest={onRequest}
         onStyledStillRequest={onStyledStillRequest}
-        imageCostLabel={imageCostLabel}
-        videoCostLabel={videoCostLabel}
+        onGalleryClipRequest={onGalleryClipRequest}
+        isAdminUser={isAdminUser}
+        chatImageLewdFc={chatImageLewdFc}
+        chatImageNudeFc={chatImageNudeFc}
+        videoClipFc={videoClipFc}
       />
       <PhotoMoodMenu
         label="Nude"
@@ -335,8 +385,11 @@ function MoodMediaDropdowns({
         videoDisabled={videoDisabled}
         onRequest={onRequest}
         onStyledStillRequest={onStyledStillRequest}
-        imageCostLabel={imageCostLabel}
-        videoCostLabel={videoCostLabel}
+        onGalleryClipRequest={onGalleryClipRequest}
+        isAdminUser={isAdminUser}
+        chatImageLewdFc={chatImageLewdFc}
+        chatImageNudeFc={chatImageNudeFc}
+        videoClipFc={videoClipFc}
       />
     </div>
   );
@@ -346,12 +399,12 @@ type Which = "selfie" | "lewd" | "nude";
 
 function buildQuickSceneExtension(tier: FabSelfieTier): string {
   if (tier === "nude") {
-    return "Explicit nude still: creative pose, lighting, and **fresh environment** for this roll — flatter body type and personality matrix; same identity as the roster portrait (face/hair/body), uncensored adult framing; **no pasted-on swimsuit from the card.**";
+    return "Explicit nude still: creative pose, lighting, and **fresh environment** for this roll — match the roster portrait **exactly** for face shape, hair, skin tone, age read, and silhouette; same personality matrix; uncensored adult framing; **no pasted-on swimsuit from the card.**";
   }
   if (tier === "lewd") {
-    return "Lewd still: creative teasing heat — lingerie, sheer, wet clingy fabric, silhouette, or undressing that fits personality and era; **new wardrobe + backdrop each time**, not a reshoot of their roster swimsuit unless swim is the vibe.";
+    return "Lewd still: creative teasing heat — lingerie, sheer, wet clingy fabric, silhouette, or undressing that fits personality and era; **new wardrobe + backdrop each time**, not a reshoot of their roster swimsuit unless swim is the vibe; **same face and body** as the roster portrait — no look-alike drift.";
   }
-  return "SFW still: creative flattering selfie — **distinct outfit and location** from their catalog portrait when possible; era-appropriate clothes; fully clothed; identity lock only for face/hair/body.";
+  return "SFW still: creative flattering selfie — **distinct outfit and location** from their catalog portrait when possible; era-appropriate clothes; fully clothed; **same face, hair, and body** as the roster portrait (no substitute model).";
 }
 
 function PhotoMoodMenu({
@@ -362,10 +415,13 @@ function PhotoMoodMenu({
   which,
   onRequest,
   onStyledStillRequest,
+  onGalleryClipRequest,
   disabled,
   videoDisabled,
-  imageCostLabel,
-  videoCostLabel,
+  isAdminUser,
+  chatImageLewdFc,
+  chatImageNudeFc,
+  videoClipFc,
 }: {
   label: string;
   icon: typeof Camera;
@@ -374,13 +430,24 @@ function PhotoMoodMenu({
   which: Which;
   onRequest: (a: ChatMediaBarAction) => void;
   onStyledStillRequest: (p: { tier: FabSelfieTier; userLine: string; sceneExtension: string }) => void;
+  onGalleryClipRequest?: (p: { mood: "sfw" | "lewd" | "nude"; motionHint: string }) => void;
   disabled: boolean;
   videoDisabled: boolean;
-  imageCostLabel: string;
-  videoCostLabel: string;
+  isAdminUser: boolean;
+  chatImageLewdFc: number;
+  chatImageNudeFc: number;
+  videoClipFc: number;
 }) {
   const [open, setOpen] = useState(false);
+  const [showGalleryDisclaimer, setShowGalleryDisclaimer] = useState(false);
+  const [clipConfirmOpt, setClipConfirmOpt] = useState<SmartChatPhotoStyleOption | null>(null);
+
   const vid: ChatMediaBarAction = which === "selfie" ? "selfie_video" : which === "lewd" ? "lewd_video" : "nude_video";
+  const clipMood: "sfw" | "lewd" | "nude" = which === "selfie" ? "sfw" : which === "nude" ? "nude" : "lewd";
+  const stillFcNum = tier === "nude" ? chatImageNudeFc : chatImageLewdFc;
+  const fmtFc = (n: number) => (isAdminUser ? "Included" : `${n} FC`);
+  const stillPrice = fmtFc(stillFcNum);
+  const clipPrice = fmtFc(videoClipFc);
 
   const styleOptions = useMemo((): SmartChatPhotoStyleOption[] => {
     const quick: SmartChatPhotoStyleOption = {
@@ -420,8 +487,14 @@ function PhotoMoodMenu({
     setOpen(false);
   };
 
-  const pickVideo = () => {
-    onRequest(vid);
+  const runClipForOpt = (opt: SmartChatPhotoStyleOption) => {
+    const motionHint = [opt.label, opt.hint, opt.sceneExtension].filter(Boolean).join(" — ").slice(0, 480);
+    if (onGalleryClipRequest) {
+      onGalleryClipRequest({ mood: clipMood, motionHint });
+    } else {
+      onRequest(vid);
+    }
+    setClipConfirmOpt(null);
     setOpen(false);
   };
 
@@ -436,16 +509,16 @@ function PhotoMoodMenu({
         aria-expanded={open}
         aria-label={`${label} photo styles`}
         className={cn(
-          "inline-flex items-center gap-0.5 rounded-lg border px-1.5 py-1.5 text-[9px] font-bold uppercase tracking-wide touch-manipulation shadow-sm transition-[box-shadow,transform] sm:gap-1 sm:px-2.5 sm:text-[10px]",
+          "inline-flex items-center gap-0.5 rounded-md border px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide touch-manipulation shadow-sm transition-[box-shadow,transform] sm:gap-0.5 sm:px-1.5 sm:text-[9px]",
           accent,
           which === "selfie" && "ring-1 ring-emerald-400/15 hover:ring-emerald-400/30",
           which === "lewd" && "ring-1 ring-rose-400/15 hover:ring-rose-400/35",
           which === "nude" && "ring-1 ring-violet-400/15 hover:ring-violet-400/35",
         )}
       >
-        <Icon className="h-3 w-3 shrink-0" />
+        <Icon className="h-2.5 w-2.5 shrink-0 sm:h-3 sm:w-3" />
         {label}
-        <ChevronDown className="h-2.5 w-2.5 opacity-70 text-muted-foreground" aria-hidden />
+        <ChevronDown className="h-2 w-2 opacity-70 text-muted-foreground" aria-hidden />
       </motion.button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -457,15 +530,38 @@ function PhotoMoodMenu({
         >
           <DialogHeader
             className={cn(
-              "space-y-2 border-b border-white/[0.08] bg-gradient-to-br px-5 py-5 text-left",
+              "space-y-2 border-b border-white/[0.08] bg-gradient-to-br px-5 py-4 text-left",
               tierHeroGlow,
             )}
           >
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/45">
-              {which === "selfie" ? "SFW" : which === "lewd" ? "Spicy" : "Explicit"} · Premium still
-            </p>
-            <DialogTitle className="font-gothic text-xl font-normal tracking-tight text-white sm:text-2xl">{title}</DialogTitle>
-            <DialogDescription className="text-[13px] leading-relaxed text-muted-foreground/95">{description}</DialogDescription>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1 space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/45">
+                  {which === "selfie" ? "SFW" : which === "lewd" ? "Spicy" : "Explicit"} · Stills & clips
+                </p>
+                <DialogTitle className="font-gothic text-xl font-normal tracking-tight text-white sm:text-2xl">
+                  {title}
+                </DialogTitle>
+                <DialogDescription className="text-[13px] leading-relaxed text-muted-foreground/95">
+                  {description}
+                </DialogDescription>
+              </div>
+              <button
+                type="button"
+                className="mt-0.5 shrink-0 rounded-lg border border-white/10 bg-black/30 p-1.5 text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
+                title="About results & pricing"
+                aria-expanded={showGalleryDisclaimer}
+                onClick={() => setShowGalleryDisclaimer((v) => !v)}
+              >
+                <CircleHelp className="h-4 w-4" aria-hidden />
+                <span className="sr-only">Gallery disclaimer</span>
+              </button>
+            </div>
+            {showGalleryDisclaimer ? (
+              <p className="rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-[11px] leading-snug text-muted-foreground/95">
+                {GALLERY_RESULT_DISCLAIMER}
+              </p>
+            ) : null}
           </DialogHeader>
 
           <div className="max-h-[min(62vh,28rem)] overflow-y-auto overscroll-contain px-4 pb-4 pt-3 sm:max-h-[min(58vh,30rem)] sm:px-5">
@@ -473,16 +569,12 @@ function PhotoMoodMenu({
               {styleOptions.map((opt) => {
                 const isQuick = opt.id.endsWith("-quick");
                 return (
-                  <button
+                  <div
                     key={opt.id}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => pickStill(opt)}
-                      className={cn(
-                        "group relative flex flex-col overflow-hidden rounded-xl border text-left transition-all duration-300",
+                    className={cn(
+                      "group relative flex flex-col overflow-hidden rounded-xl border text-left transition-all duration-300",
                       "border-white/[0.09] bg-gradient-to-b from-white/[0.06] to-white/[0.02] hover:-translate-y-0.5 hover:border-white/25 hover:from-white/[0.09] hover:to-white/[0.04]",
-                      "hover:shadow-[0_20px_56px_rgba(0,0,0,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
-                      disabled && "pointer-events-none opacity-40",
+                      "hover:shadow-[0_20px_56px_rgba(0,0,0,0.55)]",
                       isQuick && "ring-1 ring-amber-400/45 border-amber-500/40 shadow-[0_12px_40px_rgba(251,191,36,0.08)]",
                       !isQuick &&
                         which === "selfie" &&
@@ -500,43 +592,79 @@ function PhotoMoodMenu({
                       <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_70%_at_50%_-10%,rgba(255,255,255,0.22),transparent_55%)]" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
                       <ImageIcon
-                        className="pointer-events-none absolute right-2.5 top-2.5 h-5 w-5 text-white/20 transition-transform duration-300 group-hover:scale-105 group-hover:text-white/28"
+                        className="pointer-events-none absolute right-2 top-2 h-4 w-4 text-white/20 transition-transform duration-300 group-hover:scale-105 group-hover:text-white/28 sm:right-2.5 sm:top-2.5 sm:h-5 sm:w-5"
                         aria-hidden
                       />
-                      <div className="absolute bottom-0 left-0 right-0 p-2.5 pt-6">
-                        <p className="text-[12px] font-semibold leading-tight text-white drop-shadow-md">{opt.label}</p>
+                      <div className="absolute bottom-0 left-0 right-0 p-2 pt-5 sm:p-2.5 sm:pt-6">
+                        <p className="text-[11px] font-semibold leading-tight text-white drop-shadow-md sm:text-[12px]">
+                          {opt.label}
+                        </p>
                       </div>
                     </div>
-                    <div className="flex flex-1 flex-col gap-1.5 p-3 pt-2.5">
-                      <p className="text-[11px] leading-snug text-muted-foreground/90 line-clamp-3">{opt.hint}</p>
-                      <p className="mt-auto text-[8px] font-semibold uppercase tracking-[0.18em] text-white/35">
-                        Still · {imageCostLabel}
+                    <div className="flex flex-1 flex-col gap-2 p-2.5 sm:p-3">
+                      <p className="text-[10px] leading-snug text-muted-foreground/90 line-clamp-3 sm:text-[11px]">
+                        {opt.hint}
                       </p>
+                      <div className="mt-auto flex flex-col gap-1 sm:flex-row sm:gap-1.5">
+                        <button
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => pickStill(opt)}
+                          className={cn(
+                            "flex-1 rounded-lg border border-white/12 bg-black/40 px-2 py-1.5 text-center text-[9px] font-semibold text-foreground/95 transition-colors",
+                            "hover:bg-white/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+                            disabled && "pointer-events-none opacity-40",
+                          )}
+                        >
+                          Still · {stillPrice}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={disabled || videoDisabled}
+                          onClick={() => setClipConfirmOpt(opt)}
+                          className={cn(
+                            "flex-1 rounded-lg border border-cyan-500/30 bg-cyan-950/25 px-2 py-1.5 text-center text-[9px] font-semibold text-cyan-100/95 transition-colors",
+                            "hover:bg-cyan-950/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/35",
+                            (disabled || videoDisabled) && "pointer-events-none opacity-40",
+                          )}
+                        >
+                          Clip · {clipPrice}
+                        </button>
+                      </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
           </div>
-
-          <div className="border-t border-white/[0.08] bg-black/35 px-4 py-3.5 sm:px-5">
-            <button
-              type="button"
-              disabled={disabled || videoDisabled}
-              onClick={pickVideo}
-              className={cn(
-                "flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-500/25 bg-cyan-950/20 py-2.5 text-sm font-medium text-cyan-100/95 transition-colors",
-                "hover:bg-cyan-950/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/30",
-                (disabled || videoDisabled) && "pointer-events-none opacity-40",
-              )}
-            >
-              <Video className="h-4 w-4 shrink-0 text-[#00ffd4]" aria-hidden />
-              <span>Motion clip instead</span>
-              <span className="text-[10px] font-normal text-[#00ffd4]/75">{videoCostLabel}</span>
-            </button>
-          </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={clipConfirmOpt != null} onOpenChange={(o) => !o && setClipConfirmOpt(null)}>
+        <AlertDialogContent className="border-white/10 bg-[hsl(280_18%_8%)] text-foreground">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Queue this clip?</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground/95">
+              {CLIP_PURCHASE_DISCLAIMER}
+              {!isAdminUser ? (
+                <>
+                  {" "}
+                  This run bills <span className="font-semibold text-foreground">{videoClipFc} FC</span>.
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Not now</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={disabled || videoDisabled || !clipConfirmOpt}
+              onClick={() => clipConfirmOpt && runClipForOpt(clipConfirmOpt)}
+            >
+              Yes — use {clipPrice}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

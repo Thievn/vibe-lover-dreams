@@ -66,6 +66,7 @@ import { ChatSmartReplies } from "@/components/chat/ChatSmartReplies";
 import { ChatDevicesCollapsible } from "@/components/chat/ChatDevicesCollapsible";
 import { FloatingHeartsLayer } from "@/components/chat/FloatingHeartsLayer";
 import { ChatVoiceSettingsSheet } from "@/components/chat/ChatVoiceSettingsSheet";
+import { ChatSignatureMovesDropdown } from "@/components/chat/ChatSignatureMovesDropdown";
 import type { ChatMessage } from "@/components/chat/chatTypes";
 import { deriveChatMood } from "@/lib/chatMood";
 import {
@@ -81,8 +82,8 @@ import {
   type TtsUxVoiceId,
 } from "@/lib/ttsVoicePresets";
 import { CHAT_IMAGE_LEWD_FC, CHAT_IMAGE_NUDE_FC, CHAT_MESSAGE_FC } from "@/lib/forgeEconomy";
-import { LIVE_CALL_CREDITS_PER_MINUTE } from "@/lib/liveCallBilling";
 import { spendForgeCoins } from "@/lib/forgeCoinsClient";
+import { LIVE_CALL_CREDITS_PER_MINUTE } from "@/lib/liveCallBilling";
 import { ToyHubPopover } from "@/components/toy/ToyHubPopover";
 import { ChatGallerySheet } from "@/components/chat/ChatGallerySheet";
 import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFromGallery";
@@ -163,6 +164,8 @@ const Chat = () => {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [tokensBalance, setTokensBalance] = useState<number>(0);
+  /** False until first `fetchTokens` completes — avoids treating initial 0 as broke. */
+  const [forgeBalanceReady, setForgeBalanceReady] = useState(false);
   const [safeWord] = useState(() => localStorage.getItem("lustforge-safeword") || "RED");
   const [connectedToys, setConnectedToys] = useState<LovenseToy[]>([]);
   const [primaryToyUid, setPrimaryToyUid] = useState<string | null>(null);
@@ -196,6 +199,11 @@ const Chat = () => {
   const [rampPreset, setRampPreset] = useState<RampPresetId>("gentle_tease");
   /** Increment to force Live Voice mic cleanup on emergency (safe word, leave chat, etc.). */
   const [liveVoiceStopTick, setLiveVoiceStopTick] = useState(0);
+  /** Billable seconds while the Live Voice mic is open (ceil to started minutes on hang-up). */
+  const [liveVoiceElapsedSec, setLiveVoiceElapsedSec] = useState(0);
+  const liveVoiceBillableSecRef = useRef(0);
+  const [liveVoiceMicRecording, setLiveVoiceMicRecording] = useState(false);
+  const prevSessionModeForLiveVoiceRef = useRef(sessionMode);
   const [toyUtilityBusy, setToyUtilityBusy] = useState(false);
   const [historyReady, setHistoryReady] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -418,6 +426,67 @@ const Chat = () => {
   }, [sessionMode]);
 
   useEffect(() => {
+    const prev = prevSessionModeForLiveVoiceRef.current;
+    prevSessionModeForLiveVoiceRef.current = sessionMode;
+    if (sessionMode === "live_voice" && prev !== "live_voice") {
+      liveVoiceBillableSecRef.current = 0;
+      setLiveVoiceElapsedSec(0);
+    }
+  }, [sessionMode]);
+
+  /** Kick out of Live Voice if balance drops below one started minute. */
+  useEffect(() => {
+    if (sessionMode !== "live_voice" || !user?.id || isAdminUser) return;
+    if (!forgeBalanceReady) return;
+    if (tokensBalance < LIVE_CALL_CREDITS_PER_MINUTE) {
+      setLiveVoiceElapsedSec(0);
+      setSessionMode((m) => {
+        if (m !== "live_voice") return m;
+        persistChatSessionMode("classic");
+        toast.message(`Switched to Classic — need at least ${LIVE_CALL_CREDITS_PER_MINUTE} FC for Live Voice.`);
+        return "classic";
+      });
+    }
+  }, [sessionMode, user?.id, isAdminUser, tokensBalance, forgeBalanceReady]);
+
+  /** Tick billable seconds only while the open mic is recording. */
+  useEffect(() => {
+    if (sessionMode !== "live_voice" || !liveVoiceMicRecording || !user?.id || isAdminUser) return;
+    if (!forgeBalanceReady) return;
+    if (tokensBalance < LIVE_CALL_CREDITS_PER_MINUTE) return;
+    const iv = window.setInterval(() => {
+      liveVoiceBillableSecRef.current += 1;
+      setLiveVoiceElapsedSec(liveVoiceBillableSecRef.current);
+    }, 1000);
+    return () => window.clearInterval(iv);
+  }, [sessionMode, liveVoiceMicRecording, user?.id, isAdminUser, tokensBalance, forgeBalanceReady]);
+
+  /** Bill accumulated mic-open seconds when leaving Live Voice or switching companion (same formula as `LiveCallPage` hangup). */
+  useEffect(() => {
+    if (sessionMode !== "live_voice" || !user?.id || isAdminUser) return;
+    const companionId = companion?.id ?? "";
+    return () => {
+      const billSec = liveVoiceBillableSecRef.current;
+      liveVoiceBillableSecRef.current = 0;
+      setLiveVoiceElapsedSec(0);
+      const minutesBilled = billSec > 0 ? Math.max(1, Math.ceil(billSec / 60)) : 0;
+      if (minutesBilled <= 0 || !companionId) return;
+      const amount = minutesBilled * LIVE_CALL_CREDITS_PER_MINUTE;
+      void spendForgeCoins(amount, "live_voice", `Chat Live Voice · ${minutesBilled} min`, {
+        companion_id: companionId,
+        bill_seconds: billSec,
+      }).then((r) => {
+        if (r.ok) {
+          setTokensBalance(r.newBalance);
+          tokensBalanceRef.current = r.newBalance;
+        } else {
+          toast.error(r.err || "Could not record FC for this Live Voice session.");
+        }
+      });
+    };
+  }, [sessionMode, user?.id, companion?.id, isAdminUser]);
+
+  useEffect(() => {
     return () => {
       void (async () => {
         await stopSustainedToy();
@@ -498,10 +567,14 @@ const Chat = () => {
         return;
       }
       setUser(session.user);
-      fetchTokens(session.user.id);
+      void fetchTokens(session.user.id);
       checkDevice(session.user.id);
     });
   }, [navigate]);
+
+  useEffect(() => {
+    if (!user) setForgeBalanceReady(false);
+  }, [user]);
 
   useEffect(() => {
     if (!user?.id || !companion || companion.id !== id) return;
@@ -600,8 +673,17 @@ const Chat = () => {
       typeof data?.tokens_balance === "number" && Number.isFinite(data.tokens_balance) ? data.tokens_balance : 0;
     setTokensBalance(bal);
     tokensBalanceRef.current = bal;
+    setForgeBalanceReady(true);
     const g = data?.tts_voice_global_override;
     setProfileTtsGlobal(typeof g === "string" && g.trim() ? g.trim() : null);
+    if (!isAdminUser && bal < LIVE_CALL_CREDITS_PER_MINUTE) {
+      setSessionMode((m) => {
+        if (m !== "live_voice") return m;
+        persistChatSessionMode("classic");
+        toast.message(`Switched to Classic — Live Voice needs at least ${LIVE_CALL_CREDITS_PER_MINUTE} FC.`);
+        return "classic";
+      });
+    }
     return bal;
   };
 
@@ -993,6 +1075,7 @@ const Chat = () => {
         connectedToysSummary: toyBlock,
         userToyIntensityPercent: Number.isFinite(pct) ? pct : 100,
         chatAffectionTier: relationship?.chat_affection_level ?? 1,
+        vibrationPatterns,
       });
       if (rampModeActive) {
         live +=
@@ -1013,6 +1096,7 @@ const Chat = () => {
       openingFantasyStarterTitle: openingFantasyStarterTitleRef.current,
       userToyIntensityPercent: Number.isFinite(pct) ? pct : 100,
       chatAffectionTier: relationship?.chat_affection_level ?? 1,
+      vibrationPatterns,
     });
   };
 
@@ -1427,7 +1511,11 @@ const Chat = () => {
    * Grok Imagine I2V from the companion still. Non-silent path shows a fun loading line (never “generating…”) then replaces with success.
    * `silent` = model-appended `lustforge_media_request` (no toasts; immersion-first).
    */
-  const generateChatVideoClip = async (opts?: { mood?: "sfw" | "lewd" | "nude"; silent?: boolean }) => {
+  const generateChatVideoClip = async (opts?: {
+    mood?: "sfw" | "lewd" | "nude";
+    silent?: boolean;
+    motionHint?: string;
+  }) => {
     if (!user || !companion) return;
     const mood = opts?.mood ?? "lewd";
     const silent = opts?.silent ?? false;
@@ -1449,6 +1537,7 @@ const Chat = () => {
         userId: user.id,
         tokenCost: cost,
         clipMood: mood,
+        motionHint: opts?.motionHint?.trim() || undefined,
       });
       if (error) throw error;
       const url = data?.videoUrl;
@@ -2306,14 +2395,32 @@ const Chat = () => {
         onOpenGallery={user ? () => setGalleryOpen(true) : undefined}
         showHeroInLeftColumn
         sessionControls={
-          <ChatModeToggle
-            mode={sessionMode}
-            onChange={(m) => {
-              setSessionMode(m);
-              persistChatSessionMode(m);
-            }}
-            disabled={!user}
-          />
+          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:justify-end">
+            <ChatSignatureMovesDropdown
+              companionName={companion.name}
+              patterns={vibrationPatterns}
+              patternsLoading={vibrationPatternsLoading}
+              hasDevice={hasDevice}
+              disabled={!user || loading}
+              activePatternId={livePatternId}
+              onTriggerPattern={(row) => void triggerCompanionVibration(row)}
+            />
+            <ChatModeToggle
+              mode={sessionMode}
+              onChange={(m) => {
+                if (m === "live_voice" && !isAdminUser && tokensBalanceRef.current < LIVE_CALL_CREDITS_PER_MINUTE) {
+                  toast.error(
+                    `Live Voice bills ${LIVE_CALL_CREDITS_PER_MINUTE} FC per started minute (same as full-screen Live Call). Keep at least ${LIVE_CALL_CREDITS_PER_MINUTE} FC to begin.`,
+                    { action: { label: "Buy FC", onClick: () => navigate("/buy-credits") } },
+                  );
+                  return;
+                }
+                setSessionMode(m);
+                persistChatSessionMode(m);
+              }}
+              disabled={!user}
+            />
+          </div>
         }
         rightSlot={
           user ? (
@@ -2439,8 +2546,13 @@ const Chat = () => {
             {sessionMode === "live_voice" ? (
               <div className="z-10 shrink-0 border-t border-white/[0.06] bg-gradient-to-b from-black/40 to-transparent px-2 pb-1 sm:px-3">
                 <LiveVoicePanel
+                  companionName={companion.name}
                   disabled={!isAdminUser && tokensBalance < LIVE_CALL_CREDITS_PER_MINUTE}
                   busy={loading}
+                  creditsPerMinute={LIVE_CALL_CREDITS_PER_MINUTE}
+                  sessionElapsedSec={liveVoiceElapsedSec}
+                  onMicRecordingChange={setLiveVoiceMicRecording}
+                  voiceInteractiveLocked={!liveVoiceMicRecording}
                   onRegisterRampAssistFeed={registerLiveRampAssistFeed}
                   onSendText={liveVoiceSendText}
                   rampModeActive={rampModeActive}
@@ -2513,14 +2625,16 @@ const Chat = () => {
                 }
                 mediaMenuDisabled={Boolean(user && !isAdminUser && tokensBalance < CHAT_IMAGE_LEWD_FC)}
                 videoMenuDisabled={Boolean(user && !isAdminUser && tokensBalance < CHAT_VIDEO_TOKEN_COST)}
-                imageCostLabel={isAdminUser ? "waived" : `${CHAT_IMAGE_LEWD_FC}–${CHAT_IMAGE_NUDE_FC} FC still`}
-                videoCostLabel={isAdminUser ? "waived" : `${CHAT_VIDEO_TOKEN_COST} FC clip`}
+                chatImageLewdFc={CHAT_IMAGE_LEWD_FC}
+                chatImageNudeFc={CHAT_IMAGE_NUDE_FC}
+                videoClipFc={CHAT_VIDEO_TOKEN_COST}
                 autoSpendEnabled={autoSpendChatImages}
                 onAutoSpendChange={(enabled) => {
                   setAutoSpendChatImages(enabled);
                   setChatAutoSpendImages(companion.id, enabled);
                 }}
                 userLoggedIn={Boolean(user)}
+                onGalleryClipRequest={(p) => void generateChatVideoClip({ mood: p.mood, motionHint: p.motionHint })}
               />
             </div>
           </div>

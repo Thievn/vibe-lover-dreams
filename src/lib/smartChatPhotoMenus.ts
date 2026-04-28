@@ -322,7 +322,7 @@ export const SMART_NUDE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Reclining explicit framing",
     userLine: "Legs spread — don’t hold back.",
     sceneExtension:
-      "NSFW reclining nude legs spread: clear explicit genital framing as user requested; soft fill to reduce harsh shadow; flushed skin; gripping sheets; intimate eye contact; adult product tone; anatomy consistent with portrait.",
+      "Tasteful reclining nude: relaxed open pose on silk sheets; thighs apart in soft shadow and rim light — **implied** intimacy, art-directed silhouette; no graphic genital close-up; flushed skin; eye contact; anatomy consistent with portrait; premium boudoir tone.",
     paletteIndex: 4,
   },
   {
@@ -331,7 +331,7 @@ export const SMART_NUDE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Self-pleasure, eye contact",
     userLine: "Touching yourself — I want to watch every second.",
     sceneExtension:
-      "NSFW masturbation still: self-touch with explicit detail appropriate to anatomy; parted lips; arched back; cinematic light; maintain portrait identity; no extra hands; coherent pose.",
+      "Tasteful intimate self-touch still: hand at breast or along inner thigh through sheet or shadow — heavy-lidded eyes, arched back; cinematic light; **no** explicit penetration or clinical close-up; portrait identity lock; editorial sensuality.",
     paletteIndex: 5,
   },
   {
@@ -340,7 +340,7 @@ export const SMART_NUDE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Bed or rug, arch, glance",
     userLine: "On all fours for me — slow arch, eyes up.",
     sceneExtension:
-      "NSFW all-fours nude on bed or rug: back arch; knees and hands placement clear; glance to camera or forward; hair fall; explicit nudity; sensual not grotesque; same body type as reference.",
+      "Tasteful all-fours nude silhouette on bed or rug: back arch, hair fall, moody side light — curves and shadow suggest nudity without graphic spread; glance to camera; sensual not grotesque; photoreal human proportions matching reference identity.",
     paletteIndex: 6,
   },
   {

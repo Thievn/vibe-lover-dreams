@@ -29,7 +29,8 @@ function buildIdentityLockBlock(characterData: Record<string, unknown>): string 
 
   return [
     "Identity lock:",
-    "- Keep the same person as the reference image: same face structure, same body proportions, same skin/fur tone, and same recognizable identity.",
+    "- Keep the same person as the reference image: same face structure, same skin/fur tone, and same recognizable identity.",
+    "- If the reference is chibi, caricature, or exaggerated proportions: output **photoreal adult human** anatomy that preserves facial likeness — **normalize** head-to-body ratio and limbs to believable human scale unless the prompt explicitly requests stylized art.",
     "- Do **not** preserve the reference photo's clothing, swimsuit, or bikini when the prompt asks for nudity, lingerie, wet fabric, or a different outfit — match identity only; wardrobe follows the requested variation.",
     bodyType ? tensorIdentityPhysiqueLine(bodyType) : "",
     artStyle ? `- Locked render style family: ${artStyle}.` : "",
@@ -63,7 +64,7 @@ export async function generateConsistentCharacterImage(args: {
     prompt,
   );
   const adultGate = nsfwOk
-    ? "The following request may be explicit adult content. Remove clothing from the reference when asked; do not default to a modest or SFW crop — match the user’s NSFW brief.\n\n"
+    ? "Adult tasteful nude or intimate framing may apply. Remove clothing from the reference when asked; match the user’s brief with **photoreal editorial sensuality** — avoid hardcore pornographic staging or graphic close-ups.\n\n"
     : "";
   const finalPrompt = `${buildIdentityLockBlock(characterData)}\n\n${adultGate}Requested variation:\n${prompt}`.trim();
 

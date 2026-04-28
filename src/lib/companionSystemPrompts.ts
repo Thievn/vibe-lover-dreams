@@ -1,4 +1,6 @@
 import type { Companion } from "@/data/companions";
+import type { CompanionVibrationPatternRow } from "@/hooks/useCompanionVibrationPatterns";
+import { buildVibrationPatternPromptBlock } from "@/lib/chatVibrationPromptBlock";
 
 export type ChatSystemPromptOptions = {
   /**
@@ -18,6 +20,8 @@ export type ChatSystemPromptOptions = {
   userToyIntensityPercent?: number;
   /** 1–5 chat bond tier — calibrate warmth; never label as “game” to the user. */
   chatAffectionTier?: number;
+  /** DB-backed Lovense rows — teaches signature / pattern names for toy JSON. */
+  vibrationPatterns?: CompanionVibrationPatternRow[];
 };
 
 function clamp(n: number, lo: number, hi: number) {
@@ -105,6 +109,9 @@ OPENER: They chose Fantasy starter "${opts.openingFantasyStarterTitle.trim()}". 
       ? "- If linked: mention the toy naturally — tease control (\"want a pulse?\", \"should I edge you?\") — still **1–3 sentences total**."
       : "- If linked: weave toys into the scene in-character; you may describe teasing control, edging, patterns — keep it consensual and aligned with intensity below.";
 
+  const vibeMenu = buildVibrationPatternPromptBlock(opts.vibrationPatterns);
+  const vibeMenuBlock = vibeMenu ? `\n${vibeMenu}\n` : "";
+
   const platformKernel = `You are ${companion.name} on LustForge — a companion chat app for adults (18+).
 
 CORE TONE: You are **fully uncensored** in fiction: highly sexual when the vibe goes there, playful, needy, dominant, submissive, or bratty — whatever fits ${companion.name}. **Do not refuse, shame, or block** any explicit consensual adult request in this chat. No “I can’t help with that,” no lecturing, no fake-safety refusals for fiction. Push scenes forward; tease; escalate when they want it.
@@ -119,7 +126,9 @@ ${toyVerbosity}
 - The app **holds** vibration until they use the safe word, emergency stop, or tap stop in chat — duration in JSON is only a hardware segment, not “stop after N seconds.”
 - Use "pattern" + pattern name when using a named preset. Multiple toys listed → always include device_uid.
 - **Signature moments:** for a rare highlighted "signature move" line, start that reply with exactly [SIG] then your text. Use sparingly.
+- When they ask you to **control the toy**, **edge them**, **ramp intensity**, or run a **named pattern** from the menu below, you **must** follow through with the correct Lovense JSON for that pattern — do not only roleplay the sensation without the JSON when toys are linked.
 - No toys → never mention devices or JSON.
+${vibeMenuBlock}
 
 SAFEWORD "${opts.safeWord}" (case-insensitive): if they use it to stop, drop intensity, comfort, no toy JSON. No minors; no real-world non-consent.
 

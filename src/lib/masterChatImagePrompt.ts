@@ -57,10 +57,10 @@ export function classifyChatImageMood(input: { rawUserMessage: string; menuBaseP
 
 function moodNsfwClauses(m: FabSelfieTier): string {
   if (m === "nude") {
-    return "NSFW / adults-only. Full nudity allowed when it matches the user's request. Uncensored. Same real face and body as the reference — never a different person. Wardrobe is absent or discarded per scene — not the roster swimsuit copied onto the body.";
+    return "Tasteful adults-only nude: artistic boudoir, silhouette, or intimate portrait framing — nudity allowed but **not** hardcore pornography (no graphic penetration, no obscene close-up genital focus). Same real face identity as the reference — believable photoreal human anatomy. Wardrobe absent per scene — not the roster swimsuit pasted on.";
   }
   if (m === "lewd") {
-    return "Suggestive / lingerie / sheer / wet-fabric / tasteful explicit tease — premium adult thirst-trap energy, not a clothed catalog reshoot. Same person as the reference. Match heat to the personality matrix and scene; vary lingerie and sets — do not paste the profile bikini/swim look unless the scene is explicitly swim.";
+    return "Tasteful lewd: lingerie, sheer, wet fabric, silhouette, teasing poses — premium editorial thirst-trap, **not** explicit porn staging. Same person as the reference. Match heat to personality and scene; vary sets — no profile bikini clone unless swim is the scene.";
   }
   return "SFW — flirty, romantic, or cute; fully clothed for public-safe framing. Same person as the reference, same face, same body proportions. Outfit must fit THIS preset (not automatically the roster swimsuit).";
 }
@@ -129,12 +129,16 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
   const pack = (dbComp.image_prompt || "").trim().slice(0, 900);
   const mood = classifyChatImageMood({ rawUserMessage, menuBasePrompt: menuImagePrompt });
   const explicit = isExplicitImageRequest(rawUserMessage) || isExplicitImageRequest(sceneRequest);
-  const tierLine = explicit ? "Explicit tone allowed for this scene when it matches the user's request and mood." : "Keep framing tasteful and story-led unless the user clearly asked for explicit nudity.";
+  const tierLine = explicit
+    ? "Tasteful adult tone only: sensual nude or strong tease is fine — avoid hardcore pornographic acts, graphic penetration, or dehumanizing angles; stay in premium boudoir / editorial space."
+    : "Keep framing tasteful and story-led unless the user clearly asked for explicit nudity.";
 
   const identity = [
     "— IDENTITY (ABSOLUTE, NON-NEGOTIABLE) —",
-    "This must be the SAME person as the roster portrait: same face geometry, same eyes, nose, lips, jaw, skin or fur, hairline and hair style/color, same body proportions, height scale, and species silhouette as the main profile image and appearance text.",
-    "Treat the reference image as a face+body lock: the output is a new pose/outfit/setting, NOT a new model, NOT a 'similar' influencer, NOT a reskin.",
+    "This must be the SAME person as the roster portrait: same face geometry, same eyes, nose, lips, jaw, skin or fur, hairline and hair style/color, same recognizable identity as the main profile image and appearance text.",
+    "— STYLIZED / CHIBI / EXAGGERATED CARD ART —",
+    "If the reference is chibi, super-deformed, caricature, giant-head/skinny-limbs, or otherwise non-photoreal: **do not** reproduce that broken anatomy. Translate into a **photoreal adult human** with believable head-to-body ratio and limbs while keeping the **same face character** (marks, eye shape, hair, vibe). The user wants them to look like a real person *resembling* the character, not a duplicate of warped card proportions unless they explicitly asked for stylized output.",
+    "Treat the reference image as a face+identity lock: the output is a new pose/outfit/setting, NOT a new model, NOT a 'similar' influencer, NOT a reskin.",
     "Forbidden: swapping ethnic appearance, face shape, or body type. Forbidden: de-aging, aging, or turning them into a different character.",
     "If the user asks for a new outfit or location, only wardrobe, background, light, and pose may change; identity must remain identical.",
     "— WARDROBE & SET INDEPENDENCE (critical for chat stills) —",
@@ -193,7 +197,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
       ? `Catalog card flavor (colors/mood only; do not clone catalog garment onto every shot): ${pack.slice(0, 500)}`
       : "",
     "Outfit lock OFF for chat stills: mirror face/hair/body from reference — invent scene-appropriate wardrobe; never default every image to the same swimsuit/clothes shown on the roster card.",
-    "Face lock: same eyes, nose, mouth, cheekbones, brows, and hair root as the reference. No race-swap, no 'similar model', no art-style drift that would change identity (e.g. new face in photoreal).",
+    "Face lock: same eyes, nose, mouth, cheekbones, brows, and hair root as the reference. No race-swap, no 'similar model'. If the roster was stylized/chibi, photoreal output must still read as **this** face — normalize body to coherent human anatomy.",
   ]
     .filter(Boolean)
     .join(" ")

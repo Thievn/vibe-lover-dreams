@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 
 const QUICK_LINES: { label: string; send: string }[] = [
   { label: "Take control of my toy and edge me", send: "Take control of my toy and edge me." },
+  { label: "Do your signature move on me", send: "Do your signature move on me — toy and all." },
   { label: "Be a brat and tease me", send: "Be a brat and tease me." },
   { label: "Talk dirty while controlling my Lovense", send: "Talk dirty while you control my Lovense." },
   { label: "Moan for me", send: "Moan for me — I want to hear you." },
@@ -23,8 +24,16 @@ const RAMP_VOICE_OFF =
   /\b(stop ramp mode|deactivate ramp mode|turn off ramp mode|disable ramp mode|ramp mode off)\b/i;
 
 type Props = {
+  companionName: string;
   disabled?: boolean;
   busy?: boolean;
+  /** Same rate as full-screen Live Call; shown while session is active. */
+  creditsPerMinute?: number;
+  sessionElapsedSec?: number;
+  /** Fires when open-mic recording starts/stops (not transcribing). Parent uses this for billing ticks. */
+  onMicRecordingChange?: (recording: boolean) => void;
+  /** When true, mic is closed — ramp presets and quick chips stay off until they open the mic again. */
+  voiceInteractiveLocked?: boolean;
   /** Parent stores this to nudge Ramp Mode from Grok assistant replies (typed or voice turn). */
   onRegisterRampAssistFeed?: (fn: ((text: string) => void) | null) => void;
   onSendText: (text: string) => void;
@@ -50,8 +59,13 @@ type Props = {
  * Ramp Mode follows assistant text from Grok via `onRegisterRampAssistFeed`.
  */
 export function LiveVoicePanel({
+  companionName,
   disabled,
   busy,
+  creditsPerMinute,
+  sessionElapsedSec = 0,
+  onMicRecordingChange,
+  voiceInteractiveLocked = false,
   onRegisterRampAssistFeed,
   onSendText,
   rampModeActive,
@@ -95,6 +109,10 @@ export function LiveVoicePanel({
     });
     return () => onRegisterRampAssistFeed?.(null);
   }, [onRegisterRampAssistFeed]);
+
+  useEffect(() => {
+    onMicRecordingChange?.(recording);
+  }, [recording, onMicRecordingChange]);
 
   useEffect(() => {
     if (!rampModeActive || !userId || !hasDevice) {
@@ -159,6 +177,12 @@ export function LiveVoicePanel({
     setRecording(false);
     setTranscribing(false);
   }, [stopStream]);
+
+  useEffect(() => {
+    return () => {
+      cancelOpenMic();
+    };
+  }, [cancelOpenMic]);
 
   useEffect(() => {
     if (emergencyStopTick <= 0) return;
@@ -276,6 +300,13 @@ export function LiveVoicePanel({
   }, [busy, disabled, stopStream, transcribing]);
 
   const off = Boolean(disabled || busy);
+  const rampQuickLocked = voiceInteractiveLocked || transcribing;
+  const quickLineOff = off || recording || transcribing || voiceInteractiveLocked;
+  const rate = typeof creditsPerMinute === "number" && creditsPerMinute > 0 ? creditsPerMinute : null;
+  const runningFc =
+    rate != null && sessionElapsedSec > 0
+      ? Math.ceil(sessionElapsedSec / 60) * rate
+      : 0;
 
   /** Open mic: tap to start, tap again to send (continuous capture while “on”). */
   const onMicClick = useCallback(() => {
@@ -305,7 +336,14 @@ export function LiveVoicePanel({
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-baseline gap-2 flex-wrap">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#00ffd4]/90">Live Voice</p>
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#00ffd4]/90">Live Voice</p>
+              {rate != null ? (
+                <span className="text-[9px] font-medium tabular-nums text-amber-200/90">
+                  {rate} FC/min · ~{runningFc} FC
+                </span>
+              ) : null}
+            </div>
             {onVoiceSettingsClick ? (
               <button
                 type="button"
@@ -316,8 +354,14 @@ export function LiveVoicePanel({
               </button>
             ) : null}
           </div>
-          <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight line-clamp-2">
-            Tap mic → speak → tap again to send. Replies can play as voice.
+          <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight line-clamp-3">
+            Forge coins accrue only while the mic is open (same per-started-minute rule as full-screen Live Call). Tap mic → speak → tap again to send. You can always type below; open the mic again for another voice turn, ramp, or quick line.
+            {disabled && rate != null ? (
+              <span className="mt-1 block text-amber-200/85">Need at least {rate} FC to use mic &amp; ramp — top up or switch to Classic.</span>
+            ) : null}
+            {voiceInteractiveLocked && !disabled ? (
+              <span className="mt-1 block text-[#00ffd4]/80">Mic is closed — ramp &amp; quick lines unlock when you tap Open.</span>
+            ) : null}
           </p>
         </div>
         <div className="flex flex-col items-end gap-0.5 shrink-0">
@@ -365,14 +409,14 @@ export function LiveVoicePanel({
 
         <button
           type="button"
-          disabled={off}
+          disabled={off || rampQuickLocked}
           onClick={toggleRampMode}
           className={cn(
             "w-full rounded-lg px-3 py-2 text-xs font-semibold transition-all touch-manipulation text-center",
             rampModeActive
               ? "bg-gradient-to-r from-orange-600/90 to-rose-700/90 text-white"
               : "bg-gradient-to-r from-orange-500/25 to-rose-600/25 border border-orange-400/30 text-orange-100 hover:from-orange-500/35 hover:to-rose-600/35",
-            off && "opacity-40 pointer-events-none",
+            (off || rampQuickLocked) && "opacity-40 pointer-events-none",
           )}
         >
           {rampModeActive ? "On — tap to stop" : "Activate 🔥"}
@@ -408,7 +452,7 @@ export function LiveVoicePanel({
             <button
               key={id}
               type="button"
-              disabled={off}
+              disabled={off || rampQuickLocked}
               title={RAMP_PRESET_SHORT[id]}
               onClick={() => onRampPresetChange(id)}
               className={cn(
@@ -416,7 +460,7 @@ export function LiveVoicePanel({
                 rampPreset === id
                   ? "border-orange-400/50 bg-orange-500/15 text-orange-100"
                   : "border-white/10 bg-black/30 text-foreground/80 hover:bg-white/[0.05]",
-                off && "opacity-40 pointer-events-none",
+                (off || rampQuickLocked) && "opacity-40 pointer-events-none",
               )}
             >
               {RAMP_PRESET_LABELS[id]}
@@ -430,7 +474,7 @@ export function LiveVoicePanel({
           <button
             key={q.label}
             type="button"
-            disabled={off || recording || transcribing}
+            disabled={quickLineOff}
             onClick={() => onSendText(q.send)}
             className="rounded-full border border-white/10 bg-black/35 px-2 py-0.5 text-[9px] font-medium text-foreground/90 hover:bg-white/[0.06] disabled:opacity-40 text-left leading-tight"
           >

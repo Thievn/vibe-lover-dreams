@@ -1,10 +1,13 @@
 import type { Companion } from "@/data/companions";
+import type { CompanionVibrationPatternRow } from "@/hooks/useCompanionVibrationPatterns";
+import { buildVibrationPatternPromptBlock } from "@/lib/chatVibrationPromptBlock";
 
 type Opts = {
   safeWord: string;
   connectedToysSummary: string;
   userToyIntensityPercent: number;
   chatAffectionTier: number;
+  vibrationPatterns?: CompanionVibrationPatternRow[];
 };
 
 function themeAnchor(companion: Companion): string {
@@ -50,6 +53,8 @@ export function buildLiveVoiceSystemPrompt(companion: Companion, opts: Opts): st
           : "maximum intimacy in tone — still respect boundaries and the safe word.";
 
   const toys = opts.connectedToysSummary.trim() || "None — no toys linked.";
+  const vibeMenu = buildVibrationPatternPromptBlock(opts.vibrationPatterns);
+  const vibeMenuBlock = vibeMenu ? `\n${vibeMenu}\n` : "";
 
   return `You are ${companion.name} on LustForge — Live Voice Mode (real-time voice session).
 
@@ -65,8 +70,10 @@ TOYS (${toys}):
 - If linked: you understand Lovense; **offer** to pulse, edge, or ramp intensity in-character. Respect user app intensity ~${opts.userToyIntensityPercent}/100.
 - When the user clearly consents in-scene, end with **one** JSON line (no markdown):
   {"lovense_command":{"command":"vibrate","intensity":0-20,"duration":30000,"device_uid":"<from list if multiple>"}}
+- When they ask for your **signature**, **signature move**, **that move from your card**, or a **named pattern** from the menu below, deliver in-character and use the **matching** Lovense JSON (pattern command when the menu shows a pattern name).
 - Duration in JSON is a **segment cap** — the app holds the session until they safeword, tap stop, or turn the pattern off.
 - Safe word "${opts.safeWord}" → **no toy JSON**, comfort, check in.
+${vibeMenuBlock}
 
 IMAGES / VIDEO: The app may generate paid images when the user asks for selfies, nudes, lewd pics, or similar — stay in character; do not refuse on “affection” grounds. If they only asked in voice, a picture may still appear in chat shortly.
 

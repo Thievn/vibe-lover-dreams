@@ -89,12 +89,15 @@ Deno.serve(async (req) => {
       userId?: string;
       tokenCost?: number;
       clipMood?: "sfw" | "lewd" | "nude";
+      motionHint?: string;
     } | null;
 
     const companionId = typeof body?.companionId === "string" ? body.companionId.trim() : "";
     const userId = typeof body?.userId === "string" ? body.userId.trim() : "";
     const clipMood =
       body?.clipMood === "sfw" || body?.clipMood === "lewd" || body?.clipMood === "nude" ? body.clipMood : "lewd";
+    const motionHintRaw = typeof body?.motionHint === "string" ? body.motionHint.trim() : "";
+    const motionHint = motionHintRaw.length > 500 ? `${motionHintRaw.slice(0, 497)}…` : motionHintRaw;
 
     if (!companionId || !userId) {
       return jsonResponse({ success: false, error: "companionId and userId required" }, 400);
@@ -230,14 +233,19 @@ Deno.serve(async (req) => {
           ? "Explicit-leaning if the still supports it; sensual body motion."
           : "Lewd / lingerie tease, NSFW-leaning, matching the still.";
 
+    const likenessLock =
+      "LIKENESS (critical): Same roster character as the source portrait — same face structure, hair, skin tone, age read, silhouette, and body language; never morph into a different person, creature mash-up, or melted features. Motion must read as alive — fabric physics, hair drift, breath, weight shifts, gaze — not a Ken Burns zoom or parallax wobble on a static frame.";
+    const silentLine =
+      "AUDIO: Silent clip — no narration, no music, no speech-like mouth; lips stay neutral; motion from body, hair, fabric, pose, eyes.";
+    const presetLine = motionHint ? `\nPreset / scene hint: ${sanitizePromptForVideoApi(motionHint)}` : "";
     const fullFromBuilder = buildProfileLoopVideoPrompt(row);
-    const extra = `\n\nCHAT CLIP: ${moodLine} Primary motion: ${beat}. ${I2V_MOUTH_STILL_DIRECTIVE_SHORT}`;
+    const extra = `\n\nCHAT CLIP: ${moodLine} Primary motion: ${beat}. ${likenessLock} ${silentLine}${presetLine} ${I2V_MOUTH_STILL_DIRECTIVE_SHORT}`;
     const combined = sanitizePromptForVideoApi(`${fullFromBuilder}${extra}`);
     const prompt =
       combined.length <= 3000
         ? combined
         : sanitizePromptForVideoApi(
-            `${buildMinimalProfileLoopVideoPrompt(row)} ${moodLine} Motion: ${beat}. ${I2V_MOUTH_STILL_DIRECTIVE_SHORT}`,
+            `${buildMinimalProfileLoopVideoPrompt(row)} ${moodLine} Motion: ${beat}. ${likenessLock} ${silentLine}${presetLine} ${I2V_MOUTH_STILL_DIRECTIVE_SHORT}`,
           );
 
     const durationSec = chatVideoDurationSeconds();
