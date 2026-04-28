@@ -56,8 +56,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "SFW phone selfie, fully clothed, same person as the character, flattering light, looking at camera, " +
-      "soft natural look — not a nude or lingerie shot.",
+      "SFW phone selfie: same face, hair, and body proportions as the character — **new outfit and backdrop** for this shot (do not paste their roster/catalog swimsuit or costume unless this scene is explicitly swim/beach). Fully clothed, flattering light, camera-aware pose — not nude or lingerie.",
   },
 
   lewd: {
@@ -70,8 +69,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Lewd teasing phone selfie, same person as the character, lingerie / sheer / undressing / topless as fits the pose, " +
-      "flirty eye contact, warm intimate lighting, photoreal — not a chaste SFW headshot unless that matches the look.",
+      "Lewd adult phone selfie: lock identity to the character (face, hair, skin, body type) — **invent wardrobe per scene** from lingerie, sheer, wet clingy fabric, undressing, tasteful topless, etc. Do **not** default to copying their roster swimsuit/bikini/card outfit when the scene implies something else (e.g. wet shirt = thin soaked tee, no modest bra blocking silhouette). Flirty eye contact, warm intimate light, photoreal premium thirst-trap.",
   },
 
   nude: {
@@ -84,8 +82,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "NSFW nude phone selfie, full nudity, same person and body type as the character, photoreal, explicit adult framing, " +
-      "uncensored — match the subject’s real anatomy and sex. Natural pose and light; no modesty bar, no censorship, no SFW cutaway.",
+      "NSFW nude phone selfie: full nudity when uncensored framing fits — same person and body type as the character (face/hair/proportions lock); **no swimsuit or lingerie layered on** unless explicitly staging undressing; photoreal explicit adult framing; match anatomy and sex; natural pose and light; no modesty bar or censorship.",
   },
 } as const;
 
@@ -334,7 +331,7 @@ export function resolveChatImageGenerationPrompt(args: {
   if (menu) {
     if (styled) {
       const coherence =
-        "\n\nHonor this companion's personality matrix, written appearance, and usual wardrobe vibe — change outfit only when this framing clearly implies it (e.g. shower, gym, lingerie set). Same face and body as the roster portrait.";
+        "\n\nPersonality matrix and appearance text inform expression and era — **wardrobe and location come from this framing**, not from cloning the roster portrait's swimsuit/catalog costume. Same face, hair, and body as the roster image; **distinct outfit and background per preset.**";
       return `${menu}\n\n— Requested framing (from menu) —\n${styled}${coherence}`.trim();
     }
     return menu;

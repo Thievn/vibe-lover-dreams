@@ -346,12 +346,12 @@ type Which = "selfie" | "lewd" | "nude";
 
 function buildQuickSceneExtension(tier: FabSelfieTier): string {
   if (tier === "nude") {
-    return "Explicit nude still: creative pose and lighting chosen to flatter their body type and personality matrix — premium intimate key art, same identity as the roster portrait, uncensored adult framing.";
+    return "Explicit nude still: creative pose, lighting, and **fresh environment** for this roll — flatter body type and personality matrix; same identity as the roster portrait (face/hair/body), uncensored adult framing; **no pasted-on swimsuit from the card.**";
   }
   if (tier === "lewd") {
-    return "Lewd still: creative teasing heat — lingerie, sheer, silhouette, or undressing beats that match personality and era — not generic catalog stock.";
+    return "Lewd still: creative teasing heat — lingerie, sheer, wet clingy fabric, silhouette, or undressing that fits personality and era; **new wardrobe + backdrop each time**, not a reshoot of their roster swimsuit unless swim is the vibe.";
   }
-  return "SFW still: creative flattering selfie or portrait-style phone capture — outfit and set plausibly match their appearance, role, and world; fully clothed.";
+  return "SFW still: creative flattering selfie — **distinct outfit and location** from their catalog portrait when possible; era-appropriate clothes; fully clothed; identity lock only for face/hair/body.";
 }
 
 function PhotoMoodMenu({
@@ -398,10 +398,22 @@ function PhotoMoodMenu({
     which === "selfie" ? "Selfie studio" : which === "lewd" ? "Lewd gallery" : "Nude gallery";
   const description =
     which === "selfie"
-      ? "SFW stills — same face & body as their portrait. Tap a card to send."
+      ? "Flattering SFW stills — identity matches their portrait; each preset uses its own outfit and backdrop."
       : which === "lewd"
-        ? "Spicy stills tuned to who they are — era, voice, and look."
-        : "Explicit stills — uncensored, same them. FC follows tier.";
+        ? "Tasteful adult heat — wardrobe and scene follow each card (not a copy of their catalog swimsuit)."
+        : "Explicit stills — uncensored where allowed; same face & body, fresh sets per preset. FC follows tier.";
+  const tierShell =
+    which === "selfie"
+      ? "border-emerald-500/15 shadow-[0_0_0_1px_rgba(16,185,129,0.12)]"
+      : which === "lewd"
+        ? "border-rose-500/20 shadow-[0_0_0_1px_rgba(244,63,94,0.14)]"
+        : "border-violet-500/20 shadow-[0_0_0_1px_rgba(139,92,246,0.14)]";
+  const tierHeroGlow =
+    which === "selfie"
+      ? "from-emerald-500/12 via-transparent to-cyan-950/25"
+      : which === "lewd"
+        ? "from-rose-500/15 via-transparent to-fuchsia-950/30"
+        : "from-violet-500/15 via-transparent to-purple-950/35";
 
   const pickStill = (opt: SmartChatPhotoStyleOption) => {
     onStyledStillRequest({ tier, userLine: opt.userLine, sceneExtension: opt.sceneExtension });
@@ -424,8 +436,11 @@ function PhotoMoodMenu({
         aria-expanded={open}
         aria-label={`${label} photo styles`}
         className={cn(
-          "inline-flex items-center gap-0.5 rounded-lg border px-1.5 py-1.5 text-[9px] font-bold uppercase tracking-wide touch-manipulation sm:gap-1 sm:px-2.5 sm:text-[10px]",
+          "inline-flex items-center gap-0.5 rounded-lg border px-1.5 py-1.5 text-[9px] font-bold uppercase tracking-wide touch-manipulation shadow-sm transition-[box-shadow,transform] sm:gap-1 sm:px-2.5 sm:text-[10px]",
           accent,
+          which === "selfie" && "ring-1 ring-emerald-400/15 hover:ring-emerald-400/30",
+          which === "lewd" && "ring-1 ring-rose-400/15 hover:ring-rose-400/35",
+          which === "nude" && "ring-1 ring-violet-400/15 hover:ring-violet-400/35",
         )}
       >
         <Icon className="h-3 w-3 shrink-0" />
@@ -436,12 +451,21 @@ function PhotoMoodMenu({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
           className={cn(
-            "max-h-[min(92vh,44rem)] w-[min(100vw-1rem,40rem)] gap-0 overflow-hidden border border-white/[0.1] bg-[hsl(280_20%_7%)]/[0.98] p-0 text-foreground shadow-[0_28px_100px_rgba(0,0,0,0.65)] backdrop-blur-2xl sm:max-w-2xl",
+            "max-h-[min(92vh,44rem)] w-[min(100vw-1rem,40rem)] gap-0 overflow-hidden border bg-[hsl(280_18%_6%)]/[0.98] p-0 text-foreground shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-2xl sm:max-w-2xl",
+            tierShell,
           )}
         >
-          <DialogHeader className="space-y-1.5 border-b border-white/[0.08] bg-gradient-to-r from-black/40 via-transparent to-fuchsia-950/20 px-5 py-5 text-left">
-            <DialogTitle className="font-gothic text-xl font-normal tracking-tight text-white">{title}</DialogTitle>
-            <DialogDescription className="text-[13px] leading-relaxed text-muted-foreground">{description}</DialogDescription>
+          <DialogHeader
+            className={cn(
+              "space-y-2 border-b border-white/[0.08] bg-gradient-to-br px-5 py-5 text-left",
+              tierHeroGlow,
+            )}
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/45">
+              {which === "selfie" ? "SFW" : which === "lewd" ? "Spicy" : "Explicit"} · Premium still
+            </p>
+            <DialogTitle className="font-gothic text-xl font-normal tracking-tight text-white sm:text-2xl">{title}</DialogTitle>
+            <DialogDescription className="text-[13px] leading-relaxed text-muted-foreground/95">{description}</DialogDescription>
           </DialogHeader>
 
           <div className="max-h-[min(62vh,28rem)] overflow-y-auto overscroll-contain px-4 pb-4 pt-3 sm:max-h-[min(58vh,30rem)] sm:px-5">
@@ -456,10 +480,15 @@ function PhotoMoodMenu({
                     onClick={() => pickStill(opt)}
                       className={cn(
                         "group relative flex flex-col overflow-hidden rounded-xl border text-left transition-all duration-300",
-                      "border-white/[0.1] bg-white/[0.025] hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.06]",
-                      "hover:shadow-[0_16px_48px_rgba(0,0,0,0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+                      "border-white/[0.09] bg-gradient-to-b from-white/[0.06] to-white/[0.02] hover:-translate-y-0.5 hover:border-white/25 hover:from-white/[0.09] hover:to-white/[0.04]",
+                      "hover:shadow-[0_20px_56px_rgba(0,0,0,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
                       disabled && "pointer-events-none opacity-40",
-                      isQuick && "ring-1 ring-amber-400/40 border-amber-500/35",
+                      isQuick && "ring-1 ring-amber-400/45 border-amber-500/40 shadow-[0_12px_40px_rgba(251,191,36,0.08)]",
+                      !isQuick &&
+                        which === "selfie" &&
+                        "hover:border-emerald-400/25 hover:shadow-[0_20px_56px_rgba(16,185,129,0.07)]",
+                      !isQuick && which === "lewd" && "hover:border-rose-400/28 hover:shadow-[0_20px_56px_rgba(244,63,94,0.08)]",
+                      !isQuick && which === "nude" && "hover:border-violet-400/28 hover:shadow-[0_20px_56px_rgba(139,92,246,0.09)]",
                     )}
                   >
                     <div
@@ -478,9 +507,9 @@ function PhotoMoodMenu({
                         <p className="text-[12px] font-semibold leading-tight text-white drop-shadow-md">{opt.label}</p>
                       </div>
                     </div>
-                    <div className="flex flex-1 flex-col gap-1 p-2.5 pt-2.5">
-                      <p className="text-[10px] leading-snug text-muted-foreground/95 line-clamp-2">{opt.hint}</p>
-                      <p className="mt-auto text-[8px] font-semibold uppercase tracking-[0.16em] text-primary/70">
+                    <div className="flex flex-1 flex-col gap-1.5 p-3 pt-2.5">
+                      <p className="text-[11px] leading-snug text-muted-foreground/90 line-clamp-3">{opt.hint}</p>
+                      <p className="mt-auto text-[8px] font-semibold uppercase tracking-[0.18em] text-white/35">
                         Still · {imageCostLabel}
                       </p>
                     </div>

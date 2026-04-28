@@ -57,12 +57,12 @@ export function classifyChatImageMood(input: { rawUserMessage: string; menuBaseP
 
 function moodNsfwClauses(m: FabSelfieTier): string {
   if (m === "nude") {
-    return "NSFW / adults-only. Full nudity allowed when it matches the user's request. Uncensored. Same real face and body as the reference — never a different person.";
+    return "NSFW / adults-only. Full nudity allowed when it matches the user's request. Uncensored. Same real face and body as the reference — never a different person. Wardrobe is absent or discarded per scene — not the roster swimsuit copied onto the body.";
   }
   if (m === "lewd") {
-    return "Suggestive / lingerie / tease — lewd boudoir energy, not corporate headshot. Same person as the reference. Push heat that fits the personality matrix, not generic stock glamour.";
+    return "Suggestive / lingerie / sheer / wet-fabric / tasteful explicit tease — premium adult thirst-trap energy, not a clothed catalog reshoot. Same person as the reference. Match heat to the personality matrix and scene; vary lingerie and sets — do not paste the profile bikini/swim look unless the scene is explicitly swim.";
   }
-  return "SFW — flirty, romantic, or cute; fully clothed for public-safe framing. Same person as the reference, same face, same body proportions.";
+  return "SFW — flirty, romantic, or cute; fully clothed for public-safe framing. Same person as the reference, same face, same body proportions. Outfit must fit THIS preset (not automatically the roster swimsuit).";
 }
 
 function timePeriodAesthetic(period: string): string {
@@ -137,6 +137,10 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
     "Treat the reference image as a face+body lock: the output is a new pose/outfit/setting, NOT a new model, NOT a 'similar' influencer, NOT a reskin.",
     "Forbidden: swapping ethnic appearance, face shape, or body type. Forbidden: de-aging, aging, or turning them into a different character.",
     "If the user asks for a new outfit or location, only wardrobe, background, light, and pose may change; identity must remain identical.",
+    "— WARDROBE & SET INDEPENDENCE (critical for chat stills) —",
+    "Do NOT copy the roster portrait's clothing, swimsuit, bikini, armor, or catalog costume onto every generation. That card art is one marketing frame — each still gets a **fresh outfit and environment** that fits the USER SCENE below and this companion's time period / personality.",
+    "When the scene implies wet fabric, lingerie, gym wear, etc., **design wardrobe for that scene** — e.g. a wet-shirt beat means thin soaked cotton clinging to skin (no default sports bra under unless the scene explicitly calls for one); do not snap back to the profile swimsuit because it was visible on the card.",
+    "Vary backgrounds across presets: different rooms, outdoor locations, weather, and props — avoid repeating the same beach/pool backdrop unless the user asked for it.",
   ].join(" ");
 
   const theming = [
@@ -172,7 +176,9 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
     theming,
     scene,
     tech,
-    pack ? `— ORIGINAL CATALOG / PACKSHOT INTENT (light continuity): ${pack}` : "",
+    pack
+      ? `— CATALOG CARD METADATA (palette & vibe hints only — NOT mandatory wardrobe): ${pack} Do not treat swimsuit/bikini/outfit wording here as the outfit lock for this shot unless USER SCENE explicitly matches it.`
+      : "",
     charBlock,
   ]
     .filter(Boolean)
@@ -183,7 +189,10 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
     `ABSOLUTE IDENTITY: same individual as ${companion.name} — the reference still is the source of face and body. Do not invent a new person.`,
     `Body-type lock: ${bodyType} — all limbs, torso scale, and species read must match; gender presentation follows profile; only pose/outfit/setting/lighting vary per user request.`,
     `Art & era: ${art} · time/world: ${profile.timePeriod} — props, wardrobe, and set must plausibly belong in that world.`,
-    pack ? `Design continuity with catalog packshot: ${pack.slice(0, 500)}` : "",
+    pack
+      ? `Catalog card flavor (colors/mood only; do not clone catalog garment onto every shot): ${pack.slice(0, 500)}`
+      : "",
+    "Outfit lock OFF for chat stills: mirror face/hair/body from reference — invent scene-appropriate wardrobe; never default every image to the same swimsuit/clothes shown on the roster card.",
     "Face lock: same eyes, nose, mouth, cheekbones, brows, and hair root as the reference. No race-swap, no 'similar model', no art-style drift that would change identity (e.g. new face in photoreal).",
   ]
     .filter(Boolean)

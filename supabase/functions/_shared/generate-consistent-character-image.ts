@@ -30,6 +30,7 @@ function buildIdentityLockBlock(characterData: Record<string, unknown>): string 
   return [
     "Identity lock:",
     "- Keep the same person as the reference image: same face structure, same body proportions, same skin/fur tone, and same recognizable identity.",
+    "- Do **not** preserve the reference photo's clothing, swimsuit, or bikini when the prompt asks for nudity, lingerie, wet fabric, or a different outfit — match identity only; wardrobe follows the requested variation.",
     bodyType ? tensorIdentityPhysiqueLine(bodyType) : "",
     artStyle ? `- Locked render style family: ${artStyle}.` : "",
     portraitConsistencyLock ? `- Continuity lock: ${portraitConsistencyLock}` : "",

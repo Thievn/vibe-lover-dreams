@@ -324,6 +324,7 @@ ${characterDetailsBlock}
 
 Visual rules:
 - No legible logos, watermarks, UI chrome, fake app branding, or readable product/store signage in-frame.
+- **Roster reference vs outfit:** If continuity calls for the same individual as a profile portrait, match face, hair, and body from Character Details / portrait lock — but **do not** automatically reuse that portrait's swimsuit, bikini, or catalog garment when PRIMARY SCENE describes a different setting or wardrobe (lingerie, wet shirt, nude, gym, bed, etc.). Invent scene-accurate clothing or undress per PRIMARY SCENE.
 ${portraitLock ? `- **Portrait / roster continuity** (Character Details) wins over casual drift in PRIMARY SCENE — same character, same body-type label, same art style family unless RAW_TEXT explicitly requests a deliberate alternate.` : ""}
 ${forgeBody ? `- **Forge body type + silhouette contract** (Character Details) override conflicting silhouette, species, or build wording in the scene text below.` : ""}
 - ${anatomyKeyRules}

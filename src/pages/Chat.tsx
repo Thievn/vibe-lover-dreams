@@ -675,7 +675,8 @@ const Chat = () => {
         tags: dbComp.tags ?? [],
         baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
         vibe: companion.personality,
-        clothing: companion.role ? `fits ${companion.role} energy` : undefined,
+        clothing:
+          "Follow PRIMARY SCENE / rewriter wardrobe — do not copy or default to the roster portrait swimsuit/bikini/catalog outfit unless the scene explicitly matches swim/beach.",
       };
 
       const { data, error } = nudePath
@@ -774,7 +775,8 @@ const Chat = () => {
         tags: dbComp.tags ?? [],
         baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
         vibe: companion.personality,
-        clothing: companion.role ? `fits ${companion.role} energy` : undefined,
+        clothing:
+          "Follow PRIMARY SCENE / rewriter wardrobe — do not copy or default to the roster portrait swimsuit/bikini/catalog outfit unless the scene explicitly matches swim/beach.",
       };
       const { data, error } = nudeAffection
         ? await invokeGenerateImageTensor({

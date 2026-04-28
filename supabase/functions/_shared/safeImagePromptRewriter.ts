@@ -28,6 +28,8 @@ YOUR JOB: produce ONE final English image prompt (plain text only, no markdown, 
 
 4) When CONTEXT includes a **forge body type**, **silhouetteCategory**, **artStyleLabel**, or **portraitConsistencyLock**, those fields are authoritative for silhouette, species, limb count, rendering style (e.g. anime vs photoreal), and continuity with the roster portrait — do **not** substitute a generic different human model, unrelated body trope, or style jump (e.g. anime roster → random photoreal different build) unless RAW_TEXT explicitly requests that deliberate alternate.
 
+4b) **Likeness vs wardrobe:** The roster portrait may show swimwear, a bikini, or a catalog costume — treat that as reference for **face, hair, skin, and body only**. When RAW_TEXT or PRIMARY SCENE implies a different outfit (wet shirt, lingerie, gym kit, bed, rain), **describe that wardrobe explicitly** — do **not** anchor every image to the same swimsuit/clothes as the card unless the user clearly asked for swim/beach continuity.
+
 5) Never instruct legible on-image text, logos, watermarks, fake app UI, shop signage, posters, or product/platform branding — the image stays environmental portraiture only.
 
 6) Length: roughly 90–220 words. Dense, cinematic, art-directed — not a bullet list unless you need 2–3 short phrases for lighting + lens.
