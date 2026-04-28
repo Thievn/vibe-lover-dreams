@@ -409,13 +409,6 @@ export default function Dashboard() {
           </nav>
 
           <div className="mt-auto pt-8 border-t border-border/60 space-y-3">
-            <div className="rounded-xl border border-border/80 bg-card/40 px-3 py-3 backdrop-blur-sm">
-              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Daily credits</p>
-              <p className="font-gothic text-2xl text-primary mt-1" style={{ color: NEON_PINK }}>
-                340
-              </p>
-              <p className="text-[11px] text-muted-foreground mt-1">Resets at midnight UTC</p>
-            </div>
             <Link
               to="/"
               className="block text-center text-xs text-muted-foreground hover:text-primary transition-colors py-2"
@@ -439,114 +432,173 @@ export default function Dashboard() {
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-3">
+            <div className="flex w-full sm:w-auto min-w-0 sm:justify-end">
               <div
                 className={cn(
-                  "flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium backdrop-blur-md",
-                  toyConnected
-                    ? "border-accent/40 bg-accent/10 text-accent"
-                    : "border-border bg-card/50 text-muted-foreground",
+                  "inline-flex w-full min-w-0 sm:w-auto max-w-full items-stretch sm:items-center",
+                  "rounded-2xl border border-white/[0.08] bg-zinc-950/60 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] backdrop-blur-md",
                 )}
               >
-                <span
+                {/* Device status — same chrome as the rest, accent only on the signal dot */}
+                <div
                   className={cn(
-                    "h-2 w-2 rounded-full shrink-0",
-                    toyConnected ? "bg-accent shadow-[0_0_8px_hsl(170_100%_50%)]" : "bg-muted-foreground/50",
+                    "flex min-w-0 flex-1 sm:flex-initial items-center gap-2 px-3.5 py-2 sm:py-2.5 pl-3.5 sm:pl-4",
+                    "text-sm text-foreground/90",
                   )}
-                />
-                {toyConnected ? `Toy connected${toyLabel ? `: ${toyLabel}` : ""}` : "Toy standby"}
-              </div>
-
-              {isAdmin && (
-                <Link
-                  to="/admin"
-                  className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-velvet-purple to-primary shadow-lg shadow-primary/25 hover:scale-[1.02] transition-transform border border-white/10"
+                  title={toyConnected && toyLabel ? `Toy: ${toyLabel}` : undefined}
                 >
-                  <Shield className="h-4 w-4" />
-                  Admin Panel
-                </Link>
-              )}
-              <Link
-                to="/buy-credits"
-                className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white border border-[#FF2D7B]/35 bg-[#FF2D7B]/18 hover:bg-[#FF2D7B]/26 transition-colors"
-              >
-                <Coins className="h-4 w-4" />
-                Buy Forge Coins
-              </Link>
+                  <span
+                    className={cn(
+                      "h-2 w-2 shrink-0 rounded-full ring-2 ring-offset-2 ring-offset-zinc-950/80",
+                      toyConnected
+                        ? "bg-emerald-400 ring-emerald-400/35 shadow-[0_0_10px_hsl(142_76%_50%/0.5)]"
+                        : "bg-zinc-500 ring-zinc-500/20",
+                    )}
+                    aria-hidden
+                  />
+                  <span className="min-w-0">
+                    <span className="sr-only">{toyConnected ? "Toy connected" : "Toy not connected"}. </span>
+                    {toyConnected ? (
+                      <>
+                        <span className="text-muted-foreground/90 max-sm:hidden">Toy · </span>
+                        <span className="font-medium text-foreground/95 truncate sm:max-w-[10rem] md:max-w-[14rem]">
+                          {toyLabel?.trim() || "Connected"}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">No toy</span>
+                    )}
+                  </span>
+                </div>
 
-              <div className="relative" ref={profileRef}>
-                <button
-                  type="button"
-                  onClick={() => setProfileOpen((o) => !o)}
-                  className="relative rounded-full p-0.5 ring-2 ring-primary/40 hover:ring-primary transition-all glow-pink"
-                  aria-expanded={profileOpen}
-                  aria-haspopup="menu"
-                >
-                  {avatarUrl(user) ? (
-                    <img
-                      src={avatarUrl(user)}
-                      alt=""
-                      className="h-11 w-11 rounded-full object-cover"
+                {isAdmin && (
+                  <>
+                    <span
+                      className="hidden w-px shrink-0 self-stretch my-2 bg-gradient-to-b from-transparent via-white/12 to-transparent sm:block"
+                      aria-hidden
                     />
-                  ) : (
-                    <div
-                      className="h-11 w-11 rounded-full flex items-center justify-center text-sm font-bold text-primary-foreground font-sans"
-                      style={{ background: `linear-gradient(135deg, ${NEON_PINK}, hsl(280 50% 35%))` }}
+                    <Link
+                      to="/admin"
+                      className={cn(
+                        "shrink-0 flex items-center justify-center gap-2 border-l border-white/[0.06] sm:border-l-0",
+                        "px-3.5 sm:px-3 py-2 sm:py-0 sm:h-full sm:min-h-[2.75rem]",
+                        "text-sm font-medium text-foreground/85 hover:text-primary hover:bg-white/[0.04] transition-colors",
+                        "active:bg-white/[0.06] sm:rounded-none",
+                      )}
                     >
-                      {initialsFromGreeting(greetingName)}
-                    </div>
-                  )}
-                </button>
+                      <Shield className="h-4 w-4 text-velvet-purple/90 shrink-0" aria-hidden />
+                      <span className="whitespace-nowrap sm:inline">Admin</span>
+                    </Link>
+                  </>
+                )}
 
-                <AnimatePresence>
-                  {profileOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                      transition={{ type: "spring", stiffness: 400, damping: 28 }}
-                      className="absolute right-0 top-[calc(100%+10px)] w-56 rounded-2xl border border-border/80 bg-card/95 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden z-[200]"
-                    >
-                      <div className="px-4 py-3 border-b border-border/60 bg-white/[0.03]">
-                        <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-                      </div>
-                      <div className="p-1.5">
-                        <Link
-                          to="/account"
-                          onClick={() => setProfileOpen(false)}
-                          className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-foreground hover:bg-primary/10 hover:text-primary transition-colors"
-                        >
-                          <UserRound className="h-4 w-4" />
-                          Account
-                        </Link>
-                        <Link
-                          to="/settings#device-connection"
-                          onClick={() => setProfileOpen(false)}
-                          className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-foreground hover:bg-[#00ffd4]/10 hover:text-[#00ffd4] transition-colors"
-                        >
-                          <Gamepad2 className="h-4 w-4" />
-                          Connect Lovense
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={openSettings}
-                          className="w-full flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-left text-foreground hover:bg-accent/10 hover:text-accent transition-colors"
-                        >
-                          <Bell className="h-4 w-4" />
-                          Preferences
-                        </button>
-                        <button
-                          type="button"
-                          onClick={signOut}
-                          className="w-full flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-left text-destructive hover:bg-destructive/10 transition-colors"
-                        >
-                          <LogOut className="h-4 w-4" />
-                          Sign out
-                        </button>
-                      </div>
-                    </motion.div>
+                <span
+                  className="hidden w-px shrink-0 self-stretch my-2 bg-gradient-to-b from-transparent via-white/12 to-transparent sm:block"
+                  aria-hidden
+                />
+                <Link
+                  to="/buy-credits"
+                  className={cn(
+                    "shrink-0 flex items-center justify-center gap-2 min-w-0",
+                    "border-l border-white/[0.06] pl-3 pr-2.5 sm:pl-3 sm:pr-3.5",
+                    "py-2 sm:py-0 sm:min-h-[2.75rem] sm:items-center",
+                    "text-sm font-medium text-foreground/90",
+                    "hover:text-primary hover:bg-white/[0.04] transition-colors",
+                    "active:bg-white/[0.06]",
                   )}
-                </AnimatePresence>
+                >
+                  <Coins className="h-4 w-4 text-primary/90 shrink-0" aria-hidden />
+                  <span className="min-w-0 sm:whitespace-nowrap text-left sm:text-center">
+                    <span className="md:hidden">Coins</span>
+                    <span className="hidden md:inline">Buy Forge Coins</span>
+                  </span>
+                </Link>
+
+                <span
+                  className="hidden w-px shrink-0 self-stretch my-2 bg-gradient-to-b from-transparent via-white/12 to-transparent sm:block"
+                  aria-hidden
+                />
+                <div
+                  className={cn(
+                    "shrink-0 border-l border-white/[0.06] pl-2 pr-2.5 sm:pl-1 sm:pr-1.5",
+                    "py-1.5 sm:py-1.5 sm:flex sm:items-center",
+                  )}
+                >
+                  <div className="relative" ref={profileRef}>
+                    <button
+                      type="button"
+                      onClick={() => setProfileOpen((o) => !o)}
+                      className="relative block rounded-full p-0.5 transition-all ring-1 ring-white/12 ring-offset-2 ring-offset-zinc-950/90 hover:ring-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                      aria-expanded={profileOpen}
+                      aria-label="Open account menu"
+                      aria-haspopup="menu"
+                    >
+                      {avatarUrl(user) ? (
+                        <img
+                          src={avatarUrl(user)}
+                          alt=""
+                          className="h-8 w-8 sm:h-9 sm:w-9 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div
+                          className="h-8 w-8 sm:h-9 sm:w-9 rounded-full flex items-center justify-center text-xs sm:text-sm font-semibold text-white/95 font-sans bg-gradient-to-br from-zinc-700 to-zinc-900 ring-1 ring-inset ring-white/10"
+                        >
+                          {initialsFromGreeting(greetingName)}
+                        </div>
+                      )}
+                    </button>
+
+                    <AnimatePresence>
+                      {profileOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                          transition={{ type: "spring", stiffness: 400, damping: 28 }}
+                          className="absolute right-0 top-[calc(100%+10px)] w-56 rounded-2xl border border-border/80 bg-card/95 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden z-[200]"
+                        >
+                          <div className="px-4 py-3 border-b border-border/60 bg-white/[0.03]">
+                            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                          </div>
+                          <div className="p-1.5">
+                            <Link
+                              to="/account"
+                              onClick={() => setProfileOpen(false)}
+                              className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                            >
+                              <UserRound className="h-4 w-4" />
+                              Account
+                            </Link>
+                            <Link
+                              to="/settings#device-connection"
+                              onClick={() => setProfileOpen(false)}
+                              className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-foreground hover:bg-[#00ffd4]/10 hover:text-[#00ffd4] transition-colors"
+                            >
+                              <Gamepad2 className="h-4 w-4" />
+                              Connect Lovense
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={openSettings}
+                              className="w-full flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-left text-foreground hover:bg-accent/10 hover:text-accent transition-colors"
+                            >
+                              <Bell className="h-4 w-4" />
+                              Preferences
+                            </button>
+                            <button
+                              type="button"
+                              onClick={signOut}
+                              className="w-full flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-left text-destructive hover:bg-destructive/10 transition-colors"
+                            >
+                              <LogOut className="h-4 w-4" />
+                              Sign out
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
               </div>
             </div>
           </header>
@@ -773,16 +825,6 @@ function DashboardHome({
 }) {
   return (
     <div className="space-y-10 max-w-6xl mx-auto">
-      <div className="md:hidden rounded-2xl border border-primary/25 bg-card/60 backdrop-blur-md px-4 py-3 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">Daily credits</p>
-          <p className="font-gothic text-2xl text-primary" style={{ color: NEON_PINK }}>
-            340
-          </p>
-        </div>
-        <p className="text-[11px] text-muted-foreground text-right max-w-[10rem]">Resets midnight UTC · spend in forge</p>
-      </div>
-
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {DASHBOARD_STATS.map((s, i) => (
