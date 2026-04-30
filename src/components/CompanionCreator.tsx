@@ -123,6 +123,22 @@ import {
   randomForgeVisualTailoring,
   type ForgeVisualTailoring,
 } from "@/lib/forgeVisualTailoring";
+import {
+  FORGE_TAB_RENDER_PRESETS,
+  FORGE_THEME_TABS,
+  type ForgeTabFeatureMap,
+  type ForgeTabSharedOverride,
+  type ForgeThemeTabId,
+  buildForgeTabPromptAddon,
+  forgeTabLiveSummary,
+  makeDefaultTabFeatures,
+  makeDefaultTabSharedOverrides,
+  normalizeForgeTabFeatureMap,
+  normalizeForgeTabSharedOverrides,
+  normalizeForgeThemeTabId,
+  randomizeForgeTabFeatures,
+} from "@/lib/forgeThemeTabs";
+import { ForgeThemeControls } from "@/components/forge/ForgeThemeControls";
 
 const NEON = "#FF2D7B";
 const PREVIEW_COST = FORGE_PREVIEW_FC;
@@ -212,31 +228,6 @@ const BATCH_PRESETS = [1, 3, 5, 10] as const;
 
 const PREVIEW_STORAGE_PREFIX = "lustforge_forge_preview_v1";
 const GROK_PACKSHOT_SOFT_LIMIT = 3200;
-type ForgeThemeTabId = "anime" | "monster" | "gothic" | "realistic" | "dark_fantasy" | "chaos";
-
-const FORGE_THEME_TABS: { id: ForgeThemeTabId; label: string; subtitle: string }[] = [
-  { id: "anime", label: "Anime Temptation", subtitle: "Stylized charm, expressive faces, playful presets." },
-  { id: "monster", label: "Monster Desire", subtitle: "Creature anatomy, appendages, and exotic silhouettes." },
-  { id: "gothic", label: "Gothic Seduction", subtitle: "Lace, pallor, dramatic romance, tragic elegance." },
-  { id: "realistic", label: "Realistic Craving", subtitle: "Natural skin detail, realism sliders, lived-in intimacy." },
-  { id: "dark_fantasy", label: "Dark Fantasy", subtitle: "Runes, corruption, ritual markings, fallen archetypes." },
-  { id: "chaos", label: "Eternal Chaos", subtitle: "Controlled insanity, hybrid horror/cute, maximal randomness." },
-];
-
-type ForgeTabSharedOverride = {
-  bodyTypeEnabled: boolean;
-  bodyTypeValue: string;
-  sexualEnergyEnabled: boolean;
-  sexualEnergyValue: string;
-  kinksEnabled: boolean;
-  kinksValue: string;
-};
-
-type ForgeTabFeatureMap = Record<ForgeThemeTabId, Record<string, number | string | boolean>>;
-
-function clampNum(v: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, v));
-}
 
 function clampForgePrompt(input: string, maxChars = GROK_PACKSHOT_SOFT_LIMIT): string {
   const clean = input.replace(/\s+/g, " ").trim();
@@ -284,74 +275,6 @@ async function extractPaletteMoodFromImageFile(file: File): Promise<string> {
 
 function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;
-}
-
-function makeDefaultTabSharedOverrides(): Record<ForgeThemeTabId, ForgeTabSharedOverride> {
-  return {
-    anime: { bodyTypeEnabled: false, bodyTypeValue: "", sexualEnergyEnabled: false, sexualEnergyValue: "", kinksEnabled: false, kinksValue: "" },
-    monster: { bodyTypeEnabled: false, bodyTypeValue: "", sexualEnergyEnabled: false, sexualEnergyValue: "", kinksEnabled: false, kinksValue: "" },
-    gothic: { bodyTypeEnabled: false, bodyTypeValue: "", sexualEnergyEnabled: false, sexualEnergyValue: "", kinksEnabled: false, kinksValue: "" },
-    realistic: { bodyTypeEnabled: false, bodyTypeValue: "", sexualEnergyEnabled: false, sexualEnergyValue: "", kinksEnabled: false, kinksValue: "" },
-    dark_fantasy: { bodyTypeEnabled: false, bodyTypeValue: "", sexualEnergyEnabled: false, sexualEnergyValue: "", kinksEnabled: false, kinksValue: "" },
-    chaos: { bodyTypeEnabled: false, bodyTypeValue: "", sexualEnergyEnabled: false, sexualEnergyValue: "", kinksEnabled: false, kinksValue: "" },
-  };
-}
-
-function makeDefaultTabFeatures(): ForgeTabFeatureMap {
-  return {
-    anime: {
-      eyeShine: 72,
-      ahogeVariety: 35,
-      thighhighLayers: 60,
-      skirtPhysics: 58,
-      ahegaoIntensity: 12,
-      hairHighlights: 64,
-      posePreset: "cute",
-    },
-    monster: {
-      tentacleCount: 4,
-      multiBreastRows: false,
-      hornConfig: "curved",
-      tailType: "serpentine",
-      wingSize: 56,
-      skinTexture: "scales",
-      extraLimbs: false,
-    },
-    gothic: {
-      corsetTightness: 70,
-      laceDensity: 66,
-      fangLength: 30,
-      pallor: 62,
-      gothicFashionMode: "victorian",
-      jewelryOverload: 45,
-      tragicBeauty: 58,
-    },
-    realistic: {
-      softnessVsToned: 48,
-      stretchMarkCellulite: 28,
-      tanLineStrength: 22,
-      breastWeightRealism: 64,
-      postHeatFlush: 40,
-      makeupSmudge: 24,
-      poreDetail: 62,
-    },
-    dark_fantasy: {
-      corruptionLevel: 52,
-      runePlacement: "collarbone",
-      demonicIntensity: 48,
-      ritualScars: "subtle",
-      manaAuraColor: "violet",
-      manaAuraStrength: 54,
-      fallenVsRising: "fallen_angel",
-    },
-    chaos: {
-      garbagePailGrotesque: false,
-      maxDegeneracy: false,
-      bodyHorrorCuteBlend: 64,
-      randomizerPower: 80,
-      whatTheFuckSeed: 0,
-    },
-  };
 }
 
 function ForgeFieldDice({
@@ -722,6 +645,9 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
             : (stablePortraitDisplayUrl(draft.previewUrl) ?? draft.previewUrl),
         );
       }
+      setActiveForgeTab(normalizeForgeThemeTabId(draft.activeForgeTab));
+      setForgeTabFeatures(normalizeForgeTabFeatureMap(draft.forgeTabFeatures));
+      setForgeTabSharedOverrides(normalizeForgeTabSharedOverrides(draft.forgeTabSharedOverrides));
       toast.message("Your forge is still here", {
         description: "We kept your last mix, story fields, and preview on this device.",
       });
@@ -784,6 +710,9 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         previewUrl,
         previewCanonicalUrl,
         visualTailoring: { ...visualTailoring },
+        activeForgeTab,
+        forgeTabFeatures,
+        forgeTabSharedOverrides,
       };
       saveForgeSessionDraft(userId, mode, payload);
     }, 750);
@@ -818,6 +747,9 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     previewUrl,
     previewCanonicalUrl,
     visualTailoring,
+    activeForgeTab,
+    forgeTabFeatures,
+    forgeTabSharedOverrides,
   ]);
 
   const clearForgePreview = useCallback(
@@ -859,14 +791,27 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   const activeTabSexualEnergy = activeTabShared?.sexualEnergyEnabled && activeTabShared.sexualEnergyValue.trim()
     ? activeTabShared.sexualEnergyValue.trim()
     : forgePersonality.sexualEnergy;
-  const tabPromptAddon = useMemo(() => {
-    const tabLabel = FORGE_THEME_TABS.find((t) => t.id === activeForgeTab)?.label ?? activeForgeTab;
-    const featureLines = Object.entries(activeTabFeatures ?? {})
-      .map(([k, v]) => `${k}:${String(v)}`)
-      .join(", ");
-    const sharedLine = `shared-> bodyType:${effectiveBodyType}; sexualEnergy:${activeTabSexualEnergy}; kinks:${activeTabKinks.join(" | ") || "none"}`;
-    return `Forge focus tab "${tabLabel}" (high priority). Tab feature matrix: ${featureLines}. ${sharedLine}. Blend these with the personality matrix into one coherent character and scene.`;
-  }, [activeForgeTab, activeTabFeatures, effectiveBodyType, activeTabSexualEnergy, activeTabKinks]);
+  const tabPromptAddon = useMemo(
+    () =>
+      buildForgeTabPromptAddon({
+        tabId: activeForgeTab,
+        features: activeTabFeatures,
+        effectiveBodyType,
+        sexualEnergy: activeTabSexualEnergy,
+        kinks: activeTabKinks,
+      }),
+    [activeForgeTab, activeTabFeatures, effectiveBodyType, activeTabSexualEnergy, activeTabKinks],
+  );
+
+  const applyActiveThemePreset = useCallback(() => {
+    const preset = FORGE_TAB_RENDER_PRESETS[activeForgeTab];
+    setArtStyle(normalizeForgeArtStyle(preset.artStyle));
+    setSceneAtmosphere(normalizeForgeScene(preset.sceneAtmosphere));
+    setVisualTailoring((v) => normalizeForgeVisualTailoring({ ...v, ...preset.visualTailoringPatch }));
+    toast.message("Theme applied", {
+      description: "Art style, scene, and wardrobe lab updated to match this tab — tweak accordions anytime.",
+    });
+  }, [activeForgeTab]);
   const mergedExtraNotes = useMemo(
     () => [extraNotes.trim(), tabPromptAddon].filter(Boolean).join(" "),
     [extraNotes, tabPromptAddon],
@@ -1972,6 +1917,9 @@ User flavor notes: ${extraNotes || "none"}`;
       previewUrl,
       previewCanonicalUrl,
       visualTailoring: { ...visualTailoring },
+      activeForgeTab,
+      forgeTabFeatures,
+      forgeTabSharedOverrides,
     };
     saveForgeStash(payload);
     toast.success("Forge stashed on this device — switch ideas or restore anytime.");
@@ -2001,6 +1949,9 @@ User flavor notes: ${extraNotes || "none"}`;
     previewUrl,
     previewCanonicalUrl,
     visualTailoring,
+    activeForgeTab,
+    forgeTabFeatures,
+    forgeTabSharedOverrides,
   ]);
 
   const restoreStashedForge = useCallback(() => {
@@ -2049,6 +2000,9 @@ User flavor notes: ${extraNotes || "none"}`;
     }
     setPreviewUrl(p.previewUrl);
     setPreviewCanonicalUrl(p.previewCanonicalUrl);
+    setActiveForgeTab(normalizeForgeThemeTabId(p.activeForgeTab));
+    setForgeTabFeatures(normalizeForgeTabFeatureMap(p.forgeTabFeatures));
+    setForgeTabSharedOverrides(normalizeForgeTabSharedOverrides(p.forgeTabSharedOverrides));
     toast.success("Restored stashed forge.");
   }, []);
 
@@ -2252,43 +2206,44 @@ User flavor notes: ${extraNotes || "none"}`;
             </AnimatePresence>
 
             <div className="rounded-2xl border border-white/[0.1] bg-black/35 p-4 sm:p-5 space-y-4">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Forge focus tabs</p>
                   <p className="text-xs text-muted-foreground/85 mt-1">
-                    Shared core + tab-specific controls. Randomize by tab for faster themed builds.
+                    Shared core fields stay below in the accordions — these tabs add theme DNA to prompts. Randomize per tab or
+                    sync rendering when you are ready.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setForgeTabFeatures((prev) => ({
-                      ...prev,
-                      [activeForgeTab]: {
-                        ...prev[activeForgeTab],
-                        ...Object.fromEntries(
-                          Object.entries(prev[activeForgeTab]).map(([k, v]) => {
-                            if (typeof v === "number") return [k, clampNum(Math.floor(Math.random() * 101), 0, 100)];
-                            if (typeof v === "boolean") return [k, Math.random() < 0.5];
-                            if (k === "posePreset") return [k, pick(["cute", "seductive", "lewd", "dynamic"] as const)];
-                            if (k === "skinTexture") return [k, pick(["scales", "slime", "fur", "chitin"] as const)];
-                            if (k === "tailType") return [k, pick(["serpentine", "spaded", "fluffy", "draconic"] as const)];
-                            if (k === "gothicFashionMode") return [k, pick(["victorian", "modern"] as const)];
-                            if (k === "fallenVsRising") return [k, pick(["fallen_angel", "rising_demon"] as const)];
-                            if (k === "manaAuraColor") return [k, pick(["violet", "crimson", "cyan", "obsidian"] as const)];
-                            if (k === "runePlacement") return [k, pick(["collarbone", "thigh", "spine", "cheek"] as const)];
-                            if (k === "ritualScars") return [k, pick(["subtle", "medium", "heavy"] as const)];
-                            return [k, v];
-                          }),
-                        ),
-                      },
-                    }))
-                  }
-                  className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-black/45 px-3 py-1.5 text-[11px] hover:bg-white/[0.04]"
-                >
-                  <Dices className="h-3.5 w-3.5" />
-                  Randomize tab
-                </button>
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  {activeForgeTab === "chaos" ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForgeTabFeatures((prev) => ({
+                          ...prev,
+                          chaos: randomizeForgeTabFeatures("chaos", "chaos_wtf"),
+                        }))
+                      }
+                      className="inline-flex items-center gap-2 rounded-lg border border-[#FF2D7B]/45 bg-[#FF2D7B]/12 px-3 py-1.5 text-[11px] font-medium text-[#ffb3d1] hover:bg-[#FF2D7B]/20"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Wild roll
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForgeTabFeatures((prev) => ({
+                        ...prev,
+                        [activeForgeTab]: randomizeForgeTabFeatures(activeForgeTab, "normal"),
+                      }))
+                    }
+                    className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-black/45 px-3 py-1.5 text-[11px] hover:bg-white/[0.04]"
+                  >
+                    <Dices className="h-3.5 w-3.5" />
+                    Randomize tab
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -2309,6 +2264,17 @@ User flavor notes: ${extraNotes || "none"}`;
                   </button>
                 ))}
               </div>
+
+              <p className="text-[11px] text-muted-foreground/90 leading-snug">{forgeTabLiveSummary(activeForgeTab)}</p>
+
+              <button
+                type="button"
+                onClick={applyActiveThemePreset}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg border border-[hsl(170_100%_42%)]/40 bg-[hsl(170_100%_42%)]/10 px-3 py-2 text-[11px] font-medium text-[hsl(170_100%_75%)] hover:bg-[hsl(170_100%_42%)]/18 transition-colors"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Apply theme to rendering & wardrobe
+              </button>
 
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3">
@@ -2400,30 +2366,17 @@ User flavor notes: ${extraNotes || "none"}`;
                   ) : null}
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-2">
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-2 max-h-[min(70vh,520px)] overflow-y-auto pr-1">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground sticky top-0 bg-black/30 pb-2 z-[1]">
                     {FORGE_THEME_TABS.find((t) => t.id === activeForgeTab)?.label} controls
                   </p>
-                  <textarea
-                    value={Object.entries(activeTabFeatures).map(([k, v]) => `${k}: ${v}`).join("\n")}
-                    onChange={(e) => {
-                      const lines = e.target.value.split("\n").map((x) => x.trim()).filter(Boolean);
-                      const next = { ...activeTabFeatures };
-                      for (const line of lines) {
-                        const [k, raw] = line.split(":").map((x) => x.trim());
-                        if (!k || raw == null || !(k in next)) continue;
-                        const prevV = next[k];
-                        if (typeof prevV === "number") next[k] = clampNum(Number(raw) || 0, 0, 100);
-                        else if (typeof prevV === "boolean") next[k] = /^(1|true|yes|on)$/i.test(raw);
-                        else next[k] = raw;
-                      }
-                      setForgeTabFeatures((prev) => ({ ...prev, [activeForgeTab]: next }));
-                    }}
-                    className="min-h-[210px] w-full rounded-lg border border-white/12 bg-black/45 p-2 text-xs leading-relaxed"
+                  <ForgeThemeControls
+                    activeTab={activeForgeTab}
+                    features={forgeTabFeatures[activeForgeTab]}
+                    onFeaturesChange={(next) =>
+                      setForgeTabFeatures((prev) => ({ ...prev, [activeForgeTab]: next }))
+                    }
                   />
-                  <p className="text-[10px] text-muted-foreground/80">
-                    Tip: edit values quickly here (0-100 sliders as numbers, booleans as true/false). These feed the prompt directly.
-                  </p>
                 </div>
               </div>
             </div>

@@ -2,6 +2,11 @@
 const KEY = "lustforge-admin-forge-stash-v1";
 
 import { DEFAULT_FORGE_PERSONALITY, normalizeForgePersonality, type ForgePersonalityProfile } from "@/lib/forgePersonalityProfile";
+import {
+  type ForgeTabFeatureMap,
+  type ForgeTabSharedOverride,
+  type ForgeThemeTabId,
+} from "@/lib/forgeThemeTabs";
 import { normalizeForgeVisualTailoring, type ForgeVisualTailoring } from "@/lib/forgeVisualTailoring";
 
 export type ForgeStashPayload = {
@@ -40,6 +45,10 @@ export type ForgeStashPayload = {
   previewCanonicalUrl: string | null;
   /** Appearance + outfit lab (optional on older stashes). */
   visualTailoring?: ForgeVisualTailoring;
+  /** Forge theme tabs (optional on older stashes). */
+  activeForgeTab?: ForgeThemeTabId;
+  forgeTabFeatures?: ForgeTabFeatureMap;
+  forgeTabSharedOverrides?: Record<ForgeThemeTabId, ForgeTabSharedOverride>;
 };
 
 export function loadForgeStash(): ForgeStashPayload | null {
