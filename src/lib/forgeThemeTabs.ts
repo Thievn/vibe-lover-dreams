@@ -5,6 +5,108 @@ import type { ForgeVisualTailoring } from "@/lib/forgeVisualTailoring";
 
 export type ForgeThemeTabId = "anime" | "monster" | "gothic" | "realistic" | "dark_fantasy" | "chaos";
 
+/** Seated / lounging / low-height poses — always facing the lens, never a generic standing catalog shot. */
+export type ForgeCardPoseId =
+  | "seated_sofa_relaxed"
+  | "seated_floor_knees_hug"
+  | "seated_ottoman_legs_side"
+  | "lounging_low_chaise"
+  | "seated_desk_chin_hand"
+  | "seated_bed_propped_pillows"
+  | "seated_chair_torso_twist"
+  | "floor_side_lean_one_arm"
+  | "kneeling_soft_cushion"
+  | "seated_barstool_legs_crossed"
+  | "seated_windowsill_backlit"
+  | "beanbag_sprawl"
+  | "seated_rug_cross_leg"
+  | "chaise_side_leg_extended";
+
+export const FORGE_CARD_POSE_IDS: readonly ForgeCardPoseId[] = [
+  "seated_sofa_relaxed",
+  "seated_floor_knees_hug",
+  "seated_ottoman_legs_side",
+  "lounging_low_chaise",
+  "seated_desk_chin_hand",
+  "seated_bed_propped_pillows",
+  "seated_chair_torso_twist",
+  "floor_side_lean_one_arm",
+  "kneeling_soft_cushion",
+  "seated_barstool_legs_crossed",
+  "seated_windowsill_backlit",
+  "beanbag_sprawl",
+  "seated_rug_cross_leg",
+  "chaise_side_leg_extended",
+];
+
+export function normalizeForgeCardPoseId(raw: unknown): ForgeCardPoseId {
+  if (typeof raw === "string" && (FORGE_CARD_POSE_IDS as readonly string[]).includes(raw)) {
+    return raw as ForgeCardPoseId;
+  }
+  return "seated_sofa_relaxed";
+}
+
+export function randomForgeCardPose(): ForgeCardPoseId {
+  return FORGE_CARD_POSE_IDS[Math.floor(Math.random() * FORGE_CARD_POSE_IDS.length)]!;
+}
+
+const POSE_PROSE: Record<ForgeCardPoseId, string> = {
+  seated_sofa_relaxed:
+    "Seated deep in a sofa — hips sunk, shoulders soft, **looking directly into the camera**; relaxed glamour, hands conversational on knees or cushion.",
+  seated_floor_knees_hug:
+    "Seated on floor or low rug — knees loosely gathered or hugged toward chest, chin lifted, **eyes locked to camera**; intimate loft energy, not standing.",
+  seated_ottoman_legs_side:
+    "Low ottoman perch — legs folded to one side, torso slightly angled, **steady eye contact**; editorial lounge framing.",
+  lounging_low_chaise:
+    "Lounging on a low chaise — torso propped on elbow, hips grounded, **face toward camera**; long-line silhouette without standing.",
+  seated_desk_chin_hand:
+    "Seated at a desk or vanity edge — chin resting on knuckles, **direct gaze into lens**; cerebral flirt, seated only.",
+  seated_bed_propped_pillows:
+    "Seated on bed edge or propped against pillows — spine long but grounded, **camera-forward eyes**; boudoir warmth, still seated.",
+  seated_chair_torso_twist:
+    "Seated on chair — subtle torso twist toward camera, one hand on chair back or thigh, **eyes meeting viewer**; dynamic but not standing.",
+  floor_side_lean_one_arm:
+    "Side-lean on floor or low platform — one arm supporting torso, legs folded or extended along ground, **head turned to camera**.",
+  kneeling_soft_cushion:
+    "Knees on plush cushion or rug stack — upright torso, **frontal eye contact**, hands relaxed on thighs; kneeling portrait, not standing.",
+  seated_barstool_legs_crossed:
+    "Seated high stool — ankles crossed or hooked on rung, shoulders open, **eyes to camera**; bar noir intimacy.",
+  seated_windowsill_backlit:
+    "Seated on wide sill or low ledge — rim light behind, **face still clearly toward camera**; silhouette read without losing gaze.",
+  beanbag_sprawl:
+    "Low beanbag sprawl — shoulders sunk, knees angled, **playful direct stare** into lens; casual chaos, grounded low.",
+  seated_rug_cross_leg:
+    "Cross-legged on textured rug — hands on ankles or lap, **camera-locked gaze**; grounded storyteller vibe.",
+  chaise_side_leg_extended:
+    "Side-lying on chaise — one leg extended along cushion, torso slightly rolled toward camera, **eyes engaging lens**; pin-up flow without standing.",
+};
+
+export function forgeCardPoseProse(id: ForgeCardPoseId): string {
+  return POSE_PROSE[id] ?? POSE_PROSE.seated_sofa_relaxed;
+}
+
+const POSE_LABELS: Record<ForgeCardPoseId, string> = {
+  seated_sofa_relaxed: "Sofa · relaxed lens lock",
+  seated_floor_knees_hug: "Floor · knees gathered",
+  seated_ottoman_legs_side: "Ottoman · legs to the side",
+  lounging_low_chaise: "Chaise · low lounge",
+  seated_desk_chin_hand: "Desk · chin on hand",
+  seated_bed_propped_pillows: "Bed · propped sit",
+  seated_chair_torso_twist: "Chair · torso twist",
+  floor_side_lean_one_arm: "Floor · side lean",
+  kneeling_soft_cushion: "Kneeling · cushion",
+  seated_barstool_legs_crossed: "Stool · legs crossed",
+  seated_windowsill_backlit: "Sill · backlit sit",
+  beanbag_sprawl: "Beanbag · low sprawl",
+  seated_rug_cross_leg: "Rug · cross-legged",
+  chaise_side_leg_extended: "Chaise · side lie",
+};
+
+export const FORGE_CARD_POSE_UI: { id: ForgeCardPoseId; label: string }[] = FORGE_CARD_POSE_IDS.map((id) => ({
+  id,
+  label: POSE_LABELS[id],
+}));
+
 export const FORGE_THEME_TABS: { id: ForgeThemeTabId; label: string; subtitle: string }[] = [
   { id: "anime", label: "Anime Temptation", subtitle: "Stylized charm, expressive faces, playful presets." },
   { id: "monster", label: "Monster Desire", subtitle: "Creature anatomy, appendages, and exotic silhouettes." },
@@ -30,7 +132,6 @@ export type ForgeAnimeFeatures = {
   skirtPhysics: number;
   ahegaoIntensity: number;
   hairHighlights: number;
-  posePreset: "cute" | "seductive" | "lewd" | "dynamic";
 };
 
 export type ForgeMonsterFeatures = {
@@ -79,6 +180,14 @@ export type ForgeChaosFeatures = {
   bodyHorrorCuteBlend: number;
   randomizerPower: number;
   whatTheFuckSeed: number;
+  /** Collide multiple genre costume cues (0–100). */
+  genreCollider: number;
+  /** Stack odd props / accessories (0–100). */
+  propStorm: number;
+  /** Push discordant palettes / mismatched metals (0–100). */
+  cursedPalette: number;
+  symmetryBreak: boolean;
+  oopsAllTropes: boolean;
 };
 
 export type ForgeTabFeatureMap = {
@@ -127,7 +236,6 @@ export function makeDefaultTabFeatures(): ForgeTabFeatureMap {
       skirtPhysics: 58,
       ahegaoIntensity: 12,
       hairHighlights: 64,
-      posePreset: "cute",
     },
     monster: {
       tentacleCount: 4,
@@ -171,6 +279,11 @@ export function makeDefaultTabFeatures(): ForgeTabFeatureMap {
       bodyHorrorCuteBlend: 64,
       randomizerPower: 80,
       whatTheFuckSeed: 0,
+      genreCollider: 38,
+      propStorm: 42,
+      cursedPalette: 28,
+      symmetryBreak: false,
+      oopsAllTropes: false,
     },
   };
 }
@@ -187,9 +300,6 @@ export function normalizeForgeTabFeatureMap(raw: unknown): ForgeTabFeatureMap {
     const x = o as Record<string, unknown>;
     const n = (k: keyof ForgeAnimeFeatures, min = 0, max = 100) =>
       typeof x[k] === "number" ? clampForgeTabNum(x[k] as number, min, max) : base[k];
-    const pose = x.posePreset;
-    const poseOk =
-      pose === "cute" || pose === "seductive" || pose === "lewd" || pose === "dynamic" ? pose : base.posePreset;
     return {
       eyeShine: n("eyeShine"),
       ahogeVariety: n("ahogeVariety"),
@@ -197,7 +307,6 @@ export function normalizeForgeTabFeatureMap(raw: unknown): ForgeTabFeatureMap {
       skirtPhysics: n("skirtPhysics"),
       ahegaoIntensity: n("ahegaoIntensity"),
       hairHighlights: n("hairHighlights"),
-      posePreset: poseOk,
     };
   };
 
@@ -286,6 +395,8 @@ export function normalizeForgeTabFeatureMap(raw: unknown): ForgeTabFeatureMap {
     const base = { ...d.chaos };
     if (!o || typeof o !== "object") return base;
     const x = o as Record<string, unknown>;
+    const n100 = (key: string, fallback: number) =>
+      typeof x[key] === "number" ? clampForgeTabNum(x[key] as number, 0, 100) : fallback;
     return {
       garbagePailGrotesque:
         typeof x.garbagePailGrotesque === "boolean" ? x.garbagePailGrotesque : base.garbagePailGrotesque,
@@ -300,6 +411,11 @@ export function normalizeForgeTabFeatureMap(raw: unknown): ForgeTabFeatureMap {
         typeof x.whatTheFuckSeed === "number"
           ? clampForgeTabNum(Math.floor(x.whatTheFuckSeed as number), 0, 9_999_999)
           : base.whatTheFuckSeed,
+      genreCollider: n100("genreCollider", base.genreCollider),
+      propStorm: n100("propStorm", base.propStorm),
+      cursedPalette: n100("cursedPalette", base.cursedPalette),
+      symmetryBreak: typeof x.symmetryBreak === "boolean" ? x.symmetryBreak : base.symmetryBreak,
+      oopsAllTropes: typeof x.oopsAllTropes === "boolean" ? x.oopsAllTropes : base.oopsAllTropes,
     };
   };
 
@@ -348,8 +464,6 @@ export function normalizeForgeThemeTabId(raw: unknown): ForgeThemeTabId {
 
 // --- Select option pools (random + UI) ---
 
-export const FORGE_ANIME_POSE_OPTIONS = ["cute", "seductive", "lewd", "dynamic"] as const;
-
 export const FORGE_MONSTER_HORN_OPTIONS = ["curved", "spiral", "straight", "ram", "crown", "broken"] as const;
 export const FORGE_MONSTER_TAIL_OPTIONS = ["serpentine", "spaded", "fluffy", "draconic", "finned", "insect"] as const;
 export const FORGE_MONSTER_SKIN_OPTIONS = ["scales", "slime", "fur", "chitin", "feathered", "stone-like"] as const;
@@ -375,16 +489,6 @@ function biasSoftVsToned(n: number): string {
   return "toned, firmer definition";
 }
 
-function posePresetLabel(p: ForgeAnimeFeatures["posePreset"]): string {
-  const m: Record<typeof p, string> = {
-    cute: "cute, playful idol energy",
-    seductive: "slow, inviting glamour pose",
-    lewd: "bold, unapologetic pin-up tension (SFW framing)",
-    dynamic: "action-line manga dynamism",
-  };
-  return m[p];
-}
-
 function fallenRisingLabel(v: ForgeDarkFantasyFeatures["fallenVsRising"]): string {
   return v === "fallen_angel" ? "fallen angel melancholy and tarnished grace" : "rising demon ambition and hungry heat";
 }
@@ -395,6 +499,7 @@ export function buildForgeTabPromptAddon(o: {
   effectiveBodyType: string;
   sexualEnergy: string;
   kinks: string[];
+  cardPose: ForgeCardPoseId;
 }): string {
   const tabLabel = FORGE_THEME_TABS.find((t) => t.id === o.tabId)?.label ?? o.tabId;
   let themeProse = "";
@@ -409,7 +514,6 @@ export function buildForgeTabPromptAddon(o: {
         `Skirt weight, pleats, and "physics" exaggeration at ${intensityLabel(f.skirtPhysics)}.`,
         `Expressive "ahegao-adjacent" face play (still SFW card) at ${intensityLabel(f.ahegaoIntensity)} — more cartoon exaggeration, not explicit.`,
         `Hair streaks and highlight ribbons at ${intensityLabel(f.hairHighlights)}.`,
-        `Pose direction: ${posePresetLabel(f.posePreset)}.`,
       ].join(" ");
       break;
     }
@@ -470,6 +574,11 @@ export function buildForgeTabPromptAddon(o: {
         `Maximal degeneracy flavor ${f.maxDegeneracy ? "ON — push weird wardrobe and props within SFW portrait rules" : "off"}.`,
         `Body-horror vs cute tension ${intensityLabel(f.bodyHorrorCuteBlend)}.`,
         `Randomizer strength ${intensityLabel(f.randomizerPower)} — break clichés, mix genres.`,
+        `Genre collision ${intensityLabel(f.genreCollider)} — intentionally mash costume languages.`,
+        `Prop storm ${intensityLabel(f.propStorm)} — extra accessories / set-dressing chaos (still SFW).`,
+        `Palette sabotage ${intensityLabel(f.cursedPalette)} — discord metallics / hues vs safe harmony.`,
+        f.symmetryBreak ? "Composition: subtle asymmetry — off-center framing, uneven shoulders, tilted horizon micro-tilt." : "Composition: mostly balanced framing.",
+        f.oopsAllTropes ? "Meta: pile recognizable romance / villain / idol tropes into one overstuffed bouquet (playful, not messy text)." : "",
         f.whatTheFuckSeed > 0 ? `Creative salt: ${f.whatTheFuckSeed} (use to diverge from generic output).` : "",
       ]
         .filter(Boolean)
@@ -481,7 +590,8 @@ export function buildForgeTabPromptAddon(o: {
   }
 
   const kinkLine = o.kinks.length ? o.kinks.join(", ") : "none specified";
-  return `Forge focus theme: "${tabLabel}" (high priority). ${themeProse} Shared anchors for this tab: physique "${o.effectiveBodyType}"; sexual energy "${o.sexualEnergy}"; kink undertones to weave into tension (subtle): ${kinkLine}. Fuse with the Personalities matrix, wardrobe lab, and scene into one coherent portrait and character.`;
+  const poseLine = forgeCardPoseProse(o.cardPose);
+  return `Forge focus theme: "${tabLabel}" (high priority). ${themeProse} **Portrait pose (global):** ${poseLine} Shared anchors for this tab: physique "${o.effectiveBodyType}"; sexual energy "${o.sexualEnergy}"; kink undertones to weave into tension (subtle): ${kinkLine}. Fuse with the Personalities matrix, wardrobe lab, and scene into one coherent portrait and character.`;
 }
 
 export function forgeTabLiveSummary(tabId: ForgeThemeTabId): string {
@@ -506,7 +616,6 @@ function rand100(): number {
 
 export function randomizeForgeTabFeatures(tab: ForgeThemeTabId, mode: "normal" | "chaos_wtf"): ForgeTabFeatureMap[ForgeThemeTabId] {
   if (tab === "anime") {
-    const f = makeDefaultTabFeatures().anime;
     return {
       eyeShine: rand100(),
       ahogeVariety: rand100(),
@@ -514,7 +623,6 @@ export function randomizeForgeTabFeatures(tab: ForgeThemeTabId, mode: "normal" |
       skirtPhysics: rand100(),
       ahegaoIntensity: rand100(),
       hairHighlights: rand100(),
-      posePreset: pick([...FORGE_ANIME_POSE_OPTIONS]),
     };
   }
   if (tab === "monster") {
@@ -569,6 +677,11 @@ export function randomizeForgeTabFeatures(tab: ForgeThemeTabId, mode: "normal" |
       bodyHorrorCuteBlend: rand100(),
       randomizerPower: Math.max(70, rand100()),
       whatTheFuckSeed: Math.floor(Math.random() * 9_000_000) + 1_000_000,
+      genreCollider: Math.max(55, rand100()),
+      propStorm: Math.max(50, rand100()),
+      cursedPalette: Math.max(45, rand100()),
+      symmetryBreak: Math.random() < 0.62,
+      oopsAllTropes: Math.random() < 0.48,
     };
   }
   return {
@@ -577,6 +690,11 @@ export function randomizeForgeTabFeatures(tab: ForgeThemeTabId, mode: "normal" |
     bodyHorrorCuteBlend: rand100(),
     randomizerPower: rand100(),
     whatTheFuckSeed: Math.random() < 0.3 ? Math.floor(Math.random() * 9_000_000) + 1 : 0,
+    genreCollider: rand100(),
+    propStorm: rand100(),
+    cursedPalette: rand100(),
+    symmetryBreak: Math.random() < 0.35,
+    oopsAllTropes: Math.random() < 0.28,
   };
 }
 
@@ -602,8 +720,7 @@ export function randomizeForgeTabField(
     return c as ForgeTabFeatureMap[ForgeThemeTabId];
   }
   if (typeof v === "string") {
-    if (tab === "anime" && fieldKey === "posePreset") c[fieldKey] = pick([...FORGE_ANIME_POSE_OPTIONS]);
-    else if (tab === "monster" && fieldKey === "hornConfig") c[fieldKey] = pick([...FORGE_MONSTER_HORN_OPTIONS]);
+    if (tab === "monster" && fieldKey === "hornConfig") c[fieldKey] = pick([...FORGE_MONSTER_HORN_OPTIONS]);
     else if (tab === "monster" && fieldKey === "tailType") c[fieldKey] = pick([...FORGE_MONSTER_TAIL_OPTIONS]);
     else if (tab === "monster" && fieldKey === "skinTexture") c[fieldKey] = pick([...FORGE_MONSTER_SKIN_OPTIONS]);
     else if (tab === "gothic" && fieldKey === "gothicFashionMode") c[fieldKey] = Math.random() < 0.5 ? "victorian" : "modern";
@@ -714,13 +831,7 @@ export const FORGE_TAB_FIELD_ROWS: Record<ForgeThemeTabId, readonly ForgeThemeFi
     { key: "hairHighlights", label: "Streaks & highlights", hint: "Ribbon streaks and secondary hair colors.", kind: "slider" },
     { section: "Wardrobe physics", key: "thighhighLayers", label: "Thigh-high layers", hint: "Stacked hosiery and accessories on legs.", kind: "slider" },
     { key: "skirtPhysics", label: "Skirt motion", hint: "Pleats, lift, and exaggerated cloth motion.", kind: "slider" },
-    { section: "Expression & pose", key: "ahegaoIntensity", label: "Exaggerated face play", hint: "Cartoon intensity (SFW card — no explicit acts).", kind: "slider" },
-    {
-      key: "posePreset",
-      label: "Pose vibe",
-      kind: "select",
-      ...selOpts([...FORGE_ANIME_POSE_OPTIONS], ["Cute", "Seductive", "Lewd tension (SFW)", "Dynamic action"]),
-    },
+    { section: "Expression", key: "ahegaoIntensity", label: "Exaggerated face play", hint: "Cartoon intensity (SFW card — no explicit acts).", kind: "slider" },
   ],
   monster: [
     { section: "Anatomy", key: "tentacleCount", label: "Tentacles / tendrils", hint: "Count of prominent appendages (0–12).", kind: "slider", sliderMin: 0, sliderMax: 12 },
@@ -773,8 +884,13 @@ export const FORGE_TAB_FIELD_ROWS: Record<ForgeThemeTabId, readonly ForgeThemeFi
   chaos: [
     { section: "Chaos switches", key: "garbagePailGrotesque", label: "Grotesque-cute", hint: "Warped cute / collectible monster vibe.", kind: "toggle" },
     { key: "maxDegeneracy", label: "Max weird wardrobe", hint: "Push odd props within SFW portrait rules.", kind: "toggle" },
+    { key: "symmetryBreak", label: "Asymmetric framing", hint: "Tilted horizon, off-center weight, uneven shoulders.", kind: "toggle" },
+    { key: "oopsAllTropes", label: "Trope overload", hint: "Stack romance / villain / idol clichés on purpose.", kind: "toggle" },
     { section: "Sliders", key: "bodyHorrorCuteBlend", label: "Cute vs body-horror tension", kind: "slider" },
     { key: "randomizerPower", label: "Rule-breaking strength", kind: "slider" },
+    { key: "genreCollider", label: "Genre mash intensity", hint: "Collide costume languages from different eras.", kind: "slider" },
+    { key: "propStorm", label: "Prop / accessory storm", kind: "slider" },
+    { key: "cursedPalette", label: "Palette sabotage", hint: "Clashing metals and hues vs safe harmony.", kind: "slider" },
     {
       key: "whatTheFuckSeed",
       label: "Chaos salt",

@@ -6,6 +6,7 @@ import { mergeTcgForNexusChild } from "../_shared/tcgStatsGenerate.ts";
 import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
 import { buildNexusDisplayTraitRows } from "../_shared/nexusDisplayTraitsBuild.ts";
 import { rollNexusChildRarity } from "../_shared/nexusRarityRoll.ts";
+import { buildChildPersonalityForgeRow, readForgeThemeDna } from "../_shared/nexusForgeThemeMerge.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -495,6 +496,9 @@ Deno.serve(async (req) => {
       );
     }
 
+    const themeA = readForgeThemeDna(pa.personality_forge);
+    const themeB = readForgeThemeDna(pb.personality_forge);
+
     const parentA = {
       name: pa.name,
       tagline: pa.tagline,
@@ -510,6 +514,7 @@ Deno.serve(async (req) => {
       gradient_from: pa.gradient_from,
       gradient_to: pa.gradient_to,
       rarity: pa.rarity,
+      forge_theme_dna: themeA ?? undefined,
     };
     const parentB = {
       name: pb.name,
@@ -526,6 +531,7 @@ Deno.serve(async (req) => {
       gradient_from: pb.gradient_from,
       gradient_to: pb.gradient_to,
       rarity: pb.rarity,
+      forge_theme_dna: themeB ?? undefined,
     };
 
     let infuseLine = "";
@@ -575,6 +581,8 @@ Name quality rule (critical): generate a fresh random-feeling name that does not
 
 Visual inheritance rule (critical): preserve blended facial structure, body silhouette, and optional fantasy anatomy cues (ears/tail/horns/wings) when appropriate.
 ${visualDivergenceLine}
+
+Forge theme DNA (when present on a parent as \`forge_theme_dna\`): structured per-tab Companion Forge sliders + shared overrides + look lab + card pose from that parent's last save. **You must hybridize** these maps for the child — blend cues from BOTH parents across ALL tab keys (\`forgeTabFeatures\` per theme: anime, monster, gothic, realistic, dark_fantasy, chaos), respect each parent's \`forgeTabSharedOverrides\`, and merge \`visualTailoring\` + art/scene + \`forgeCardPose\` into one coherent new \`image_prompt\`. If only one parent has DNA, still borrow the other's appearance text. If neither has DNA, ignore this paragraph.
 
 Rarity: the \`rarity\` field in your tool output is ignored — the server rolls the child’s tier from the Nexus outcome table using both parents’ rarities. Still output a plausible \`rarity\` string for logging only.
 
@@ -801,6 +809,23 @@ Output ONLY via the nexus_merge_companion tool call.`;
       .eq("id", childUuid);
     if (traitsUpdErr) {
       console.error("nexus-merge display_traits update", traitsUpdErr);
+    }
+
+    const mergedPersonalityForge = buildChildPersonalityForgeRow(
+      pa.personality_forge,
+      pb.personality_forge,
+      themeA,
+      themeB,
+      childUuid,
+    );
+    if (mergedPersonalityForge && Object.keys(mergedPersonalityForge).length > 0) {
+      const { error: pfErr } = await supabase
+        .from("custom_characters")
+        .update({ personality_forge: mergedPersonalityForge })
+        .eq("id", childUuid);
+      if (pfErr) {
+        console.error("nexus-merge personality_forge update", pfErr);
+      }
     }
 
     let portraitOk = false;

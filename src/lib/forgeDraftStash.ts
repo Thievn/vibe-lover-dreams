@@ -3,6 +3,7 @@ const KEY = "lustforge-admin-forge-stash-v1";
 
 import { DEFAULT_FORGE_PERSONALITY, normalizeForgePersonality, type ForgePersonalityProfile } from "@/lib/forgePersonalityProfile";
 import {
+  type ForgeCardPoseId,
   type ForgeTabFeatureMap,
   type ForgeTabSharedOverride,
   type ForgeThemeTabId,
@@ -49,6 +50,8 @@ export type ForgeStashPayload = {
   activeForgeTab?: ForgeThemeTabId;
   forgeTabFeatures?: ForgeTabFeatureMap;
   forgeTabSharedOverrides?: Record<ForgeThemeTabId, ForgeTabSharedOverride>;
+  /** Global seated / lounge pose for card portrait (all tabs). */
+  forgeCardPose?: ForgeCardPoseId;
 };
 
 export function loadForgeStash(): ForgeStashPayload | null {

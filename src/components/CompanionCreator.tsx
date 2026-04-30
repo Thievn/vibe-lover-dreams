@@ -123,26 +123,48 @@ import {
   randomForgeVisualTailoring,
   type ForgeVisualTailoring,
 } from "@/lib/forgeVisualTailoring";
+import { buildForgeThemeSnapshotV1 } from "@/lib/forgeThemeSnapshot";
 import {
+  randomizeAllTabSharedOverrides,
+  randomizeAllTabsFeatureMaps,
+  randomizeForgeTabSharedOverrides,
+  rollForgeRenderingChaosWildcard,
+  rollForgeRenderingForTab,
+} from "@/lib/forgeThemeDeepRandomize";
+import {
+  FORGE_CARD_POSE_UI,
   FORGE_TAB_RENDER_PRESETS,
   FORGE_THEME_TABS,
+  type ForgeCardPoseId,
   type ForgeTabFeatureMap,
   type ForgeTabSharedOverride,
   type ForgeThemeTabId,
   buildForgeTabPromptAddon,
+  forgeCardPoseProse,
   forgeTabLiveSummary,
   makeDefaultTabFeatures,
   makeDefaultTabSharedOverrides,
+  normalizeForgeCardPoseId,
   normalizeForgeTabFeatureMap,
   normalizeForgeTabSharedOverrides,
   normalizeForgeThemeTabId,
   randomizeForgeTabFeatures,
+  randomForgeCardPose,
 } from "@/lib/forgeThemeTabs";
 import { ForgeThemeControls } from "@/components/forge/ForgeThemeControls";
 
 const NEON = "#FF2D7B";
 const PREVIEW_COST = FORGE_PREVIEW_FC;
 const FINAL_COST_PER = FORGE_CREATE_COMPANION_FC;
+
+const FORGE_TAB_BUTTON_ACCENT: Record<ForgeThemeTabId, string> = {
+  anime: "border-fuchsia-400/45 bg-gradient-to-br from-fuchsia-950/55 via-black/40 to-black/30 shadow-[0_0_20px_rgba(232,121,249,0.12)]",
+  monster: "border-emerald-400/40 bg-gradient-to-br from-emerald-950/45 to-black/35 shadow-[0_0_18px_rgba(52,211,153,0.1)]",
+  gothic: "border-violet-400/45 bg-gradient-to-br from-violet-950/50 to-black/35",
+  realistic: "border-amber-400/38 bg-gradient-to-br from-amber-950/35 to-black/35",
+  dark_fantasy: "border-indigo-400/45 bg-gradient-to-br from-indigo-950/50 to-black/40",
+  chaos: "border-[#FF2D7B]/55 bg-gradient-to-br from-[#FF2D7B]/22 via-purple-950/35 to-black/35 shadow-[0_0_22px_rgba(255,45,123,0.18)]",
+};
 
 export type CompanionCreatorMode = "user" | "admin";
 
@@ -433,6 +455,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   const [extraNotes, setExtraNotes] = useState("");
   const [activeForgeTab, setActiveForgeTab] = useState<ForgeThemeTabId>("anime");
   const [forgeTabFeatures, setForgeTabFeatures] = useState<ForgeTabFeatureMap>(() => makeDefaultTabFeatures());
+  const [forgeCardPose, setForgeCardPose] = useState<ForgeCardPoseId>(() => normalizeForgeCardPoseId(undefined));
   const [forgeTabSharedOverrides, setForgeTabSharedOverrides] = useState<Record<ForgeThemeTabId, ForgeTabSharedOverride>>(
     () => makeDefaultTabSharedOverrides(),
   );
@@ -648,6 +671,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       setActiveForgeTab(normalizeForgeThemeTabId(draft.activeForgeTab));
       setForgeTabFeatures(normalizeForgeTabFeatureMap(draft.forgeTabFeatures));
       setForgeTabSharedOverrides(normalizeForgeTabSharedOverrides(draft.forgeTabSharedOverrides));
+      setForgeCardPose(normalizeForgeCardPoseId((draft as { forgeCardPose?: string }).forgeCardPose));
       toast.message("Your forge is still here", {
         description: "We kept your last mix, story fields, and preview on this device.",
       });
@@ -713,6 +737,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         activeForgeTab,
         forgeTabFeatures,
         forgeTabSharedOverrides,
+        forgeCardPose,
       };
       saveForgeSessionDraft(userId, mode, payload);
     }, 750);
@@ -750,6 +775,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     activeForgeTab,
     forgeTabFeatures,
     forgeTabSharedOverrides,
+    forgeCardPose,
   ]);
 
   const clearForgePreview = useCallback(
@@ -799,8 +825,49 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         effectiveBodyType,
         sexualEnergy: activeTabSexualEnergy,
         kinks: activeTabKinks,
+        cardPose: forgeCardPose,
       }),
-    [activeForgeTab, activeTabFeatures, effectiveBodyType, activeTabSexualEnergy, activeTabKinks],
+    [activeForgeTab, activeTabFeatures, effectiveBodyType, activeTabSexualEnergy, activeTabKinks, forgeCardPose],
+  );
+
+  const deepRandomizeForgeFocusTab = useCallback(
+    (opts: { wildChaos: boolean }) => {
+      const tab = activeForgeTab;
+      if (opts.wildChaos && tab === "chaos") {
+        setForgeTabFeatures(randomizeAllTabsFeatureMaps("chaos_wtf"));
+        setForgeTabSharedOverrides(randomizeAllTabSharedOverrides("chaos_wtf"));
+        const roll = rollForgeRenderingChaosWildcard();
+        setArtStyle(roll.artStyle);
+        setSceneAtmosphere(roll.sceneAtmosphere);
+        setVisualTailoring(roll.visual);
+        setBodyType(normalizeForgeBodyType(pick([...FORGE_BODY_TYPES])));
+        setForgeCardPose(randomForgeCardPose());
+        toast.message("Wild roll", { description: "Every theme tab, overrides, look lab, body, and pose — maximum entropy." });
+        return;
+      }
+      const rollMode: "normal" | "chaos_wtf" = opts.wildChaos ? "chaos_wtf" : Math.random() < 0.14 ? "chaos_wtf" : "normal";
+      const featureMode: "normal" | "chaos_wtf" = tab === "chaos" && rollMode === "chaos_wtf" ? "chaos_wtf" : "normal";
+      setForgeTabFeatures((prev) => ({
+        ...prev,
+        [tab]: randomizeForgeTabFeatures(tab, featureMode),
+      }));
+      setForgeTabSharedOverrides((prev) => ({
+        ...prev,
+        [tab]: randomizeForgeTabSharedOverrides(tab, rollMode),
+      }));
+      const renderRoll = rollForgeRenderingForTab(tab, rollMode);
+      setArtStyle(renderRoll.artStyle);
+      setSceneAtmosphere(renderRoll.sceneAtmosphere);
+      setVisualTailoring(renderRoll.visual);
+      setForgeCardPose(randomForgeCardPose());
+      if (rollMode === "chaos_wtf" && Math.random() < 0.38) {
+        setBodyType(normalizeForgeBodyType(pick([...FORGE_BODY_TYPES])));
+      }
+      toast.message("Tab shuffle", {
+        description: "Theme DNA + this tab’s overrides + rendering / wardrobe lab + a fresh seated pose.",
+      });
+    },
+    [activeForgeTab],
   );
 
   const applyActiveThemePreset = useCallback(() => {
@@ -1202,9 +1269,10 @@ User flavor notes: ${extraNotes || "none"}`;
     const clothingLine = nonHumanVisual
       ? `Wardrobe and materials appropriate for ${bodyType} and ${artStyle} — species- and silhouette-first; avoid unrelated generic human runway looks unless clearly humanoid glam.`
       : `Fashion and textures echoing ${sceneAtmosphere} and ${artStyle} — personality flavor: ${personalityLabel}`;
+    const poseHuman = forgeCardPoseProse(forgeCardPose);
     const poseLine = nonHumanVisual
-      ? `Pose that clearly sells "${bodyType}" — show correct limbs, tail, wings, hybrid junction, or non-human mass as implied; same forged identity, not a stock human substitute.`
-      : "three-quarter portrait, alluring confident pose";
+      ? `Pose that clearly sells "${bodyType}" — show correct limbs, tail, wings, hybrid junction, or non-human mass as implied; same forged identity, not a stock human substitute. Still **eyes toward camera** like: ${poseHuman}`
+      : `${poseHuman} Vertical card portrait — avoid a generic standing runway default unless body type demands it.`;
     const referenceImageUrl = stablePortraitDisplayUrl(previewCanonicalUrl ?? previewUrl) ?? undefined;
     return {
       prompt: clampForgePrompt(packshotPrompt) || clampForgePrompt(grokPrompt),
@@ -1232,6 +1300,8 @@ User flavor notes: ${extraNotes || "none"}`;
         sceneAtmosphere,
         selectedForgeTab: activeForgeTab,
         selectedForgeTabFeatures: activeTabFeatures,
+        forgeTabFeaturesAll: forgeTabFeatures,
+        forgeCardPose,
         selectedForgeTabSharedKinks: activeTabKinks,
         ...(referencePalette ? { referencePalette } : {}),
         ...(referenceNotes.trim() ? { referenceNotes: referenceNotes.trim() } : {}),
@@ -1253,6 +1323,8 @@ User flavor notes: ${extraNotes || "none"}`;
     personalityLabel,
     activeForgeTab,
     activeTabFeatures,
+    forgeTabFeatures,
+    forgeCardPose,
     activeTabKinks,
     referencePalette,
     referenceNotes,
@@ -1627,7 +1699,19 @@ User flavor notes: ${extraNotes || "none"}`;
           user_id: userId,
           name: displayName,
           personality: rowPersonality,
-          personality_forge: forgePersonality,
+          personality_forge: {
+            ...forgePersonality,
+            _forgeThemeV1: buildForgeThemeSnapshotV1({
+              activeForgeTab,
+              forgeCardPose,
+              artStyle,
+              sceneAtmosphere,
+              bodyType,
+              visualTailoring,
+              forgeTabFeatures,
+              forgeTabSharedOverrides,
+            }),
+          },
           personality_archetypes: forgePersonalityToArchetypeList(forgePersonality),
           vibe_theme_selections: [],
           tagline: tagline || forgePersonality.personalityType,
@@ -1920,6 +2004,7 @@ User flavor notes: ${extraNotes || "none"}`;
       activeForgeTab,
       forgeTabFeatures,
       forgeTabSharedOverrides,
+      forgeCardPose,
     };
     saveForgeStash(payload);
     toast.success("Forge stashed on this device — switch ideas or restore anytime.");
@@ -1952,6 +2037,7 @@ User flavor notes: ${extraNotes || "none"}`;
     activeForgeTab,
     forgeTabFeatures,
     forgeTabSharedOverrides,
+    forgeCardPose,
   ]);
 
   const restoreStashedForge = useCallback(() => {
@@ -2003,6 +2089,7 @@ User flavor notes: ${extraNotes || "none"}`;
     setActiveForgeTab(normalizeForgeThemeTabId(p.activeForgeTab));
     setForgeTabFeatures(normalizeForgeTabFeatureMap(p.forgeTabFeatures));
     setForgeTabSharedOverrides(normalizeForgeTabSharedOverrides(p.forgeTabSharedOverrides));
+    setForgeCardPose(normalizeForgeCardPoseId(p.forgeCardPose));
     toast.success("Restored stashed forge.");
   }, []);
 
@@ -2218,30 +2305,20 @@ User flavor notes: ${extraNotes || "none"}`;
                   {activeForgeTab === "chaos" ? (
                     <button
                       type="button"
-                      onClick={() =>
-                        setForgeTabFeatures((prev) => ({
-                          ...prev,
-                          chaos: randomizeForgeTabFeatures("chaos", "chaos_wtf"),
-                        }))
-                      }
+                      onClick={() => deepRandomizeForgeFocusTab({ wildChaos: true })}
                       className="inline-flex items-center gap-2 rounded-lg border border-[#FF2D7B]/45 bg-[#FF2D7B]/12 px-3 py-1.5 text-[11px] font-medium text-[#ffb3d1] hover:bg-[#FF2D7B]/20"
                     >
                       <Sparkles className="h-3.5 w-3.5" />
-                      Wild roll
+                      Wild roll (all tabs + lab)
                     </button>
                   ) : null}
                   <button
                     type="button"
-                    onClick={() =>
-                      setForgeTabFeatures((prev) => ({
-                        ...prev,
-                        [activeForgeTab]: randomizeForgeTabFeatures(activeForgeTab, "normal"),
-                      }))
-                    }
+                    onClick={() => deepRandomizeForgeFocusTab({ wildChaos: false })}
                     className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-black/45 px-3 py-1.5 text-[11px] hover:bg-white/[0.04]"
                   >
                     <Dices className="h-3.5 w-3.5" />
-                    Randomize tab
+                    Shuffle tab + lab + pose
                   </button>
                 </div>
               </div>
@@ -2255,7 +2332,7 @@ User flavor notes: ${extraNotes || "none"}`;
                     className={cn(
                       "rounded-xl border px-3 py-2 text-left transition-colors",
                       activeForgeTab === tab.id
-                        ? "border-primary/55 bg-primary/15 text-primary-foreground"
+                        ? `${FORGE_TAB_BUTTON_ACCENT[tab.id]} text-white`
                         : "border-white/12 bg-black/30 text-foreground/85 hover:bg-white/[0.05]",
                     )}
                   >
@@ -2266,6 +2343,37 @@ User flavor notes: ${extraNotes || "none"}`;
               </div>
 
               <p className="text-[11px] text-muted-foreground/90 leading-snug">{forgeTabLiveSummary(activeForgeTab)}</p>
+
+              <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Card pose (all tabs)</p>
+                    <p className="text-[11px] text-muted-foreground/85 mt-0.5">
+                      Seated / low lounge only — always facing the lens. Applies to preview + save DNA for Nexus.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setForgeCardPose(randomForgeCardPose())}
+                    className="inline-flex shrink-0 items-center gap-2 self-start rounded-lg border border-white/12 bg-black/45 px-2.5 py-1.5 text-[10px] hover:bg-white/[0.04]"
+                  >
+                    <Dices className="h-3 w-3" />
+                    Random pose
+                  </button>
+                </div>
+                <Select value={forgeCardPose} onValueChange={(v) => setForgeCardPose(normalizeForgeCardPoseId(v))}>
+                  <SelectTrigger className="h-9 w-full border-white/12 bg-black/45 text-xs">
+                    <SelectValue placeholder="Pose" />
+                  </SelectTrigger>
+                  <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,20rem)]">
+                    {FORGE_CARD_POSE_UI.map((p) => (
+                      <SelectItem key={p.id} value={p.id} className="text-xs">
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
               <button
                 type="button"
