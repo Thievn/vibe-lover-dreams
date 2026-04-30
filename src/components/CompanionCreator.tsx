@@ -2153,21 +2153,21 @@ User flavor notes: ${extraNotes || "none"}`;
         />
       )}
 
-      <div className={cn("relative z-10", embedded ? "px-0 py-0" : "px-4 md:px-10 py-10 pb-mobile-nav")}>
+      <div className={cn("relative z-10", embedded ? "px-0 py-0" : "px-4 md:px-8 lg:px-10 py-5 md:py-7 pb-mobile-nav")}>
         {!embedded && (
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-[#FF2D7B] transition-colors"
+            className="mb-4 md:mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-[#FF2D7B] transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
             Back
           </button>
         )}
 
-        <div className="flex flex-col lg:flex-row lg:items-start gap-6 lg:gap-8 max-w-[1700px] mx-auto">
-          {/* Controls — scrolls independently on desktop while preview stays pinned */}
-          <div className="order-2 lg:order-1 w-full lg:flex-1 lg:min-w-0 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-2 lg:pb-4 overscroll-contain space-y-5">
+        <div className="flex flex-col lg:flex-row lg:items-start gap-5 lg:gap-7 max-w-[1700px] mx-auto min-h-0">
+          {/* Controls — one vertical scroll with the page (no nested lg scroll) so grids don’t leave dead air beside tall panels */}
+          <div className="order-2 lg:order-1 w-full lg:flex-1 lg:min-w-0 lg:pr-1 lg:pb-3 space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-[#FF2D7B]/90 mb-2">Forge Studio</p>
@@ -2292,7 +2292,7 @@ User flavor notes: ${extraNotes || "none"}`;
               )}
             </AnimatePresence>
 
-            <div className="rounded-2xl border border-white/[0.1] bg-black/35 p-4 sm:p-5 space-y-4">
+            <div className="rounded-2xl border border-white/[0.1] bg-black/35 p-3 sm:p-4 space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Forge focus tabs</p>
@@ -2384,8 +2384,8 @@ User flavor notes: ${extraNotes || "none"}`;
                 Apply theme to rendering & wardrobe
               </button>
 
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3">
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:items-start">
+                <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3 self-start w-full">
                   <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Shared field overrides</p>
                   <label className="flex items-center justify-between text-xs">
                     <span>Override body type in this tab</span>
@@ -2474,7 +2474,7 @@ User flavor notes: ${extraNotes || "none"}`;
                   ) : null}
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-2 max-h-[min(70vh,520px)] overflow-y-auto pr-1">
+                <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-2 max-h-[min(52dvh,400px)] overflow-y-auto pr-1 self-start w-full min-w-0">
                   <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground sticky top-0 bg-black/30 pb-2 z-[1]">
                     {FORGE_THEME_TABS.find((t) => t.id === activeForgeTab)?.label} controls
                   </p>
@@ -2665,7 +2665,7 @@ User flavor notes: ${extraNotes || "none"}`;
 
                   <div className="space-y-3">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Body type</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 sm:items-start gap-3">
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Category</p>
@@ -2739,7 +2739,7 @@ User flavor notes: ${extraNotes || "none"}`;
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 sm:items-start gap-4">
                     <VisualSelectRow label="Breast size" field="breastSize" options={FORGE_BREAST_SIZES} />
                     <VisualSelectRow label="Ass size" field="assSize" options={FORGE_ASS_SIZES} />
                     <VisualSelectRow label="Hair style" field="hairStyle" options={FORGE_HAIR_STYLES} />
@@ -2813,7 +2813,7 @@ User flavor notes: ${extraNotes || "none"}`;
                     <p className="text-xs text-muted-foreground leading-relaxed">{smartOutfitTheme}</p>
                   </motion.div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 sm:items-start gap-4">
                     <VisualSelectRow label="Default outfit style" field="outfitStyle" options={FORGE_OUTFIT_STYLES} />
                     <VisualSelectRow label="Color palette" field="colorPalette" options={FORGE_COLOR_PALETTES} />
                     <VisualSelectRow label="Footwear" field="footwear" options={FORGE_FOOTWEAR} />
@@ -2831,7 +2831,7 @@ User flavor notes: ${extraNotes || "none"}`;
                   Art style &amp; scene
                 </AccordionTrigger>
                 <AccordionContent className="pb-5 space-y-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 sm:items-start gap-4">
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Art style</p>
@@ -3319,7 +3319,7 @@ User flavor notes: ${extraNotes || "none"}`;
           </div>
 
           {/* Preview — TCG-sized (~63×88mm), sticky right on desktop; on mobile shown above options */}
-          <div className="order-1 lg:order-2 w-full lg:w-[min(100%,380px)] xl:w-[400px] shrink-0 lg:sticky lg:top-20 lg:self-start space-y-4">
+          <div className="order-1 lg:order-2 w-full lg:w-[min(100%,380px)] xl:w-[400px] shrink-0 lg:sticky lg:top-16 lg:self-start space-y-3">
             <div className={cn(panelClass, "overflow-hidden")}>
               <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-white/10 bg-white/[0.03] backdrop-blur-md">
                 <span className="flex items-center gap-2 min-w-0">
@@ -3437,7 +3437,7 @@ User flavor notes: ${extraNotes || "none"}`;
                   <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Profile preview</p>
                   <p className="font-gothic text-lg sm:text-xl text-white leading-snug line-clamp-3">{name.trim() || "—"}</p>
                   <p className="text-[12px] sm:text-sm text-[#ffb8d9]/90 line-clamp-3">{tagline.trim() || "—"}</p>
-                  <p className="text-[11px] sm:text-xs text-white/70 leading-relaxed line-clamp-[14] whitespace-pre-wrap">
+                  <p className="text-[11px] sm:text-xs text-white/70 leading-relaxed line-clamp-8 whitespace-pre-wrap">
                     {profilePreviewBlurb}
                   </p>
                   <div className="flex flex-wrap gap-1 pt-0.5">

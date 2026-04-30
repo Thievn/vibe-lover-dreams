@@ -816,7 +816,7 @@ function AdminShell() {
                   <span className="text-xs text-muted-foreground uppercase tracking-widest">Admin · no token cost</span>
                 </div>
               </div>
-              <div className="p-4 md:p-6 min-h-0 max-h-[min(92dvh,1100px)] overflow-y-auto space-y-4">
+              <div className="p-3 md:p-5 min-h-0 max-h-[min(calc(100dvh-7.5rem),960px)] overflow-y-auto overscroll-contain space-y-3">
                 <AdminForgeSchedulePanel
                   onAutoForge={async (opts) => {
                     await forgeRef.current?.runRandomRouletteAndForge(opts);
