@@ -107,7 +107,7 @@ export function AdminCompanionPortraitPreview({
             rarity={rarity}
             overlayUrl={overlayUrl}
             abyssal={isAbyssal}
-            profilePolish
+            profilePolish={loopVideoActive}
             gradientFrom={gradientFrom}
             gradientTo={gradientTo}
             frameBleed={loopVideoActive}

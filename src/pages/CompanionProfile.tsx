@@ -803,7 +803,7 @@ const CompanionProfile = () => {
                     rarity={rarity}
                     overlayUrl={dbComp?.rarity_border_overlay_url}
                     abyssal={isAbyssal}
-                    profilePolish
+                    profilePolish={loopVideoActive}
                     gradientFrom={companion.gradientFrom}
                     gradientTo={companion.gradientTo}
                     frameBleed={loopVideoActive}
