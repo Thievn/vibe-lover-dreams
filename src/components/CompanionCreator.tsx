@@ -212,6 +212,31 @@ const BATCH_PRESETS = [1, 3, 5, 10] as const;
 
 const PREVIEW_STORAGE_PREFIX = "lustforge_forge_preview_v1";
 const GROK_PACKSHOT_SOFT_LIMIT = 3200;
+type ForgeThemeTabId = "anime" | "monster" | "gothic" | "realistic" | "dark_fantasy" | "chaos";
+
+const FORGE_THEME_TABS: { id: ForgeThemeTabId; label: string; subtitle: string }[] = [
+  { id: "anime", label: "Anime Temptation", subtitle: "Stylized charm, expressive faces, playful presets." },
+  { id: "monster", label: "Monster Desire", subtitle: "Creature anatomy, appendages, and exotic silhouettes." },
+  { id: "gothic", label: "Gothic Seduction", subtitle: "Lace, pallor, dramatic romance, tragic elegance." },
+  { id: "realistic", label: "Realistic Craving", subtitle: "Natural skin detail, realism sliders, lived-in intimacy." },
+  { id: "dark_fantasy", label: "Dark Fantasy", subtitle: "Runes, corruption, ritual markings, fallen archetypes." },
+  { id: "chaos", label: "Eternal Chaos", subtitle: "Controlled insanity, hybrid horror/cute, maximal randomness." },
+];
+
+type ForgeTabSharedOverride = {
+  bodyTypeEnabled: boolean;
+  bodyTypeValue: string;
+  sexualEnergyEnabled: boolean;
+  sexualEnergyValue: string;
+  kinksEnabled: boolean;
+  kinksValue: string;
+};
+
+type ForgeTabFeatureMap = Record<ForgeThemeTabId, Record<string, number | string | boolean>>;
+
+function clampNum(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
 
 function clampForgePrompt(input: string, maxChars = GROK_PACKSHOT_SOFT_LIMIT): string {
   const clean = input.replace(/\s+/g, " ").trim();
@@ -259,6 +284,74 @@ async function extractPaletteMoodFromImageFile(file: File): Promise<string> {
 
 function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;
+}
+
+function makeDefaultTabSharedOverrides(): Record<ForgeThemeTabId, ForgeTabSharedOverride> {
+  return {
+    anime: { bodyTypeEnabled: false, bodyTypeValue: "", sexualEnergyEnabled: false, sexualEnergyValue: "", kinksEnabled: false, kinksValue: "" },
+    monster: { bodyTypeEnabled: false, bodyTypeValue: "", sexualEnergyEnabled: false, sexualEnergyValue: "", kinksEnabled: false, kinksValue: "" },
+    gothic: { bodyTypeEnabled: false, bodyTypeValue: "", sexualEnergyEnabled: false, sexualEnergyValue: "", kinksEnabled: false, kinksValue: "" },
+    realistic: { bodyTypeEnabled: false, bodyTypeValue: "", sexualEnergyEnabled: false, sexualEnergyValue: "", kinksEnabled: false, kinksValue: "" },
+    dark_fantasy: { bodyTypeEnabled: false, bodyTypeValue: "", sexualEnergyEnabled: false, sexualEnergyValue: "", kinksEnabled: false, kinksValue: "" },
+    chaos: { bodyTypeEnabled: false, bodyTypeValue: "", sexualEnergyEnabled: false, sexualEnergyValue: "", kinksEnabled: false, kinksValue: "" },
+  };
+}
+
+function makeDefaultTabFeatures(): ForgeTabFeatureMap {
+  return {
+    anime: {
+      eyeShine: 72,
+      ahogeVariety: 35,
+      thighhighLayers: 60,
+      skirtPhysics: 58,
+      ahegaoIntensity: 12,
+      hairHighlights: 64,
+      posePreset: "cute",
+    },
+    monster: {
+      tentacleCount: 4,
+      multiBreastRows: false,
+      hornConfig: "curved",
+      tailType: "serpentine",
+      wingSize: 56,
+      skinTexture: "scales",
+      extraLimbs: false,
+    },
+    gothic: {
+      corsetTightness: 70,
+      laceDensity: 66,
+      fangLength: 30,
+      pallor: 62,
+      gothicFashionMode: "victorian",
+      jewelryOverload: 45,
+      tragicBeauty: 58,
+    },
+    realistic: {
+      softnessVsToned: 48,
+      stretchMarkCellulite: 28,
+      tanLineStrength: 22,
+      breastWeightRealism: 64,
+      postHeatFlush: 40,
+      makeupSmudge: 24,
+      poreDetail: 62,
+    },
+    dark_fantasy: {
+      corruptionLevel: 52,
+      runePlacement: "collarbone",
+      demonicIntensity: 48,
+      ritualScars: "subtle",
+      manaAuraColor: "violet",
+      manaAuraStrength: 54,
+      fallenVsRising: "fallen_angel",
+    },
+    chaos: {
+      garbagePailGrotesque: false,
+      maxDegeneracy: false,
+      bodyHorrorCuteBlend: 64,
+      randomizerPower: 80,
+      whatTheFuckSeed: 0,
+    },
+  };
 }
 
 function ForgeFieldDice({
@@ -415,6 +508,11 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   const [orientation, setOrientation] = useState<string>(() => pickOne(ORIENTATIONS));
   const [ethnicity, setEthnicity] = useState<string>(() => FORGE_ETHNICITY_ANY_LABEL);
   const [extraNotes, setExtraNotes] = useState("");
+  const [activeForgeTab, setActiveForgeTab] = useState<ForgeThemeTabId>("anime");
+  const [forgeTabFeatures, setForgeTabFeatures] = useState<ForgeTabFeatureMap>(() => makeDefaultTabFeatures());
+  const [forgeTabSharedOverrides, setForgeTabSharedOverrides] = useState<Record<ForgeThemeTabId, ForgeTabSharedOverride>>(
+    () => makeDefaultTabSharedOverrides(),
+  );
   const [batchPreset, setBatchPreset] = useState<number>(1);
   const [batchCustom, setBatchCustom] = useState("");
   /** Only your collection — not listed on the landing gallery */
@@ -745,6 +843,34 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     () => Array.from(new Set<string>([...visualTailoring.specialFeatures, ...traits])),
     [visualTailoring.specialFeatures, traits],
   );
+  const activeTabFeatures = forgeTabFeatures[activeForgeTab];
+  const activeTabShared = forgeTabSharedOverrides[activeForgeTab];
+  const effectiveBodyType = activeTabShared?.bodyTypeEnabled && activeTabShared.bodyTypeValue.trim()
+    ? normalizeForgeBodyType(activeTabShared.bodyTypeValue)
+    : bodyType;
+  const activeTabKinks = useMemo(() => {
+    if (!activeTabShared?.kinksEnabled) return rosterKinks;
+    return activeTabShared.kinksValue
+      .split(",")
+      .map((k) => k.trim())
+      .filter(Boolean)
+      .slice(0, 24);
+  }, [activeTabShared, rosterKinks]);
+  const activeTabSexualEnergy = activeTabShared?.sexualEnergyEnabled && activeTabShared.sexualEnergyValue.trim()
+    ? activeTabShared.sexualEnergyValue.trim()
+    : forgePersonality.sexualEnergy;
+  const tabPromptAddon = useMemo(() => {
+    const tabLabel = FORGE_THEME_TABS.find((t) => t.id === activeForgeTab)?.label ?? activeForgeTab;
+    const featureLines = Object.entries(activeTabFeatures ?? {})
+      .map(([k, v]) => `${k}:${String(v)}`)
+      .join(", ");
+    const sharedLine = `shared-> bodyType:${effectiveBodyType}; sexualEnergy:${activeTabSexualEnergy}; kinks:${activeTabKinks.join(" | ") || "none"}`;
+    return `Forge focus tab "${tabLabel}" (high priority). Tab feature matrix: ${featureLines}. ${sharedLine}. Blend these with the personality matrix into one coherent character and scene.`;
+  }, [activeForgeTab, activeTabFeatures, effectiveBodyType, activeTabSexualEnergy, activeTabKinks]);
+  const mergedExtraNotes = useMemo(
+    () => [extraNotes.trim(), tabPromptAddon].filter(Boolean).join(" "),
+    [extraNotes, tabPromptAddon],
+  );
 
   const appearanceBlurb = useMemo(() => {
     const t = combinedAccentSelections.length ? combinedAccentSelections.join(", ") : "no listed signature accents";
@@ -754,8 +880,8 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     const lab = `Look lab: ${vt.hairColor} ${vt.hairStyle}, ${vt.eyeColor} eyes, ${vt.skinTone} skin, ${vt.height}; outfit ${vt.outfitStyle} (${vt.colorPalette}).`;
     const an = labelIdentityAnatomyForTags(identityAnatomyDetail);
     const anSeg = an ? `; optional anatomy label: ${an} (adult-consistent with identity)` : "";
-    return `${bodyType} silhouette (authoritative); gender/presentation (face & voice): ${gender}${anSeg}; ${eth}${artStyle} look; scene: ${sceneAtmosphere}; ${t}. ${lab} Personalities: ${personalityLabel}. ${extraNotes}`.trim();
-  }, [combinedAccentSelections, bodyType, gender, identityAnatomyDetail, ethnicity, artStyle, sceneAtmosphere, personalityLabel, extraNotes, visualTailoring]);
+    return `${effectiveBodyType} silhouette (authoritative); gender/presentation (face & voice): ${gender}${anSeg}; ${eth}${artStyle} look; scene: ${sceneAtmosphere}; ${t}. ${lab} Personalities: ${personalityLabel}. ${mergedExtraNotes}`.trim();
+  }, [combinedAccentSelections, effectiveBodyType, gender, identityAnatomyDetail, ethnicity, artStyle, sceneAtmosphere, personalityLabel, mergedExtraNotes, visualTailoring]);
 
   const portraitAppearanceText = useMemo(
     () => narrativeAppearance.trim() || appearanceBlurb,
@@ -766,7 +892,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     () =>
       composeForgePortraitPrompt({
         name: name || "an original companion",
-        bodyType,
+        bodyType: effectiveBodyType,
         genderPresentation: gender,
         identityAnatomy: identityAnatomyDetail,
         ethnicitySeed: isOpenEthnicityChoice(ethnicity) ? undefined : normalizeForgeEthnicity(ethnicity),
@@ -775,13 +901,13 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         vibeThemeLabel: "",
         artStyle,
         sceneAtmosphere,
-        extraNotes,
+        extraNotes: mergedExtraNotes,
         referenceNotes,
         wardrobeBrief: forgeVisualPortraitAddon(visualTailoring, forgePersonality),
       }),
     [
       name,
-      bodyType,
+      effectiveBodyType,
       gender,
       identityAnatomyDetail,
       ethnicity,
@@ -789,7 +915,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       personalityLabel,
       artStyle,
       sceneAtmosphere,
-      extraNotes,
+      mergedExtraNotes,
       referenceNotes,
       visualTailoring,
       forgePersonality,
@@ -1112,11 +1238,12 @@ User flavor notes: ${extraNotes || "none"}`;
 
   const buildPortraitGeneratePayload = useCallback((narrativeOverride?: string): Record<string, unknown> | null => {
     if (!userId) return null;
+    const promptBodyType = effectiveBodyType;
     const nar = (narrativeOverride ?? narrativeAppearance).trim();
-    const staturePrimary = isCompactStatureForgeBodyType(bodyType)
-      ? `[Body-type priority: ${bodyType} — compact/short-stature adult proportions are the main visual subject; pose, wardrobe, and scene support that scale, not a generic tall-human default.] `
+    const staturePrimary = isCompactStatureForgeBodyType(promptBodyType)
+      ? `[Body-type priority: ${promptBodyType} — compact/short-stature adult proportions are the main visual subject; pose, wardrobe, and scene support that scale, not a generic tall-human default.] `
       : "";
-    const silCat = forgeBodyCategoryIdForType(bodyType);
+    const silCat = forgeBodyCategoryIdForType(promptBodyType);
     const nonHumanVisual = ["anthro", "fantasy", "hybrid", "otherworldly", "hyper", "creative"].includes(
       silCat,
     );
@@ -1126,7 +1253,7 @@ User flavor notes: ${extraNotes || "none"}`;
     const vtLine = forgeVisualPortraitAddon(visualTailoring, forgePersonality);
     const baseDesc = nar
       ? `${staturePrimary}${nar.slice(0, 900)}${ethTail} ${vtLine}`
-      : `${staturePrimary}Original character — authoritative physique from forge body type "${bodyType}"${combinedAccentSelections.length ? `; signature accents: ${combinedAccentSelections.slice(0, 8).join(", ")}` : ""}. Gender (${gender}) affects face/voice/presentation only, not base silhouette. Silhouette must match the forge label, not a default human model.${ethTail} ${vtLine}`;
+      : `${staturePrimary}Original character — authoritative physique from forge body type "${promptBodyType}"${combinedAccentSelections.length ? `; signature accents: ${combinedAccentSelections.slice(0, 8).join(", ")}` : ""}. Gender (${gender}) affects face/voice/presentation only, not base silhouette. Silhouette must match the forge label, not a default human model.${ethTail} ${vtLine}`;
     const clothingLine = nonHumanVisual
       ? `Wardrobe and materials appropriate for ${bodyType} and ${artStyle} — species- and silhouette-first; avoid unrelated generic human runway looks unless clearly humanoid glam.`
       : `Fashion and textures echoing ${sceneAtmosphere} and ${artStyle} — personality flavor: ${personalityLabel}`;
@@ -1145,7 +1272,7 @@ User flavor notes: ${extraNotes || "none"}`;
         style: artStyle.toLowerCase().replace(/\s+/g, "-"),
         artStyleLabel: artStyle,
         randomize: false,
-        bodyType,
+        bodyType: promptBodyType,
         silhouetteCategory: silCat,
         ...(nar ? { appearance: nar.slice(0, 2500) } : {}),
         vibe: personalityLabel,
@@ -1158,6 +1285,9 @@ User flavor notes: ${extraNotes || "none"}`;
         pose: poseLine,
         baseDescription: baseDesc,
         sceneAtmosphere,
+        selectedForgeTab: activeForgeTab,
+        selectedForgeTabFeatures: activeTabFeatures,
+        selectedForgeTabSharedKinks: activeTabKinks,
         ...(referencePalette ? { referencePalette } : {}),
         ...(referenceNotes.trim() ? { referenceNotes: referenceNotes.trim() } : {}),
       },
@@ -1171,11 +1301,14 @@ User flavor notes: ${extraNotes || "none"}`;
     tagline,
     artStyle,
     sceneAtmosphere,
-    bodyType,
+    effectiveBodyType,
     combinedAccentSelections,
     gender,
     ethnicity,
     personalityLabel,
+    activeForgeTab,
+    activeTabFeatures,
+    activeTabKinks,
     referencePalette,
     referenceNotes,
     previewCanonicalUrl,
@@ -2117,6 +2250,183 @@ User flavor notes: ${extraNotes || "none"}`;
                 </motion.div>
               )}
             </AnimatePresence>
+
+            <div className="rounded-2xl border border-white/[0.1] bg-black/35 p-4 sm:p-5 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Forge focus tabs</p>
+                  <p className="text-xs text-muted-foreground/85 mt-1">
+                    Shared core + tab-specific controls. Randomize by tab for faster themed builds.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForgeTabFeatures((prev) => ({
+                      ...prev,
+                      [activeForgeTab]: {
+                        ...prev[activeForgeTab],
+                        ...Object.fromEntries(
+                          Object.entries(prev[activeForgeTab]).map(([k, v]) => {
+                            if (typeof v === "number") return [k, clampNum(Math.floor(Math.random() * 101), 0, 100)];
+                            if (typeof v === "boolean") return [k, Math.random() < 0.5];
+                            if (k === "posePreset") return [k, pick(["cute", "seductive", "lewd", "dynamic"] as const)];
+                            if (k === "skinTexture") return [k, pick(["scales", "slime", "fur", "chitin"] as const)];
+                            if (k === "tailType") return [k, pick(["serpentine", "spaded", "fluffy", "draconic"] as const)];
+                            if (k === "gothicFashionMode") return [k, pick(["victorian", "modern"] as const)];
+                            if (k === "fallenVsRising") return [k, pick(["fallen_angel", "rising_demon"] as const)];
+                            if (k === "manaAuraColor") return [k, pick(["violet", "crimson", "cyan", "obsidian"] as const)];
+                            if (k === "runePlacement") return [k, pick(["collarbone", "thigh", "spine", "cheek"] as const)];
+                            if (k === "ritualScars") return [k, pick(["subtle", "medium", "heavy"] as const)];
+                            return [k, v];
+                          }),
+                        ),
+                      },
+                    }))
+                  }
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-black/45 px-3 py-1.5 text-[11px] hover:bg-white/[0.04]"
+                >
+                  <Dices className="h-3.5 w-3.5" />
+                  Randomize tab
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {FORGE_THEME_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveForgeTab(tab.id)}
+                    className={cn(
+                      "rounded-xl border px-3 py-2 text-left transition-colors",
+                      activeForgeTab === tab.id
+                        ? "border-primary/55 bg-primary/15 text-primary-foreground"
+                        : "border-white/12 bg-black/30 text-foreground/85 hover:bg-white/[0.05]",
+                    )}
+                  >
+                    <p className="text-xs font-semibold leading-tight">{tab.label}</p>
+                    <p className="mt-1 text-[10px] text-muted-foreground line-clamp-2">{tab.subtitle}</p>
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Shared field overrides</p>
+                  <label className="flex items-center justify-between text-xs">
+                    <span>Override body type in this tab</span>
+                    <input
+                      type="checkbox"
+                      checked={activeTabShared.bodyTypeEnabled}
+                      onChange={(e) =>
+                        setForgeTabSharedOverrides((prev) => ({
+                          ...prev,
+                          [activeForgeTab]: { ...prev[activeForgeTab], bodyTypeEnabled: e.target.checked },
+                        }))
+                      }
+                    />
+                  </label>
+                  {activeTabShared.bodyTypeEnabled ? (
+                    <Select
+                      value={activeTabShared.bodyTypeValue || bodyType}
+                      onValueChange={(v) =>
+                        setForgeTabSharedOverrides((prev) => ({
+                          ...prev,
+                          [activeForgeTab]: { ...prev[activeForgeTab], bodyTypeValue: v },
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {FORGE_BODY_TYPES.map((bt) => (
+                          <SelectItem key={bt} value={bt}>{bt}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : null}
+
+                  <label className="flex items-center justify-between text-xs">
+                    <span>Override sexual energy</span>
+                    <input
+                      type="checkbox"
+                      checked={activeTabShared.sexualEnergyEnabled}
+                      onChange={(e) =>
+                        setForgeTabSharedOverrides((prev) => ({
+                          ...prev,
+                          [activeForgeTab]: { ...prev[activeForgeTab], sexualEnergyEnabled: e.target.checked },
+                        }))
+                      }
+                    />
+                  </label>
+                  {activeTabShared.sexualEnergyEnabled ? (
+                    <input
+                      value={activeTabShared.sexualEnergyValue}
+                      onChange={(e) =>
+                        setForgeTabSharedOverrides((prev) => ({
+                          ...prev,
+                          [activeForgeTab]: { ...prev[activeForgeTab], sexualEnergyValue: e.target.value },
+                        }))
+                      }
+                      placeholder="e.g. Slow burn, primal, playful..."
+                      className="h-9 w-full rounded-lg border border-white/12 bg-black/45 px-2 text-xs"
+                    />
+                  ) : null}
+
+                  <label className="flex items-center justify-between text-xs">
+                    <span>Override kinks (comma-separated)</span>
+                    <input
+                      type="checkbox"
+                      checked={activeTabShared.kinksEnabled}
+                      onChange={(e) =>
+                        setForgeTabSharedOverrides((prev) => ({
+                          ...prev,
+                          [activeForgeTab]: { ...prev[activeForgeTab], kinksEnabled: e.target.checked },
+                        }))
+                      }
+                    />
+                  </label>
+                  {activeTabShared.kinksEnabled ? (
+                    <input
+                      value={activeTabShared.kinksValue}
+                      onChange={(e) =>
+                        setForgeTabSharedOverrides((prev) => ({
+                          ...prev,
+                          [activeForgeTab]: { ...prev[activeForgeTab], kinksValue: e.target.value },
+                        }))
+                      }
+                      placeholder="e.g. praise, restraint, teasing..."
+                      className="h-9 w-full rounded-lg border border-white/12 bg-black/45 px-2 text-xs"
+                    />
+                  ) : null}
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-2">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                    {FORGE_THEME_TABS.find((t) => t.id === activeForgeTab)?.label} controls
+                  </p>
+                  <textarea
+                    value={Object.entries(activeTabFeatures).map(([k, v]) => `${k}: ${v}`).join("\n")}
+                    onChange={(e) => {
+                      const lines = e.target.value.split("\n").map((x) => x.trim()).filter(Boolean);
+                      const next = { ...activeTabFeatures };
+                      for (const line of lines) {
+                        const [k, raw] = line.split(":").map((x) => x.trim());
+                        if (!k || raw == null || !(k in next)) continue;
+                        const prevV = next[k];
+                        if (typeof prevV === "number") next[k] = clampNum(Number(raw) || 0, 0, 100);
+                        else if (typeof prevV === "boolean") next[k] = /^(1|true|yes|on)$/i.test(raw);
+                        else next[k] = raw;
+                      }
+                      setForgeTabFeatures((prev) => ({ ...prev, [activeForgeTab]: next }));
+                    }}
+                    className="min-h-[210px] w-full rounded-lg border border-white/12 bg-black/45 p-2 text-xs leading-relaxed"
+                  />
+                  <p className="text-[10px] text-muted-foreground/80">
+                    Tip: edit values quickly here (0-100 sliders as numbers, booleans as true/false). These feed the prompt directly.
+                  </p>
+                </div>
+              </div>
+            </div>
 
             <Accordion type="multiple" defaultValue={accordionDefaultOpen} className={cn(panelClass, "px-1")}>
               <AccordionItem value="identity" className="border-white/10 px-4">
