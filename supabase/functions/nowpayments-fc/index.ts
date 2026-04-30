@@ -9,10 +9,10 @@ const corsHeaders = {
 
 type Pack = { id: string; usd: number; fc: number; label: string; badge: string };
 const PACKS: Pack[] = [
-  { id: "starter_750", usd: 5, fc: 750, label: "$5 - 750 FC", badge: "Starter" },
+  { id: "starter_750", usd: 5, fc: 800, label: "$5 - 800 FC", badge: "Starter" },
   { id: "popular_1650", usd: 10, fc: 1650, label: "$10 - 1,650 FC", badge: "Popular" },
-  { id: "best_4500", usd: 25, fc: 4500, label: "$25 - 4,500 FC", badge: "Best Value" },
-  { id: "heavy_9500", usd: 50, fc: 9500, label: "$50 - 9,500 FC", badge: "Heavy User" },
+  { id: "best_4500", usd: 25, fc: 4200, label: "$25 - 4,200 FC", badge: "Best Value" },
+  { id: "heavy_9500", usd: 50, fc: 9000, label: "$50 - 9,000 FC", badge: "Heavy User" },
 ];
 
 function getNowPaymentsKey(): string {

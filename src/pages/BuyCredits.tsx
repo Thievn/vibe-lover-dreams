@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Coins, CreditCard, Loader2, Wallet } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Coins, CreditCard, Info, Loader2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import ParticleBackground from "@/components/ParticleBackground";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +14,19 @@ import {
   type FcPack,
 } from "@/lib/nowpaymentsFcClient";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  CHAT_IMAGE_LEWD_FC,
+  CHAT_IMAGE_NUDE_FC,
+  CHAT_MESSAGE_FC,
+  CHAT_SHORT_VIDEO_FC,
+  FORGE_CREATE_COMPANION_FC,
+  FORGE_PREVIEW_FC,
+  LIVE_CHAT_FC_PER_MINUTE,
+  LIVE_VOICE_FC_PER_MINUTE,
+  NEXUS_INFUSE_ADDON_FC,
+  NEXUS_MERGE_FC,
+} from "@/lib/forgeEconomy";
 
 const NEON = "#FF2D7B";
 
@@ -198,11 +211,70 @@ export default function BuyCredits() {
         </div>
 
         <section className="rounded-3xl border border-white/10 bg-black/45 backdrop-blur-xl p-6 md:p-8 shadow-[0_0_80px_rgba(255,45,123,0.15)]">
-          <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">Forge Coin Store</p>
-          <h1 className="font-gothic text-4xl mt-2">Buy Forge Coins (FC)</h1>
-          <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
-            Choose a Forge Coin pack and checkout with card or crypto. FC is your in-app currency for unlocks, visuals, and premium experiences.
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">Forge Coin Store</p>
+              <h1 className="font-gothic text-4xl mt-2">Buy Forge Coins (FC)</h1>
+              <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
+                Choose a Forge Coin pack and checkout with card or crypto. FC is your in-app currency for unlocks, visuals, and premium experiences.
+              </p>
+            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/40 text-muted-foreground hover:text-white hover:border-[#FF2D7B]/35 hover:bg-[#FF2D7B]/10 transition-colors"
+                  aria-label="Forge Coin pricing and perks"
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                className="w-[min(92vw,26rem)] border-white/10 bg-[#0a0812]/98 p-4 text-foreground shadow-[0_0_40px_rgba(255,45,123,0.12)]"
+              >
+                <p className="font-gothic text-lg text-white">What FC covers</p>
+                <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                  Classic chat with companions in <strong className="text-white/90">your collection</strong> stays{" "}
+                  <strong className="text-[#FF2D7B]">free</strong> — text replies and toy patterns triggered from compatible
+                  messages keep working even at <strong className="text-white/90">0 FC</strong>. Top up for live modes,
+                  visuals, and forge.
+                </p>
+                <ul className="mt-3 space-y-2 text-[11px] text-muted-foreground leading-relaxed border-t border-white/10 pt-3">
+                  <li>
+                    <span className="text-white/90 font-semibold">Classic chat</span> — free ({CHAT_MESSAGE_FC} FC).
+                    Includes Lovense reactions from chat when your toy is linked.
+                  </li>
+                  <li>
+                    <span className="text-white/90 font-semibold">Live Voice</span> (in chat or full-screen call,
+                    audio-first) — {LIVE_VOICE_FC_PER_MINUTE} FC per <em>started</em> minute.
+                  </li>
+                  <li>
+                    <span className="text-white/90 font-semibold">Live Chat</span> (text + voice + sending images in a
+                    billed live-style session) — {LIVE_CHAT_FC_PER_MINUTE} FC per <em>started</em> minute (same meter as
+                    Live Voice today).
+                  </li>
+                  <li>
+                    <span className="text-white/90 font-semibold">Selfie / lewd still</span> — {CHAT_IMAGE_LEWD_FC} FC
+                    each · <span className="text-white/90 font-semibold">HQ / nude still</span> — {CHAT_IMAGE_NUDE_FC}{" "}
+                    FC each
+                  </li>
+                  <li>
+                    <span className="text-white/90 font-semibold">Forge portrait preview</span> — {FORGE_PREVIEW_FC} FC ·{" "}
+                    <span className="text-white/90 font-semibold">Create companion</span> — {FORGE_CREATE_COMPANION_FC} FC
+                  </li>
+                  <li>
+                    <span className="text-white/90 font-semibold">Nexus merge</span> — {NEXUS_MERGE_FC} FC
+                    {NEXUS_INFUSE_ADDON_FC > 0 ? ` (+${NEXUS_INFUSE_ADDON_FC} FC optional infuse)` : ""}
+                  </li>
+                  <li>
+                    <span className="text-white/90 font-semibold">Short in-chat video clip</span> —{" "}
+                    {CHAT_SHORT_VIDEO_FC} FC
+                  </li>
+                </ul>
+              </PopoverContent>
+            </Popover>
+          </div>
         </section>
 
         <div className="grid lg:grid-cols-[1.4fr_1fr] gap-6">

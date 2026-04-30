@@ -68,8 +68,8 @@ export function LiveCallToyBar({ userId, toyId, toyName, className }: Props) {
           title={toyName ? `Device · ${toyName}` : "Linked device"}
           aria-label="Toy and haptics"
           className={cn(
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.06] text-white/90 shadow-inner backdrop-blur-md transition",
-            "hover:border-pink-400/35 hover:bg-white/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-400/40",
+            "flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.06] text-white/90 shadow-inner backdrop-blur-md transition",
+            "hover:border-pink-400/35 hover:bg-white/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-400/40 active:scale-[0.97]",
             open && "border-pink-400/40 bg-pink-500/15",
             className,
           )}

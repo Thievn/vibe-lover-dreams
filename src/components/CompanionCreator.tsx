@@ -496,7 +496,23 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   const [rouletteLoading, setRouletteLoading] = useState(false);
   const forgeRestoreRanRef = useRef(false);
   const [forgeSessionHydrated, setForgeSessionHydrated] = useState(false);
+  /** Below `lg`, toggle full-height controls vs preview so each pane gets one vertical scroller. */
+  const [forgeMobileView, setForgeMobileView] = useState<"controls" | "preview">("controls");
+  const [lgBreakpointUp, setLgBreakpointUp] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches,
+  );
   const sessionSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const apply = () => {
+      setLgBreakpointUp(mq.matches);
+      if (mq.matches) setForgeMobileView("controls");
+    };
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
   const [narrativeAppearance, setNarrativeAppearance] = useState("");
   const [chronicleBackstory, setChronicleBackstory] = useState("");
   const [hookBio, setHookBio] = useState("");
@@ -2161,7 +2177,12 @@ User flavor notes: ${extraNotes || "none"}`;
       <div
         className={cn(
           "relative z-10",
-          embedded ? "flex min-h-0 flex-1 flex-col px-0 py-0" : "px-4 md:px-8 lg:px-10 py-5 md:py-7 pb-mobile-nav",
+          embedded
+            ? "flex min-h-0 flex-1 flex-col px-0 py-0"
+            : cn(
+                "px-4 md:px-8 lg:px-10 py-5 md:py-7 pb-mobile-nav",
+                !lgBreakpointUp && "max-lg:pb-[max(7.75rem,calc(5.75rem+env(safe-area-inset-bottom,0px)+2rem))]",
+              ),
         )}
       >
         {!embedded && (
@@ -2180,11 +2201,17 @@ User flavor notes: ${extraNotes || "none"}`;
             "mx-auto flex min-h-0 max-w-[1700px] flex-col gap-5 lg:gap-7 lg:flex-row lg:items-stretch",
             embedded ? "lg:min-h-[420px] lg:h-[min(76dvh,800px)]" : "lg:min-h-[520px] lg:h-[calc(100dvh-8.5rem)]",
             embedded ? "min-h-0 flex-1" : "",
+            !lgBreakpointUp && "max-lg:min-h-0 max-lg:flex-1",
           )}
         >
           {/* Controls — own scroll on lg+ so preview column never “releases” sticky and jumps */}
-          <div className="order-2 flex w-full min-w-0 flex-col lg:order-1 lg:min-h-0 lg:flex-1">
-            <div className="motion-reduce:scroll-auto space-y-4 overscroll-y-contain lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-2 lg:pr-2 lg:scroll-smooth [scrollbar-gutter:stable]">
+          <div
+            className={cn(
+              "order-2 flex w-full min-w-0 flex-col lg:order-1 lg:min-h-0 lg:flex-1",
+              !lgBreakpointUp && forgeMobileView !== "controls" && "max-lg:hidden",
+            )}
+          >
+            <div className="motion-reduce:scroll-auto space-y-4 overscroll-y-contain max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-2 lg:pr-2 [scrollbar-gutter:stable]">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-[#FF2D7B]/90 mb-2">Forge Studio</p>
@@ -3340,8 +3367,13 @@ User flavor notes: ${extraNotes || "none"}`;
           </div>
 
           {/* Preview — TCG-sized; lg+ shares row height with independent scroll (no sticky jump) */}
-          <div className="order-1 flex w-full shrink-0 flex-col lg:order-2 lg:h-full lg:min-h-0 lg:w-[min(100%,380px)] xl:w-[400px]">
-            <div className="motion-reduce:scroll-auto space-y-3 overscroll-y-contain lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pl-0.5 lg:pr-1 lg:scroll-smooth [scrollbar-gutter:stable]">
+          <div
+            className={cn(
+              "order-1 flex w-full shrink-0 flex-col lg:order-2 lg:h-full lg:min-h-0 lg:w-[min(100%,380px)] xl:w-[400px]",
+              !lgBreakpointUp && forgeMobileView !== "preview" && "max-lg:hidden",
+            )}
+          >
+            <div className="motion-reduce:scroll-auto space-y-3 overscroll-y-contain max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pl-0.5 lg:pr-1 [scrollbar-gutter:stable]">
             <div
               className={cn(
                 panelClass,
@@ -3686,6 +3718,42 @@ User flavor notes: ${extraNotes || "none"}`;
             </div>
           </div>
         </div>
+
+        {!lgBreakpointUp ? (
+          <nav
+            className="lg:hidden pointer-events-none fixed inset-x-0 bottom-0 z-[60] border-t border-white/[0.08] bg-[#050508]/95 px-3 pt-2 pb-[max(5.75rem,calc(4.75rem+env(safe-area-inset-bottom,0px)))] backdrop-blur-xl"
+            aria-label="Forge view"
+          >
+            <div className="pointer-events-auto mx-auto flex max-w-lg gap-2">
+              <button
+                type="button"
+                onClick={() => setForgeMobileView("controls")}
+                className={cn(
+                  "flex min-h-[48px] flex-1 touch-manipulation items-center justify-center gap-2 rounded-xl border text-sm font-semibold transition-colors",
+                  forgeMobileView === "controls"
+                    ? "border-primary/40 bg-primary/15 text-primary"
+                    : "border-white/10 bg-black/40 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Wand2 className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+                Controls
+              </button>
+              <button
+                type="button"
+                onClick={() => setForgeMobileView("preview")}
+                className={cn(
+                  "flex min-h-[48px] flex-1 touch-manipulation items-center justify-center gap-2 rounded-xl border text-sm font-semibold transition-colors",
+                  forgeMobileView === "preview"
+                    ? "border-primary/40 bg-primary/15 text-primary"
+                    : "border-white/10 bg-black/40 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <ScanEye className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+                Preview
+              </button>
+            </div>
+          </nav>
+        ) : null}
       </div>
     </div>
   );

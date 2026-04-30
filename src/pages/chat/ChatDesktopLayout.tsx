@@ -1,0 +1,473 @@
+import { Link } from "react-router-dom";
+import { toast } from "sonner";
+import { ImageViewer } from "@/components/ImageViewer";
+import { BreedingRitual } from "@/components/BreedingRitual";
+import { ChatPremiumHeader } from "@/components/chat/ChatPremiumHeader";
+import { ChatMessageThread } from "@/components/chat/ChatMessageThread";
+import { ChatComposer } from "@/components/chat/ChatComposer";
+import { ChatAmbientBackground } from "@/components/chat/ChatAmbientBackground";
+import { ChatLeftHeroPanel } from "@/components/chat/ChatLeftHeroPanel";
+import { ChatFloatingActionDock } from "@/components/chat/ChatFloatingActionDock";
+import { ChatMobilePortraitSpotlight } from "@/components/chat/ChatMobilePortraitSpotlight";
+import { ChatQuickActionFab } from "@/components/chat/ChatQuickActionFab";
+import { ChatSmartReplies } from "@/components/chat/ChatSmartReplies";
+import { ChatDevicesCollapsible } from "@/components/chat/ChatDevicesCollapsible";
+import { FloatingHeartsLayer } from "@/components/chat/FloatingHeartsLayer";
+import { ChatVoiceSettingsSheet } from "@/components/chat/ChatVoiceSettingsSheet";
+import { ChatSignatureMovesDropdown } from "@/components/chat/ChatSignatureMovesDropdown";
+import { ChatModeToggle } from "@/components/chat/ChatModeToggle";
+import { LiveVoicePanel } from "@/components/chat/LiveVoicePanel";
+import { ToyHubPopover } from "@/components/toy/ToyHubPopover";
+import { ChatGallerySheet } from "@/components/chat/ChatGallerySheet";
+import { inferChatMediaRoute } from "@/lib/chatVisualRouting";
+import { LIVE_CALL_CREDITS_PER_MINUTE } from "@/lib/liveCallBilling";
+import { setChatSessionMode as persistChatSessionMode } from "@/lib/chatSessionMode";
+import { CHAT_IMAGE_LEWD_FC, CHAT_IMAGE_NUDE_FC, CHAT_MESSAGE_FC } from "@/lib/forgeEconomy";
+import { CHAT_VIDEO_TOKEN_COST, FAB_SELFIE, setChatAutoSpendImages } from "@/lib/chatImageSettings";
+import type { UseChatSessionControllerReturn } from "./useChatSessionController";
+
+export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
+  if (!props.companion) return null;
+  const {
+    companion,
+    heartBursts,
+    mood,
+    affectionTier,
+    affectionProgress,
+    affectionProgressMax,
+    tokensBalance,
+    isAdminUser,
+    safeWord,
+    navigate,
+    location,
+    user,
+    setGalleryOpen,
+    vibrationPatterns,
+    vibrationPatternsLoading,
+    hasDevice,
+    loading,
+    livePatternId,
+    triggerCompanionVibration,
+    sessionMode,
+    setSessionMode,
+    tokensBalanceRef,
+    connectedToys,
+    toysPanelLoading,
+    pairingLoading,
+    pairingQrUrl,
+    cancelLovensePairing,
+    refreshToys,
+    handleConnectToy,
+    handleDisconnectOneToy,
+    handleToggleToyEnabled,
+    activeToys,
+    portraitStillUrl,
+    headerAnimated,
+    galleryImages,
+    galleryImagesLoading,
+    handlePortraitFromGallery,
+    setInput,
+    requestSimilarStillFromGallery,
+    relationship,
+    toyUtilityBusy,
+    handleTestToy,
+    handleDisconnectToy,
+    handleStopAll,
+    handleStartBreedingRitual,
+    primaryToyUid,
+    selectPrimaryToy,
+    sendingVibrationId,
+    messages,
+    userAvatarUrl,
+    userInitials,
+    setViewingImage,
+    labelForLovenseCmd,
+    handleTts,
+    ttsLoadingId,
+    ttsPlayingId,
+    messagesEndRef,
+    handleSaveImageBackup,
+    savingBackupImageId,
+    imageGenPending,
+    confirmPendingImageGeneration,
+    pendingImageButtonLabel,
+    toyDriveActive,
+    stopSustainedToy,
+    smartSuggestions,
+    sendMessage,
+    liveVoiceElapsedSec,
+    setLiveVoiceMicRecording,
+    liveVoiceMicRecording,
+    registerLiveRampAssistFeed,
+    liveVoiceSendText,
+    rampModeActive,
+    setRampModeActive,
+    rampPreset,
+    handleRampPresetChange,
+    prepareToyForRamp,
+    liveVoiceStopTick,
+    setVoiceSettingsOpen,
+    goLiveCallFromChat,
+    handleRampPill,
+    draftMediaRoute,
+    imageSubmitTitle,
+    videoSubmitTitle,
+    handleMediaBarRequest,
+    autoSpendChatImages,
+    setAutoSpendChatImages,
+    generateChatVideoClip,
+    handleFabAction,
+    voiceSettingsOpen,
+    effectiveVoiceLabel,
+    profileTtsGlobal,
+    globalVoiceLabelForSheet,
+    relationshipVoicePreset,
+    saveRelationshipVoice,
+    voicePresetSaving,
+    ttsAutoplay,
+    onTtsAutoplayChange,
+    liveVoiceTtsAutoplay,
+    onLiveVoiceTtsAutoplayChange,
+    viewingImage,
+    saveImageToCompanionGallery,
+    saveImageToPersonalGallery,
+    galleryOpen,
+    showBreedingRitual,
+    setShowBreedingRitual,
+    handleBreedingComplete,
+    handleEmergencyStop,
+    handleEmergencyStopFromUi,
+    input,
+  } = props;
+
+  return (
+    <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,hsl(300_35%_12%/0.5),hsl(280_32%_4%))] text-foreground">
+      <FloatingHeartsLayer bursts={heartBursts} />
+
+      <ChatPremiumHeader
+        companion={companion}
+        mood={mood}
+        affectionTier={affectionTier}
+        affectionProgress={affectionProgress}
+        affectionProgressMax={affectionProgressMax}
+        tokensBalance={tokensBalance}
+        isAdminUser={isAdminUser}
+        safeWord={safeWord}
+        onBack={() => {
+          void handleEmergencyStop();
+          const backTo = (location.state as { from?: string } | undefined)?.from;
+          if (backTo) navigate(backTo);
+          else if (location.key !== "default") navigate(-1);
+          else navigate(`/companions/${companion.id}`);
+        }}
+        onEmergencyStop={() => void handleEmergencyStopFromUi()}
+        onOpenGallery={user ? () => setGalleryOpen(true) : undefined}
+        showHeroInLeftColumn
+        sessionControls={
+          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:justify-end">
+            <ChatSignatureMovesDropdown
+              companionName={companion.name}
+              patterns={vibrationPatterns}
+              patternsLoading={vibrationPatternsLoading}
+              hasDevice={hasDevice}
+              disabled={!user || loading}
+              activePatternId={livePatternId}
+              onTriggerPattern={(row) => void triggerCompanionVibration(row)}
+            />
+            <ChatModeToggle
+              mode={sessionMode}
+              onChange={(m) => {
+                if (m === "live_voice" && !isAdminUser && tokensBalanceRef.current < LIVE_CALL_CREDITS_PER_MINUTE) {
+                  toast.error(
+                    `Live Voice bills ${LIVE_CALL_CREDITS_PER_MINUTE} FC per started minute (audio-first; same meter as full-screen Live Call). Classic text chat stays free — top up for live modes.`,
+                    { action: { label: "Buy FC", onClick: () => navigate("/buy-credits") } },
+                  );
+                  return;
+                }
+                setSessionMode(m);
+                persistChatSessionMode(m);
+              }}
+              disabled={!user}
+            />
+          </div>
+        }
+        rightSlot={
+          user ? (
+            <ToyHubPopover
+              toys={connectedToys}
+              loading={toysPanelLoading}
+              pairingLoading={pairingLoading}
+              pairingQrUrl={pairingQrUrl}
+              onCancelPairing={cancelLovensePairing}
+              onRefresh={refreshToys}
+              onConnect={() => void handleConnectToy()}
+              onDisconnectOne={(uid) => void handleDisconnectOneToy(uid)}
+              onToggleEnabled={(uid, en) => void handleToggleToyEnabled(uid, en)}
+            />
+          ) : null
+        }
+        toyStatusLabel={
+          connectedToys.length > 0
+            ? `${activeToys.length} active${connectedToys.length > activeToys.length ? ` · ${connectedToys.length} link` : ""}`
+            : "No toy"
+        }
+      />
+
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1">
+          <ChatLeftHeroPanel
+            companion={companion}
+            imageUrl={portraitStillUrl}
+            headerAnimated={headerAnimated}
+            onVoiceClick={() => setVoiceSettingsOpen(true)}
+            images={galleryImages}
+            loading={galleryImagesLoading}
+            currentPortraitUrl={portraitStillUrl}
+            onSetAsPortrait={handlePortraitFromGallery}
+            onOpenFullGallery={() => setGalleryOpen(true)}
+            onAddReferenceLine={(line) => {
+              setInput((prev) => (prev?.trim() ? `${prev} ${line}` : line));
+            }}
+            onRequestSimilarStill={user ? requestSimilarStillFromGallery : undefined}
+            hasGalleryUser={Boolean(user)}
+          />
+
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <ChatMobilePortraitSpotlight
+              companion={companion}
+              imageUrl={portraitStillUrl}
+              headerAnimated={headerAnimated}
+              onVoiceClick={() => setVoiceSettingsOpen(true)}
+            />
+            <ChatDevicesCollapsible
+              companionName={companion.name}
+              connectedCount={connectedToys.length}
+              activeCount={activeToys.length}
+              affectionPct={relationship?.affection_level ?? 0}
+              breedingStage={relationship?.breeding_stage ?? 0}
+              hasDevice={hasDevice}
+              pairingQrUrl={pairingQrUrl}
+              toyUtilityBusy={toyUtilityBusy}
+              pairingLoading={pairingLoading}
+              onCancelPairing={cancelLovensePairing}
+              onTestToy={() => void handleTestToy()}
+              onDisconnectToy={() => void handleDisconnectToy()}
+              onStopAll={() => void handleStopAll()}
+              onConnectToy={() => void handleConnectToy()}
+              onBreedingRitual={handleStartBreedingRitual}
+              toys={activeToys}
+              primaryToyId={primaryToyUid}
+              onSelectPrimaryToy={selectPrimaryToy}
+              patterns={vibrationPatterns}
+              patternsLoading={vibrationPatternsLoading}
+              sendingVibrationId={sendingVibrationId}
+              activePatternId={livePatternId}
+              onTriggerPattern={(row) => void triggerCompanionVibration(row)}
+            />
+
+            {!isAdminUser && tokensBalance < 100 && tokensBalance > 0 && (
+              <div className="shrink-0 border-b border-destructive/20 bg-destructive/10 px-3 py-2 text-center text-xs text-destructive sm:px-4">
+                Low Forge Coins! You have {tokensBalance} FC.{" "}
+                <Link to="/buy-credits" className="font-medium underline">Top up</Link>
+              </div>
+            )}
+
+            <div className="relative z-0 flex min-h-0 flex-1 flex-col">
+              <ChatAmbientBackground activityKey={messages.length} />
+              <ChatMessageThread
+                messages={messages}
+                companion={companion}
+                companionImageUrl={portraitStillUrl}
+                userAvatarUrl={userAvatarUrl}
+                userInitials={userInitials}
+                loading={loading}
+                isImageRequest={(t) => inferChatMediaRoute(t, false) !== "text"}
+                inputSnapshot={input}
+                hasDevice={hasDevice}
+                onImageClick={setViewingImage}
+                labelForLovenseCmd={labelForLovenseCmd}
+                onTtsClick={handleTts}
+                ttsLoadingId={ttsLoadingId}
+                ttsPlayingId={ttsPlayingId}
+                messagesEndRef={messagesEndRef}
+                onSaveImageBackup={user ? handleSaveImageBackup : undefined}
+                savingBackupImageId={savingBackupImageId}
+                imageGenPending={imageGenPending}
+                onConfirmPendingImage={() => void confirmPendingImageGeneration()}
+                pendingImageButtonLabel={pendingImageButtonLabel}
+                toyDriveActive={toyDriveActive}
+                onStopToyDrive={() => void stopSustainedToy()}
+              />
+            </div>
+
+            <div className="z-20 shrink-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1 sm:px-3">
+              <ChatSmartReplies
+                suggestions={smartSuggestions}
+                disabled={loading}
+                loading={loading}
+                onPick={(s) => {
+                  setInput(s);
+                  void sendMessage(s);
+                }}
+              />
+            </div>
+
+            {sessionMode === "live_voice" ? (
+              <div className="z-10 shrink-0 border-t border-white/[0.06] bg-gradient-to-b from-black/40 to-transparent px-2 pb-1 sm:px-3">
+                <LiveVoicePanel
+                  companionName={companion.name}
+                  disabled={!isAdminUser && tokensBalance < LIVE_CALL_CREDITS_PER_MINUTE}
+                  busy={loading}
+                  creditsPerMinute={LIVE_CALL_CREDITS_PER_MINUTE}
+                  sessionElapsedSec={liveVoiceElapsedSec}
+                  onMicRecordingChange={setLiveVoiceMicRecording}
+                  voiceInteractiveLocked={!liveVoiceMicRecording}
+                  onRegisterRampAssistFeed={registerLiveRampAssistFeed}
+                  onSendText={liveVoiceSendText}
+                  rampModeActive={rampModeActive}
+                  onRampModeActiveChange={setRampModeActive}
+                  rampPreset={rampPreset}
+                  onRampPresetChange={handleRampPresetChange}
+                  hasDevice={hasDevice}
+                  userId={user?.id}
+                  primaryToyUid={primaryToyUid}
+                  toyIntensityPercent={parseInt(localStorage.getItem("lustforge-intensity") || "100", 10) || 100}
+                  prepareToyForRamp={prepareToyForRamp}
+                  safeWord={safeWord}
+                  emergencyStopTick={liveVoiceStopTick}
+                  onVoiceSettingsClick={() => setVoiceSettingsOpen(true)}
+                />
+              </div>
+            ) : null}
+
+            <div className="z-20 shrink-0 space-y-2 border-t border-white/[0.06] bg-gradient-to-t from-black/85 via-black/50 to-transparent pt-2 pb-1">
+              <ChatFloatingActionDock
+                companionId={companion.id}
+                onLiveCall={goLiveCallFromChat}
+                onRamp={handleRampPill}
+                onGallery={() => (user ? setGalleryOpen(true) : void navigate("/auth", { state: { from: location.pathname } }))}
+                onVoiceOptions={() => setVoiceSettingsOpen(true)}
+                safeWord={safeWord}
+                onEmergencyStop={() => void handleEmergencyStopFromUi()}
+                rampAvailable={Boolean(user)}
+                rampActive={sessionMode === "live_voice" && rampModeActive}
+                disabled={false}
+              />
+            </div>
+
+            <div
+              className={
+                sessionMode === "live_voice"
+                  ? "z-20 shrink-0 bg-gradient-to-t from-black/90 to-black/50 pb-[max(0.25rem,env(safe-area-inset-bottom))]"
+                  : "z-20 shrink-0"
+              }
+            >
+              <ChatComposer
+                input={input}
+                onChange={setInput}
+                onSubmit={() => void sendMessage()}
+                disabled={false}
+                loading={loading}
+                placeholder={
+                  sessionMode === "live_voice"
+                      ? `Type to ${companion.name} or use the mic above…`
+                      : `Message ${companion.name}… stills, clips, or just talk`
+                }
+                mediaDraftKind={draftMediaRoute}
+                isAdminUser={isAdminUser}
+                tokensBalance={tokensBalance}
+                tokenCost={CHAT_MESSAGE_FC}
+                imageTokenCost={CHAT_IMAGE_NUDE_FC}
+                videoTokenCost={CHAT_VIDEO_TOKEN_COST}
+                imageSubmitTitle={imageSubmitTitle}
+                videoSubmitTitle={videoSubmitTitle}
+                safeWord={safeWord}
+                companionName={companion.name}
+                onMediaRequest={handleMediaBarRequest}
+                onStyledStillRequest={(p) =>
+                  void sendMessage(p.userLine, {
+                    imageGenerationPrompt: FAB_SELFIE[p.tier].imagePrompt,
+                    styledSceneExtension: p.sceneExtension,
+                    bypassImageConfirmation: true,
+                    imageRequestFromMenu: true,
+                  })
+                }
+                mediaMenuDisabled={Boolean(user && !isAdminUser && tokensBalance < CHAT_IMAGE_LEWD_FC)}
+                videoMenuDisabled={Boolean(user && !isAdminUser && tokensBalance < CHAT_VIDEO_TOKEN_COST)}
+                chatImageLewdFc={CHAT_IMAGE_LEWD_FC}
+                chatImageNudeFc={CHAT_IMAGE_NUDE_FC}
+                videoClipFc={CHAT_VIDEO_TOKEN_COST}
+                autoSpendEnabled={autoSpendChatImages}
+                onAutoSpendChange={(enabled) => {
+                  setAutoSpendChatImages(enabled);
+                  setChatAutoSpendImages(companion.id, enabled);
+                }}
+                userLoggedIn={Boolean(user)}
+                onGalleryClipRequest={(p) => void generateChatVideoClip({ mood: p.mood, motionHint: p.motionHint })}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ChatQuickActionFab
+        onAction={handleFabAction}
+        isActionDisabled={(actionId) =>
+          actionId === "vibration" && (!hasDevice || vibrationPatterns.length === 0)
+        }
+      />
+
+      <ChatVoiceSettingsSheet
+        open={voiceSettingsOpen}
+        onOpenChange={setVoiceSettingsOpen}
+        companionName={companion.name}
+        effectiveLabel={effectiveVoiceLabel}
+        globalVoiceActive={Boolean(profileTtsGlobal?.trim())}
+        globalVoiceLabel={globalVoiceLabelForSheet}
+        relationshipPreset={relationshipVoicePreset}
+        onSaveRelationshipPreset={saveRelationshipVoice}
+        saving={voicePresetSaving}
+        ttsAutoplay={ttsAutoplay}
+        onTtsAutoplayChange={onTtsAutoplayChange}
+        liveVoiceTtsAutoplay={liveVoiceTtsAutoplay}
+        onLiveVoiceTtsAutoplayChange={onLiveVoiceTtsAutoplayChange}
+      />
+
+      {/* Image Viewer Modal */}
+      {viewingImage && viewingImage.imageUrl && viewingImage.generatedImageId && (
+        <ImageViewer
+          imageUrl={viewingImage.imageUrl}
+          imageId={viewingImage.generatedImageId}
+          companionName={companion.name}
+          prompt={viewingImage.imagePrompt || "Generated image"}
+          companionGalleryAutoSaved={viewingImage.savedToCompanionGallery !== false}
+          onSaveToCompanionGallery={saveImageToCompanionGallery}
+          onSaveToPersonalGallery={saveImageToPersonalGallery}
+          onClose={() => setViewingImage(null)}
+        />
+      )}
+
+      {user ? (
+        <ChatGallerySheet
+          open={galleryOpen}
+          onOpenChange={setGalleryOpen}
+          companionName={companion.name}
+          images={galleryImages}
+          loading={galleryImagesLoading}
+          currentPortraitUrl={portraitStillUrl}
+          onSetAsPortrait={handlePortraitFromGallery}
+        />
+      ) : null}
+
+      {showBreedingRitual && companion && (
+        <BreedingRitual
+          companionId={companion.id}
+          companionName={companion.name}
+          onClose={() => setShowBreedingRitual(false)}
+          onComplete={handleBreedingComplete}
+        />
+      )}
+    </div>
+  );
+
+}

@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
 import { Flame, RefreshCw } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useCompanions } from "@/hooks/useCompanions";
 import { companionImages } from "@/data/companionImages";
 import { companions } from "@/data/companions";
@@ -8,6 +10,7 @@ import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { getStaticRarityForCatalog, normalizeCompanionRarity } from "@/lib/companionRarity";
 import type { CompanionRarity } from "@/lib/companionRarity";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
+import { supabase } from "@/integrations/supabase/client";
 
 interface HeroSectionProps {
   onGetStarted: () => void;
@@ -17,6 +20,7 @@ type HeroCard = {
   id: string;
   name: string;
   subtitle: string;
+  role: string;
   img: string | undefined;
   rarity: CompanionRarity;
   gradientFrom: string;
@@ -40,6 +44,7 @@ function fallbackFromAssets(): HeroCard[] {
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
         .join(" "),
       subtitle: "LustForge catalog",
+      role: staticC?.role ?? "Catalog",
       img: url,
       rarity: getStaticRarityForCatalog(id),
       gradientFrom: staticC?.gradientFrom ?? "#FF2D7B",
@@ -50,6 +55,7 @@ function fallbackFromAssets(): HeroCard[] {
 }
 
 export default function HeroSection({ onGetStarted }: HeroSectionProps) {
+  const location = useLocation();
   const { data: dbList, isLoading } = useCompanions();
   const [shuffled, setShuffled] = useState<HeroCard[]>([]);
   const [isShuffling, setIsShuffling] = useState(false);
@@ -64,6 +70,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
       id: db.id,
       name: db.name,
       subtitle: db.tagline || "AI companion",
+      role: db.role?.trim() || "Companion",
       img: galleryStaticPortraitUrl(db, db.id),
       rarity: normalizeCompanionRarity(db.rarity),
       gradientFrom: db.gradient_from,
@@ -72,7 +79,27 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
     }));
   }, [dbList]);
 
-  const totalCompanions = pool.length;
+  const poolForgedApprox = useMemo(() => pool.filter((c) => c.id.startsWith("cc-")).length, [pool]);
+
+  const { data: publicForgedCount } = useQuery({
+    queryKey: ["public-forged-companion-count"],
+    queryFn: async (): Promise<number | null> => {
+      const { count, error } = await supabase
+        .from("custom_characters")
+        .select("*", { count: "exact", head: true })
+        .eq("is_public", true)
+        .eq("approved", true);
+      if (error) {
+        console.error("public forged count:", error);
+        return null;
+      }
+      return count ?? 0;
+    },
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+
+  const forgedCompanionTotal = publicForgedCount ?? poolForgedApprox;
 
   const reshuffle = useCallback(() => {
     setIsShuffling(true);
@@ -99,7 +126,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
     );
   }
 
-  if (totalCompanions === 0) {
+  if (pool.length === 0) {
     return (
       <section className={`relative min-h-[70vh] flex items-center justify-center px-4 ${navTopPad}`}>
         <p className="text-muted-foreground text-sm text-center">No companions in the forge yet. Check back soon.</p>
@@ -167,14 +194,17 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
         <div className="mt-10 sm:mt-12 flex flex-wrap justify-center items-end gap-6 sm:gap-10 text-muted-foreground/85 text-[11px] sm:text-xs px-2">
           <div className="text-center min-w-[5rem]">
             <motion.div
-              key={totalCompanions}
+              key={forgedCompanionTotal}
               initial={{ scale: 0.85, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               className="text-2xl sm:text-3xl font-bold text-primary font-gothic tabular-nums"
             >
-              {totalCompanions}
+              {forgedCompanionTotal}
             </motion.div>
-            <div className="mt-0.5">Companions live</div>
+            <div className="mt-0.5">Forged companions</div>
+            <div className="mt-1 max-w-[13rem] mx-auto text-[10px] text-muted-foreground/70 leading-snug">
+              Approved public forge cards (not the stock catalog size).
+            </div>
           </div>
           <div className="text-center min-w-[5rem]">
             <div className="text-2xl sm:text-3xl font-bold text-electric-teal font-gothic">∞</div>
@@ -229,11 +259,13 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
                   damping: 24,
                   layout: { type: "spring", stiffness: 260, damping: 26 },
                 }}
-                whileHover={{ y: -4, transition: { type: "spring", stiffness: 500, damping: 12 } }}
-                className="h-full p-1 max-sm:p-0.5"
+                whileHover={{ y: -4, scale: 1.02 }}
+                className="h-full text-left rounded-2xl border border-transparent bg-card/60 backdrop-blur-sm overflow-visible group shadow-lg shadow-black/20 transition-colors p-1.5 max-md:p-1"
               >
-                <div
-                  className="block h-full rounded-2xl border border-white/[0.08] bg-card/75 backdrop-blur-md overflow-visible hover:border-primary/45 transition-all duration-300 shadow-lg shadow-black/25 hover:shadow-[0_12px_40px_rgba(255,45,123,0.12)] ring-1 ring-white/[0.04] group"
+                <Link
+                  to={`/companions/${comp.id}`}
+                  state={{ from: `${location.pathname}${location.search}` }}
+                  className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded-2xl overflow-visible"
                 >
                   <TierHaloPortraitFrame
                     variant="card"
@@ -247,7 +279,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
                     <div
                       className="absolute inset-0 z-0"
                       style={{
-                        background: comp.img ? undefined : `linear-gradient(135deg, ${comp.gradientFrom}, ${comp.gradientTo})`,
+                        background: comp.img ? undefined : `linear-gradient(160deg, ${comp.gradientFrom}, ${comp.gradientTo})`,
                       }}
                     />
                     {comp.img && !brokenPortraitIds.has(comp.id) ? (
@@ -270,12 +302,17 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
                         <span className="font-gothic text-3xl sm:text-4xl text-white/90">{comp.name.charAt(0)}</span>
                       </div>
                     )}
-                    <div className="absolute inset-x-0 bottom-0 z-[3] bg-gradient-to-t from-black/90 via-black/40 to-transparent p-2.5 sm:p-3">
-                      <p className="text-xs sm:text-sm font-bold text-white truncate font-gothic">{comp.name}</p>
-                      <p className="text-[10px] sm:text-[11px] text-white/75 line-clamp-2 leading-snug">{comp.subtitle}</p>
+                    <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
+                    <div className="absolute top-2 right-2 z-[3] max-w-[52%] truncate px-1.5 py-0.5 rounded-md bg-black/60 border border-white/10 text-[8px] font-bold uppercase tracking-wide text-white/90">
+                      {comp.role}
                     </div>
+                    <div className="absolute inset-x-0 bottom-0 z-[3] p-2.5 sm:p-3 space-y-0.5">
+                      <p className="text-xs sm:text-sm font-bold text-white truncate font-gothic leading-tight">{comp.name}</p>
+                      <p className="text-[10px] sm:text-[11px] text-white/70 line-clamp-2 leading-snug">{comp.subtitle}</p>
+                    </div>
+                    <div className="absolute inset-0 z-[3] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none" />
                   </TierHaloPortraitFrame>
-                </div>
+                </Link>
               </motion.div>
             ))}
           </motion.div>

@@ -121,7 +121,9 @@ export function ChatComposer({
         ? videoSubmitTitle
         : mediaDraftKind === "image"
           ? imageSubmitTitle
-          : `Send (${tokenCost} FC)`;
+          : tokenCost <= 0
+            ? "Send (free)"
+            : `Send (${tokenCost} FC)`;
 
   const startVoice = useCallback(() => {
     // Web Speech API — typings vary; keep construction loose.
@@ -301,16 +303,17 @@ export function ChatComposer({
           "Admin session · "
         ) : (
           <>
-            {tokenCost} msg / {imageTokenCost} still / {videoTokenCost} clip FC ·{" "}
+            {tokenCost <= 0 ? "Free msgs" : `${tokenCost} FC/msg`} / {imageTokenCost} still / {videoTokenCost} clip ·{" "}
           </>
         )}
         18+ only · {CHAT_VIDEO_TIMING_USER_NOTE}
         {!isAdminUser && tokensBalance <= 0 ? (
           <>
             {" "}
-            <Link to="/" className="text-primary underline">
-              Get FC
-            </Link>
+            <Link to="/buy-credits" className="text-primary underline">
+              Top up FC
+            </Link>{" "}
+            for stills & live voice · classic text stays free
           </>
         ) : null}
       </p>

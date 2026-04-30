@@ -1,4 +1,4 @@
-/** Routes where the fixed bottom app nav appears (immersive chat excludes). */
+/** Routes where the fixed bottom app nav appears (`/chat` is immersive — no nav; composer uses safe-area only). */
 export function showMobileBottomNav(pathname: string): boolean {
   if (/^\/chat(\/|$)/.test(pathname)) return false;
   return /^\/(dashboard|create-companion|companions\/|account|settings)(\/|$)/.test(pathname);

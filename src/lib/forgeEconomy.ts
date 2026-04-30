@@ -8,26 +8,35 @@ import type { CompanionRarity } from "@/lib/companionRarity";
 
 export const FC_USD = 0.01;
 
-/** Text chat is free. */
+/** Classic (non-live) text chat — 0 FC per message; Lovense patterns from compatible replies stay on. */
 export const CHAT_MESSAGE_FC = 0;
 
-/** xAI Realtime live voice: billed per **started** minute in client (see LiveCallPage on hangup). */
-export const LIVE_VOICE_FC_PER_MINUTE = 22;
+/**
+ * Full-screen Live Call & in-chat “Live Voice” — billed per **started** minute (audio-primary).
+ * Same meter as live-style sessions that include mic + voice playback today.
+ */
+export const LIVE_VOICE_FC_PER_MINUTE = 25;
 
-/** Lewd / selfie (non-nude) image generation. */
-export const CHAT_IMAGE_LEWD_FC = 12;
+/**
+ * Live Chat (text + voice + sending images in a billed live-style session).
+ * Currently matches Live Voice / Live Call meter; split here for copy & future tuning.
+ */
+export const LIVE_CHAT_FC_PER_MINUTE = 25;
 
-/** Nude / Tensor path still. */
-export const CHAT_IMAGE_NUDE_FC = 22;
+/** Selfie / lewd (non-nude) still from chat. */
+export const CHAT_IMAGE_LEWD_FC = 20;
 
-/** One companion created in Forge (finalize). */
-export const FORGE_CREATE_COMPANION_FC = 45;
+/** HQ / nude still (Tensor path). */
+export const CHAT_IMAGE_NUDE_FC = 30;
 
-/** Design-lab / packshot preview (Grok) — cheap iteration. */
-export const FORGE_PREVIEW_FC = 20;
+/** One companion finalized from Companion Forge. */
+export const FORGE_CREATE_COMPANION_FC = 150;
+
+/** Forge portrait preview (Grok packshot). */
+export const FORGE_PREVIEW_FC = 15;
 
 /** The Nexus: standard merge. Optional infusion add-on. */
-export const NEXUS_MERGE_FC = 140;
+export const NEXUS_MERGE_FC = 350;
 export const NEXUS_INFUSE_ADDON_FC = 50;
 
 /** Short video clip in chat. */
@@ -51,6 +60,7 @@ export const FORGE_ECONOMY = {
   FC_USD,
   CHAT_MESSAGE_FC,
   LIVE_VOICE_FC_PER_MINUTE,
+  LIVE_CHAT_FC_PER_MINUTE,
   CHAT_IMAGE_LEWD_FC,
   CHAT_IMAGE_NUDE_FC,
   FORGE_CREATE_COMPANION_FC,

@@ -99,7 +99,7 @@ export function LiveCallPhoneShell({
 
       <div
         className={cn(
-          "relative z-20 w-full border-b border-white/[0.06] px-4 py-2.5 backdrop-blur-xl transition-colors",
+          "relative z-20 w-full border-b border-white/[0.06] px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] backdrop-blur-xl transition-colors",
           ringing ? "bg-pink-950/35" : "bg-black/40",
         )}
       >
@@ -124,7 +124,7 @@ export function LiveCallPhoneShell({
         </div>
       </div>
 
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center px-4 pb-32 pt-5 sm:px-5 sm:pt-7">
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center px-4 pb-36 pt-5 sm:px-5 sm:pt-7">
         <motion.div
           className="relative mb-3"
           style={{ width: "min(88vw, 17.5rem)" }}
@@ -200,14 +200,14 @@ export function LiveCallPhoneShell({
               className="mb-3 w-full max-w-md space-y-2"
             >
               <p className="text-center text-[9px] font-semibold uppercase tracking-[0.28em] text-white/35">Mood</p>
-              <div className="grid w-full max-w-md grid-cols-1 gap-1.5 sm:grid-cols-2">
+              <div className="grid w-full max-w-md grid-cols-1 gap-2 sm:grid-cols-2">
                 {LIVE_CALL_MOOD_CHIPS.map(({ id, label }, i) => (
                   <button
                     key={id}
                     type="button"
                     onClick={() => onCallMoodChange(id)}
                     className={cn(
-                      "w-full min-h-11 rounded-full border px-2.5 py-1.5 text-center text-[11px] font-medium leading-tight transition",
+                      "w-full min-h-[48px] touch-manipulation rounded-full border px-3 py-2 text-center text-[11px] font-medium leading-tight transition active:scale-[0.99]",
                       i === LIVE_CALL_MOOD_CHIPS.length - 1 && "sm:col-span-2 sm:mx-auto sm:max-w-sm",
                       callMood === id
                         ? "border-pink-400/50 bg-pink-500/25 text-pink-50 shadow-[0_0_20px_rgba(236,72,153,0.2)]"
@@ -235,13 +235,13 @@ export function LiveCallPhoneShell({
                 Quick taps
               </p>
               <div className="w-full max-w-md space-y-1.5">
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   {LIVE_CALL_QUICK_ACTIONS_PRIMARY.map((a) => (
                     <button
                       key={a.id}
                       type="button"
                       onClick={() => onQuickAction(a.id)}
-                      className="min-h-12 w-full rounded-xl border border-white/[0.1] bg-white/[0.04] px-1.5 py-1.5 text-center text-[9px] font-medium leading-tight text-white/85 backdrop-blur-sm transition hover:border-pink-400/35 hover:bg-pink-500/10 hover:text-white"
+                      className="min-h-[52px] w-full touch-manipulation rounded-xl border border-white/[0.1] bg-white/[0.04] px-2 py-2 text-center text-[10px] font-medium leading-tight text-white/85 backdrop-blur-sm transition hover:border-pink-400/35 hover:bg-pink-500/10 hover:text-white active:scale-[0.99]"
                     >
                       {a.label}
                     </button>
@@ -252,7 +252,7 @@ export function LiveCallPhoneShell({
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        className="flex min-h-11 w-full items-center justify-center gap-1 rounded-xl border border-white/15 bg-white/[0.05] px-2 text-[10px] font-medium text-white/80 transition hover:border-pink-400/30 hover:bg-pink-500/10"
+                        className="flex min-h-[48px] w-full touch-manipulation items-center justify-center gap-1 rounded-xl border border-white/15 bg-white/[0.05] px-2 text-[10px] font-medium text-white/80 transition hover:border-pink-400/30 hover:bg-pink-500/10 active:scale-[0.99]"
                       >
                         More teases & lines
                         <ChevronDown className="h-3.5 w-3.5 opacity-60" />
@@ -294,15 +294,15 @@ export function LiveCallPhoneShell({
 
       {/* Bottom dock — subtle glass capsule */}
       <div
-        className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
+        className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-2"
         style={{
           background: "linear-gradient(to top, rgba(5,6,12,0.92) 0%, rgba(5,6,12,0.55) 55%, transparent 100%)",
         }}
       >
-        <div className="flex items-center gap-2 rounded-full border border-white/[0.1] bg-black/50 px-2 py-2 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+        <div className="flex items-center gap-2.5 rounded-full border border-white/[0.1] bg-black/50 px-2.5 py-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
           {toyBar ? <LiveCallToyBar userId={toyBar.userId} toyId={toyBar.toyId} toyName={toyBar.toyName} /> : (
             <div
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-dashed border-white/10 text-white/25"
+              className="flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full border border-dashed border-white/10 text-white/25"
               title="No linked device"
               aria-hidden
             >
@@ -313,21 +313,21 @@ export function LiveCallPhoneShell({
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.06] text-white/90 transition hover:border-cyan-400/35 hover:bg-cyan-500/10"
+            className="flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.06] text-white/90 transition hover:border-cyan-400/35 hover:bg-cyan-500/10 active:scale-[0.97]"
             aria-label="Voice & preview"
           >
-            <Mic className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            <Mic className="h-5 w-5" strokeWidth={1.75} />
           </button>
 
-          <div className="mx-1 h-7 w-px bg-white/10" aria-hidden />
+          <div className="mx-0.5 h-8 w-px bg-white/10" aria-hidden />
 
           <button
             type="button"
             onClick={onHangUp}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-red-500/25 bg-gradient-to-br from-red-600/95 to-red-900/90 text-white shadow-[0_8px_28px_rgba(220,38,38,0.35)] transition hover:brightness-110 active:scale-[0.96]"
+            className="flex h-14 w-14 shrink-0 touch-manipulation items-center justify-center rounded-full border border-red-500/25 bg-gradient-to-br from-red-600/95 to-red-900/90 text-white shadow-[0_8px_28px_rgba(220,38,38,0.35)] transition hover:brightness-110 active:scale-[0.96]"
             aria-label="End call"
           >
-            <PhoneOff className="h-5 w-5" strokeWidth={1.75} />
+            <PhoneOff className="h-6 w-6" strokeWidth={1.75} />
           </button>
         </div>
       </div>

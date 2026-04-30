@@ -702,7 +702,11 @@ const CompanionProfile = () => {
       <main
         className={cn(
           "relative z-10 flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 pt-[max(5.25rem,calc(3.25rem+env(safe-area-inset-top,0px)))] sm:pt-[max(5.5rem,calc(3.5rem+env(safe-area-inset-top,0px)))]",
-          user ? "pb-mobile-nav md:pb-20" : "pb-16 sm:pb-20",
+          user && !discoverFeatureLock && !isDropLanding
+            ? "max-md:pb-[max(9.25rem,calc(5.75rem+env(safe-area-inset-bottom,0px)+3.25rem))] md:pb-20"
+            : user
+              ? "pb-mobile-nav md:pb-20"
+              : "pb-16 sm:pb-20",
         )}
       >
         <motion.button
@@ -905,13 +909,19 @@ const CompanionProfile = () => {
               />
             ) : null}
 
-            <div className="flex rounded-2xl border border-white/[0.08] bg-black/45 p-1 gap-0.5 max-w-2xl">
+            <div
+              className={cn(
+                "flex max-w-2xl rounded-2xl border border-white/[0.08] bg-black/45 p-1 gap-0.5",
+                "max-md:snap-x max-md:snap-mandatory max-md:overflow-x-auto max-md:pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+              )}
+            >
               <button
                 type="button"
                 disabled={isDropLanding}
                 onClick={() => setProfileTab("profile")}
                 className={cn(
                   "flex-1 min-w-0 rounded-xl py-2.5 text-xs sm:text-sm font-semibold transition-colors touch-manipulation",
+                  "max-md:min-h-[48px] max-md:min-w-[33%] max-md:snap-start max-md:shrink-0 max-md:px-1",
                   isDropLanding && "cursor-not-allowed opacity-60",
                   profileTab === "profile"
                     ? "bg-primary/20 text-primary border border-primary/30"
@@ -927,6 +937,7 @@ const CompanionProfile = () => {
                 onClick={() => setProfileTab("gallery")}
                 className={cn(
                   "flex-1 min-w-0 inline-flex items-center justify-center gap-1 sm:gap-2 rounded-xl py-2.5 text-xs sm:text-sm font-semibold transition-colors touch-manipulation",
+                  "max-md:min-h-[48px] max-md:min-w-[33%] max-md:snap-start max-md:shrink-0 max-md:px-1",
                   (isDropLanding || discoverFeatureLock) && "cursor-not-allowed opacity-60",
                   profileTab === "gallery"
                     ? "bg-primary/20 text-primary border border-primary/30"
@@ -950,6 +961,7 @@ const CompanionProfile = () => {
                 }}
                 className={cn(
                   "flex-1 min-w-0 inline-flex items-center justify-center gap-1 sm:gap-2 rounded-xl py-2.5 text-xs sm:text-sm font-semibold transition-colors touch-manipulation",
+                  "max-md:min-h-[48px] max-md:min-w-[33%] max-md:snap-start max-md:shrink-0 max-md:px-1",
                   (isDropLanding || discoverFeatureLock) && "cursor-not-allowed opacity-60",
                   profileTab === "live"
                     ? "bg-primary/20 text-primary border border-primary/30"
@@ -1385,6 +1397,22 @@ const CompanionProfile = () => {
           ))}
         </div>
         </>
+        ) : null}
+
+        {user && !discoverFeatureLock && !isDropLanding && companion ? (
+          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[55] md:hidden px-3 pt-2 pb-[max(5.75rem,calc(4.75rem+env(safe-area-inset-bottom,0px)))] bg-gradient-to-t from-black via-black/90 to-transparent">
+            <div className="pointer-events-auto mx-auto max-w-lg">
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleStartChat()}
+                className="flex w-full min-h-[52px] items-center justify-center gap-2 rounded-xl border border-primary/35 bg-primary px-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/25 touch-manipulation"
+              >
+                <MessageCircle className="h-5 w-5 shrink-0" />
+                Start chat
+              </motion.button>
+            </div>
+          </div>
         ) : null}
       </main>
 

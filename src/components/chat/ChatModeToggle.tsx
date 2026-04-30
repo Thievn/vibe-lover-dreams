@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { ChatSessionMode } from "@/lib/chatSessionMode";
+import { LIVE_CHAT_FC_PER_MINUTE, LIVE_VOICE_FC_PER_MINUTE } from "@/lib/forgeEconomy";
 
 type Props = {
   mode: ChatSessionMode;
@@ -21,6 +22,7 @@ export function ChatModeToggle({ mode, onChange, disabled, className }: Props) {
       <button
         type="button"
         disabled={disabled}
+        title="Classic: typed messages + toy patterns from compatible replies — no FC per message."
         onClick={() => onChange("classic")}
         className={cn(
           "rounded-[10px] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors min-h-[36px] touch-manipulation",
@@ -29,11 +31,12 @@ export function ChatModeToggle({ mode, onChange, disabled, className }: Props) {
             : "text-muted-foreground hover:text-foreground",
         )}
       >
-        Classic Chat
+        Classic (free)
       </button>
       <button
         type="button"
         disabled={disabled}
+        title={`Live Voice: mic + her voice in chat — ${LIVE_VOICE_FC_PER_MINUTE} FC per started minute (same meter as full-screen Live Call / billed live chat at ${LIVE_CHAT_FC_PER_MINUTE} FC/min).`}
         onClick={() => onChange("live_voice")}
         className={cn(
           "rounded-[10px] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors min-h-[36px] touch-manipulation",

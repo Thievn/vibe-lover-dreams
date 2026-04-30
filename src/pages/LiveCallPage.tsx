@@ -317,12 +317,18 @@ const LiveCallPage = () => {
       setPhase("preparing");
       setStatusLine("Securing line…");
 
-      const { data: sess } = await supabase.auth.getSession();
+      const [{ data: sess }, sec] = await Promise.all([
+        supabase.auth.getSession(),
+        invokeGrokVoiceClientSecret(),
+      ]);
+      if (cancelled) return;
+
       const uid = sess?.session?.user?.id ?? null;
+      const toysPromise = uid ? getToys(uid) : Promise.resolve([] as LovenseToy[]);
+      const toys = await toysPromise;
+      if (cancelled) return;
       if (uid) {
         setUserId(uid);
-        const toys = await getToys(uid);
-        if (cancelled) return;
         setToyList(toys);
         toyForSessionRef.current = pickPrimaryToy(toys);
       } else {
@@ -330,9 +336,6 @@ const LiveCallPage = () => {
       }
 
       const linked = toyForSessionRef.current != null;
-
-      const sec = await invokeGrokVoiceClientSecret();
-      if (cancelled) return;
       if ("error" in sec) {
         setPhase("error");
         setStatusLine(sec.error);

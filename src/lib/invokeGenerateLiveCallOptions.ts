@@ -6,6 +6,10 @@ import { parseLiveCallOptionsPayload } from "@/lib/liveCallTypes";
 const CACHE_PREFIX = "live-call-options:";
 const CACHE_TTL_MS = 45 * 60 * 1000;
 
+const DEFAULT_TIMEOUT_MS = 14_000;
+/** Skip `refreshSession()` when access token expires at least this many seconds from now. */
+const SESSION_FRESH_BUFFER_SEC = 90;
+
 type CacheEntry = { at: number; options: LiveCallOption[] };
 
 function cacheKey(companionId: string): string {
@@ -43,12 +47,38 @@ export type GenerateLiveCallOptionsResult =
   | { ok: true; options: LiveCallOption[]; source: "network" | "cache" }
   | { ok: false; error: string };
 
+export type InvokeLiveCallOptionsOpts = {
+  skipCache?: boolean;
+  /** Combined with internal timeout — aborts the request when fired. */
+  signal?: AbortSignal;
+  /** Max wait for the edge function (default 14s). */
+  timeoutMs?: number;
+};
+
+async function ensureFreshBearer(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  const session = data.session;
+  const token = session?.access_token;
+  if (!token) return null;
+
+  const exp = session.expires_at;
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (typeof exp === "number" && exp > nowSec + SESSION_FRESH_BUFFER_SEC) {
+    return token;
+  }
+
+  await supabase.auth.refreshSession();
+  const t2 = (await supabase.auth.getSession()).data.session?.access_token ?? null;
+  return t2;
+}
+
 /**
  * Calls `generate-live-call-options` with session JWT (same pattern as `invokeGenerateImage`).
+ * Uses a bounded timeout and skips redundant `refreshSession()` when the JWT is still fresh.
  */
 export async function invokeGenerateLiveCallOptions(
   companionId: string,
-  opts?: { skipCache?: boolean },
+  opts?: InvokeLiveCallOptionsOpts,
 ): Promise<GenerateLiveCallOptionsResult> {
   if (!opts?.skipCache) {
     const hit = readLiveCallOptionsSessionCache(companionId);
@@ -62,6 +92,14 @@ export async function invokeGenerateLiveCallOptions(
   }
 
   const url = `${base}/functions/v1/generate-live-call-options`;
+  const timeoutMs = typeof opts?.timeoutMs === "number" && opts.timeoutMs > 0 ? opts.timeoutMs : DEFAULT_TIMEOUT_MS;
+
+  const combined = new AbortController();
+  const timer = window.setTimeout(() => combined.abort(), timeoutMs);
+  if (opts?.signal) {
+    if (opts.signal.aborted) combined.abort();
+    else opts.signal.addEventListener("abort", () => combined.abort(), { once: true });
+  }
 
   const post = (bearer: string) =>
     fetch(url, {
@@ -72,43 +110,53 @@ export async function invokeGenerateLiveCallOptions(
         apikey: anon,
       },
       body: JSON.stringify({ companionId }),
+      signal: combined.signal,
     });
 
-  await supabase.auth.refreshSession();
-  const session = (await supabase.auth.getSession()).data.session;
-  const bearer = session?.access_token;
-  if (!bearer) {
-    return { ok: false, error: "Sign in required" };
-  }
-
-  let res = await post(bearer);
-  if (!res.ok && res.status === 401) {
-    await supabase.auth.refreshSession();
-    const t2 = (await supabase.auth.getSession()).data.session?.access_token;
-    if (t2) res = await post(t2);
-  }
-
-  const text = await res.text();
-  let json: unknown = null;
   try {
-    json = JSON.parse(text) as unknown;
-  } catch {
-    return { ok: false, error: text.trim() || `HTTP ${res.status}` };
-  }
+    const bearer = await ensureFreshBearer();
+    if (!bearer) {
+      return { ok: false, error: "Sign in required" };
+    }
 
-  if (!res.ok) {
-    const err =
-      (json && typeof json === "object" && "error" in json && typeof (json as { error: unknown }).error === "string"
-        ? (json as { error: string }).error
-        : null) || text.trim() || `HTTP ${res.status}`;
-    return { ok: false, error: err };
-  }
+    let res = await post(bearer);
+    if (!res.ok && res.status === 401) {
+      await supabase.auth.refreshSession();
+      const t2 = (await supabase.auth.getSession()).data.session?.access_token;
+      if (t2) res = await post(t2);
+    }
 
-  const options = parseLiveCallOptionsPayload(json);
-  if (!options?.length) {
-    return { ok: false, error: "Invalid options payload" };
-  }
+    const text = await res.text();
+    let json: unknown = null;
+    try {
+      json = JSON.parse(text) as unknown;
+    } catch {
+      return { ok: false, error: text.trim() || `HTTP ${res.status}` };
+    }
 
-  writeCache(companionId, options);
-  return { ok: true, options, source: "network" };
+    if (!res.ok) {
+      const err =
+        (json && typeof json === "object" && "error" in json && typeof (json as { error: unknown }).error === "string"
+          ? (json as { error: string }).error
+          : null) || text.trim() || `HTTP ${res.status}`;
+      return { ok: false, error: err };
+    }
+
+    const options = parseLiveCallOptionsPayload(json);
+    if (!options?.length) {
+      return { ok: false, error: "Invalid options payload" };
+    }
+
+    writeCache(companionId, options);
+    return { ok: true, options, source: "network" };
+  } catch (e) {
+    const name = e instanceof Error ? e.name : "";
+    if (name === "AbortError" || combined.signal.aborted) {
+      return { ok: false, error: "timeout" };
+    }
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg.length > 200 ? `${msg.slice(0, 197)}…` : msg };
+  } finally {
+    window.clearTimeout(timer);
+  }
 }

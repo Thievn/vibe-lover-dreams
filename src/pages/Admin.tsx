@@ -816,18 +816,21 @@ function AdminShell() {
                   <span className="text-xs text-muted-foreground uppercase tracking-widest">Admin · no token cost</span>
                 </div>
               </div>
-              <div className="p-3 md:p-5 min-h-0 max-h-[min(calc(100dvh-7.5rem),960px)] overflow-y-auto overscroll-contain space-y-3">
-                <AdminForgeSchedulePanel
-                  onAutoForge={async (opts) => {
-                    await forgeRef.current?.runRandomRouletteAndForge(opts);
-                  }}
-                />
-                <AdminCelebrityParodyPanel
-                  onGenerate={async (celebrityName, grotesqueGpk) => {
-                    await forgeRef.current?.runCelebrityParody(celebrityName, { grotesqueGpk });
-                  }}
-                />
-                <div className="min-h-0">
+              <div className="flex min-h-0 max-h-[min(calc(100dvh-7.5rem),960px)] flex-col gap-3 overflow-hidden p-3 md:p-5">
+                {/* Scroll schedule/parody separately so wheel events reach the forge split panes (no competing parent scroller). */}
+                <div className="min-h-0 max-h-[min(42dvh,380px)] shrink-0 space-y-3 overflow-y-auto overscroll-y-contain pr-0.5">
+                  <AdminForgeSchedulePanel
+                    onAutoForge={async (opts) => {
+                      await forgeRef.current?.runRandomRouletteAndForge(opts);
+                    }}
+                  />
+                  <AdminCelebrityParodyPanel
+                    onGenerate={async (celebrityName, grotesqueGpk) => {
+                      await forgeRef.current?.runCelebrityParody(celebrityName, { grotesqueGpk });
+                    }}
+                  />
+                </div>
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   <CompanionCreator
                     ref={forgeRef}
                     mode="admin"

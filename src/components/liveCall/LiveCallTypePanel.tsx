@@ -1,10 +1,13 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Phone, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Companion } from "@/data/companions";
-import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
+import {
+  invokeGenerateLiveCallOptions,
+  readLiveCallOptionsSessionCache,
+} from "@/lib/invokeGenerateLiveCallOptions";
 import { getLiveCallPresetsFallback } from "@/lib/liveCallPresetsFallback";
 import type { LiveCallOption } from "@/lib/liveCallTypes";
 import { ensureCompanionCallNotifications } from "@/lib/companionCallNotifications";
@@ -16,33 +19,69 @@ type Props = {
   className?: string;
 };
 
+function optionsEqual(a: LiveCallOption[], b: LiveCallOption[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((x, i) => x.slug === b[i]?.slug);
+}
+
 /**
- * Inline call-type picker (profile “Live call” tab). Shows a short “theming” disclaimer while Grok runs.
+ * Inline call-type picker (profile “Live call” tab).
+ * Shows tappable themes immediately (cache or offline fallbacks), then upgrades from Grok when ready.
  */
 export function LiveCallTypePanel({ companion, className }: Props) {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [options, setOptions] = useState<LiveCallOption[] | null>(null);
+  const skippedRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const companionRef = useRef(companion);
+  companionRef.current = companion;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setOptions(null);
-    const res = await invokeGenerateLiveCallOptions(companion.id);
-    if (res.ok) {
-      setOptions(res.options);
-      setLoading(false);
-      return;
-    }
-    toast.message("Using offline call themes", {
-      description: res.error || "Could not reach the call designer.",
-    });
-    setOptions(getLiveCallPresetsFallback(companion));
-    setLoading(false);
-  }, [companion]);
+  const [personalizationSkipped, setPersonalizationSkipped] = useState(false);
+  const [options, setOptions] = useState<LiveCallOption[]>(() => {
+    const cached = readLiveCallOptionsSessionCache(companion.id);
+    return cached?.length ? cached : getLiveCallPresetsFallback(companion);
+  });
+  const [upgrading, setUpgrading] = useState(true);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    skippedRef.current = false;
+    setPersonalizationSkipped(false);
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+
+    const c = companionRef.current;
+    const fallback = getLiveCallPresetsFallback(c);
+    const cached = readLiveCallOptionsSessionCache(c.id);
+    setOptions(cached?.length ? cached : fallback);
+    setUpgrading(true);
+
+    let alive = true;
+    void (async () => {
+      const res = await invokeGenerateLiveCallOptions(c.id, { signal: ctrl.signal });
+      if (!alive || ctrl.signal.aborted || skippedRef.current) return;
+      if (res.ok) {
+        setOptions((prev) => (optionsEqual(res.options, prev) ? prev : res.options));
+      } else if (res.error !== "timeout") {
+        toast.message("Using offline call themes", {
+          description: res.error || "Could not reach the call designer.",
+        });
+      }
+      if (alive && !skippedRef.current) setUpgrading(false);
+    })();
+
+    return () => {
+      alive = false;
+      ctrl.abort();
+    };
+  }, [companion.id]);
+
+  const skipPersonalization = useCallback(() => {
+    skippedRef.current = true;
+    setPersonalizationSkipped(true);
+    abortRef.current?.abort();
+    setUpgrading(false);
+    setOptions(getLiveCallPresetsFallback(companion));
+  }, [companion]);
 
   const pick = (opt: LiveCallOption) => {
     void ensureCompanionCallNotifications();
@@ -89,77 +128,63 @@ export function LiveCallTypePanel({ companion, className }: Props) {
           <div className="min-w-0 space-y-1">
             <p className="font-gothic text-base font-bold text-foreground leading-snug">Live call with {companion.name}</p>
             <p className="text-[13px] leading-relaxed text-muted-foreground/95">
-              We&apos;re weaving call themes around their exact kinks and voice — give it a moment. When the cards
-              appear, tap one to step into a private line; nothing breaks character.
+              Tap a style to start right away. We can personalize themes in the background when the line is ready —
+              nothing breaks character.
             </p>
           </div>
         </div>
       </div>
 
-      {loading ? (
-        <div
-          className="rounded-xl border border-white/[0.08] bg-black/35 px-4 py-3 text-sm text-muted-foreground/95 backdrop-blur-sm"
-          role="status"
-        >
-          <p className="flex items-center gap-2 font-medium text-foreground/90">
-            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
-            Generating call styles…
+      {upgrading && !personalizationSkipped ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[0.08] bg-black/35 px-3 py-2 text-[11px] text-muted-foreground backdrop-blur-sm">
+          <p className="flex items-center gap-2 font-medium text-foreground/90 min-w-0">
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
+            <span className="truncate">Upgrading call themes…</span>
           </p>
-          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-            The list is being tailored to this companion so every option feels personal, urgent, and theirs alone.
-          </p>
+          <button
+            type="button"
+            onClick={skipPersonalization}
+            className="shrink-0 text-[11px] font-semibold text-primary underline-offset-2 hover:underline"
+          >
+            Skip personalization
+          </button>
         </div>
       ) : null}
 
       <div className="grid gap-3">
-        {loading && (
-          <div className="grid gap-3">
-            {Array.from({ length: 4 }).map((_, i) => (
+        <AnimatePresence>
+          {options.map((opt, i) => (
+            <motion.button
+              key={`${opt.slug}-${i}`}
+              type="button"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04 }}
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              onClick={() => pick(opt)}
+              className={cn(
+                "relative min-h-[88px] overflow-hidden rounded-2xl border border-white/[0.1] p-4 text-left shadow-lg transition-colors",
+                "hover:border-primary/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 active:scale-[0.99]",
+              )}
+              style={{
+                background: `linear-gradient(135deg, ${gFrom}22, ${gTo}18), rgba(0,0,0,0.45)`,
+              }}
+            >
               <div
-                key={i}
-                className="h-[88px] animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.04]"
-              />
-            ))}
-          </div>
-        )}
-
-        {!loading && options && (
-          <AnimatePresence>
-            {options.map((opt, i) => (
-              <motion.button
-                key={`${opt.slug}-${i}`}
-                type="button"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.04 }}
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-                onClick={() => pick(opt)}
-                className={cn(
-                  "relative overflow-hidden rounded-2xl border border-white/[0.1] p-4 text-left shadow-lg transition-colors",
-                  "hover:border-primary/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
-                )}
+                className="pointer-events-none absolute inset-0 opacity-[0.15]"
                 style={{
-                  background: `linear-gradient(135deg, ${gFrom}22, ${gTo}18), rgba(0,0,0,0.45)`,
+                  background: `linear-gradient(120deg, ${gFrom}, ${gTo})`,
                 }}
-              >
-                <div
-                  className="pointer-events-none absolute inset-0 opacity-[0.15]"
-                  style={{
-                    background: `linear-gradient(120deg, ${gFrom}, ${gTo})`,
-                  }}
-                />
-                <div className="relative flex flex-col gap-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-primary/90">
-                    {opt.moodTag}
-                  </span>
-                  <span className="font-gothic text-base font-bold text-foreground">{opt.title}</span>
-                  <span className="text-xs leading-snug text-muted-foreground">{opt.subtitle}</span>
-                </div>
-              </motion.button>
-            ))}
-          </AnimatePresence>
-        )}
+              />
+              <div className="relative flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-primary/90">{opt.moodTag}</span>
+                <span className="font-gothic text-base font-bold text-foreground">{opt.title}</span>
+                <span className="text-xs leading-snug text-muted-foreground">{opt.subtitle}</span>
+              </div>
+            </motion.button>
+          ))}
+        </AnimatePresence>
       </div>
     </div>
   );

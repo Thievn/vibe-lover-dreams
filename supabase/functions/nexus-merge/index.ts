@@ -13,7 +13,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const NEXUS_BASE = 250;
+const NEXUS_BASE = 350;
 const NEXUS_INFUSE = 50;
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 type VarianceStrength = "low" | "medium" | "high";
