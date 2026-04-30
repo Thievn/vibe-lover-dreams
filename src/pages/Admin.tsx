@@ -827,12 +827,14 @@ function AdminShell() {
                     await forgeRef.current?.runCelebrityParody(celebrityName, { grotesqueGpk });
                   }}
                 />
-                <CompanionCreator
-                  ref={forgeRef}
-                  mode="admin"
-                  embedded
-                  onForged={() => goSection("characters")}
-                />
+                <div className="min-h-0">
+                  <CompanionCreator
+                    ref={forgeRef}
+                    mode="admin"
+                    embedded
+                    onForged={() => goSection("characters")}
+                  />
+                </div>
               </div>
             </div>
           )}

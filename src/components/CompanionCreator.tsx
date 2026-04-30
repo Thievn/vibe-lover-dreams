@@ -2142,7 +2142,12 @@ User flavor notes: ${extraNotes || "none"}`;
   }
 
   const shell = (
-    <div className={cn("relative font-sans text-foreground", embedded ? "min-h-0" : "min-h-screen bg-[#050508]")}>
+    <div
+      className={cn(
+        "relative font-sans text-foreground",
+        embedded ? "min-h-0 flex flex-1 flex-col" : "min-h-screen bg-[#050508]",
+      )}
+    >
       {!embedded && <ParticleBackground />}
       {!embedded && (
         <div
@@ -2153,7 +2158,12 @@ User flavor notes: ${extraNotes || "none"}`;
         />
       )}
 
-      <div className={cn("relative z-10", embedded ? "px-0 py-0" : "px-4 md:px-8 lg:px-10 py-5 md:py-7 pb-mobile-nav")}>
+      <div
+        className={cn(
+          "relative z-10",
+          embedded ? "flex min-h-0 flex-1 flex-col px-0 py-0" : "px-4 md:px-8 lg:px-10 py-5 md:py-7 pb-mobile-nav",
+        )}
+      >
         {!embedded && (
           <button
             type="button"
@@ -2165,14 +2175,24 @@ User flavor notes: ${extraNotes || "none"}`;
           </button>
         )}
 
-        <div className="flex flex-col lg:flex-row lg:items-start gap-5 lg:gap-7 max-w-[1700px] mx-auto min-h-0">
-          {/* Controls — one vertical scroll with the page (no nested lg scroll) so grids don’t leave dead air beside tall panels */}
-          <div className="order-2 lg:order-1 w-full lg:flex-1 lg:min-w-0 lg:pr-1 lg:pb-3 space-y-4">
+        <div
+          className={cn(
+            "mx-auto flex min-h-0 max-w-[1700px] flex-col gap-5 lg:gap-7 lg:flex-row lg:items-stretch",
+            embedded ? "lg:min-h-[420px] lg:h-[min(76dvh,800px)]" : "lg:min-h-[520px] lg:h-[calc(100dvh-8.5rem)]",
+            embedded ? "min-h-0 flex-1" : "",
+          )}
+        >
+          {/* Controls — own scroll on lg+ so preview column never “releases” sticky and jumps */}
+          <div className="order-2 flex w-full min-w-0 flex-col lg:order-1 lg:min-h-0 lg:flex-1">
+            <div className="motion-reduce:scroll-auto space-y-4 overscroll-y-contain lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-2 lg:pr-2 lg:scroll-smooth [scrollbar-gutter:stable]">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-[#FF2D7B]/90 mb-2">Forge Studio</p>
                 <h1 className="font-gothic text-3xl md:text-4xl text-white tracking-wide flex items-center gap-3">
-                  <Sparkles className="h-8 w-8 shrink-0" style={{ color: NEON, filter: `drop-shadow(0 0 12px ${NEON})` }} />
+                  <Sparkles
+                    className="h-8 w-8 shrink-0 motion-safe:animate-lf-drift"
+                    style={{ color: NEON, filter: `drop-shadow(0 0 12px ${NEON})` }}
+                  />
                   Companion Forge
                 </h1>
                 <p className="text-sm text-muted-foreground mt-2 max-w-md leading-relaxed">
@@ -3316,15 +3336,22 @@ User flavor notes: ${extraNotes || "none"}`;
                 </div>
               </details>
             )}
+            </div>
           </div>
 
-          {/* Preview — TCG-sized (~63×88mm), sticky right on desktop; on mobile shown above options */}
-          <div className="order-1 lg:order-2 w-full lg:w-[min(100%,380px)] xl:w-[400px] shrink-0 lg:sticky lg:top-16 lg:self-start space-y-3">
-            <div className={cn(panelClass, "overflow-hidden")}>
+          {/* Preview — TCG-sized; lg+ shares row height with independent scroll (no sticky jump) */}
+          <div className="order-1 flex w-full shrink-0 flex-col lg:order-2 lg:h-full lg:min-h-0 lg:w-[min(100%,380px)] xl:w-[400px]">
+            <div className="motion-reduce:scroll-auto space-y-3 overscroll-y-contain lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pl-0.5 lg:pr-1 lg:scroll-smooth [scrollbar-gutter:stable]">
+            <div
+              className={cn(
+                panelClass,
+                "overflow-hidden motion-safe:transition-[box-shadow,transform] motion-safe:duration-500 motion-safe:ease-out motion-safe:hover:shadow-[0_0_72px_rgba(255,45,123,0.09)]",
+              )}
+            >
               <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-white/10 bg-white/[0.03] backdrop-blur-md">
                 <span className="flex items-center gap-2 min-w-0">
                   <span
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#FF2D7B]/35 bg-gradient-to-br from-[#FF2D7B]/25 to-purple-900/40"
+                    className="motion-safe:animate-lf-sway flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#FF2D7B]/35 bg-gradient-to-br from-[#FF2D7B]/25 to-purple-900/40"
                     style={{ boxShadow: `0 0 20px ${NEON}22` }}
                   >
                     <ScanEye className="h-4 w-4 text-white" aria-hidden />
@@ -3373,9 +3400,10 @@ User flavor notes: ${extraNotes || "none"}`;
                       {previewUrl ? (
                         <motion.img
                           key={previewUrl}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
+                          initial={{ opacity: 0, scale: 0.96, filter: "blur(6px)" }}
+                          animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                          exit={{ opacity: 0, scale: 0.98, filter: "blur(4px)" }}
+                          transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
                           src={previewUrl}
                           alt="Preview"
                           referrerPolicy="no-referrer"
@@ -3389,8 +3417,9 @@ User flavor notes: ${extraNotes || "none"}`;
                       ) : (
                         <motion.div
                           key="grad"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
                           className="absolute inset-0 z-[1] flex flex-col justify-end p-3 sm:p-4"
                           style={{
                             background: `linear-gradient(160deg, #0a0508, ${NEON}44, hsl(280 40% 18%), hsl(170 25% 12%))`,
@@ -3654,6 +3683,7 @@ User flavor notes: ${extraNotes || "none"}`;
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
       </div>

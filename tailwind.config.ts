@@ -92,6 +92,23 @@ export default {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
+        /** Subtle ambient motion — use with `motion-safe:` */
+        "lf-drift": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-5px)" },
+        },
+        "lf-sway": {
+          "0%, 100%": { transform: "rotate(-2deg)" },
+          "50%": { transform: "rotate(2deg)" },
+        },
+        "lf-vignette-breathe": {
+          "0%, 100%": { opacity: "0.02" },
+          "50%": { opacity: "0.055" },
+        },
+        "lf-shimmer-edge": {
+          "0%": { backgroundPosition: "0% 50%" },
+          "100%": { backgroundPosition: "200% 50%" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -99,6 +116,10 @@ export default {
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
         "float": "float 3s ease-in-out infinite",
         "shimmer": "shimmer 3s ease-in-out infinite",
+        "lf-drift": "lf-drift 4.5s ease-in-out infinite",
+        "lf-sway": "lf-sway 5s ease-in-out infinite",
+        "lf-vignette-breathe": "lf-vignette-breathe 14s ease-in-out infinite",
+        "lf-shimmer-edge": "lf-shimmer-edge 8s linear infinite",
       },
     },
   },
