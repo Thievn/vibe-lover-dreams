@@ -781,7 +781,14 @@ function AdminShell() {
           </div>
         </div>
 
-        <div className="p-4 md:p-8 max-w-[1400px] mx-auto pb-24">
+        <div
+          className={cn(
+            "pb-24",
+            section === "creator"
+              ? "w-full max-w-none px-0 sm:px-2 lg:px-3"
+              : "mx-auto max-w-[1400px] p-4 md:p-8",
+          )}
+        >
           {section === "overview" && (
             <OverviewSection
               stats={stats}
@@ -802,23 +809,23 @@ function AdminShell() {
             />
           )}
           {section === "creator" && (
-            <div className="rounded-[1.75rem] border border-border/80 bg-card/30 backdrop-blur-md overflow-hidden">
-              <div className="px-6 py-4 border-b border-border/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex min-h-0 w-full flex-col">
+              <div className="flex shrink-0 flex-col gap-3 border-b border-border/50 bg-black/25 px-4 py-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between sm:px-5">
                 <h2 className="font-gothic text-2xl gradient-vice-text">Companion Forge</h2>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => goSection("characters")}
-                    className="text-xs font-medium px-3 py-1.5 rounded-lg border border-border/80 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+                    className="rounded-lg border border-border/80 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
                   >
                     Character management
                   </button>
-                  <span className="text-xs text-muted-foreground uppercase tracking-widest">Admin · no token cost</span>
+                  <span className="text-xs uppercase tracking-widest text-muted-foreground">Admin · no token cost</span>
                 </div>
               </div>
-              <div className="flex min-h-0 max-h-[min(calc(100dvh-7.5rem),960px)] flex-col gap-3 overflow-hidden p-3 md:p-5">
+              <div className="flex min-h-0 w-full max-h-[min(calc(100dvh-4.75rem),1200px)] flex-col gap-2 overflow-hidden px-2 pt-2 sm:gap-3 sm:px-3 sm:pt-3 lg:max-h-[calc(100dvh-4.25rem)]">
                 {/* Scroll schedule/parody separately so wheel events reach the forge split panes (no competing parent scroller). */}
-                <div className="min-h-0 max-h-[min(42dvh,380px)] shrink-0 space-y-3 overflow-y-auto overscroll-y-contain pr-0.5">
+                <div className="min-h-0 max-h-[min(40dvh,360px)] shrink-0 space-y-3 overflow-y-scroll overscroll-y-contain pr-1 [scrollbar-gutter:stable] [scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-transparent">
                   <AdminForgeSchedulePanel
                     onAutoForge={async (opts) => {
                       await forgeRef.current?.runRandomRouletteAndForge(opts);

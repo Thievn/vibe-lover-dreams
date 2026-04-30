@@ -2198,7 +2198,8 @@ User flavor notes: ${extraNotes || "none"}`;
 
         <div
           className={cn(
-            "mx-auto flex min-h-0 max-w-[1700px] flex-col gap-5 lg:gap-7 lg:flex-row lg:items-stretch",
+            "flex min-h-0 flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-5 xl:gap-6",
+            embedded ? "w-full max-w-none" : "mx-auto max-w-[1700px] gap-5 lg:gap-7",
             // Embedded (e.g. Admin forge): fill the parent flex slot — a fixed min(76dvh,800px) height can exceed
             // Admin's max-h + overflow-hidden and clips the preview column so wheel scroll never reaches the CTAs.
             embedded
@@ -2211,10 +2212,19 @@ User flavor notes: ${extraNotes || "none"}`;
           <div
             className={cn(
               "order-2 flex w-full min-w-0 flex-col lg:order-1 lg:min-h-0 lg:flex-1",
+              embedded && "lg:basis-0 lg:min-w-0",
               !lgBreakpointUp && forgeMobileView !== "controls" && "max-lg:hidden",
             )}
           >
-            <div className="motion-reduce:scroll-auto space-y-4 overscroll-y-contain max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto lg:min-h-0 lg:max-h-full lg:flex-1 lg:overflow-y-auto lg:pb-2 lg:pr-2 [scrollbar-gutter:stable]">
+            <div
+              className={cn(
+                "motion-reduce:scroll-auto space-y-4 overscroll-y-contain lg:min-h-0 lg:max-h-full lg:flex-1 lg:pb-2 lg:pr-1",
+                "max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-scroll",
+                "lg:overflow-y-scroll [scrollbar-gutter:stable]",
+                "[scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin]",
+                "[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/25 [&::-webkit-scrollbar-thumb]:hover:bg-white/35 [&::-webkit-scrollbar-track]:bg-transparent",
+              )}
+            >
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-[#FF2D7B]/90 mb-2">Forge Studio</p>
@@ -3372,11 +3382,22 @@ User flavor notes: ${extraNotes || "none"}`;
           {/* Preview — TCG-sized; lg+ shares row height with independent scroll (no sticky jump) */}
           <div
             className={cn(
-              "order-1 flex min-h-0 w-full shrink-0 flex-col lg:order-2 lg:h-full lg:min-h-0 lg:w-[min(100%,380px)] xl:w-[400px]",
+              "order-1 flex min-h-0 w-full flex-col lg:order-2 lg:h-full lg:min-h-0",
+              embedded
+                ? "min-w-0 flex-1 lg:basis-0 lg:min-w-[min(100%,260px)] lg:max-w-[min(720px,50vw)] lg:flex-[1.05] lg:shrink"
+                : "shrink-0 lg:w-[min(100%,380px)] xl:w-[400px]",
               !lgBreakpointUp && forgeMobileView !== "preview" && "max-lg:hidden",
             )}
           >
-            <div className="motion-reduce:scroll-auto min-h-0 space-y-3 overscroll-y-contain max-lg:flex-1 max-lg:overflow-y-auto lg:max-h-full lg:flex-1 lg:overflow-y-auto lg:pl-0.5 lg:pr-1 [scrollbar-gutter:stable]">
+            <div
+              className={cn(
+                "motion-reduce:scroll-auto min-h-0 space-y-3 overscroll-y-contain lg:max-h-full lg:flex-1 lg:pl-0.5 lg:pr-1",
+                "max-lg:flex-1 max-lg:overflow-y-scroll",
+                "lg:overflow-y-scroll [scrollbar-gutter:stable]",
+                "[scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin]",
+                "[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/25 [&::-webkit-scrollbar-thumb]:hover:bg-white/35 [&::-webkit-scrollbar-track]:bg-transparent",
+              )}
+            >
             <div
               className={cn(
                 panelClass,
@@ -3421,7 +3442,12 @@ User flavor notes: ${extraNotes || "none"}`;
                 </span>
               </div>
               <div className="p-4 sm:p-5">
-                <div className="w-full max-w-[min(100%,340px)] mx-auto lg:mx-0 overflow-visible p-2 max-sm:p-1.5">
+                <div
+                  className={cn(
+                    "mx-auto w-full overflow-visible p-2 max-sm:p-1.5",
+                    embedded ? "max-w-full lg:mx-0" : "max-w-[min(100%,340px)] lg:mx-0",
+                  )}
+                >
                   <TierHaloPortraitFrame
                     variant="compact"
                     frameStyle="clean"
