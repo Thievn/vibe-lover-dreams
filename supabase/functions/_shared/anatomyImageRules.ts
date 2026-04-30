@@ -17,6 +17,36 @@ export type AnatomyVariant =
   /** Wireframe, heavy glitch, melting — medium-led abstraction */
   | "extreme_surreal";
 
+export const ANATOMY_POSITIVE_PROMPT_BASE =
+  "masterpiece, best quality, highly detailed, correct anatomy, proportional limbs, no extra limbs, no mutated anatomy";
+
+export const ANATOMY_STRONG_NEGATIVE_PROMPT =
+  "bad anatomy, extra limbs, mutated hands, deformed hands, extra fingers, missing fingers, fused fingers, hands growing out of back, poorly drawn hands, bad hands, extra arms, disfigured limbs, malformed anatomy, extra tails growing from shoulders, mutated fingers";
+
+function smartHandRule(variant: AnatomyVariant): string {
+  const nonHumanoid =
+    variant === "anthropomorphic_creature" ||
+    variant === "fantasy_hybrid" ||
+    variant === "nonhuman_silhouette" ||
+    variant === "extreme_surreal";
+  if (nonHumanoid) {
+    return "well-formed hands or tentacles, correct limb structure, detailed claws or tentacles, no extra limbs";
+  }
+  return "perfect hands, detailed fingers, five fingers on each hand, anatomically correct hands";
+}
+
+export function buildAnatomyPromptPack(variant: AnatomyVariant): {
+  positiveBase: string;
+  smartHandRule: string;
+  strongNegative: string;
+} {
+  return {
+    positiveBase: ANATOMY_POSITIVE_PROMPT_BASE,
+    smartHandRule: smartHandRule(variant),
+    strongNegative: ANATOMY_STRONG_NEGATIVE_PROMPT,
+  };
+}
+
 /** Art directions where non-photoreal proportions are an intentional part of the medium. */
 const STYLIZED_ART_STYLE_LABELS: readonly string[] = [
   "Anime",
@@ -225,9 +255,16 @@ export function resolveAnatomyVariant(characterData: Record<string, unknown>): A
 
 /** Injected into the safe-prompt rewriter (system-adjacent user block). */
 export function buildAnatomyRewriterDirective(variant: AnatomyVariant): string {
+  const pack = buildAnatomyPromptPack(variant);
+  const universal = [
+    `Positive prompt base: ${pack.positiveBase}.`,
+    `Smart hand rule: ${pack.smartHandRule}.`,
+    `Strong negative prompt (apply to all generations): ${pack.strongNegative}.`,
+  ].join(" ");
   switch (variant) {
     case "little_person":
       return [
+        universal,
         "ANATOMY (AUTHORIZED — short stature): The user explicitly chose a **little person / short stature** presentation.",
         "Depict **dignified adult proportions** consistent with that choice (shorter limbs relative to torso, believable head-to-body ratio for an adult) **without** mockery, infantilization, fetishizing disability, or carnival caricature.",
         "Do **NOT** substitute a generic tall or average-height fashion model — avoid runway leg length, implied 5'8\"+ stature, or child/teen framing.",
@@ -237,41 +274,48 @@ export function buildAnatomyRewriterDirective(variant: AnatomyVariant): string {
       ].join(" ");
     case "mobility_limb_difference":
       return [
+        universal,
         "ANATOMY (AUTHORIZED — mobility / limb difference): The user explicitly chose **amputee and/or wheelchair user** (or missing limb) presentation.",
         "You may show **assistive devices or respectful limb difference** when it fits the wardrobe and pose. Keep remaining anatomy **coherent, detailed, and non-exploitative**.",
         "No shock gore, tragedy porn, or fetishizing disability. Stay SFW.",
       ].join(" ");
     case "stylized_medium":
       return [
+        universal,
         "ANATOMY (AUTHORIZED — stylized medium): The user chose a **non-photoreal art style** (anime, comic, low-poly, painterly, etc.).",
         "You may use **clean, genre-typical stylization** of proportions, hands, and feet (simplified shapes, slightly elongated limbs, painterly looseness) **only** in ways that match that medium — not random broken anatomy or horror deformity.",
         "Avoid hateful caricature. Stay SFW.",
       ].join(" ");
     case "anthropomorphic_creature":
       return [
+        universal,
         "ANATOMY (AUTHORIZED — anthropomorphic / kemonomimi): The user chose a **non-human species presentation** (furry, anthro, monster-person, animal-inspired traits).",
         "Depict **species-appropriate anatomy** — muzzle, ears, tail, fur/feathers/scales, digitigrade stance, or other traits **consistent with the brief** — not a generic human with light makeup.",
         "Keep hands/paws **coherent** (correct digit count for the species when visible). No hateful animal caricature. Stay SFW.",
       ].join(" ");
     case "fantasy_hybrid":
       return [
+        universal,
         "ANATOMY (AUTHORIZED — fantasy hybrid): The user chose a **mixed fantasy morphology** (centaur, mer-tail, wings, horns, extra limbs, non-human scale, or demi-human species traits).",
         "Render the **full hybrid silhouette** from the brief — do **not** collapse to a plain human; translate into a **cohesive, dignified** fantasy body that matches the selected label.",
         "Avoid random body-horror glitching; limbs and junctions must read **intentional**. Stay SFW.",
       ].join(" ");
     case "nonhuman_silhouette":
       return [
+        universal,
         "ANATOMY (AUTHORIZED — non-human silhouette): The user chose a **clearly non-standard body** (slime, elemental, construct, plant, shadow, statue-like, etc.).",
         "The figure may depart from human musculoskeletal structure **as the brief specifies** — keep materials, edges, and volume **readable and intentional**, not muddy human-with-filters.",
         "Stay SFW; no gore or shock disfigurement unless the brief is a respectful fantasy construct.",
       ].join(" ");
     case "extreme_surreal":
       return [
+        universal,
         "ANATOMY (AUTHORIZED — surreal / abstract medium): The user chose a **heavy stylization** (wireframe, glitch-body, melting wax, etc.).",
         "Proportions may follow **the art direction** rather than photoreal human rules — keep one **clear focal subject**, avoid random mutilation tropes. Stay SFW.",
       ].join(" ");
     default:
       return [
+        universal,
         "ANATOMY (DEFAULT — photoreal humanoid): CONTEXT almost always includes a **forge body type** string from the product UI — that label is the **highest-priority** silhouette instruction.",
         "Match it exactly for build and scale: e.g. curvy, plus-size, petite, tall, muscular, androgynous, hyper-shape options, etc. — **not** a generic runway or stock-model default.",
         "**Realistic** hands and feet (clear digits, believable joints); coherent proportions for the chosen build — no random fused fingers or shock extra limbs.",
@@ -283,37 +327,51 @@ export function buildAnatomyRewriterDirective(variant: AnatomyVariant): string {
 
 /** Shorter block for the final Imagine prompt “Key Rules” section. */
 export function buildAnatomyImagineKeyRules(variant: AnatomyVariant): string {
+  const pack = buildAnatomyPromptPack(variant);
+  const universalKey = [
+    `Positive prompt base (always): ${pack.positiveBase}.`,
+    `Smart hand rule (always): ${pack.smartHandRule}.`,
+    `Strong anatomy negatives (always avoid): ${pack.strongNegative}.`,
+  ].join(" ");
   switch (variant) {
     case "little_person":
       return [
+        universalKey,
         "Anatomy: **Short-stature / little person** — adult proportions with shorter limbs; **not** average-height model legs; use setting scale so stature is obvious; respectful, detailed hands/feet; no mockery or fetishizing.",
       ].join(" ");
     case "mobility_limb_difference":
       return [
+        universalKey,
         "Anatomy: **Wheelchair / limb difference** is **explicitly authorized** when consistent with the character — respectful, accurate assistive tech; coherent remaining anatomy; no gore or exploitation.",
       ].join(" ");
     case "stylized_medium":
       return [
+        universalKey,
         "Anatomy: **Stylized / non-photoreal** look is **explicitly authorized** for this art style — medium-typical simplification of hands/feet/proportions only; avoid random glitch bodies or horror disfigurement.",
       ].join(" ");
     case "anthropomorphic_creature":
       return [
+        universalKey,
         "Anatomy: **Anthropomorphic / species traits** are **explicitly authorized** — show non-human features (fur, muzzle, ears, tail, etc.) consistent with the forge body type, not a default human model.",
       ].join(" ");
     case "fantasy_hybrid":
       return [
+        universalKey,
         "Anatomy: **Fantasy hybrid / demi-human** silhouette is **explicitly authorized** — wings, tails, extra limbs, mer-form, centaur junction, or scale as in the brief; keep it coherent and SFW.",
       ].join(" ");
     case "nonhuman_silhouette":
       return [
+        universalKey,
         "Anatomy: **Non-human construct / elemental / slime / shadow** form is **explicitly authorized** when it matches the forge choice — readable materials, intentional silhouette, SFW.",
       ].join(" ");
     case "extreme_surreal":
       return [
+        universalKey,
         "Anatomy: **Surreal / wireframe / glitch** treatment is **explicitly authorized** for this brief — follow the art direction; one clear subject; SFW.",
       ].join(" ");
     default:
       return [
+        universalKey,
         "Anatomy: **Photoreal humanoid** — the **forge physique spec in Character Details above is authoritative** for build and silhouette (realistic builds, stature, mobility, anthro, hybrid, creative meta styles, otherworldly, hyper-shape, etc.). Match that spec visually; do not substitute a generic default figure; never paint category names or UI labels as on-image text. Detailed believable hands and feet; non-human cases follow the variant rules already injected.",
       ].join(" ");
   }

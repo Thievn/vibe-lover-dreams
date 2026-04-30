@@ -4,6 +4,7 @@ import { hasTamsRsaCredentials } from "../_shared/tamsRsaAuth.ts";
 import { generateConsistentCharacterImage } from "../_shared/generate-consistent-character-image.ts";
 import { FORGE_BODY_IMAGINE_LEADS } from "../_shared/forgeBodyImagineLeads.ts";
 import { I2V_MOUTH_STILL_DIRECTIVE } from "../_shared/profileLoopVideoPrompt.ts";
+import { buildAnatomyPromptPack, resolveAnatomyVariant } from "../_shared/anatomyImageRules.ts";
 import {
   DEFAULT_TENSOR_IMAGE_MODEL,
   DEFAULT_TENSOR_VIDEO_MODEL,
@@ -106,6 +107,14 @@ function buildTensorPrompt(prompt: string, characterData: Record<string, unknown
   const scene = String(characterData.sceneAtmosphere ?? "").trim();
   const explicit = isLikelyExplicitUserPrompt(prompt);
   const skipOutfit = isChatSession && explicit;
+  const anatomyVariant = resolveAnatomyVariant(characterData);
+  const anatomyPack = buildAnatomyPromptPack(anatomyVariant);
+  const anatomyBlock = [
+    "Anatomy quality rules (always):",
+    `- Positive prompt base: ${anatomyPack.positiveBase}`,
+    `- Smart hands rule: ${anatomyPack.smartHandRule}`,
+    `- Strong negatives to avoid: ${anatomyPack.strongNegative}`,
+  ].join("\n");
 
   if (isChatSession && !isPortrait) {
     const head =
@@ -120,6 +129,7 @@ function buildTensorPrompt(prompt: string, characterData: Record<string, unknown
       pose ? `Pose direction: ${pose}` : "",
       scene ? `Scene direction: ${scene}` : "",
       "Keep identity coherent with any supplied reference image; change wardrobe/pose to match the user request when it conflicts with the reference.",
+      anatomyBlock,
     ];
     return [head, prompt, ...lockLines.filter(Boolean)].join("\n");
   }
@@ -136,6 +146,7 @@ function buildTensorPrompt(prompt: string, characterData: Record<string, unknown
     pose ? `Pose direction: ${pose}` : "",
     scene ? `Scene direction: ${scene}` : "",
     "Keep identity coherent with any supplied reference image.",
+    anatomyBlock,
     prompt,
   ];
 

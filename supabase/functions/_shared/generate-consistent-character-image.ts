@@ -1,4 +1,5 @@
 import { FORGE_BODY_IMAGINE_LEADS } from "./forgeBodyImagineLeads.ts";
+import { buildAnatomyPromptPack, resolveAnatomyVariant } from "./anatomyImageRules.ts";
 import {
   DEFAULT_TENSOR_IMAGE_MODEL,
   LUSTFORGE_IMAGE_HEIGHT,
@@ -63,10 +64,18 @@ export async function generateConsistentCharacterImage(args: {
   const nsfwOk = /\b(nude|naked|nsfw|explicit|uncensored|unfiltered|porn|xxx|genital|pussy|dick|cock|penis|topless|lingerie|lewd\s*selfie|nude\s*selfie|send nudes?)\b/i.test(
     prompt,
   );
+  const anatomyVariant = resolveAnatomyVariant(characterData);
+  const anatomyPack = buildAnatomyPromptPack(anatomyVariant);
+  const anatomyBlock = [
+    "Anatomy quality system (always apply):",
+    `Positive prompt base: ${anatomyPack.positiveBase}`,
+    `Smart hands rule: ${anatomyPack.smartHandRule}`,
+    `Strong negatives to avoid: ${anatomyPack.strongNegative}`,
+  ].join("\n");
   const adultGate = nsfwOk
     ? "Adult tasteful nude or intimate framing may apply. Remove clothing from the reference when asked; match the user’s brief with **photoreal editorial sensuality** — avoid hardcore pornographic staging or graphic close-ups.\n\n"
     : "";
-  const finalPrompt = `${buildIdentityLockBlock(characterData)}\n\n${adultGate}Requested variation:\n${prompt}`.trim();
+  const finalPrompt = `${buildIdentityLockBlock(characterData)}\n\n${anatomyBlock}\n\n${adultGate}Requested variation:\n${prompt}`.trim();
 
   const { jobId } = await submitTensorImageJob({
     apiKey,

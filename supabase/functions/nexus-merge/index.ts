@@ -15,6 +15,17 @@ const corsHeaders = {
 const NEXUS_BASE = 250;
 const NEXUS_INFUSE = 50;
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+type VarianceStrength = "low" | "medium" | "high";
+
+function varianceDivergenceLine(variance: VarianceStrength): string {
+  if (variance === "low") {
+    return "Wardrobe + scene divergence (LOW): keep strong lineage cues and visual DNA from both parents; outfit and background should be different from both parents, but can remain in a related style family. No direct clone.";
+  }
+  if (variance === "high") {
+    return "Wardrobe + scene divergence (HIGH): keep face/body lineage cues from both parents, but enforce a notably different outfit, styling language, and setting from BOTH parents. No outfit clone, no copied room/set, no near-reskin.";
+  }
+  return "Wardrobe + scene divergence (MEDIUM): keep face/body lineage cues from both parents, but give the child a distinct outfit and distinct background from BOTH parents. No outfit clone, no copied room/set, no near-reskin.";
+}
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -123,57 +134,64 @@ function boringPresetName(name: string): boolean {
   return false;
 }
 
-function pickDeterministic<T>(arr: readonly T[], seedNum: number): T {
-  return arr[Math.abs(seedNum) % arr.length]!;
+function pickRandom<T>(arr: readonly T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]!;
 }
 
-function hashSeed(input: string): number {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < input.length; i++) {
-    h ^= input.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+function parentTokenSet(parentA: Record<string, unknown>, parentB: Record<string, unknown>): Set<string> {
+  const raw = `${String(parentA.name ?? "")} ${String(parentB.name ?? "")}`
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, " ");
+  const toks = raw.split(/\s+/).filter((t) => t.length >= 3);
+  return new Set(toks);
+}
+
+function buildNexusRandomName(parentA: Record<string, unknown>, parentB: Record<string, unknown>): string {
+  const starts = [
+    "Ari", "Cae", "Dra", "Ely", "Fae", "Gly", "Iri", "Jae", "Kae", "Lio", "Myr", "Nox", "Ori", "Pha",
+    "Qir", "Ryn", "Sae", "Tyr", "Vey", "Wyn", "Xae", "Yri", "Zyn",
+  ];
+  const mids = [
+    "la", "ri", "no", "va", "the", "sia", "lyn", "zor", "mira", "syl", "quinn", "vora", "nyx", "dara",
+    "kei", "rune", "ves", "iora", "zen", "ciel", "astra", "vora", "myra",
+  ];
+  const ends = [
+    "ne", "ra", "th", "is", "elle", "yn", "or", "a", "ia", "yx", "on", "ae", "eth", "el", "ess", "ar",
+  ];
+  const family = [
+    "Arclight", "Blackmere", "Cinderfall", "Duskborne", "Emberwynd", "Frostveil", "Glassthorn", "Holloway",
+    "Ivoryn", "Juniper", "Kestrel", "Locke", "Mirewood", "Nightbloom", "Orchid", "Pyrelake", "Quill", "Rooke",
+    "Stoneveil", "Thornfield", "Umber", "Vale", "Wilder", "Yarrow", "Zephyr",
+  ];
+  const blockedWords = new Set([
+    "luna", "raven", "scarlett", "violet", "nova", "lilith", "velvet", "shadow", "midnight", "rose", "obsidian",
+    "abyss", "sable", "neon", "ember", "vesper",
+  ]);
+  const parentWords = parentTokenSet(parentA, parentB);
+
+  for (let i = 0; i < 80; i++) {
+    const first = `${pickRandom(starts)}${pickRandom(mids)}${pickRandom(ends)}`.replace(/\s+/g, "");
+    const maybeSecond = Math.random() < 0.42 ? `${pickRandom(starts)}${pickRandom(ends)}` : "";
+    const given = titleCaseWords(`${first} ${maybeSecond}`.trim());
+    const surname = pickRandom(family);
+    const candidate = titleCaseWords(`${given} ${surname}`.trim()).slice(0, 64);
+    const key = normalizeNameKey(candidate);
+    const parts = key.split(" ");
+    const hasBlocked = parts.some((p) => blockedWords.has(p));
+    const hasParentToken = parts.some((p) => parentWords.has(p));
+    if (!hasBlocked && !hasParentToken && !boringPresetName(candidate)) {
+      return candidate;
+    }
   }
-  return h >>> 0;
-}
 
-function buildNexusFallbackName(
-  parentA: Record<string, unknown>,
-  parentB: Record<string, unknown>,
-  salt: string,
-): string {
-  const pAName = String(parentA.name ?? "").trim();
-  const pBName = String(parentB.name ?? "").trim();
-  const aHead = pAName.split(/\s+/).filter(Boolean)[0] ?? "Velvet";
-  const bHead = pBName.split(/\s+/).filter(Boolean).slice(-1)[0] ?? "Echo";
-  const wordsA = String(parentA.tags ?? "")
-    .toLowerCase()
-    .replace(/[^a-z,\s-]/g, "")
-    .split(/[,\s]+/)
-    .filter((x) => x.length >= 4);
-  const wordsB = String(parentB.tags ?? "")
-    .toLowerCase()
-    .replace(/[^a-z,\s-]/g, "")
-    .split(/[,\s]+/)
-    .filter((x) => x.length >= 4);
-  const mood = ["Velvet", "Neon", "Obsidian", "Ember", "Vesper", "Abyss", "Crimson", "Sable"];
-  const tails = ["Muse", "Siren", "Vow", "Halo", "Pulse", "Veil", "Luxe", "Bloom"];
-  const seed = hashSeed(`${pAName}|${pBName}|${salt}`);
-  const m = pickDeterministic(mood, seed);
-  const t = pickDeterministic(tails, seed >> 2);
-  const tagA = wordsA.length > 0 ? titleCaseWords(pickDeterministic(wordsA, seed >> 3)) : titleCaseWords(aHead);
-  const tagB = wordsB.length > 0 ? titleCaseWords(pickDeterministic(wordsB, seed >> 5)) : titleCaseWords(bHead);
-  const candidate = `${m} ${tagA}${tagB === tagA ? "" : ` ${t}`}`.replace(/\s+/g, " ").trim();
-  return candidate.length > 64 ? candidate.slice(0, 64).trim() : candidate;
+  return titleCaseWords(`${pickRandom(starts)}${pickRandom(mids)} ${pickRandom(family)}`.trim()).slice(0, 64);
 }
 
 async function chooseUniqueNexusName(
   supabase: ReturnType<typeof createClient>,
-  proposedName: string,
+  _proposedName: string,
   parentA: Record<string, unknown>,
   parentB: Record<string, unknown>,
-  userId: string,
-  idA: string,
-  idB: string,
 ): Promise<string> {
   const { data } = await supabase.from("custom_characters").select("name");
   const used = new Set((data ?? []).map((r) => normalizeNameKey(String(r.name ?? ""))).filter(Boolean));
@@ -181,22 +199,15 @@ async function chooseUniqueNexusName(
     normalizeNameKey(String(parentA.name ?? "")),
     normalizeNameKey(String(parentB.name ?? "")),
   ]);
-  const base = titleCaseWords(proposedName);
-  const baseKey = normalizeNameKey(base);
-  const mustReplace = !baseKey || parentNames.has(baseKey) || used.has(baseKey) || boringPresetName(base);
-  if (!mustReplace && base.length <= 64) return base;
 
-  for (let i = 0; i < 10; i++) {
-    const candidate = buildNexusFallbackName(parentA, parentB, `${userId}|${idA}|${idB}|${Date.now()}|${i}`);
+  for (let i = 0; i < 40; i++) {
+    const candidate = buildNexusRandomName(parentA, parentB);
     const k = normalizeNameKey(candidate);
     if (k && !used.has(k) && !parentNames.has(k) && !boringPresetName(candidate)) {
       return candidate;
     }
   }
-  return `${buildNexusFallbackName(parentA, parentB, `${userId}|fallback`)} ${Math.floor(100 + Math.random() * 900)}`.slice(
-    0,
-    64,
-  );
+  return `${buildNexusRandomName(parentA, parentB)} ${Math.floor(100 + Math.random() * 900)}`.slice(0, 64);
 }
 
 Deno.serve(async (req) => {
@@ -209,6 +220,7 @@ Deno.serve(async (req) => {
     parentBId?: string;
     infuse?: boolean;
     favorParent?: "first" | "second" | null;
+    varianceStrength?: VarianceStrength;
     adminMerge?: boolean;
     reconcile?: boolean;
     startedAtMs?: number;
@@ -248,6 +260,11 @@ Deno.serve(async (req) => {
 
     const infuse = Boolean(body.infuse);
     const favor = body.favorParent === "first" || body.favorParent === "second" ? body.favorParent : null;
+    const varianceStrength: VarianceStrength =
+      body.varianceStrength === "low" || body.varianceStrength === "high" || body.varianceStrength === "medium"
+        ? body.varianceStrength
+        : "medium";
+    const visualDivergenceLine = varianceDivergenceLine(varianceStrength);
     const totalCost = adminMerge ? 0 : NEXUS_BASE + (infuse ? NEXUS_INFUSE : 0);
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -455,7 +472,13 @@ Deno.serve(async (req) => {
         balanceAfter: newBalNexus,
         transactionType: "nexus_merge",
         description: body.infuse ? "The Nexus — merge + infusion" : "The Nexus — merge",
-        metadata: { fc: totalCost, parent_a: body.parentAId, parent_b: body.parentBId, infuse: Boolean(body.infuse) },
+        metadata: {
+          fc: totalCost,
+          parent_a: body.parentAId,
+          parent_b: body.parentBId,
+          infuse: Boolean(body.infuse),
+          variance_strength: varianceStrength,
+        },
       });
     }
 
@@ -548,6 +571,10 @@ ${sourceContext} Invent ONE new wholly original hybrid adult companion that beli
 - fantasy_starters: exactly 4; each description is the verbatim first USER chat line (in-world; seductive, explicit, or playful per fused persona). FORBIDDEN: meta quiz closers ("Are you ready?", "Tell me when..."). End on dialogue or desire.
 
 Naming: invent a distinctive new name (2–4 words or one rare compound). Avoid repetitive default presets (examples to avoid: Luna, Raven, Scarlett, Nova, Lilith). Never reuse either parent’s full name.${infuseLine}
+Name quality rule (critical): generate a fresh random-feeling name that does not echo either parent's name, title, or signature motif words.
+
+Visual inheritance rule (critical): preserve blended facial structure, body silhouette, and optional fantasy anatomy cues (ears/tail/horns/wings) when appropriate.
+${visualDivergenceLine}
 
 Rarity: the \`rarity\` field in your tool output is ignored — the server rolls the child’s tier from the Nexus outcome table using both parents’ rarities. Still output a plausible \`rarity\` string for logging only.
 
@@ -711,9 +738,6 @@ Output ONLY via the nexus_merge_companion tool call.`;
       String(fields.name || "Unnamed Hybrid"),
       pa as Record<string, unknown>,
       pb as Record<string, unknown>,
-      userId,
-      idA,
-      idB,
     );
 
     const insertRow: Record<string, unknown> = {
@@ -782,9 +806,10 @@ Output ONLY via the nexus_merge_companion tool call.`;
     let portraitOk = false;
     let portraitError: string | null = null;
     const imagePromptRaw = String(fields.image_prompt || "").trim();
-    const imagePromptForPortrait =
+    const imagePromptBase =
       imagePromptRaw ||
       `SFW vertical portrait of ${String(fields.name || "companion").slice(0, 80)}. ${String(fields.appearance || "").slice(0, 1800)}`.trim();
+    const imagePromptForPortrait = `${imagePromptBase}\n\n${visualDivergenceLine}`.trim();
 
     if (imagePromptForPortrait && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
       try {

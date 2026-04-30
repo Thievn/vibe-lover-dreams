@@ -38,6 +38,7 @@ export type TheNexusMode = "user" | "admin";
 type Phase = "select" | "merging" | "revealed";
 
 type MergeSubphase = "fusion" | "video";
+type NexusVarianceStrength = "low" | "medium" | "high";
 
 function parseMergeStatsNexus(raw: Record<string, unknown> | null | undefined): {
   compatibility: number;
@@ -365,6 +366,7 @@ export default function TheNexus({
   const [picked, setPicked] = useState<string[]>([]);
   const [infuse, setInfuse] = useState(false);
   const [favorParent, setFavorParent] = useState<"first" | "second" | "balanced">("balanced");
+  const [varianceStrength, setVarianceStrength] = useState<NexusVarianceStrength>("medium");
   const [phase, setPhase] = useState<Phase>("select");
   const [mergeSubphase, setMergeSubphase] = useState<MergeSubphase>("fusion");
   const [revealChild, setRevealChild] = useState<DbCompanion | null>(null);
@@ -582,6 +584,7 @@ export default function TheNexus({
           parentBId: omega.id,
           infuse,
           favorParent: favor,
+          varianceStrength,
           adminMerge: isAdmin,
         },
       });
@@ -944,6 +947,33 @@ export default function TheNexus({
                       </div>
                     </div>
                   ) : null}
+                  <div className="space-y-2 text-xs">
+                    <p className="text-muted-foreground uppercase tracking-wider">Variance strength</p>
+                    <p className="text-[11px] text-muted-foreground/85 leading-relaxed">
+                      Controls how different the child&apos;s outfit/background should be from both parents while keeping
+                      face/body lineage cues.
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {(
+                        [
+                          ["low", "Low — closer stylistic blend"],
+                          ["medium", "Medium — balanced divergence"],
+                          ["high", "High — strong outfit/scene variety"],
+                        ] as const
+                      ).map(([v, label]) => (
+                        <label key={v} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="variance-strength"
+                            checked={varianceStrength === v}
+                            onChange={() => setVarianceStrength(v)}
+                            className="accent-[#FF2D7B]"
+                          />
+                          <span>{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                   <motion.button
                     type="button"
                     whileHover={{ scale: canMerge ? 1.02 : 1 }}
