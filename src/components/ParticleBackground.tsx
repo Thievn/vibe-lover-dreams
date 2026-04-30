@@ -1,7 +1,14 @@
 import { useEffect, useRef } from "react";
+type ParticleBackgroundProps = {
+  /**
+   * When true, fills the nearest positioned ancestor instead of the viewport (avoids a second full-screen canvas).
+   */
+  contain?: boolean;
+};
 
-const ParticleBackground = () => {
+const ParticleBackground = ({ contain = false }: ParticleBackgroundProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -19,8 +26,19 @@ const ParticleBackground = () => {
     ];
 
     const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      if (contain) {
+        const el = hostRef.current;
+        if (el && el.clientWidth > 0 && el.clientHeight > 0) {
+          canvas.width = el.clientWidth;
+          canvas.height = el.clientHeight;
+        } else {
+          canvas.width = Math.max(1, window.innerWidth);
+          canvas.height = Math.max(1, window.innerHeight);
+        }
+      } else {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
     };
 
     const createParticle = () => {
@@ -36,7 +54,8 @@ const ParticleBackground = () => {
     };
 
     resize();
-    for (let i = 0; i < 60; i++) {
+    const particleCount = contain ? 36 : 60;
+    for (let i = 0; i < particleCount; i++) {
       particles.push(createParticle());
     }
 
@@ -57,20 +76,28 @@ const ParticleBackground = () => {
 
     animate();
     window.addEventListener("resize", resize);
+    let ro: ResizeObserver | undefined;
+    if (contain && hostRef.current) {
+      ro = new ResizeObserver(() => resize());
+      ro.observe(hostRef.current);
+    }
 
     return () => {
       cancelAnimationFrame(animationId);
       window.removeEventListener("resize", resize);
+      ro?.disconnect();
     };
-  }, []);
+  }, [contain]);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-0"
-      style={{ opacity: 0.72 }}
-    />
-  );
+  if (contain) {
+    return (
+      <div ref={hostRef} className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+        <canvas ref={canvasRef} className="h-full w-full" style={{ opacity: 0.72 }} />
+      </div>
+    );
+  }
+
+  return <canvas ref={canvasRef} className="pointer-events-none fixed inset-0 z-0" style={{ opacity: 0.72 }} />;
 };
 
 export default ParticleBackground;

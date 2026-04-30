@@ -37,7 +37,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
-import { clearForgeStash, loadForgeStash, saveForgeStash, type ForgeStashPayload } from "@/lib/forgeDraftStash";
+import {
+  clearForgeStash,
+  loadForgeStash,
+  saveForgeStash,
+  type ForgePreviewHistoryEntry,
+  type ForgeStashPayload,
+} from "@/lib/forgeDraftStash";
 import { buildLocalSpinForgeFields } from "@/lib/forgeLocalSpinContent";
 import { clearForgeSessionDraft, loadForgeSessionDraft, saveForgeSessionDraft } from "@/lib/forgeSessionDraft";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
@@ -471,6 +477,8 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   /** Stable public storage URL for forging / DB (signed preview URLs expire). */
   const [previewCanonicalUrl, setPreviewCanonicalUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  /** User forge: recent preview images in this session (local + auto-saved draft). */
+  const [previewHistory, setPreviewHistory] = useState<ForgePreviewHistoryEntry[]>([]);
   const [finalLoading, setFinalLoading] = useState(false);
   /** Last forged `cc-…` id in this session (admin) — for looping video tool */
   const [lastForgedCcId, setLastForgedCcId] = useState<string | null>(null);
@@ -624,7 +632,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       .eq("user_id", session.user.id)
       .maybeSingle();
     if (error) console.error(error);
-    setTokens(data?.tokens_balance ?? 100);
+    setTokens(typeof data?.tokens_balance === "number" ? data.tokens_balance : 0);
     setProfileDisplayName(data?.display_name?.trim() || "");
     setLoadingProfile(false);
   }, [navigate, isAdmin]);
@@ -632,6 +640,35 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   useEffect(() => {
     void loadProfile();
   }, [loadProfile]);
+
+  const refreshForgeCoinsOnly = useCallback(async () => {
+    if (!userId || isAdmin) return;
+    const { data } = await supabase.from("profiles").select("tokens_balance").eq("user_id", userId).maybeSingle();
+    if (data && typeof data.tokens_balance === "number") setTokens(data.tokens_balance);
+  }, [userId, isAdmin]);
+
+  useEffect(() => {
+    if (isAdmin) return;
+    const onFocus = () => void refreshForgeCoinsOnly();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [isAdmin, refreshForgeCoinsOnly]);
+
+  const appendPreviewHistory = useCallback((display: string, canonical: string) => {
+    if (isAdmin) return;
+    const d = display.trim();
+    const c = canonical.trim();
+    if (!d || !c) return;
+    setPreviewHistory((hist) => {
+      const entry: ForgePreviewHistoryEntry = {
+        display: d,
+        canonical: c,
+        savedAt: new Date().toISOString(),
+      };
+      const deduped = hist.filter((e) => e.canonical !== c);
+      return [entry, ...deduped].slice(0, 8);
+    });
+  }, [isAdmin]);
 
   /** Restore full forge session (or legacy preview-only) when returning to the page. */
   useEffect(() => {
@@ -688,6 +725,19 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       setForgeTabFeatures(normalizeForgeTabFeatureMap(draft.forgeTabFeatures));
       setForgeTabSharedOverrides(normalizeForgeTabSharedOverrides(draft.forgeTabSharedOverrides));
       setForgeCardPose(normalizeForgeCardPoseId((draft as { forgeCardPose?: string }).forgeCardPose));
+      const ph = (draft as { previewHistory?: unknown }).previewHistory;
+      if (Array.isArray(ph) && !isAdmin) {
+        const cleaned = ph
+          .filter(
+            (e): e is ForgePreviewHistoryEntry =>
+              Boolean(e) &&
+              typeof e === "object" &&
+              typeof (e as ForgePreviewHistoryEntry).display === "string" &&
+              typeof (e as ForgePreviewHistoryEntry).canonical === "string",
+          )
+          .slice(0, 8);
+        if (cleaned.length) setPreviewHistory(cleaned);
+      }
       toast.message("Your forge is still here", {
         description: "We kept your last mix, story fields, and preview on this device.",
       });
@@ -754,6 +804,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         forgeTabFeatures,
         forgeTabSharedOverrides,
         forgeCardPose,
+        ...(!isAdmin ? { previewHistory: [...previewHistory] } : {}),
       };
       saveForgeSessionDraft(userId, mode, payload);
     }, 750);
@@ -792,10 +843,16 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     forgeTabFeatures,
     forgeTabSharedOverrides,
     forgeCardPose,
+    previewHistory,
   ]);
 
   const clearForgePreview = useCallback(
     (opts?: { silent?: boolean }) => {
+      if (!opts?.silent && !isAdmin) {
+        const d = previewUrl?.trim();
+        const c = previewCanonicalUrl?.trim();
+        if (d && c) appendPreviewHistory(d, c);
+      }
       setPreviewUrl(null);
       setPreviewCanonicalUrl(null);
       if (userId && !isAdmin) {
@@ -806,7 +863,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         }
       }
     },
-    [userId, isAdmin],
+    [userId, isAdmin, previewUrl, previewCanonicalUrl, appendPreviewHistory],
   );
 
   const accordionDefaultOpen = useMemo((): string[] => {
@@ -1371,6 +1428,9 @@ User flavor notes: ${extraNotes || "none"}`;
       if (!data.imageUrl) throw new Error("No image URL returned");
       const canonical = stablePortraitDisplayUrl(data.publicImageUrl ?? data.imageUrl) ?? data.imageUrl;
       const display = stablePortraitDisplayUrl(data.imageUrl) ?? data.imageUrl;
+      if (!isAdmin && previewUrl && previewCanonicalUrl) {
+        appendPreviewHistory(previewUrl, previewCanonicalUrl);
+      }
       setPreviewUrl(display);
       setPreviewCanonicalUrl(canonical);
       if (isAdmin) pushForgeOp("Portrait render finished — check Live preview.", "ok");
@@ -1460,7 +1520,7 @@ User flavor notes: ${extraNotes || "none"}`;
   const runFinalCreate = async () => {
     if (!userId) return;
     let forgeName = name.trim();
-    if (!forgeName && isAdmin) {
+    if (!forgeName) {
       try {
         const ex = await fetchForgeNameExclusions(supabase, userId);
         for (const k of nameGenSessionReserved.current) ex.add(k);
@@ -1483,11 +1543,15 @@ User flavor notes: ${extraNotes || "none"}`;
         nameGenSessionReserved.current.add(normalizeNameKey(fb));
         forgeName = fb;
         setName(fb);
-        toast.warning("Used local name — check Character management for duplicates.");
+        toast.warning(
+          isAdmin
+            ? "Used local name — check Character management for duplicates."
+            : "Used a local name — you can rename after saving.",
+        );
       }
     }
     if (!forgeName) {
-      toast.error("Name your companion before forging.");
+      toast.error("Could not assign a name — try Spin the forge or enter a name, then try again.");
       return;
     }
     if (!isAdmin && saveVisibility === "public" && creditUsername && !profileDisplayName.trim()) {
@@ -1495,12 +1559,21 @@ User flavor notes: ${extraNotes || "none"}`;
       return;
     }
     if (!isAdmin) {
-      if (tokens !== null && tokens < finalTotalCost) {
-        toast.error(`Need ${finalTotalCost} FC for ${batchCount} companion(s).`);
+      const { data: balRow } = await supabase
+        .from("profiles")
+        .select("tokens_balance")
+        .eq("user_id", userId)
+        .maybeSingle();
+      const bal = typeof balRow?.tokens_balance === "number" ? balRow.tokens_balance : 0;
+      setTokens(bal);
+      if (bal < finalTotalCost) {
+        toast.error(`Need ${finalTotalCost} FC to create — you have ${bal}. Buy Forge Coins or reduce batch size.`);
         return;
       }
     }
     setFinalLoading(true);
+    let userCharged = false;
+    let userRefunded = false;
     setProfileLoopJob("idle");
     setForgeRunStartedAt(Date.now());
     setForgeElapsedTick(0);
@@ -1523,6 +1596,7 @@ User flavor notes: ${extraNotes || "none"}`;
           endFinalForgeLoading();
           return;
         }
+        userCharged = true;
         setTokens(spend.newBalance);
         toast.message("Weaving your companion into the vault…", {
           description: "This can take a little while — keep the tab open until we finish.",
@@ -1802,7 +1876,7 @@ User flavor notes: ${extraNotes || "none"}`;
       }
       const { data: insertedRows, error } = insertRes;
       if (error) {
-        if (!isAdmin) {
+        if (!isAdmin && userCharged && !userRefunded) {
           const ref = await creditForgeCoins(
             finalTotalCost,
             "refund",
@@ -1810,6 +1884,7 @@ User flavor notes: ${extraNotes || "none"}`;
             { reason: "insert_error" },
           );
           if (ref.ok) setTokens(ref.newBalance);
+          userRefunded = true;
         }
         throw error;
       }
@@ -1900,6 +1975,24 @@ User flavor notes: ${extraNotes || "none"}`;
       if (isAdmin && onForged) onForged();
       else if (!embedded && mode === "user") navigate("/dashboard", { state: { activeNav: "collection" } });
     } catch (e: unknown) {
+      if (!isAdmin && userCharged && !userRefunded) {
+        try {
+          const ref = await creditForgeCoins(
+            finalTotalCost,
+            "refund",
+            "Forge: error after charge — refund",
+            { reason: "forge_error" },
+          );
+          if (ref.ok) {
+            setTokens(ref.newBalance);
+            toast.message("Forge didn’t finish — your FC were refunded.", {
+              description: "Your draft and preview history are still saved in this browser.",
+            });
+          }
+        } catch {
+          /* ignore */
+        }
+      }
       if (isAdmin) pushForgeOp(formatSupabaseError(e), "err");
       toast.error(formatSupabaseError(e));
     } finally {
@@ -2161,7 +2254,7 @@ User flavor notes: ${extraNotes || "none"}`;
     <div
       className={cn(
         "relative font-sans text-foreground",
-        embedded ? "min-h-0 flex flex-1 flex-col" : "min-h-screen bg-[#050508]",
+        embedded ? "min-h-0 flex flex-1 flex-col bg-transparent" : "min-h-screen bg-[#050508]",
       )}
     >
       {!embedded && <ParticleBackground />}
@@ -2178,7 +2271,7 @@ User flavor notes: ${extraNotes || "none"}`;
         className={cn(
           "relative z-10",
           embedded
-            ? "flex min-h-0 flex-1 flex-col px-0 py-0"
+            ? "flex min-h-0 flex-1 flex-col px-4 md:px-8 lg:px-10 py-5 md:py-6"
             : cn(
                 "px-4 md:px-8 lg:px-10 py-5 md:py-7 pb-mobile-nav",
                 !lgBreakpointUp && "max-lg:pb-[max(7.75rem,calc(5.75rem+env(safe-area-inset-bottom,0px)+2rem))]",
@@ -2198,10 +2291,8 @@ User flavor notes: ${extraNotes || "none"}`;
 
         <div
           className={cn(
-            "flex min-h-0 flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-5 xl:gap-6",
-            embedded ? "w-full max-w-none" : "mx-auto max-w-[1700px] gap-5 lg:gap-7",
-            // Embedded (e.g. Admin forge): fill the parent flex slot — a fixed min(76dvh,800px) height can exceed
-            // Admin's max-h + overflow-hidden and clips the preview column so wheel scroll never reaches the CTAs.
+            "mx-auto flex min-h-0 w-full max-w-[1700px] flex-col gap-5 lg:gap-7 lg:flex-row lg:items-stretch",
+            // Embedded admin: same centered width + gaps as /create-companion; fill parent height only.
             embedded
               ? "min-h-0 flex-1 lg:h-full lg:max-h-full lg:min-h-0 lg:overflow-hidden"
               : "lg:min-h-[520px] lg:h-[calc(100dvh-8.5rem)]",
@@ -2211,16 +2302,15 @@ User flavor notes: ${extraNotes || "none"}`;
           {/* Controls — own scroll on lg+ so preview column never “releases” sticky and jumps */}
           <div
             className={cn(
-              "order-2 flex w-full min-w-0 flex-col lg:order-1 lg:min-h-0 lg:flex-1",
-              embedded && "lg:basis-0 lg:min-w-0",
+              "order-2 flex w-full min-w-0 flex-col lg:order-1 lg:min-h-0 lg:flex-1 lg:min-w-0",
               !lgBreakpointUp && forgeMobileView !== "controls" && "max-lg:hidden",
             )}
           >
             <div
               className={cn(
-                "motion-reduce:scroll-auto space-y-4 overscroll-y-contain lg:min-h-0 lg:max-h-full lg:flex-1 lg:pb-2 lg:pr-1",
-                "max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-scroll",
-                "lg:overflow-y-scroll [scrollbar-gutter:stable]",
+                "motion-reduce:scroll-auto space-y-4 overscroll-y-contain lg:min-h-0 lg:max-h-full lg:flex-1 lg:overflow-y-auto lg:pb-2 lg:pr-2",
+                "max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto",
+                "[scrollbar-gutter:stable]",
                 "[scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin]",
                 "[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/25 [&::-webkit-scrollbar-thumb]:hover:bg-white/35 [&::-webkit-scrollbar-track]:bg-transparent",
               )}
@@ -3382,18 +3472,15 @@ User flavor notes: ${extraNotes || "none"}`;
           {/* Preview — TCG-sized; lg+ shares row height with independent scroll (no sticky jump) */}
           <div
             className={cn(
-              "order-1 flex min-h-0 w-full flex-col lg:order-2 lg:h-full lg:min-h-0",
-              embedded
-                ? "min-w-0 flex-1 lg:basis-0 lg:min-w-[min(100%,260px)] lg:max-w-[min(720px,50vw)] lg:flex-[1.05] lg:shrink"
-                : "shrink-0 lg:w-[min(100%,380px)] xl:w-[400px]",
+              "order-1 flex min-h-0 w-full shrink-0 flex-col lg:order-2 lg:h-full lg:min-h-0 lg:w-[min(100%,380px)] xl:w-[400px]",
               !lgBreakpointUp && forgeMobileView !== "preview" && "max-lg:hidden",
             )}
           >
             <div
               className={cn(
-                "motion-reduce:scroll-auto min-h-0 space-y-3 overscroll-y-contain lg:max-h-full lg:flex-1 lg:pl-0.5 lg:pr-1",
-                "max-lg:flex-1 max-lg:overflow-y-scroll",
-                "lg:overflow-y-scroll [scrollbar-gutter:stable]",
+                "motion-reduce:scroll-auto min-h-0 space-y-3 overscroll-y-contain lg:max-h-full lg:flex-1 lg:overflow-y-auto lg:pl-0.5 lg:pr-1",
+                "max-lg:flex-1 max-lg:overflow-y-auto",
+                "[scrollbar-gutter:stable]",
                 "[scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin]",
                 "[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/25 [&::-webkit-scrollbar-thumb]:hover:bg-white/35 [&::-webkit-scrollbar-track]:bg-transparent",
               )}
@@ -3442,12 +3529,7 @@ User flavor notes: ${extraNotes || "none"}`;
                 </span>
               </div>
               <div className="p-4 sm:p-5">
-                <div
-                  className={cn(
-                    "mx-auto w-full overflow-visible p-2 max-sm:p-1.5",
-                    embedded ? "max-w-full lg:mx-0" : "max-w-[min(100%,340px)] lg:mx-0",
-                  )}
-                >
+                <div className="mx-auto w-full max-w-[min(100%,340px)] overflow-visible p-2 max-sm:p-1.5 lg:mx-0">
                   <TierHaloPortraitFrame
                     variant="compact"
                     frameStyle="clean"
@@ -3542,6 +3624,31 @@ User flavor notes: ${extraNotes || "none"}`;
                   </div>
                 </div>
 
+                {!isAdmin && previewHistory.length > 0 ? (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      Recent portraits · tap to restore
+                    </p>
+                    <div className="flex max-w-full gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+                      {previewHistory.map((e) => (
+                        <button
+                          key={`${e.canonical}-${e.savedAt}`}
+                          type="button"
+                          title="Use this portrait for Create"
+                          onClick={() => {
+                            setPreviewUrl(stablePortraitDisplayUrl(e.display) ?? e.display);
+                            setPreviewCanonicalUrl(stablePortraitDisplayUrl(e.canonical) ?? e.canonical);
+                            toast.message("Portrait restored", { description: "Create companion will use this image." });
+                          }}
+                          className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg border border-white/15 bg-black/50 outline-none ring-offset-2 ring-offset-[#050508] transition-colors hover:border-primary/45 focus-visible:ring-2 focus-visible:ring-primary/50"
+                        >
+                          <img src={e.display} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
                 {/* Portrait from prompts — then save companion */}
                 <div className="mt-4 grid gap-2.5 grid-cols-1">
                   <motion.button
@@ -3574,9 +3681,21 @@ User flavor notes: ${extraNotes || "none"}`;
                     type="button"
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
-                    disabled={finalLoading || (!isAdmin && !name.trim())}
+                    disabled={
+                      finalLoading ||
+                      (!isAdmin &&
+                        (loadingProfile || (typeof tokens === "number" && tokens < finalTotalCost)))
+                    }
                     onClick={() => void runFinalCreate()}
-                    className="group flex min-h-[52px] items-center justify-start gap-3 rounded-2xl border px-4 py-3.5 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-black/40 text-[hsl(170_100%_78%)]"
+                    className={cn(
+                      "group flex min-h-[52px] items-center justify-start gap-3 rounded-2xl border px-4 py-3.5 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-black/40 text-[hsl(170_100%_78%)]",
+                      !isAdmin &&
+                        typeof tokens === "number" &&
+                        tokens >= finalTotalCost &&
+                        !finalLoading &&
+                        !loadingProfile &&
+                        "ring-2 ring-[hsl(170_100%_55%/0.45)] shadow-[0_0_36px_hsl(170_100%_45%/0.22)]",
+                    )}
                     style={{
                       borderColor: "hsl(170 100% 42% / 0.45)",
                       boxShadow: `0 0 28px hsl(170 100% 42% / 0.12), inset 0 1px 0 rgba(255,255,255,0.06)`,
@@ -3594,7 +3713,11 @@ User flavor notes: ${extraNotes || "none"}`;
                         Create {batchCount} companion{batchCount > 1 ? "s" : ""}
                       </span>
                       <span className="block text-[10px] font-normal text-muted-foreground">
-                        {isAdmin ? "No FC spend · auto-name if empty" : `${FINAL_COST_PER} FC each · ${finalTotalCost} total`}
+                        {isAdmin
+                          ? "No FC spend · auto-name if empty"
+                          : typeof tokens === "number" && tokens < finalTotalCost
+                            ? `Need ${finalTotalCost} FC · you have ${tokens}`
+                            : `${FINAL_COST_PER} FC each · ${finalTotalCost} total`}
                       </span>
                     </span>
                   </motion.button>

@@ -10,6 +10,13 @@ import {
 } from "@/lib/forgeThemeTabs";
 import { normalizeForgeVisualTailoring, type ForgeVisualTailoring } from "@/lib/forgeVisualTailoring";
 
+/** Last few forge portrait previews (user forge) for quick recall without re-spending FC. */
+export type ForgePreviewHistoryEntry = {
+  display: string;
+  canonical: string;
+  savedAt: string;
+};
+
 export type ForgeStashPayload = {
   savedAt: string;
   name: string;
@@ -44,6 +51,8 @@ export type ForgeStashPayload = {
   fantasyStartersJson: string;
   previewUrl: string | null;
   previewCanonicalUrl: string | null;
+  /** Recent portrait previews (optional; user session). */
+  previewHistory?: ForgePreviewHistoryEntry[];
   /** Appearance + outfit lab (optional on older stashes). */
   visualTailoring?: ForgeVisualTailoring;
   /** Forge theme tabs (optional on older stashes). */
