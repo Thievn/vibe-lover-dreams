@@ -2199,8 +2199,11 @@ User flavor notes: ${extraNotes || "none"}`;
         <div
           className={cn(
             "mx-auto flex min-h-0 max-w-[1700px] flex-col gap-5 lg:gap-7 lg:flex-row lg:items-stretch",
-            embedded ? "lg:min-h-[420px] lg:h-[min(76dvh,800px)]" : "lg:min-h-[520px] lg:h-[calc(100dvh-8.5rem)]",
-            embedded ? "min-h-0 flex-1" : "",
+            // Embedded (e.g. Admin forge): fill the parent flex slot — a fixed min(76dvh,800px) height can exceed
+            // Admin's max-h + overflow-hidden and clips the preview column so wheel scroll never reaches the CTAs.
+            embedded
+              ? "min-h-0 flex-1 lg:h-full lg:max-h-full lg:min-h-0 lg:overflow-hidden"
+              : "lg:min-h-[520px] lg:h-[calc(100dvh-8.5rem)]",
             !lgBreakpointUp && "max-lg:min-h-0 max-lg:flex-1",
           )}
         >
@@ -2211,7 +2214,7 @@ User flavor notes: ${extraNotes || "none"}`;
               !lgBreakpointUp && forgeMobileView !== "controls" && "max-lg:hidden",
             )}
           >
-            <div className="motion-reduce:scroll-auto space-y-4 overscroll-y-contain max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-2 lg:pr-2 [scrollbar-gutter:stable]">
+            <div className="motion-reduce:scroll-auto space-y-4 overscroll-y-contain max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto lg:min-h-0 lg:max-h-full lg:flex-1 lg:overflow-y-auto lg:pb-2 lg:pr-2 [scrollbar-gutter:stable]">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-[#FF2D7B]/90 mb-2">Forge Studio</p>
@@ -3369,11 +3372,11 @@ User flavor notes: ${extraNotes || "none"}`;
           {/* Preview — TCG-sized; lg+ shares row height with independent scroll (no sticky jump) */}
           <div
             className={cn(
-              "order-1 flex w-full shrink-0 flex-col lg:order-2 lg:h-full lg:min-h-0 lg:w-[min(100%,380px)] xl:w-[400px]",
+              "order-1 flex min-h-0 w-full shrink-0 flex-col lg:order-2 lg:h-full lg:min-h-0 lg:w-[min(100%,380px)] xl:w-[400px]",
               !lgBreakpointUp && forgeMobileView !== "preview" && "max-lg:hidden",
             )}
           >
-            <div className="motion-reduce:scroll-auto space-y-3 overscroll-y-contain max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pl-0.5 lg:pr-1 [scrollbar-gutter:stable]">
+            <div className="motion-reduce:scroll-auto min-h-0 space-y-3 overscroll-y-contain max-lg:flex-1 max-lg:overflow-y-auto lg:max-h-full lg:flex-1 lg:overflow-y-auto lg:pl-0.5 lg:pr-1 [scrollbar-gutter:stable]">
             <div
               className={cn(
                 panelClass,
