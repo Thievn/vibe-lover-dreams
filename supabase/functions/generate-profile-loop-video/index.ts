@@ -14,7 +14,6 @@ import {
 import {
   buildMinimalProfileLoopVideoPrompt,
   buildProfileLoopVideoPrompt,
-  I2V_MOUTH_STILL_DIRECTIVE_SHORT,
   sanitizePromptForVideoApi,
 } from "../_shared/profileLoopVideoPrompt.ts";
 
@@ -122,19 +121,16 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const fullFromBuilder = buildProfileLoopVideoPrompt(row);
-    const extra = `\n\n${I2V_MOUTH_STILL_DIRECTIVE_SHORT} Profile page loop: seamless, identity-locked to the still.`;
-    const userMotion = motionNotes
-      ? sanitizePromptForVideoApi(
-        `\n\nEditor motion / camera direction (weigh this for movement if not contradictory): ${motionNotes}`,
-      )
-      : "";
-    const combined = sanitizePromptForVideoApi(`${fullFromBuilder}\n\n${extra}${userMotion}`);
+    const fullFromBuilder = buildProfileLoopVideoPrompt(row, motionNotes);
+    const combined = sanitizePromptForVideoApi(
+      `${fullFromBuilder}\n\nProfile page loop: seamless, identity-locked to the still.`,
+    );
+    const MAX_VIDEO_PROMPT = 3000;
     const prompt =
-      combined.length <= 3000
+      combined.length <= MAX_VIDEO_PROMPT
         ? combined
         : sanitizePromptForVideoApi(
-            `${buildMinimalProfileLoopVideoPrompt(row)} ${I2V_MOUTH_STILL_DIRECTIVE_SHORT}`,
+            `${buildMinimalProfileLoopVideoPrompt(row, motionNotes)} Profile page loop: seamless, identity-locked to the still.`,
           );
 
     const durationSec = profileVideoDurationSeconds();

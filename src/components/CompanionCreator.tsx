@@ -2322,6 +2322,87 @@ User flavor notes: ${extraNotes || "none"}`;
     );
   }
 
+  /** Desktop + mobile “controls” tab: primary actions live with the form scroll. Mobile “preview” tab duplicates via `mobilePreview`. */
+  const forgePortraitCommitActions = (variant: "primary" | "mobilePreview") => (
+    <div
+      id={variant === "primary" ? "forge-primary-actions" : undefined}
+      className={cn(
+        "grid grid-cols-1 gap-2.5",
+        variant === "primary" ? "mt-6 scroll-mt-6" : "mt-4 lg:hidden",
+      )}
+    >
+      <motion.button
+        type="button"
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
+        disabled={previewLoading}
+        onClick={() => void runPreview()}
+        className="group flex min-h-[52px] items-center justify-start gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold text-white disabled:opacity-45 disabled:pointer-events-none border border-white/10"
+        style={{
+          background: `linear-gradient(135deg, ${NEON}, hsl(280 45% 42%))`,
+          boxShadow: `0 0 36px ${NEON}30, inset 0 1px 0 rgba(255,255,255,0.12)`,
+        }}
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black/25 border border-white/15 group-hover:border-white/25 transition-colors">
+          {previewLoading ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Wand2 className="h-5 w-5 drop-shadow-[0_0_8px_rgba(255,255,255,0.35)]" />
+          )}
+        </span>
+        <span className="text-left leading-tight min-w-0">
+          <span className="block">Generate portrait</span>
+          <span className="block text-[10px] font-normal opacity-90">
+            Packshot prompt + fields below · {isAdmin ? "no FC" : `${PREVIEW_COST} FC preview`}
+          </span>
+        </span>
+      </motion.button>
+      <motion.button
+        type="button"
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
+        disabled={
+          finalLoading ||
+          (!isAdmin && (loadingProfile || (typeof tokens === "number" && tokens < finalTotalCost)))
+        }
+        onClick={() => void runFinalCreate()}
+        className={cn(
+          "group flex min-h-[52px] items-center justify-start gap-3 rounded-2xl border px-4 py-3.5 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-black/40 text-[hsl(170_100%_78%)]",
+          !isAdmin &&
+            typeof tokens === "number" &&
+            tokens >= finalTotalCost &&
+            !finalLoading &&
+            !loadingProfile &&
+            "ring-2 ring-[hsl(170_100%_55%/0.45)] shadow-[0_0_36px_hsl(170_100%_45%/0.22)]",
+        )}
+        style={{
+          borderColor: "hsl(170 100% 42% / 0.45)",
+          boxShadow: `0 0 28px hsl(170 100% 42% / 0.12), inset 0 1px 0 rgba(255,255,255,0.06)`,
+        }}
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[hsl(170_100%_42%)]/15 border border-[hsl(170_100%_42%)]/35 group-hover:bg-[hsl(170_100%_42%)]/25 transition-colors">
+          {finalLoading ? (
+            <Loader2 className="h-5 w-5 animate-spin text-[hsl(170_100%_70%)]" />
+          ) : (
+            <Gem className="h-5 w-5 text-[hsl(170_100%_65%)] drop-shadow-[0_0_10px_hsl(170_100%_50%/0.45)]" />
+          )}
+        </span>
+        <span className="text-left leading-tight min-w-0">
+          <span className="block">
+            Create {batchCount} companion{batchCount > 1 ? "s" : ""}
+          </span>
+          <span className="block text-[10px] font-normal text-muted-foreground">
+            {isAdmin
+              ? "No FC spend · auto-name if empty"
+              : typeof tokens === "number" && tokens < finalTotalCost
+                ? `Need ${finalTotalCost} FC · you have ${tokens}`
+                : `${FINAL_COST_PER} FC each · ${finalTotalCost} total`}
+          </span>
+        </span>
+      </motion.button>
+    </div>
+  );
+
   const shell = (
     <div
       className={cn(
@@ -2380,7 +2461,7 @@ User flavor notes: ${extraNotes || "none"}`;
           >
             <div
               className={cn(
-                "motion-reduce:scroll-auto space-y-4 overscroll-y-contain lg:min-h-0 lg:max-h-full lg:flex-1 lg:overflow-y-auto lg:pb-2 lg:pr-2",
+                "motion-reduce:scroll-auto space-y-4 overscroll-y-contain lg:min-h-0 lg:max-h-full lg:flex-1 lg:overflow-y-auto lg:pb-8 lg:pr-2",
                 "max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto",
                 "[scrollbar-gutter:stable]",
                 "[scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin]",
@@ -3527,7 +3608,7 @@ User flavor notes: ${extraNotes || "none"}`;
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     Broad fictional genres / vibes only (no real people). Fills the same fields as{" "}
                     <strong className="text-white/90">Celebrity Parody</strong> at the top — then use{" "}
-                    <strong className="text-white/90">Live preview</strong>.
+                    <strong className="text-white/90">Generate portrait</strong> at the bottom of this forge column.
                   </p>
                   <textarea
                     value={parodyArchetype}
@@ -3553,6 +3634,8 @@ User flavor notes: ${extraNotes || "none"}`;
                 </div>
               </details>
             )}
+
+            {forgePortraitCommitActions("primary")}
             </div>
           </div>
 
@@ -3588,7 +3671,10 @@ User flavor notes: ${extraNotes || "none"}`;
                   </span>
                   <span className="min-w-0">
                     <span className="block text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">Live preview</span>
-                    <span className="text-[9px] text-muted-foreground/80 hidden sm:block">Portrait + profile card</span>
+                    <span className="text-[9px] text-muted-foreground/80 hidden sm:block">
+                      Portrait + profile card
+                      <span className="hidden lg:inline"> · portrait and save below the form</span>
+                    </span>
                   </span>
                 </span>
                 <span className="flex items-center gap-1.5 shrink-0">
@@ -3736,79 +3822,8 @@ User flavor notes: ${extraNotes || "none"}`;
                   </div>
                 ) : null}
 
-                {/* Portrait from prompts — then save companion */}
-                <div className="mt-4 grid gap-2.5 grid-cols-1">
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    disabled={previewLoading}
-                    onClick={() => void runPreview()}
-                    className="group flex min-h-[52px] items-center justify-start gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold text-white disabled:opacity-45 disabled:pointer-events-none border border-white/10"
-                    style={{
-                      background: `linear-gradient(135deg, ${NEON}, hsl(280 45% 42%))`,
-                      boxShadow: `0 0 36px ${NEON}30, inset 0 1px 0 rgba(255,255,255,0.12)`,
-                    }}
-                  >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black/25 border border-white/15 group-hover:border-white/25 transition-colors">
-                      {previewLoading ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      ) : (
-                        <Wand2 className="h-5 w-5 drop-shadow-[0_0_8px_rgba(255,255,255,0.35)]" />
-                      )}
-                    </span>
-                    <span className="text-left leading-tight min-w-0">
-                      <span className="block">Generate portrait</span>
-                      <span className="block text-[10px] font-normal opacity-90">
-                        Packshot prompt + fields below · {isAdmin ? "no FC" : `${PREVIEW_COST} FC preview`}
-                      </span>
-                    </span>
-                  </motion.button>
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    disabled={
-                      finalLoading ||
-                      (!isAdmin &&
-                        (loadingProfile || (typeof tokens === "number" && tokens < finalTotalCost)))
-                    }
-                    onClick={() => void runFinalCreate()}
-                    className={cn(
-                      "group flex min-h-[52px] items-center justify-start gap-3 rounded-2xl border px-4 py-3.5 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-black/40 text-[hsl(170_100%_78%)]",
-                      !isAdmin &&
-                        typeof tokens === "number" &&
-                        tokens >= finalTotalCost &&
-                        !finalLoading &&
-                        !loadingProfile &&
-                        "ring-2 ring-[hsl(170_100%_55%/0.45)] shadow-[0_0_36px_hsl(170_100%_45%/0.22)]",
-                    )}
-                    style={{
-                      borderColor: "hsl(170 100% 42% / 0.45)",
-                      boxShadow: `0 0 28px hsl(170 100% 42% / 0.12), inset 0 1px 0 rgba(255,255,255,0.06)`,
-                    }}
-                  >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[hsl(170_100%_42%)]/15 border border-[hsl(170_100%_42%)]/35 group-hover:bg-[hsl(170_100%_42%)]/25 transition-colors">
-                      {finalLoading ? (
-                        <Loader2 className="h-5 w-5 animate-spin text-[hsl(170_100%_70%)]" />
-                      ) : (
-                        <Gem className="h-5 w-5 text-[hsl(170_100%_65%)] drop-shadow-[0_0_10px_hsl(170_100%_50%/0.45)]" />
-                      )}
-                    </span>
-                    <span className="text-left leading-tight min-w-0">
-                      <span className="block">
-                        Create {batchCount} companion{batchCount > 1 ? "s" : ""}
-                      </span>
-                      <span className="block text-[10px] font-normal text-muted-foreground">
-                        {isAdmin
-                          ? "No FC spend · auto-name if empty"
-                          : typeof tokens === "number" && tokens < finalTotalCost
-                            ? `Need ${finalTotalCost} FC · you have ${tokens}`
-                            : `${FINAL_COST_PER} FC each · ${finalTotalCost} total`}
-                      </span>
-                    </span>
-                  </motion.button>
-                </div>
+                {/* Mobile “Preview” tab only — desktop uses forge-primary-actions in the form column */}
+                {forgePortraitCommitActions("mobilePreview")}
 
                 <div className="mt-4 rounded-xl border border-white/10 bg-black/35 p-4 backdrop-blur-sm">
                   <div className="flex items-center justify-between gap-2 mb-2">

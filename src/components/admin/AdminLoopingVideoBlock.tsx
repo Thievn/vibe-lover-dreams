@@ -73,7 +73,7 @@ export function AdminLoopingVideoBlock({ companionId, className, onSuccess, show
       {showMotionNotes ? (
         <div className="space-y-1.5">
           <Label htmlFor={`loop-motion-${companionId}`} className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Custom motion (optional)
+            Motion & camera (optional)
           </Label>
           <Textarea
             id={`loop-motion-${companionId}`}
@@ -85,7 +85,7 @@ export function AdminLoopingVideoBlock({ companionId, className, onSuccess, show
             disabled={busy}
           />
           <p className="text-[10px] text-muted-foreground/90">
-            Merged into the video prompt (max {MOTION_MAX} chars). Leave blank for defaults only.
+            When set, the model treats this as mandatory direction (highest priority in the prompt). Max {MOTION_MAX} chars. Leave blank for profile-driven defaults only.
           </p>
         </div>
       ) : null}

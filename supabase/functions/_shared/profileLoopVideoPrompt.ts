@@ -85,6 +85,29 @@ function personalityForgeSummary(raw: unknown, maxLen: number): string {
   return s.length <= maxLen ? s : `${s.slice(0, maxLen).trimEnd()}…`;
 }
 
+/** Admin / editor typed motion — server-capped; must dominate generic motion prose. */
+const EDITOR_MOTION_MAX_FULL = 800;
+const EDITOR_MOTION_MAX_MINIMAL = 600;
+
+function editorMotionBlockFull(notes: string | undefined): string {
+  const t = (notes ?? "").trim();
+  if (!t) return "";
+  const clipped = t.length > EDITOR_MOTION_MAX_FULL ? `${t.slice(0, EDITOR_MOTION_MAX_FULL).trimEnd()}…` : t;
+  return [
+    "**EDITOR_DIRECTIVES (MANDATORY — highest priority over every generic line below, including MOTION DIRECTION examples):**",
+    clipped,
+    "Realize these directives in gesture timing, body motion, pacing, and camera unless they require a different person, props not visible in the still, or breaking the mouth-still rule.",
+    "If EDITOR_DIRECTIVES conflict with generic 'invent one arc' language, **obey EDITOR_DIRECTIVES.**",
+  ].join("\n");
+}
+
+function editorMotionPrefixMinimal(notes: string | undefined): string {
+  const t = (notes ?? "").trim();
+  if (!t) return "";
+  const clipped = t.length > EDITOR_MOTION_MAX_MINIMAL ? `${t.slice(0, EDITOR_MOTION_MAX_MINIMAL).trimEnd()}…` : t;
+  return `MANDATORY editor motion (highest priority): ${clipped}. `;
+}
+
 /** Strip control chars that can break JSON or confuse upstream parsers. */
 export function sanitizePromptForVideoApi(s: string): string {
   return s
@@ -96,7 +119,10 @@ export function sanitizePromptForVideoApi(s: string): string {
 /**
  * Ultra-compact prompt when the full brief fails (oversized body, gateway HTML, etc.).
  */
-export function buildMinimalProfileLoopVideoPrompt(row: Record<string, unknown>): string {
+export function buildMinimalProfileLoopVideoPrompt(
+  row: Record<string, unknown>,
+  editorMotionNotes?: string,
+): string {
   const name = sliceStr(row.name, 80) || "Character";
   const tags = joinList(row.tags, 10, 240);
   const oneLine = sliceStr(row.appearance, 220) || sliceStr(row.tagline, 160);
@@ -105,9 +131,11 @@ export function buildMinimalProfileLoopVideoPrompt(row: Record<string, unknown>)
     isAnimeTemptationForgeTabId(activeTab) && !FORGE_ANIME_STYLE_LOCK_REGEX.test(oneLine)
       ? `${buildAnimeTemptationStyleLead("preview")} `
       : "";
+  const editorPfx = editorMotionPrefixMinimal(editorMotionNotes);
   return sanitizePromptForVideoApi(
     [
       animePrefix,
+      editorPfx,
       `${PROFILE_LOOP_VIDEO_FALLBACK_DURATION_SECONDS}s vertical 2:3 seamless loop from the source still. Character: ${name}.`,
       tags ? `Themes: ${tags}.` : "",
       oneLine ? `Visual vibe: ${oneLine}` : "",
@@ -125,7 +153,7 @@ export function buildMinimalProfileLoopVideoPrompt(row: Record<string, unknown>)
  * Builds a detailed, character-specific motion brief from DB fields.
  * Kept under xAI video prompt budgets (long rows caused non-JSON / gateway errors at 8k).
  */
-export function buildProfileLoopVideoPrompt(row: Record<string, unknown>): string {
+export function buildProfileLoopVideoPrompt(row: Record<string, unknown>, editorMotionNotes?: string): string {
   const name = sliceStr(row.name, 80) || "Character";
   const tagline = sliceStr(row.tagline, 160);
   const role = sliceStr(row.role, 56);
@@ -174,9 +202,13 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>): strin
 
   const themeBlock = themeLines.join("\n");
 
+  const editorBlock = editorMotionBlockFull(editorMotionNotes);
+  const hasEditor = Boolean((editorMotionNotes ?? "").trim());
+
   const body = [
     `Create a ${PROFILE_LOOP_VIDEO_DURATION_SECONDS}-second ultra-smooth vertical portrait loop video (2:3).`,
     "Same person and same overall scene as the source image: lighting, environment, and character identity. Do not invent a new character, new location, or new props that are not implied by the frame.",
+    editorBlock ? `${editorBlock}\n` : "",
     "If you show wardrobe or intimacy beats (tease, undress/redress, explicit or nude content), they must be grounded in what the still already shows or strongly implies, and the clip must return to a matching start state so the loop is seamless: first and last frames nearly identical. Examples: slowly lifting a hem or shirt then lowering it back; unbuttoning and re-buttoning; slipping a strap off and back; turning away and back to camera; a slow caress that ends where it began. The runtime allows a full tease-out and tease-back.",
     "",
     I2V_MOUTH_STILL_DIRECTIVE,
@@ -184,7 +216,12 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>): strin
     "CHARACTER CONTEXT (motion and mood only; do not replace the shot with a different scene):",
     themeBlock,
     "",
-    "MOTION DIRECTION: Invent ONE cohesive performance arc that fits this character's theme, not generic idle sway — favor silent dance, tease, and pose (not conversational face). Examples: lean-in; hair tuck; slow blink and expressive eyes; weight shift, hip sway, or torso roll that returns to center; hand-on-hip or fabric play; fantasy beats (crown, ears, tail, wings, spell sparkles). Lewd or explicit beats are allowed when they match the character and the still, as long as the loop closes, the camera stays consistent, and the mouth-still rule above is respected.",
+    hasEditor
+      ? "MOTION DIRECTION: **Execute EDITOR_DIRECTIVES above as the primary performance arc** (gesture, pacing, camera). The bullets below are secondary safety rails only — loop closure, identity lock, mouth-still, no new props."
+      : "MOTION DIRECTION: Invent ONE cohesive performance arc that fits this character's theme, not generic idle sway — favor silent dance, tease, and pose (not conversational face). Examples: lean-in; hair tuck; slow blink and expressive eyes; weight shift, hip sway, or torso roll that returns to center; hand-on-hip or fabric play; fantasy beats (crown, ears, tail, wings, spell sparkles). Lewd or explicit beats are allowed when they match the character and the still, as long as the loop closes, the camera stays consistent, and the mouth-still rule above is respected.",
+    hasEditor
+      ? "Secondary examples (use only if compatible with EDITOR_DIRECTIVES): lean-in; hair tuck; weight shift returning to center; fabric play; small fantasy flourishes already implied by the still."
+      : "",
     "",
     "ANATOMY (critical): Match the source still exactly for limbs — typically two arms and two hands visible in coherent poses; never add a third hand, floating disconnected hand, or duplicated appendage; if the still shows hands on a leash/reins/prop, do not invent an extra hand on the same prop.",
     "LOOP AND CAMERA: Seamless loop; first and last frames nearly identical; ease in and out; same camera angle, lens feel, and framing as the source image. No jump cuts, no new characters or objects, no text overlays.",
