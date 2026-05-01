@@ -29,7 +29,7 @@ function varianceDivergenceLine(variance: VarianceStrength): string {
   if (variance === "high") {
     return "Wardrobe + scene divergence (HIGH): keep face/body lineage cues from both parents, but enforce a notably different outfit, styling language, and setting from BOTH parents. No outfit clone, no copied room/set, no near-reskin.";
   }
-  return "Wardrobe + scene divergence (MEDIUM): keep face/body lineage cues from both parents, but give the child a distinct outfit and distinct background from BOTH parents. No outfit clone, no copied room/set, no near-reskin.";
+  return "Wardrobe + scene divergence (MEDIUM): keep face/body lineage cues from both parents, but give the fused companion a distinct outfit and distinct background from BOTH parents. No outfit clone, no copied room/set, no near-reskin.";
 }
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -117,7 +117,8 @@ function titleCaseWords(input: string): string {
     .join(" ");
 }
 
-function boringPresetName(name: string): boolean {
+/** Banned clichés; Grok names hitting these still get a collision suffix, not a server name generator. */
+function isBannedClicheName(name: string): boolean {
   const n = normalizeNameKey(name);
   if (!n) return true;
   const banned = new Set([
@@ -134,13 +135,9 @@ function boringPresetName(name: string): boolean {
     "midnight rose",
   ]);
   if (banned.has(n)) return true;
-  // Generic 1-word names are the most repetitive in Nexus output.
-  if (!n.includes(" ") && n.length <= 6) return true;
+  const parts = n.split(/\s+/).filter(Boolean);
+  if (parts.some((p) => banned.has(p))) return true;
   return false;
-}
-
-function pickRandom<T>(arr: readonly T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]!;
 }
 
 function parentTokenSet(parentA: Record<string, unknown>, parentB: Record<string, unknown>): Set<string> {
@@ -151,51 +148,10 @@ function parentTokenSet(parentA: Record<string, unknown>, parentB: Record<string
   return new Set(toks);
 }
 
-function buildNexusRandomName(parentA: Record<string, unknown>, parentB: Record<string, unknown>): string {
-  const starts = [
-    "Ari", "Cae", "Dra", "Ely", "Fae", "Gly", "Iri", "Jae", "Kae", "Lio", "Myr", "Nox", "Ori", "Pha",
-    "Qir", "Ryn", "Sae", "Tyr", "Vey", "Wyn", "Xae", "Yri", "Zyn",
-  ];
-  const mids = [
-    "la", "ri", "no", "va", "the", "sia", "lyn", "zor", "mira", "syl", "quinn", "vora", "nyx", "dara",
-    "kei", "rune", "ves", "iora", "zen", "ciel", "astra", "vora", "myra",
-  ];
-  const ends = [
-    "ne", "ra", "th", "is", "elle", "yn", "or", "a", "ia", "yx", "on", "ae", "eth", "el", "ess", "ar",
-  ];
-  const family = [
-    "Veilborn", "Nexuskin", "Riftweaver", "Starforge", "Duskveil", "Bloomrift", "Hollowsong", "Thornveil",
-    "Arclight", "Blackmere", "Cinderfall", "Duskborne", "Emberwynd", "Frostveil", "Glassthorn", "Holloway",
-    "Ivoryn", "Juniper", "Kestrel", "Locke", "Mirewood", "Nightbloom", "Orchid", "Pyrelake", "Quill", "Rooke",
-    "Stoneveil", "Thornfield", "Umber", "Vale", "Wilder", "Yarrow", "Zephyr",
-  ];
-  const blockedWords = new Set([
-    "luna", "raven", "scarlett", "violet", "nova", "lilith", "velvet", "shadow", "midnight", "rose", "obsidian",
-    "abyss", "sable", "neon", "ember", "vesper",
-  ]);
-  const parentWords = parentTokenSet(parentA, parentB);
-
-  for (let i = 0; i < 80; i++) {
-    const first = `${pickRandom(starts)}${pickRandom(mids)}${pickRandom(ends)}`.replace(/\s+/g, "");
-    const maybeSecond = Math.random() < 0.42 ? `${pickRandom(starts)}${pickRandom(ends)}` : "";
-    const given = titleCaseWords(`${first} ${maybeSecond}`.trim());
-    const surname = pickRandom(family);
-    const candidate = titleCaseWords(`${given} ${surname}`.trim()).slice(0, 64);
-    const key = normalizeNameKey(candidate);
-    const parts = key.split(" ");
-    const hasBlocked = parts.some((p) => blockedWords.has(p));
-    const hasParentToken = parts.some((p) => parentWords.has(p));
-    if (!hasBlocked && !hasParentToken && !boringPresetName(candidate)) {
-      return candidate;
-    }
-  }
-
-  return titleCaseWords(`${pickRandom(starts)}${pickRandom(mids)} ${pickRandom(family)}`.trim()).slice(0, 64);
-}
-
+/** Prefer Grok's tool `name`; only add a short disambiguator on DB collision — no server-side name lists. */
 async function chooseUniqueNexusName(
   supabase: ReturnType<typeof createClient>,
-  _proposedName: string,
+  proposedName: string,
   parentA: Record<string, unknown>,
   parentB: Record<string, unknown>,
 ): Promise<string> {
@@ -205,15 +161,31 @@ async function chooseUniqueNexusName(
     normalizeNameKey(String(parentA.name ?? "")),
     normalizeNameKey(String(parentB.name ?? "")),
   ]);
+  const parentWords = parentTokenSet(parentA, parentB);
 
-  for (let i = 0; i < 40; i++) {
-    const candidate = buildNexusRandomName(parentA, parentB);
-    const k = normalizeNameKey(candidate);
-    if (k && !used.has(k) && !parentNames.has(k) && !boringPresetName(candidate)) {
-      return candidate;
-    }
+  const isFree = (raw: string): boolean => {
+    const t = titleCaseWords(raw).trim().slice(0, 120);
+    if (!t) return false;
+    const k = normalizeNameKey(t);
+    if (!k || used.has(k) || parentNames.has(k)) return false;
+    const parts = k.split(/\s+/);
+    if (parts.some((p) => parentWords.has(p))) return false;
+    return true;
+  };
+
+  let base = titleCaseWords(String(proposedName || "").trim()).slice(0, 120);
+  if (!base || isBannedClicheName(base)) {
+    base = titleCaseWords(`Unbound ${crypto.randomUUID().replace(/-/g, "").slice(0, 10)}`).slice(0, 120);
   }
-  return `${buildNexusRandomName(parentA, parentB)} ${Math.floor(100 + Math.random() * 900)}`.slice(0, 64);
+
+  if (isFree(base)) return base;
+
+  for (let i = 0; i < 48; i++) {
+    const frag = crypto.randomUUID().replace(/-/g, "").slice(0, 4 + (i % 5));
+    const candidate = titleCaseWords(`${base} ${frag}`.trim()).slice(0, 120);
+    if (isFree(candidate)) return candidate;
+  }
+  return titleCaseWords(`${base} ${Date.now().toString(36)}`.trim()).slice(0, 120);
 }
 
 Deno.serve(async (req) => {
@@ -570,7 +542,7 @@ Deno.serve(async (req) => {
           " The user paid for INFUSION: bias inheritance toward Parent B (second) for appearance silhouette, wardrobe vibe, and dominant speech patterns — still mix Parent A’s kinks subtly.";
       } else {
         infuseLine =
-          " The user paid for INFUSION: amplify odds that rare overlapping tags/kinks between both parents surface in the child.";
+          " The user paid for INFUSION: amplify odds that rare overlapping tags/kinks between both parents surface in the fused companion.";
       }
     }
 
@@ -591,21 +563,33 @@ ${sourceContext} Invent ONE new wholly original hybrid adult companion that beli
 - image_prompt: single dense SFW vertical portrait brief (no nudity, no legible branding/signage)
 - fantasy_starters: exactly 4; each description is the verbatim first USER chat line (in-world; seductive, explicit, or playful per fused persona). FORBIDDEN: meta quiz closers ("Are you ready?", "Tell me when..."). End on dialogue or desire.
 
-Naming: invent a distinctive new name (2–4 words or one rare compound). Avoid repetitive default presets (examples to avoid: Luna, Raven, Scarlett, Nova, Lilith). Never reuse either parent’s full name.${infuseLine}
-Name quality rule (critical): generate a fresh random-feeling name that does not echo either parent's name, title, or signature motif words.
+Naming (critical — **you** invent the name; the server does **not** apply any name templates):
+- Output \`name\` as a **one-of-one** label for this fusion only. It must **sound** like the hybrid of both parents' Companion Forge identity: read each parent's \`forge_theme_dna.activeForgeTab\` plus merged slider / visual flavor (gothic, latex, eldritch, anime, cyber, etc.) and let **phonetics + cadence** follow that blend (archaic compounds, clipped handles, velvet noir, uncanny celestial, etc. as appropriate).
+- **Forbidden:** Luna/Raven/Scarlett/Nova/Lilith-class clichés; stock "fantasy surname" lists; repeating syllable-mash patterns (Ari+la+ne style); copying either parent's full name or distinctive parent name tokens.${infuseLine}
+- If you cannot invent a strong name, still output your best attempt — never leave \`name\` empty.
 
 Visual inheritance rule (critical): preserve blended facial structure, body silhouette, and optional fantasy anatomy cues (ears/tail/horns/wings) when appropriate.
 ${visualDivergenceLine}
 
 Forge theme DNA (each parent JSON includes \`forge_theme_dna\` — always present; may be inferred defaults for older vault cards): structured per-tab Companion Forge sliders + shared overrides + look lab + card pose. **You must hybridize** these maps for the fused companion — blend cues from BOTH parents across **all** canonical theme tab ids in \`forgeTabFeatures\` (${FORGE_THEME_TAB_IDS.join(", ")}), respect each parent's \`forgeTabSharedOverrides\`, and merge \`visualTailoring\` + art/scene + \`forgeCardPose\` into one coherent new \`image_prompt\`. If one profile is lighter on sliders, still weave the other's appearance text.
 
-Rarity: the \`rarity\` field in your tool output is ignored — the server rolls the child’s tier from the Nexus outcome table using both parents’ rarities. Still output a plausible \`rarity\` string for logging only.
+Rarity: the \`rarity\` field in your tool output is ignored — the server rolls the merged companion’s tier from the Nexus outcome table using both parents’ rarities. Still output a plausible \`rarity\` string for logging only.
 
 Also output merge_stats integers 0-100 (compatibility = how fused the two essences feel; resonance = emotional chord stability; pulse = erotic charge / tension; affinity = user bond potential).
 
 Output ONLY via the nexus_merge_companion tool call.`;
 
-    const userContent = `Parent A:\n${JSON.stringify(parentA)}\n\nParent B:\n${JSON.stringify(parentB)}\n\nFuse them.`;
+    const tabA = typeof themeInnerA.activeForgeTab === "string" ? themeInnerA.activeForgeTab.trim() : "";
+    const tabB = typeof themeInnerB.activeForgeTab === "string" ? themeInnerB.activeForgeTab.trim() : "";
+    const namingCue = [
+      "",
+      "Naming cue (forge — steer the tool `name` field from this hybrid, invented each time):",
+      `- Parent A primary forge tab id: "${tabA || "unknown"}"`,
+      `- Parent B primary forge tab id: "${tabB || "unknown"}"`,
+      "Blend those lanes into a wholly original display name. Do not use procedural name recipes or stock fantasy surnames.",
+    ].join("\n");
+
+    const userContent = `Parent A:\n${JSON.stringify(parentA)}\n\nParent B:\n${JSON.stringify(parentB)}\n\nFuse them.${namingCue}`;
 
     const fantasyStartersSchema = {
       type: "array",
@@ -635,7 +619,11 @@ Output ONLY via the nexus_merge_companion tool call.`;
     const toolParameters = {
       type: "object",
       properties: {
-        name: { type: "string" },
+        name: {
+          type: "string",
+          description:
+            "Wholly original display name for this merge only (2–5 words or one rare compound). Invent it yourself from the hybrid of both parents' forge_theme_dna (especially activeForgeTab + merged aesthetic). No Luna/Raven/Nova clichés, no template fantasy surnames, no syllable-mash generators. Must not echo parent names.",
+        },
         tagline: { type: "string" },
         gender: { type: "string" },
         orientation: { type: "string" },
