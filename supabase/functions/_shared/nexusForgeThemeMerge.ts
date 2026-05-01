@@ -1,9 +1,30 @@
 /**
- * Deterministic merge of parent `_forgeThemeV1` snapshots for Nexus-born children.
+ * Deterministic merge of parent forge theme snapshots (`_forgeThemeV2` / legacy `_forgeThemeV1`) for Nexus-born children.
  * Deno-safe — no path-alias imports.
  */
 
-const FORGE_THEME_TAB_IDS = ["anime", "monster", "gothic", "realistic", "dark_fantasy", "chaos"] as const;
+const FORGE_THEME_TAB_IDS = [
+  "anime",
+  "monster",
+  "gothic",
+  "realistic",
+  "dark_fantasy",
+  "chaos",
+  "cyber_neon_syndicate",
+  "starlit_siren_sci_fi",
+  "steampunk_velvet",
+  "retro_pinup_heat",
+  "iron_glory_apex",
+  "velvet_romance_soft",
+  "horror_whisper_court",
+  "feral_nature_covenant",
+  "royal_sin_palace",
+  "neon_alley_predator",
+  "celestial_fallen_halo",
+  "infernal_high_table",
+  "abyssal_depth_siren",
+  "grotesque_goddess_majesty",
+] as const;
 
 export function fnv1a32(s: string): number {
   let h = 2166136261;
@@ -33,7 +54,8 @@ function shuffleWithSeed<T>(arr: T[], seedStr: string): T[] {
 
 export function readForgeThemeDna(rawPersonalityForge: unknown): Record<string, unknown> | null {
   if (!rawPersonalityForge || typeof rawPersonalityForge !== "object") return null;
-  const inner = (rawPersonalityForge as Record<string, unknown>)._forgeThemeV1;
+  const root = rawPersonalityForge as Record<string, unknown>;
+  const inner = root._forgeThemeV2 ?? root._forgeThemeV1;
   if (!inner || typeof inner !== "object") return null;
   return inner as Record<string, unknown>;
 }
@@ -75,7 +97,9 @@ function blendUnknown(a: unknown, b: unknown, path: string, childId: string): un
   if (typeof a === "object" && typeof b === "object" && !Array.isArray(a) && !Array.isArray(b)) {
     const ao = a as Record<string, unknown>;
     const bo = b as Record<string, unknown>;
-    const keys = [...new Set([...Object.keys(ao), ...Object.keys(bo)])].filter((k) => k !== "_forgeThemeV1");
+    const keys = [...new Set([...Object.keys(ao), ...Object.keys(bo)])].filter(
+      (k) => k !== "_forgeThemeV1" && k !== "_forgeThemeV2",
+    );
     const out: Record<string, unknown> = {};
     for (const k of keys) {
       const v = blendUnknown(ao[k], bo[k], `${path}.${k}`, childId);
@@ -91,6 +115,7 @@ export function stripForgeThemeV1(raw: unknown): Record<string, unknown> {
   if (!raw || typeof raw !== "object") return {};
   const o = { ...(raw as Record<string, unknown>) };
   delete o._forgeThemeV1;
+  delete o._forgeThemeV2;
   return o;
 }
 
@@ -137,7 +162,7 @@ export function mergeForgeThemeSnapshotsV1(
   const ao = (themeA ?? {}) as Record<string, unknown>;
   const bo = (themeB ?? {}) as Record<string, unknown>;
   const merged = blendUnknown(ao, bo, "snap", childId) as Record<string, unknown>;
-  merged.v = 1;
+  merged.v = 2;
 
   const hTab = fnv1a32(`${childId}:activeForgeTab`);
   const at = typeof ao.activeForgeTab === "string" ? ao.activeForgeTab : "";
@@ -171,7 +196,7 @@ export function buildChildPersonalityForgeRow(
   const theme = mergeForgeThemeSnapshotsV1(themeA, themeB, childId);
   if (!theme && Object.keys(base).length === 0) return null;
   if (theme) {
-    return { ...base, _forgeThemeV1: theme };
+    return { ...base, _forgeThemeV2: theme, _forgeThemeV1: theme };
   }
   return Object.keys(base).length ? base : null;
 }

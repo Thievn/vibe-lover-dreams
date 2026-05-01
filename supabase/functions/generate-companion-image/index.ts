@@ -55,6 +55,7 @@ Deno.serve(async (req) => {
       imagePrompt?: string;
       target?: "catalog" | "forge";
       forgeRowUuid?: string;
+      contentTier?: string;
     };
 
     const { companionId, imagePrompt } = body;
@@ -117,6 +118,7 @@ Deno.serve(async (req) => {
       imagePrompt,
       characterData,
       target: storageTarget,
+      ...(body.contentTier === "forge_preview_sfw" ? { contentTier: "forge_preview_sfw" as const } : {}),
     });
 
     if (target === "forge") {

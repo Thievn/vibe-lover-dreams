@@ -7,6 +7,7 @@
 export const PORTRAIT_IMAGE_DESIGN_BRIEF = `Portrait design mandate (apply on every generation):
 • **Aspect:** vertical **2:3** trading-card / portrait print framing (wider than extreme phone-skinny) — not landscape.
 • You illustrate roster characters for a premium fantasy / romance companion product. The site is for adults, but THIS IMAGE must stay strictly SFW: no nudity, no visible genitals, no explicit sex acts — seductive pin-up, fashion editorial, or cinematic cover art only.
+• **Forge live preview:** no visible areolas or nipples through sheer, wet, or tight fabric; no sexual acts or explicit anatomy — tease with pose, gaze, lighting, and **opaque or artfully covered** wardrobe only.
 • No logos, watermarks, UI chrome, title cards, or legible signage/posters/tattoos that spell product, app, or platform names (treat the frame as pure character art, not advertising).
 • No printed category banners, "type lines," slug text, or typography spelling forge / body-type UI labels along the bottom or edge of the frame — show the character in-world only, never the picker string as on-image text.
 • Species & presentation: embrace originality — humans of any gender, non-binary glam, elves, vampires, angels, demons, werewolves, aliens, androids, merfolk, dragons, cosmic entities, anthro-inspired creatures, corrupted saints, mech-pilots, wasteland nomads, etc. Avoid generic stock-model sameness; vary silhouette, era, subculture, and facial storytelling.

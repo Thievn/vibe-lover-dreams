@@ -36,6 +36,27 @@ function joinList(v: unknown, maxItems: number, maxLen: number): string {
   return s.length <= maxLen ? s : `${s.slice(0, maxLen).trimEnd()}…`;
 }
 
+/** Active forge tab + pose from persisted theme snapshot (V2 or legacy V1). */
+function forgeThemeSnapshotSummary(raw: unknown, maxLen: number): string {
+  if (!raw || typeof raw !== "object") return "";
+  const root = raw as Record<string, unknown>;
+  const snap = (root._forgeThemeV2 ?? root._forgeThemeV1) as Record<string, unknown> | undefined;
+  if (!snap || typeof snap !== "object") return "";
+  const tab = typeof snap.activeForgeTab === "string" ? snap.activeForgeTab.trim() : "";
+  const pose = typeof snap.forgeCardPose === "string" ? snap.forgeCardPose.trim() : "";
+  const art = typeof snap.artStyle === "string" ? snap.artStyle.trim() : "";
+  const scene = typeof snap.sceneAtmosphere === "string" ? snap.sceneAtmosphere.trim() : "";
+  const parts = [
+    tab && `active forge tab "${tab}"`,
+    pose && `card pose ${pose}`,
+    art && `art ${art}`,
+    scene && `scene ${scene}`,
+  ].filter(Boolean);
+  const s = parts.join("; ");
+  if (!s) return "";
+  return s.length <= maxLen ? s : `${s.slice(0, maxLen).trimEnd()}…`;
+}
+
 /** Compact line from `personality_forge` jsonb (no src/ import in Edge). */
 function personalityForgeSummary(raw: unknown, maxLen: number): string {
   if (!raw || typeof raw !== "object") return "";
@@ -94,6 +115,7 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>): strin
   const archetypes = joinList(row.personality_archetypes, 6, 140);
   const vibeThemes = joinList(row.vibe_theme_selections, 8, 180);
   const personalityForge = personalityForgeSummary(row.personality_forge, 220);
+  const forgeThemeDna = forgeThemeSnapshotSummary(row.personality_forge, 260);
   const appearance = sliceStr(row.appearance, 320);
   const personality = sliceStr(row.personality, 260);
   const bio = sliceStr(row.bio, 180);
@@ -119,6 +141,7 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>): strin
     tags && `Tags / motifs: ${tags}.`,
     kinks && `Interests / tone (inform mood and performance): ${kinks}.`,
     personalityForge && `Personality matrix (forge): ${personalityForge}.`,
+    forgeThemeDna && `Forge theme DNA (tabs / pose / render): ${forgeThemeDna}.`,
     !personalityForge && archetypes && `Archetypes: ${archetypes}.`,
     !personalityForge && vibeThemes && `Mood / theme tags: ${vibeThemes}.`,
     appearance && `Look & wardrobe (stay consistent with the source image as the loop baseline): ${appearance}`,

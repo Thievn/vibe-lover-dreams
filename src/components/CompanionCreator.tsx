@@ -156,12 +156,16 @@ import {
   normalizeForgeThemeTabId,
   randomizeForgeTabFeatures,
   randomForgeCardPose,
+  FORGE_EXTENDED_THEME_TAB_IDS,
 } from "@/lib/forgeThemeTabs";
 import { ForgeThemeControls } from "@/components/forge/ForgeThemeControls";
 
 const NEON = "#FF2D7B";
 const PREVIEW_COST = FORGE_PREVIEW_FC;
 const FINAL_COST_PER = FORGE_CREATE_COMPANION_FC;
+
+const FORGE_EXTENDED_TAB_ACCENT =
+  "border-sky-400/35 bg-gradient-to-br from-slate-900/50 to-black/35 shadow-[0_0_14px_rgba(56,189,248,0.1)]";
 
 const FORGE_TAB_BUTTON_ACCENT: Record<ForgeThemeTabId, string> = {
   anime: "border-fuchsia-400/45 bg-gradient-to-br from-fuchsia-950/55 via-black/40 to-black/30 shadow-[0_0_20px_rgba(232,121,249,0.12)]",
@@ -170,7 +174,8 @@ const FORGE_TAB_BUTTON_ACCENT: Record<ForgeThemeTabId, string> = {
   realistic: "border-amber-400/38 bg-gradient-to-br from-amber-950/35 to-black/35",
   dark_fantasy: "border-indigo-400/45 bg-gradient-to-br from-indigo-950/50 to-black/40",
   chaos: "border-[#FF2D7B]/55 bg-gradient-to-br from-[#FF2D7B]/22 via-purple-950/35 to-black/35 shadow-[0_0_22px_rgba(255,45,123,0.18)]",
-};
+  ...Object.fromEntries(FORGE_EXTENDED_THEME_TAB_IDS.map((id) => [id, FORGE_EXTENDED_TAB_ACCENT])),
+} as Record<ForgeThemeTabId, string>;
 
 export type CompanionCreatorMode = "user" | "admin";
 
@@ -1321,8 +1326,13 @@ User flavor notes: ${extraNotes || "none"}`;
     return () => window.clearTimeout(t);
   }, [profileLoopJob]);
 
-  const buildPortraitGeneratePayload = useCallback((narrativeOverride?: string): Record<string, unknown> | null => {
+  const buildPortraitGeneratePayload = useCallback(
+    (
+      narrativeOverride?: string,
+      opts?: { contentTier: "forge_preview_sfw" | "full_adult_art" },
+    ): Record<string, unknown> | null => {
     if (!userId) return null;
+    const contentTier = opts?.contentTier ?? "forge_preview_sfw";
     const promptBodyType = effectiveBodyType;
     const nar = (narrativeOverride ?? narrativeAppearance).trim();
     const staturePrimary = isCompactStatureForgeBodyType(promptBodyType)
@@ -1351,6 +1361,7 @@ User flavor notes: ${extraNotes || "none"}`;
       prompt: clampForgePrompt(packshotPrompt) || clampForgePrompt(grokPrompt),
       userId,
       isPortrait: true,
+      contentTier,
       name: name || "Custom Companion",
       subtitle: tagline || "LustForge forged",
       ...(referenceImageUrl ? { referenceImageUrl } : {}),
@@ -1418,7 +1429,7 @@ User flavor notes: ${extraNotes || "none"}`;
     setPreviewLoading(true);
     if (isAdmin) pushForgeOp("Portrait: sending packshot to the image pipeline…", "info");
     try {
-      const base = buildPortraitGeneratePayload();
+      const base = buildPortraitGeneratePayload(undefined, { contentTier: "forge_preview_sfw" });
       if (!base) throw new Error("Not signed in.");
       const previewBody = isAdmin ? base : { ...base, tokenCost: PREVIEW_COST };
 
@@ -1695,7 +1706,9 @@ User flavor notes: ${extraNotes || "none"}`;
       let portraitUrl: string | null = stablePortraitDisplayUrl(previewRaw) ?? previewRaw;
       if (!portraitUrl) {
         if (isAdmin) pushForgeOp("No preview still — generating portrait from prompts (same as user flow)…", "info");
-        const payload = buildPortraitGeneratePayload(effectiveNarrative || undefined);
+        const payload = buildPortraitGeneratePayload(effectiveNarrative || undefined, {
+          contentTier: "full_adult_art",
+        });
         if (payload) {
           const portraitBody = {
             ...payload,
@@ -1785,22 +1798,24 @@ User flavor notes: ${extraNotes || "none"}`;
           : normalizeCompanionRarity(adminForgeRarity);
         const rarityForTcg = isAdmin ? adminTier : "rare";
         const displayTraitsSeed = `${userId}|${displayName}|${i}`;
+        const forgeThemeSnap = buildForgeThemeSnapshotV1({
+          activeForgeTab,
+          forgeCardPose,
+          artStyle,
+          sceneAtmosphere,
+          bodyType,
+          visualTailoring,
+          forgeTabFeatures,
+          forgeTabSharedOverrides,
+        });
         rows.push({
           user_id: userId,
           name: displayName,
           personality: rowPersonality,
           personality_forge: {
             ...forgePersonality,
-            _forgeThemeV1: buildForgeThemeSnapshotV1({
-              activeForgeTab,
-              forgeCardPose,
-              artStyle,
-              sceneAtmosphere,
-              bodyType,
-              visualTailoring,
-              forgeTabFeatures,
-              forgeTabSharedOverrides,
-            }),
+            _forgeThemeV2: forgeThemeSnap,
+            _forgeThemeV1: forgeThemeSnap,
           },
           personality_archetypes: forgePersonalityToArchetypeList(forgePersonality),
           vibe_theme_selections: [],
@@ -2473,23 +2488,25 @@ User flavor notes: ${extraNotes || "none"}`;
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {FORGE_THEME_TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveForgeTab(tab.id)}
-                    className={cn(
-                      "rounded-xl border px-3 py-2 text-left transition-colors",
-                      activeForgeTab === tab.id
-                        ? `${FORGE_TAB_BUTTON_ACCENT[tab.id]} text-white`
-                        : "border-white/12 bg-black/30 text-foreground/85 hover:bg-white/[0.05]",
-                    )}
-                  >
-                    <p className="text-xs font-semibold leading-tight">{tab.label}</p>
-                    <p className="mt-1 text-[10px] text-muted-foreground line-clamp-2">{tab.subtitle}</p>
-                  </button>
-                ))}
+              <div className="max-h-[min(52vh,28rem)] overflow-y-auto overflow-x-hidden pr-1 -mr-1">
+                <div className="flex flex-wrap gap-2">
+                  {FORGE_THEME_TABS.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveForgeTab(tab.id)}
+                      className={cn(
+                        "min-w-[calc(50%-0.25rem)] sm:min-w-[10.5rem] flex-1 sm:flex-none rounded-xl border px-2.5 py-2 text-left transition-colors sm:max-w-[12.5rem]",
+                        activeForgeTab === tab.id
+                          ? `${FORGE_TAB_BUTTON_ACCENT[tab.id]} text-white`
+                          : "border-white/12 bg-black/30 text-foreground/85 hover:bg-white/[0.05]",
+                      )}
+                    >
+                      <p className="text-[11px] sm:text-xs font-semibold leading-tight">{tab.label}</p>
+                      <p className="mt-1 text-[9px] sm:text-[10px] text-muted-foreground line-clamp-2">{tab.subtitle}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <p className="text-[11px] text-muted-foreground/90 leading-snug">{forgeTabLiveSummary(activeForgeTab)}</p>

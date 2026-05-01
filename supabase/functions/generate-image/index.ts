@@ -11,6 +11,11 @@ import { rewritePromptForImagine } from "../_shared/safeImagePromptRewriter.ts";
 import { maybeAppendForgeStyleSceneBlock } from "../_shared/forgePortraitAugmentation.ts";
 import { forgePortraitBodyTypeContract } from "../_shared/forgeBodyTypeContract.ts";
 import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
+import {
+  FORGE_PREVIEW_IMAGINE_HARD_SFW,
+  resolveImageContentTier,
+  UNIVERSAL_NON_PREVIEW_IMAGE_BASE,
+} from "../_shared/imageGenerationContentTier.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -78,6 +83,7 @@ serve(async (req) => {
       name = "",
       subtitle = "",
       tokenCost: rawTokenCost,
+      contentTier: rawContentTier,
     } = body as {
       prompt?: string;
       characterData?: Record<string, unknown>;
@@ -86,11 +92,14 @@ serve(async (req) => {
       name?: string;
       subtitle?: string;
       tokenCost?: number;
+      contentTier?: string;
     };
 
     if (!prompt || !userId) {
       throw new Error("Missing prompt or userId");
     }
+
+    const effectiveTier = resolveImageContentTier({ contentTier: rawContentTier, isPortrait });
 
     tokenCost =
       typeof rawTokenCost === "number" && Number.isFinite(rawTokenCost) && rawTokenCost > 0
@@ -181,8 +190,13 @@ serve(async (req) => {
         creditsChange: -tokenCost,
         balanceAfter: balAfterDeduct,
         transactionType: "image_generation",
-        description: isPortrait ? "Forge: portrait (Imagine)" : "Chat / gallery: image (Grok Imagine)",
-        metadata: { tokenCost, isPortrait },
+        description:
+          effectiveTier === "forge_preview_sfw"
+            ? "Forge: live preview portrait (Imagine, SFW)"
+            : isPortrait
+              ? "Forge / roster: portrait (Imagine, full expression)"
+              : "Chat / gallery: image (Grok Imagine)",
+        metadata: { tokenCost, isPortrait, contentTier: effectiveTier },
       });
     }
 
@@ -195,6 +209,7 @@ serve(async (req) => {
 
     const rewriterContext = JSON.stringify({
       isPortrait,
+      contentTier: effectiveTier,
       name,
       subtitle,
       characterData,
@@ -206,7 +221,7 @@ serve(async (req) => {
 
     const rawForRewrite = maybeAppendForgeStyleSceneBlock(String(prompt), characterData as Record<string, unknown>);
 
-    const rewriteMode = isPortrait ? "portrait_card" : "chat_session";
+    const rewriteMode = effectiveTier === "forge_preview_sfw" ? "portrait_card" : "chat_session";
 
     let safeRewritten: string;
     try {
@@ -296,7 +311,7 @@ serve(async (req) => {
       .filter(Boolean)
       .join("\n");
 
-    const finalPromptRaw = isPortrait
+    const finalPromptRaw = effectiveTier === "forge_preview_sfw"
       ? `
 ${PORTRAIT_IMAGE_DESIGN_BRIEF}
 
@@ -307,6 +322,7 @@ ${characterDetailsBlock}
 Key Rules:
 - Strictly SFW — no nudity, no visible genitals, no explicit sex acts
 - Extremely sexy and provocative but tasteful and artistic
+${FORGE_PREVIEW_IMAGINE_HARD_SFW}
 ${forgeBody ? `- **Forge body type** (Character Details) overrides any conflicting silhouette or species wording in the primary scene text below — match the physique spec (human builds, stature, mobility, anthro, hybrid, elemental, hyper-shape, etc.); never paint that spec as legible text on the image.` : ""}
 - ${anatomyKeyRules}
 - Highly detailed, cinematic lighting, premium quality, vertical portrait composition — collectible quality without any printed titles, category names, or typography on the canvas
@@ -317,6 +333,8 @@ ${safeRewritten}
     `.trim()
       : `
 Adults-only companion product. This render is for a private chat / gallery session (not a public catalog card). Follow xAI's content policies; do not depict minors.
+
+${UNIVERSAL_NON_PREVIEW_IMAGE_BASE}
 
 Create a highly detailed, cinematic, vertical 2:3 (trading-card) image of ${baseDescription}.
 

@@ -1,6 +1,9 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { PORTRAIT_IMAGE_DESIGN_BRIEF } from "./portraitImageDesignBrief.ts";
-import { buildAnatomyImagineKeyRules, resolveAnatomyVariant } from "./anatomyImageRules.ts";
+import { buildAnatomyImagineKeyRules, buildAnatomyRewriterDirective, resolveAnatomyVariant } from "./anatomyImageRules.ts";
+import type { ImageContentTier } from "./imageGenerationContentTier.ts";
+import { resolveImageContentTier, UNIVERSAL_NON_PREVIEW_IMAGE_BASE } from "./imageGenerationContentTier.ts";
+import { rewritePromptForImagine } from "./safeImagePromptRewriter.ts";
 
 const DEFAULT_IMAGE_MODEL = "grok-imagine-image";
 
@@ -23,6 +26,49 @@ ${imagePrompt}
     `.trim();
 }
 
+async function buildFullAdultArtPortraitPrompt(
+  imagePrompt: string,
+  characterData: Record<string, unknown>,
+  apiKey: string,
+): Promise<string> {
+  const anatomyVariant = resolveAnatomyVariant(characterData);
+  const anatomyDirective = buildAnatomyRewriterDirective(anatomyVariant);
+  const anatomyKey = buildAnatomyImagineKeyRules(anatomyVariant);
+  const rewriterContext = JSON.stringify({
+    name: characterData.name,
+    characterData,
+  }).slice(0, 6000);
+
+  const safeRewritten = await rewritePromptForImagine({
+    raw: imagePrompt.trim(),
+    context: rewriterContext,
+    anatomyPolicy: anatomyDirective,
+    apiKey,
+    rewriteMode: "chat_session",
+  });
+
+  const baseDescription =
+    (characterData.baseDescription as string) ||
+    (typeof characterData.appearance === "string" ? characterData.appearance.slice(0, 900) : "") ||
+    "a highly attractive character";
+
+  return `
+${UNIVERSAL_NON_PREVIEW_IMAGE_BASE}
+
+Adults-only companion product. Admin / roster portrait refresh (not Forge live preview). Follow xAI content policies; do not depict minors.
+
+Create a highly detailed, cinematic, vertical 2:3 portrait of ${baseDescription}.
+
+Visual rules:
+- No legible logos, watermarks, UI chrome, or fake app branding in-frame.
+- **Tasteful adult:** sensual nude, lingerie, wet fabric, and strong tease are in-bounds; avoid hardcore pornographic depiction, graphic penetration, or obscene gynecological close-ups — premium boudoir / editorial tone.
+- ${anatomyKey}
+
+PRIMARY SCENE (authoritative):
+${safeRewritten}
+  `.trim();
+}
+
 function storageFileName(target: PortraitStorageTarget, ext: string): string {
   if (target.kind === "catalog") return `${target.catalogId}.${ext}`;
   return `forge/${target.uuid}.${ext}`;
@@ -39,10 +85,20 @@ export async function renderPortraitToStorage(opts: {
   characterData: Record<string, unknown>;
   target: PortraitStorageTarget;
   model?: string;
+  /** Defaults to full expression (admin / nexus / catalog regen). */
+  contentTier?: ImageContentTier | string;
 }): Promise<{ publicUrl: string; displayUrl: string; storagePath: string }> {
   const { adminClient, apiKey, imagePrompt, characterData, target } = opts;
   const model = opts.model?.trim() || Deno.env.get("GROK_IMAGE_MODEL")?.trim() || DEFAULT_IMAGE_MODEL;
-  const finalPrompt = buildPortraitFinalPrompt(imagePrompt, characterData);
+  const effectiveTier = resolveImageContentTier({
+    contentTier: opts.contentTier,
+    isPortrait: false,
+  });
+
+  const finalPrompt =
+    effectiveTier === "forge_preview_sfw"
+      ? buildPortraitFinalPrompt(imagePrompt, characterData)
+      : await buildFullAdultArtPortraitPrompt(imagePrompt, characterData, apiKey);
 
   const aiResponse = await fetch("https://api.x.ai/v1/images/generations", {
     method: "POST",

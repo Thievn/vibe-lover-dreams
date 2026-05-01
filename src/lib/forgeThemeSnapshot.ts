@@ -1,5 +1,5 @@
 /**
- * Persisted forge theme DNA for Nexus + stash — stored under `personality_forge._forgeThemeV1`.
+ * Persisted forge theme DNA for Nexus + stash — stored under `personality_forge._forgeThemeV2` (and legacy `_forgeThemeV1`).
  */
 import { normalizeForgeVisualTailoring, type ForgeVisualTailoring } from "@/lib/forgeVisualTailoring";
 import {
@@ -15,7 +15,7 @@ import {
   normalizeForgeThemeTabId,
 } from "@/lib/forgeThemeTabs";
 
-export const FORGE_THEME_SNAPSHOT_VERSION = 1 as const;
+export const FORGE_THEME_SNAPSHOT_VERSION = 2 as const;
 
 export type ForgeThemeSnapshotV1 = {
   v: typeof FORGE_THEME_SNAPSHOT_VERSION;
@@ -55,7 +55,7 @@ export function buildForgeThemeSnapshotV1(input: {
 export function normalizeForgeThemeSnapshotV1(raw: unknown): ForgeThemeSnapshotV1 | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
-  if (o.v !== FORGE_THEME_SNAPSHOT_VERSION) return null;
+  if (o.v !== 1 && o.v !== 2) return null;
   const vt = o.visualTailoring;
   if (!vt || typeof vt !== "object") return null;
   return {
@@ -74,7 +74,8 @@ export function normalizeForgeThemeSnapshotV1(raw: unknown): ForgeThemeSnapshotV
 /** Extract snapshot from DB `personality_forge` JSON (ignores normalized personality keys). */
 export function parseForgeThemeSnapshotFromPersonalityForge(raw: unknown): ForgeThemeSnapshotV1 | null {
   if (!raw || typeof raw !== "object") return null;
-  const inner = (raw as Record<string, unknown>)._forgeThemeV1;
+  const root = raw as Record<string, unknown>;
+  const inner = root._forgeThemeV2 ?? root._forgeThemeV1;
   return normalizeForgeThemeSnapshotV1(inner);
 }
 

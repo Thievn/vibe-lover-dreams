@@ -3,7 +3,49 @@
  */
 import type { ForgeVisualTailoring } from "@/lib/forgeVisualTailoring";
 
-export type ForgeThemeTabId = "anime" | "monster" | "gothic" | "realistic" | "dark_fantasy" | "chaos";
+export const FORGE_CORE_THEME_TAB_IDS = ["anime", "monster", "gothic", "realistic", "dark_fantasy", "chaos"] as const;
+export type ForgeCoreThemeTabId = (typeof FORGE_CORE_THEME_TAB_IDS)[number];
+
+export const FORGE_EXTENDED_THEME_TAB_IDS = [
+  "cyber_neon_syndicate",
+  "starlit_siren_sci_fi",
+  "steampunk_velvet",
+  "retro_pinup_heat",
+  "iron_glory_apex",
+  "velvet_romance_soft",
+  "horror_whisper_court",
+  "feral_nature_covenant",
+  "royal_sin_palace",
+  "neon_alley_predator",
+  "celestial_fallen_halo",
+  "infernal_high_table",
+  "abyssal_depth_siren",
+  "grotesque_goddess_majesty",
+] as const;
+export type ForgeExtendedThemeTabId = (typeof FORGE_EXTENDED_THEME_TAB_IDS)[number];
+
+export type ForgeThemeTabId = ForgeCoreThemeTabId | ForgeExtendedThemeTabId;
+
+export const ALL_FORGE_THEME_TAB_IDS: readonly ForgeThemeTabId[] = [
+  ...FORGE_CORE_THEME_TAB_IDS,
+  ...FORGE_EXTENDED_THEME_TAB_IDS,
+];
+
+export type ForgeExtendedLabFeatures = {
+  voltage: number;
+  saturation: number;
+  gritVsPolish: number;
+  gloss: number;
+  motionWind: number;
+  intimacyBias: number;
+  worldWeirdness: number;
+  propLoad: number;
+  loreWhisper: string;
+};
+
+export function isForgeExtendedThemeTab(id: ForgeThemeTabId): id is ForgeExtendedThemeTabId {
+  return (FORGE_EXTENDED_THEME_TAB_IDS as readonly string[]).includes(id);
+}
 
 /** Seated / lounging / low-height poses — always facing the lens, never a generic standing catalog shot. */
 export type ForgeCardPoseId =
@@ -114,6 +156,20 @@ export const FORGE_THEME_TABS: { id: ForgeThemeTabId; label: string; subtitle: s
   { id: "realistic", label: "Realistic Craving", subtitle: "Natural skin detail, realism sliders, lived-in intimacy." },
   { id: "dark_fantasy", label: "Dark Fantasy", subtitle: "Runes, corruption, ritual markings, fallen archetypes." },
   { id: "chaos", label: "Eternal Chaos", subtitle: "Controlled insanity, hybrid horror/cute, maximal randomness." },
+  { id: "cyber_neon_syndicate", label: "Cyber Neon Syndicate", subtitle: "HUD gloss, chrome skin, synth-noir rain and hologram ads." },
+  { id: "starlit_siren_sci_fi", label: "Starlit Siren Sci-Fi", subtitle: "Zero-G silk, constellations on skin, soft ship-window rim light." },
+  { id: "steampunk_velvet", label: "Steampunk Velvet", subtitle: "Brass, cog jewelry, corsetry over boilersuit, coal-smoke warmth." },
+  { id: "retro_pinup_heat", label: "Retro Pin-Up Heat", subtitle: "Mid-century sets, film grain, cheeky poses, candy gloss." },
+  { id: "iron_glory_apex", label: "Iron Glory Apex", subtitle: "Sweat-sheen muscle, arena lights, victory-strut confidence." },
+  { id: "velvet_romance_soft", label: "Velvet Romance Soft", subtitle: "Candle haze, slow touches, whisper-close framing." },
+  { id: "horror_whisper_court", label: "Horror Whisper Court", subtitle: "Elegant dread, bloodless menace, porcelain stillness." },
+  { id: "feral_nature_covenant", label: "Feral Nature Covenant", subtitle: "Moss, rain, predator grace, pagan gold in twilight." },
+  { id: "royal_sin_palace", label: "Royal Sin Palace", subtitle: "Throne rooms, jewels, power posture, velvet cruelty." },
+  { id: "neon_alley_predator", label: "Neon Alley Predator", subtitle: "Wet asphalt, blade jewelry, hunted/hunter tension." },
+  { id: "celestial_fallen_halo", label: "Celestial Fallen Halo", subtitle: "Tarnished gold, broken halos, soft divine bruising." },
+  { id: "infernal_high_table", label: "Infernal High Table", subtitle: "Obsidian banquet, contract ink, slow-burn infernal glam." },
+  { id: "abyssal_depth_siren", label: "Abyssal Depth Siren", subtitle: "Biolume, pressure-haze, drowned-palace seduction." },
+  { id: "grotesque_goddess_majesty", label: "Grotesque Goddess Majesty", subtitle: "Monstrous glam, crowned weird, beautiful wrongness." },
 ];
 
 export type ForgeTabSharedOverride = {
@@ -190,7 +246,7 @@ export type ForgeChaosFeatures = {
   oopsAllTropes: boolean;
 };
 
-export type ForgeTabFeatureMap = {
+type ForgeCoreTabFeatureMap = {
   anime: ForgeAnimeFeatures;
   monster: ForgeMonsterFeatures;
   gothic: ForgeGothicFeatures;
@@ -198,6 +254,10 @@ export type ForgeTabFeatureMap = {
   dark_fantasy: ForgeDarkFantasyFeatures;
   chaos: ForgeChaosFeatures;
 };
+
+type ForgeExtendedTabFeatureMap = { [K in ForgeExtendedThemeTabId]: ForgeExtendedLabFeatures };
+
+export type ForgeTabFeatureMap = ForgeCoreTabFeatureMap & ForgeExtendedTabFeatureMap;
 
 export function clampForgeTabNum(v: number, min: number, max: number): number {
   if (Number.isNaN(v)) return min;
@@ -208,6 +268,17 @@ function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;
 }
 
+const FORGE_EXTENDED_LORE_WHISPERS = [
+  "last frame of a forbidden holo-ad",
+  "ozone, velvet, and distant thunder",
+  "crowd noise turned to honey static",
+  "salt on skin, starship coolant haze",
+  "wax candles drowning in black wine",
+  "rusted crown, fresh bruise glam",
+  "tide pool biolume kissing ankles",
+  "chrome saints filing their halos down",
+] as const;
+
 export function makeDefaultTabSharedOverrides(): Record<ForgeThemeTabId, ForgeTabSharedOverride> {
   const empty: ForgeTabSharedOverride = {
     bodyTypeEnabled: false,
@@ -217,13 +288,23 @@ export function makeDefaultTabSharedOverrides(): Record<ForgeThemeTabId, ForgeTa
     kinksEnabled: false,
     kinksValue: "",
   };
+  return Object.fromEntries(FORGE_THEME_TABS.map((t) => [t.id, { ...empty }])) as Record<
+    ForgeThemeTabId,
+    ForgeTabSharedOverride
+  >;
+}
+
+function makeDefaultExtendedLabFeatures(): ForgeExtendedLabFeatures {
   return {
-    anime: { ...empty },
-    monster: { ...empty },
-    gothic: { ...empty },
-    realistic: { ...empty },
-    dark_fantasy: { ...empty },
-    chaos: { ...empty },
+    voltage: 55,
+    saturation: 50,
+    gritVsPolish: 40,
+    gloss: 48,
+    motionWind: 42,
+    intimacyBias: 55,
+    worldWeirdness: 35,
+    propLoad: 38,
+    loreWhisper: "",
   };
 }
 
@@ -285,7 +366,10 @@ export function makeDefaultTabFeatures(): ForgeTabFeatureMap {
       symmetryBreak: false,
       oopsAllTropes: false,
     },
-  };
+    ...Object.fromEntries(
+      FORGE_EXTENDED_THEME_TAB_IDS.map((id) => [id, makeDefaultExtendedLabFeatures()]),
+    ),
+  } as ForgeTabFeatureMap;
 }
 
 /** Merge partial / legacy stash JSON into full typed tab map. */
@@ -419,6 +503,35 @@ export function normalizeForgeTabFeatureMap(raw: unknown): ForgeTabFeatureMap {
     };
   };
 
+  const mergeExtended = (id: ForgeExtendedThemeTabId, o: unknown): ForgeExtendedLabFeatures => {
+    const base = { ...d[id] };
+    if (!o || typeof o !== "object") return base;
+    const x = o as Record<string, unknown>;
+    const n = (k: keyof ForgeExtendedLabFeatures) =>
+      k === "loreWhisper"
+        ? typeof x.loreWhisper === "string"
+          ? x.loreWhisper.slice(0, 400)
+          : base.loreWhisper
+        : typeof x[k] === "number"
+          ? clampForgeTabNum(x[k] as number, 0, 100)
+          : base[k];
+    return {
+      voltage: n("voltage") as number,
+      saturation: n("saturation") as number,
+      gritVsPolish: n("gritVsPolish") as number,
+      gloss: n("gloss") as number,
+      motionWind: n("motionWind") as number,
+      intimacyBias: n("intimacyBias") as number,
+      worldWeirdness: n("worldWeirdness") as number,
+      propLoad: n("propLoad") as number,
+      loreWhisper: n("loreWhisper") as string,
+    };
+  };
+
+  const extendedPart = Object.fromEntries(
+    FORGE_EXTENDED_THEME_TAB_IDS.map((id) => [id, mergeExtended(id, r[id])]),
+  ) as { [K in ForgeExtendedThemeTabId]: ForgeExtendedLabFeatures };
+
   return {
     anime: mergeAnime(r.anime),
     monster: mergeMonster(r.monster),
@@ -426,6 +539,7 @@ export function normalizeForgeTabFeatureMap(raw: unknown): ForgeTabFeatureMap {
     realistic: mergeRealistic(r.realistic),
     dark_fantasy: mergeDark(r.dark_fantasy),
     chaos: mergeChaos(r.chaos),
+    ...extendedPart,
   };
 }
 
@@ -446,19 +560,16 @@ export function normalizeForgeTabSharedOverrides(raw: unknown): Record<ForgeThem
       kinksValue: typeof x.kinksValue === "string" ? x.kinksValue : base.kinksValue,
     };
   };
-  return {
-    anime: mergeOne("anime", r.anime),
-    monster: mergeOne("monster", r.monster),
-    gothic: mergeOne("gothic", r.gothic),
-    realistic: mergeOne("realistic", r.realistic),
-    dark_fantasy: mergeOne("dark_fantasy", r.dark_fantasy),
-    chaos: mergeOne("chaos", r.chaos),
-  };
+  return Object.fromEntries(FORGE_THEME_TABS.map((t) => [t.id, mergeOne(t.id, r[t.id])])) as Record<
+    ForgeThemeTabId,
+    ForgeTabSharedOverride
+  >;
 }
 
 export function normalizeForgeThemeTabId(raw: unknown): ForgeThemeTabId {
-  const ids: ForgeThemeTabId[] = ["anime", "monster", "gothic", "realistic", "dark_fantasy", "chaos"];
-  if (typeof raw === "string" && ids.includes(raw as ForgeThemeTabId)) return raw as ForgeThemeTabId;
+  if (typeof raw === "string" && (ALL_FORGE_THEME_TAB_IDS as readonly string[]).includes(raw)) {
+    return raw as ForgeThemeTabId;
+  }
   return "anime";
 }
 
@@ -585,8 +696,27 @@ export function buildForgeTabPromptAddon(o: {
         .join(" ");
       break;
     }
-    default:
-      themeProse = "";
+    default: {
+      if (isForgeExtendedThemeTab(o.tabId)) {
+        const f = o.features as ForgeExtendedLabFeatures;
+        themeProse = [
+          `Theme lab — voltage & neon / synth tension ${intensityLabel(f.voltage)}.`,
+          `Saturation & candy-vs-noir color ${intensityLabel(f.saturation)}.`,
+          `Film grit vs polish ${intensityLabel(f.gritVsPolish)}.`,
+          `Surface gloss & skin sheen ${intensityLabel(f.gloss)}.`,
+          `Motion, wind, hair whip ${intensityLabel(f.motionWind)}.`,
+          `Intimacy bias (close vs editorial) ${intensityLabel(f.intimacyBias)}.`,
+          `World weirdness / genre bend ${intensityLabel(f.worldWeirdness)}.`,
+          `Props & set-dressing load ${intensityLabel(f.propLoad)}.`,
+          f.loreWhisper.trim() ? `Lore whisper: "${f.loreWhisper.trim().slice(0, 200)}".` : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+      } else {
+        themeProse = "";
+      }
+      break;
+    }
   }
 
   const kinkLine = o.kinks.length ? o.kinks.join(", ") : "none specified";
@@ -597,15 +727,30 @@ export function buildForgeTabPromptAddon(o: {
 export function forgeTabLiveSummary(tabId: ForgeThemeTabId): string {
   const t = FORGE_THEME_TABS.find((x) => x.id === tabId);
   if (!t) return "";
-  const bits: Record<ForgeThemeTabId, string> = {
+  const bits: Partial<Record<ForgeThemeTabId, string>> = {
     anime: "big-eye anime stylization, shine, pose presets",
     monster: "appendages, texture, wings, creature silhouette",
     gothic: "corsetry, lace, pallor, tragic glamour",
     realistic: "skin truth, softness, lived-in detail",
     dark_fantasy: "corruption, runes, aura, fallen vs rising",
     chaos: "hybrid weirdness, maximal variety",
+    cyber_neon_syndicate: "HUD chrome, synth rain, hologram noir",
+    starlit_siren_sci_fi: "constellation skin, ship-window glow",
+    steampunk_velvet: "brass, velvet, cog jewelry, coal warmth",
+    retro_pinup_heat: "mid-century sets, film grain, cheeky tease",
+    iron_glory_apex: "arena lights, sweat sheen, power muscle",
+    velvet_romance_soft: "candles, slow touch, whisper framing",
+    horror_whisper_court: "elegant dread, porcelain stillness",
+    feral_nature_covenant: "moss, rain, pagan predator grace",
+    royal_sin_palace: "throne jewels, velvet cruelty, crown tension",
+    neon_alley_predator: "wet asphalt, blade jewelry, hunt tension",
+    celestial_fallen_halo: "tarnished gold, broken halo glam",
+    infernal_high_table: "obsidian banquet, contract ink heat",
+    abyssal_depth_siren: "biolume, drowned-palace seduction",
+    grotesque_goddess_majesty: "monstrous glam, crowned weird beauty",
   };
-  return `Active: ${t.label} — ${bits[tabId]}. These notes merge into your preview prompt and Extra notes.`;
+  const bit = bits[tabId] ?? "theme lab sliders + lore whisper";
+  return `Active: ${t.label} — ${bit}. These notes merge into your preview prompt and Extra notes.`;
 }
 
 // --- Randomizers ---
@@ -669,33 +814,53 @@ export function randomizeForgeTabFeatures(tab: ForgeThemeTabId, mode: "normal" |
       fallenVsRising: Math.random() < 0.5 ? "fallen_angel" : "rising_demon",
     };
   }
-  /* chaos */
-  if (mode === "chaos_wtf") {
+  if (isForgeExtendedThemeTab(tab)) {
     return {
-      garbagePailGrotesque: Math.random() < 0.65,
-      maxDegeneracy: Math.random() < 0.55,
-      bodyHorrorCuteBlend: rand100(),
-      randomizerPower: Math.max(70, rand100()),
-      whatTheFuckSeed: Math.floor(Math.random() * 9_000_000) + 1_000_000,
-      genreCollider: Math.max(55, rand100()),
-      propStorm: Math.max(50, rand100()),
-      cursedPalette: Math.max(45, rand100()),
-      symmetryBreak: Math.random() < 0.62,
-      oopsAllTropes: Math.random() < 0.48,
+      voltage: mode === "chaos_wtf" ? Math.max(45, rand100()) : rand100(),
+      saturation: mode === "chaos_wtf" ? Math.max(50, rand100()) : rand100(),
+      gritVsPolish: rand100(),
+      gloss: rand100(),
+      motionWind: rand100(),
+      intimacyBias: rand100(),
+      worldWeirdness: mode === "chaos_wtf" ? Math.max(55, rand100()) : rand100(),
+      propLoad: mode === "chaos_wtf" ? Math.max(50, rand100()) : rand100(),
+      loreWhisper:
+        mode === "chaos_wtf"
+          ? pick(FORGE_EXTENDED_LORE_WHISPERS)
+          : Math.random() < 0.35
+            ? pick(FORGE_EXTENDED_LORE_WHISPERS)
+            : "",
     };
   }
-  return {
-    garbagePailGrotesque: Math.random() < 0.25,
-    maxDegeneracy: Math.random() < 0.2,
-    bodyHorrorCuteBlend: rand100(),
-    randomizerPower: rand100(),
-    whatTheFuckSeed: Math.random() < 0.3 ? Math.floor(Math.random() * 9_000_000) + 1 : 0,
-    genreCollider: rand100(),
-    propStorm: rand100(),
-    cursedPalette: rand100(),
-    symmetryBreak: Math.random() < 0.35,
-    oopsAllTropes: Math.random() < 0.28,
-  };
+  if (tab === "chaos") {
+    if (mode === "chaos_wtf") {
+      return {
+        garbagePailGrotesque: Math.random() < 0.65,
+        maxDegeneracy: Math.random() < 0.55,
+        bodyHorrorCuteBlend: rand100(),
+        randomizerPower: Math.max(70, rand100()),
+        whatTheFuckSeed: Math.floor(Math.random() * 9_000_000) + 1_000_000,
+        genreCollider: Math.max(55, rand100()),
+        propStorm: Math.max(50, rand100()),
+        cursedPalette: Math.max(45, rand100()),
+        symmetryBreak: Math.random() < 0.62,
+        oopsAllTropes: Math.random() < 0.48,
+      };
+    }
+    return {
+      garbagePailGrotesque: Math.random() < 0.25,
+      maxDegeneracy: Math.random() < 0.2,
+      bodyHorrorCuteBlend: rand100(),
+      randomizerPower: rand100(),
+      whatTheFuckSeed: Math.random() < 0.3 ? Math.floor(Math.random() * 9_000_000) + 1 : 0,
+      genreCollider: rand100(),
+      propStorm: rand100(),
+      cursedPalette: rand100(),
+      symmetryBreak: Math.random() < 0.35,
+      oopsAllTropes: Math.random() < 0.28,
+    };
+  }
+  return randomizeForgeTabFeatures("anime", mode);
 }
 
 export function randomizeForgeTabField(
@@ -720,6 +885,10 @@ export function randomizeForgeTabField(
     return c as ForgeTabFeatureMap[ForgeThemeTabId];
   }
   if (typeof v === "string") {
+    if (isForgeExtendedThemeTab(tab) && fieldKey === "loreWhisper") {
+      c[fieldKey] = pick([...FORGE_EXTENDED_LORE_WHISPERS]);
+      return c as ForgeTabFeatureMap[ForgeThemeTabId];
+    }
     if (tab === "monster" && fieldKey === "hornConfig") c[fieldKey] = pick([...FORGE_MONSTER_HORN_OPTIONS]);
     else if (tab === "monster" && fieldKey === "tailType") c[fieldKey] = pick([...FORGE_MONSTER_TAIL_OPTIONS]);
     else if (tab === "monster" && fieldKey === "skinTexture") c[fieldKey] = pick([...FORGE_MONSTER_SKIN_OPTIONS]);
@@ -801,6 +970,76 @@ export const FORGE_TAB_RENDER_PRESETS: Record<ForgeThemeTabId, ForgeTabRenderPre
       specialFeatures: ["Heterochromia", "Bioluminescent markings"],
     },
   },
+  cyber_neon_syndicate: {
+    artStyle: "Cyberpunk Neon",
+    sceneAtmosphere: "Rain-Slick Rooftop With Hologram Sky",
+    visualTailoringPatch: { outfitStyle: "Tech harness streetwear", colorPalette: "Cyan + magenta + black" },
+  },
+  starlit_siren_sci_fi: {
+    artStyle: "Soft Sci-Fi Illustration",
+    sceneAtmosphere: "Observation Deck Stars",
+    visualTailoringPatch: { outfitStyle: "Flowing zero-g silks", colorPalette: "Silver + deep violet" },
+  },
+  steampunk_velvet: {
+    artStyle: "Steampunk Portrait",
+    sceneAtmosphere: "Brass Atrium With Gear Windows",
+    visualTailoringPatch: { outfitStyle: "Corset over boilersuit", colorPalette: "Brass + burgundy" },
+  },
+  retro_pinup_heat: {
+    artStyle: "Vintage Pin-Up",
+    sceneAtmosphere: "Pastel Studio Cyclorama",
+    visualTailoringPatch: { outfitStyle: "High-waist retro glam", colorPalette: "Cherry red + cream" },
+  },
+  iron_glory_apex: {
+    artStyle: "Sports Noir Realism",
+    sceneAtmosphere: "Arena Tunnel Rim Light",
+    visualTailoringPatch: { outfitStyle: "Athletic compression + tape", colorPalette: "Sweat sheen + steel blue" },
+  },
+  velvet_romance_soft: {
+    artStyle: "Romantic Oil Study",
+    sceneAtmosphere: "Candlelit Drawing Room",
+    visualTailoringPatch: { outfitStyle: "Silk slip and robe", colorPalette: "Rose smoke + gold" },
+  },
+  horror_whisper_court: {
+    artStyle: "Gothic Horror Glam",
+    sceneAtmosphere: "Marble Gallery After Hours",
+    visualTailoringPatch: { outfitStyle: "Victorian mourning chic", colorPalette: "Bone white + dried blood" },
+  },
+  feral_nature_covenant: {
+    artStyle: "Fantasy Nature Portrait",
+    sceneAtmosphere: "Moss Temple Ruins",
+    visualTailoringPatch: { outfitStyle: "Primitive luxe wraps", colorPalette: "Forest green + amber" },
+  },
+  royal_sin_palace: {
+    artStyle: "Baroque Fantasy",
+    sceneAtmosphere: "Throne Antechamber",
+    visualTailoringPatch: { outfitStyle: "Regal armor-gown hybrid", colorPalette: "Gold leaf + ink black" },
+  },
+  neon_alley_predator: {
+    artStyle: "Neo-Noir",
+    sceneAtmosphere: "Wet Alley Neon Bounce",
+    visualTailoringPatch: { outfitStyle: "Leather and chain mesh", colorPalette: "Teal + hot pink" },
+  },
+  celestial_fallen_halo: {
+    artStyle: "Angelic Fantasy",
+    sceneAtmosphere: "Broken Cloud Stair",
+    visualTailoringPatch: { outfitStyle: "Tarnished celestial silks", colorPalette: "Pale gold + bruised violet" },
+  },
+  infernal_high_table: {
+    artStyle: "Infernal Baroque",
+    sceneAtmosphere: "Obsidian Banquet Hall",
+    visualTailoringPatch: { outfitStyle: "Infernal couture", colorPalette: "Crimson + soot" },
+  },
+  abyssal_depth_siren: {
+    artStyle: "Bioluminescent Fantasy",
+    sceneAtmosphere: "Sunken Palace Balcony",
+    visualTailoringPatch: { outfitStyle: "Pearl net and scales", colorPalette: "Teal biolume + abyss blue" },
+  },
+  grotesque_goddess_majesty: {
+    artStyle: "Monstrous Glam Illustration",
+    sceneAtmosphere: "Cathedral Of Wrong Angles",
+    visualTailoringPatch: { outfitStyle: "Grotesque crown regalia", colorPalette: "Sickly pearl + void black" },
+  },
 };
 
 // --- UI field registry ---
@@ -824,7 +1063,30 @@ function selOpts(opts: readonly string[], labels?: readonly string[]): Pick<Forg
   return { selectOptions: opts, selectLabels: labels ?? opts };
 }
 
-export const FORGE_TAB_FIELD_ROWS: Record<ForgeThemeTabId, readonly ForgeThemeFieldRow[]> = {
+const LORE_WHISPER_SELECT_OPTIONS = ["", ...FORGE_EXTENDED_LORE_WHISPERS] as const;
+const LORE_WHISPER_SELECT_LABELS = ["(none)", ...FORGE_EXTENDED_LORE_WHISPERS] as const;
+
+/** Shared Theme Lab rows for all extended (14) forge tabs. */
+const FORGE_EXTENDED_THEME_FIELD_ROWS: readonly ForgeThemeFieldRow[] = [
+  { section: "Theme lab", key: "voltage", label: "Voltage / neon tension", hint: "Synth energy and hot highlights.", kind: "slider" },
+  { key: "saturation", label: "Color saturation", hint: "Candy pop vs desaturated noir.", kind: "slider" },
+  { key: "gritVsPolish", label: "Grit vs polish", hint: "Film grain / wear vs glassy perfection.", kind: "slider" },
+  { key: "gloss", label: "Surface gloss", hint: "Skin sheen, latex shine, wet reads.", kind: "slider" },
+  { key: "motionWind", label: "Motion & wind", hint: "Hair, cloth, particles in motion.", kind: "slider" },
+  { key: "intimacyBias", label: "Intimacy bias", hint: "Close breath vs editorial distance.", kind: "slider" },
+  { key: "worldWeirdness", label: "World weirdness", hint: "Genre bend and surreal set cues.", kind: "slider" },
+  { key: "propLoad", label: "Prop & set load", hint: "Accessories and environment density.", kind: "slider" },
+  {
+    key: "loreWhisper",
+    label: "Lore whisper",
+    hint: "Tiny story flavor stitched into prompts.",
+    kind: "select",
+    selectOptions: [...LORE_WHISPER_SELECT_OPTIONS],
+    selectLabels: [...LORE_WHISPER_SELECT_LABELS],
+  },
+];
+
+const FORGE_TAB_FIELD_ROWS_CORE = {
   anime: [
     { section: "Face & hair", key: "eyeShine", label: "Eye size & shine", hint: "Higher = bigger anime eyes and glossier highlights.", kind: "slider" },
     { key: "ahogeVariety", label: "Ahoge / stray locks", hint: "Silly hair antenna energy.", kind: "slider" },
@@ -900,4 +1162,11 @@ export const FORGE_TAB_FIELD_ROWS: Record<ForgeThemeTabId, readonly ForgeThemeFi
       sliderMax: 9_999_999,
     },
   ],
-};
+} as const satisfies Record<ForgeCoreThemeTabId, readonly ForgeThemeFieldRow[]>;
+
+export const FORGE_TAB_FIELD_ROWS: Record<ForgeThemeTabId, readonly ForgeThemeFieldRow[]> = {
+  ...(FORGE_TAB_FIELD_ROWS_CORE as unknown as Record<ForgeCoreThemeTabId, readonly ForgeThemeFieldRow[]>),
+  ...Object.fromEntries(
+    FORGE_EXTENDED_THEME_TAB_IDS.map((id) => [id, FORGE_EXTENDED_THEME_FIELD_ROWS]),
+  ),
+} as Record<ForgeThemeTabId, readonly ForgeThemeFieldRow[]>;
