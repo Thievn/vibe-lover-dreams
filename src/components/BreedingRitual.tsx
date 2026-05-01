@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, Baby, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
@@ -9,7 +9,7 @@ import { formatSupabaseError } from "@/lib/supabaseError";
 interface BreedingRitualProps {
   companionId: string;
   companionName: string;
-  onComplete: (offspringData: any) => void;
+  onComplete: (offspringData: BreedingOffspringData) => void;
   onClose: () => void;
   userId?: string;
   hasConnectedToys?: boolean;
@@ -57,6 +57,38 @@ export const BreedingRitual = ({
   const [progress, setProgress] = useState(0);
   const [isActive, setIsActive] = useState(true);
 
+  const completeRitual = useCallback(async () => {
+    setIsActive(false);
+
+    const offspringTypes = [
+      { name: "Hybrid", description: "A perfect blend of both parents", rarity: "common" },
+      { name: "Dominant", description: "Strong traits from the dominant parent", rarity: "uncommon" },
+      { name: "Recessive", description: "Hidden traits emerge", rarity: "rare" },
+      { name: "Mutant", description: "Something completely new", rarity: "legendary" },
+    ];
+
+    const selectedType = offspringTypes[Math.floor(Math.random() * offspringTypes.length)];
+
+    const offspringData: BreedingOffspringData = {
+      id: `offspring-${Date.now()}`,
+      name: `${companionName}'s ${selectedType.name} Offspring`,
+      type: selectedType.name,
+      description: selectedType.description,
+      rarity: selectedType.rarity,
+      traits: ["Affectionate", "Playful", "Curious", "Seductive"][Math.floor(Math.random() * 4)],
+      createdAt: new Date(),
+    };
+
+    try {
+      await saveBreedingRitualResult({ companionId, offspringData });
+      toast.success("🎉 Breeding ritual complete! A new offspring has been created!");
+      onComplete(offspringData);
+    } catch (error) {
+      console.error("Failed to save breeding result:", error);
+      toast.error(`Could not save breeding result: ${formatSupabaseError(error)}`);
+    }
+  }, [companionId, companionName, onComplete]);
+
   useEffect(() => {
     if (!isActive || currentStage >= BREEDING_STAGES.length) return;
 
@@ -89,39 +121,7 @@ export const BreedingRitual = ({
     };
 
     updateProgress();
-  }, [currentStage, isActive, userId, hasConnectedToys]);
-
-  const completeRitual = async () => {
-    setIsActive(false);
-
-    const offspringTypes = [
-      { name: "Hybrid", description: "A perfect blend of both parents", rarity: "common" },
-      { name: "Dominant", description: "Strong traits from the dominant parent", rarity: "uncommon" },
-      { name: "Recessive", description: "Hidden traits emerge", rarity: "rare" },
-      { name: "Mutant", description: "Something completely new", rarity: "legendary" },
-    ];
-
-    const selectedType = offspringTypes[Math.floor(Math.random() * offspringTypes.length)];
-
-    const offspringData: BreedingOffspringData = {
-      id: `offspring-${Date.now()}`,
-      name: `${companionName}'s ${selectedType.name} Offspring`,
-      type: selectedType.name,
-      description: selectedType.description,
-      rarity: selectedType.rarity,
-      traits: ["Affectionate", "Playful", "Curious", "Seductive"][Math.floor(Math.random() * 4)],
-      createdAt: new Date(),
-    };
-
-    try {
-      await saveBreedingRitualResult({ companionId, offspringData });
-      toast.success("🎉 Breeding ritual complete! A new offspring has been created!");
-      onComplete(offspringData);
-    } catch (error) {
-      console.error("Failed to save breeding result:", error);
-      toast.error(`Could not save breeding result: ${formatSupabaseError(error)}`);
-    }
-  };
+  }, [completeRitual, currentStage, isActive, userId, hasConnectedToys]);
 
   const currentStageData = BREEDING_STAGES[currentStage];
   const IconComponent = currentStageData?.icon;
