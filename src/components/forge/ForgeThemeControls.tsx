@@ -5,6 +5,7 @@ import {
   type ForgeThemeTabId,
   randomizeForgeTabField,
 } from "@/lib/forgeThemeTabs";
+import { FORGE_ANIME_BODY_DESIGN_OPTIONS, FORGE_ANIME_DESIGN_PICK_MAX, normalizeAnimeDesignPickIds } from "@/lib/forgeAnimeDesignOptions";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
@@ -31,9 +32,9 @@ export type ForgeThemeControlsProps = {
 
 export function ForgeThemeControls({ activeTab, features, onFeaturesChange }: ForgeThemeControlsProps) {
   const rows = FORGE_TAB_FIELD_ROWS[activeTab];
-  const f = features as Record<string, number | string | boolean>;
+  const f = features as Record<string, number | string | boolean | string[]>;
 
-  const patch = (key: string, value: number | string | boolean) => {
+  const patch = (key: string, value: number | string | boolean | string[]) => {
     onFeaturesChange({ ...f, [key]: value } as ForgeTabFeatureMap[ForgeThemeTabId]);
   };
 
@@ -56,6 +57,38 @@ export function ForgeThemeControls({ activeTab, features, onFeaturesChange }: Fo
         const v = f[row.key];
 
         const control = (() => {
+          if (row.kind === "multiPick" && row.key === "designPickIds") {
+            const ids = normalizeAnimeDesignPickIds(f[row.key]);
+            return (
+              <div className="grid max-h-[220px] grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
+                {FORGE_ANIME_BODY_DESIGN_OPTIONS.map((opt) => {
+                  const on = ids.includes(opt.id);
+                  return (
+                    <label
+                      key={opt.id}
+                      className="flex cursor-pointer items-start gap-2 rounded-md border border-white/[0.08] bg-black/35 px-2 py-1.5 text-[11px] leading-snug hover:border-white/15"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        disabled={!on && ids.length >= FORGE_ANIME_DESIGN_PICK_MAX}
+                        onChange={() => {
+                          if (on) {
+                            patch(row.key, ids.filter((x) => x !== opt.id));
+                          } else if (ids.length < FORGE_ANIME_DESIGN_PICK_MAX) {
+                            patch(row.key, [...ids, opt.id]);
+                          }
+                        }}
+                        className="mt-0.5 shrink-0 rounded border-white/20"
+                      />
+                      <span className="text-foreground/90">{opt.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            );
+          }
+
           if (row.kind === "toggle") {
             const on = Boolean(v);
             return (

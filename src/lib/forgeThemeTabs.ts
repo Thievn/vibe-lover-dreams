@@ -1,6 +1,17 @@
 /**
  * Companion Forge — theme tabs: typed feature state, UI field registry, prompt prose, randomizers, render presets.
  */
+import {
+  FORGE_ANIME_STYLE_DNA_FULL,
+  FORGE_ANIME_STYLE_DNA_PREVIEW,
+  FORGE_ANIME_ANTI_REALISM_LINE,
+} from "@/lib/forgeAnimeStyleDna";
+import {
+  animeDesignPromptFromIds,
+  FORGE_ANIME_DESIGN_PICK_MAX,
+  normalizeAnimeDesignPickIds,
+  randomAnimeDesignPickIds,
+} from "@/lib/forgeAnimeDesignOptions";
 import type { ForgeVisualTailoring } from "@/lib/forgeVisualTailoring";
 
 /** Radix Select cannot use `value=""` — lore whisper “off” uses this sentinel. */
@@ -230,10 +241,8 @@ export const FORGE_TAB_STYLE_DNA: Record<
   { styleDnaFull: string; styleDnaPreview: string }
 > = {
   anime_temptation: {
-    styleDnaFull:
-      "Anime temptation lane: clean 2D cel or soft-gradient paint, large expressive eyes with controlled speculars, stylized hair silhouette, fashion-forward otaku glam — key visual polish, flirty but composed.",
-    styleDnaPreview:
-      "Stylized 2D anime key visual: expressive eyes, clean line art, modest coverage fashion — tasteful pin-up framing, no explicit nudity.",
+    styleDnaFull: `${FORGE_ANIME_STYLE_DNA_FULL} ${FORGE_ANIME_ANTI_REALISM_LINE}`.trim(),
+    styleDnaPreview: `${FORGE_ANIME_STYLE_DNA_PREVIEW} ${FORGE_ANIME_ANTI_REALISM_LINE}`.trim(),
   },
   monster_desire: {
     styleDnaFull:
@@ -390,6 +399,8 @@ export type ForgeAnimeFeatures = {
   skirtPhysics: number;
   ahegaoIntensity: number;
   hairHighlights: number;
+  /** Up to `FORGE_ANIME_DESIGN_PICK_MAX` ids from `FORGE_ANIME_BODY_DESIGN_OPTIONS`. */
+  designPickIds: string[];
 };
 
 export type ForgeMonsterFeatures = {
@@ -519,6 +530,7 @@ export function makeDefaultTabFeatures(): ForgeTabFeatureMap {
       skirtPhysics: 58,
       ahegaoIntensity: 12,
       hairHighlights: 64,
+      designPickIds: [],
     },
     monster_desire: {
       tentacleCount: 4,
@@ -599,6 +611,7 @@ export function normalizeForgeTabFeatureMap(raw: unknown): ForgeTabFeatureMap {
       skirtPhysics: n("skirtPhysics"),
       ahegaoIntensity: n("ahegaoIntensity"),
       hairHighlights: n("hairHighlights"),
+      designPickIds: normalizeAnimeDesignPickIds(x.designPickIds),
     };
   };
 
@@ -834,14 +847,18 @@ export function buildForgeTabPromptAddon(o: {
   switch (o.tabId) {
     case "anime_temptation": {
       const f = o.features as ForgeAnimeFeatures;
+      const designLine = animeDesignPromptFromIds(normalizeAnimeDesignPickIds(f.designPickIds));
       themeProse = [
+        designLine,
         `Anime-forward portrait: ${intensityLabel(f.eyeShine)} eye size emphasis and specular "shine" on stylized irises.`,
         `Ahoge / stray hair silliness at ${intensityLabel(f.ahogeVariety)}.`,
         `Legwear layering and thigh-high stack reads ${intensityLabel(f.thighhighLayers)}.`,
         `Skirt weight, pleats, and "physics" exaggeration at ${intensityLabel(f.skirtPhysics)}.`,
         `Expressive "ahegao-adjacent" face play (still SFW card) at ${intensityLabel(f.ahegaoIntensity)} — more cartoon exaggeration, not explicit.`,
         `Hair streaks and highlight ribbons at ${intensityLabel(f.hairHighlights)}.`,
-      ].join(" ");
+      ]
+        .filter(Boolean)
+        .join(" ");
       break;
     }
     case "monster_desire": {
@@ -981,6 +998,7 @@ function rand100(): number {
 
 export function randomizeForgeTabFeatures(tab: ForgeThemeTabId, mode: "normal" | "chaos_wtf"): ForgeTabFeatureMap[ForgeThemeTabId] {
   if (tab === "anime_temptation") {
+    const pickN = mode === "chaos_wtf" ? FORGE_ANIME_DESIGN_PICK_MAX : 3 + Math.floor(Math.random() * 3);
     return {
       eyeShine: rand100(),
       ahogeVariety: rand100(),
@@ -988,6 +1006,7 @@ export function randomizeForgeTabFeatures(tab: ForgeThemeTabId, mode: "normal" |
       skirtPhysics: rand100(),
       ahegaoIntensity: rand100(),
       hairHighlights: rand100(),
+      designPickIds: randomAnimeDesignPickIds(pickN),
     };
   }
   if (tab === "monster_desire") {
@@ -1088,8 +1107,12 @@ export function randomizeForgeTabField(
   fieldKey: string,
   current: ForgeTabFeatureMap[ForgeThemeTabId],
 ): ForgeTabFeatureMap[ForgeThemeTabId] {
-  const c = { ...current } as Record<string, number | string | boolean>;
+  const c = { ...current } as Record<string, number | string | boolean | string[]>;
   const v = c[fieldKey];
+  if (tab === "anime_temptation" && fieldKey === "designPickIds") {
+    c.designPickIds = randomAnimeDesignPickIds(3 + Math.floor(Math.random() * 3));
+    return c as ForgeTabFeatureMap[ForgeThemeTabId];
+  }
   if (typeof v === "number") {
     if (tab === "monster_desire" && fieldKey === "tentacleCount") {
       c[fieldKey] = Math.floor(Math.random() * 13);
@@ -1264,7 +1287,7 @@ export const FORGE_TAB_RENDER_PRESETS: Record<ForgeThemeTabId, ForgeTabRenderPre
 
 // --- UI field registry ---
 
-export type ForgeThemeFieldKind = "slider" | "toggle" | "select" | "numberInput";
+export type ForgeThemeFieldKind = "slider" | "toggle" | "select" | "numberInput" | "multiPick";
 
 export type ForgeThemeFieldRow = {
   section?: string;
@@ -1308,6 +1331,13 @@ const FORGE_EXTENDED_THEME_FIELD_ROWS: readonly ForgeThemeFieldRow[] = [
 
 const FORGE_TAB_FIELD_ROWS_CORE = {
   anime_temptation: [
+    {
+      section: "Anime Body & Design",
+      key: "designPickIds",
+      label: "Design tropes",
+      hint: `Pick up to ${FORGE_ANIME_DESIGN_PICK_MAX} — shapes face, hair, body read, markers, and outfit cues for this tab.`,
+      kind: "multiPick",
+    },
     { section: "Face & hair", key: "eyeShine", label: "Eye size & shine", hint: "Higher = bigger anime eyes and glossier highlights.", kind: "slider" },
     { key: "ahogeVariety", label: "Ahoge / stray locks", hint: "Silly hair antenna energy.", kind: "slider" },
     { key: "hairHighlights", label: "Streaks & highlights", hint: "Ribbon streaks and secondary hair colors.", kind: "slider" },

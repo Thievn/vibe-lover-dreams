@@ -10,6 +10,7 @@ import {
   normalizeForgeSceneInput,
   type ForgeSceneAtmosphere,
 } from "@/lib/forgeScenePresets";
+import { buildAnimeTemptationStyleLead, isAnimeTemptationForgeTabId, type ForgeAnimeStyleTier } from "@/lib/forgeAnimeStyleDna";
 import { forgePortraitBodyTypeContract } from "@/lib/forgeBodyTypes";
 import { type IdentityAnatomyDetail, identityAnatomyForPortraitPrompt } from "@/lib/identityAnatomyDetail";
 
@@ -102,6 +103,12 @@ export function normalizeForgeArtStyle(input: string): ForgeArtStyle {
   return hit ?? "Photorealistic";
 }
 
+/** When Anime Temptation is the active forge tab, Imagine prompts must use 2D anime art lane. */
+export function effectiveForgeArtStyleForGeneration(artStyle: string, forgeTabId: string | undefined): ForgeArtStyle {
+  if (isAnimeTemptationForgeTabId(forgeTabId)) return "Anime Style";
+  return normalizeForgeArtStyle(artStyle);
+}
+
 export function normalizeForgeScene(input: string): ForgeSceneAtmosphere {
   return normalizeForgeSceneInput(input);
 }
@@ -114,6 +121,10 @@ export { forgeSceneAtmosphereHint };
 
 export type ForgePortraitPromptArgs = {
   name: string;
+  /** Active Companion Forge theme tab — when `anime_temptation`, forces 2D anime style lock. */
+  forgeThemeTabId?: string;
+  /** Tier for the prepended anime style DNA block; default `preview` for SFW forge cards. */
+  forgeImageStyleTier?: ForgeAnimeStyleTier;
   /** Forge body type label (authoritative for silhouette / species / stature / material). */
   bodyType: string;
   /**
@@ -151,7 +162,9 @@ const GENDER_SCOPE_LINE = (label: string) =>
  * Body contract already opens with `A character, …`; scene does not impose a site-wide dark theme unless chosen.
  */
 export function composeForgePortraitPrompt(a: ForgePortraitPromptArgs): string {
-  const art = normalizeForgeArtStyle(a.artStyle);
+  const tier: ForgeAnimeStyleTier = a.forgeImageStyleTier ?? "preview";
+  const animeTab = isAnimeTemptationForgeTabId(a.forgeThemeTabId);
+  const art = animeTab ? ("Anime Style" as const) : normalizeForgeArtStyle(a.artStyle);
   const scene = normalizeForgeScene(a.sceneAtmosphere);
   const artHint = forgeArtDirectionHint(art);
   const sceneHint = forgeSceneAtmosphereHint(scene);
@@ -161,7 +174,7 @@ export function composeForgePortraitPrompt(a: ForgePortraitPromptArgs): string {
   const genderLabel = (a.genderPresentation ?? "").trim();
   const eth = compactLine(a.ethnicitySeed ?? "", 90);
 
-  return [
+  const body = [
     bodyContract,
     genderLabel ? GENDER_SCOPE_LINE(genderLabel) : "",
     a.identityAnatomy && a.identityAnatomy !== ""
@@ -190,4 +203,11 @@ export function composeForgePortraitPrompt(a: ForgePortraitPromptArgs): string {
     .filter(Boolean)
     .join(" ")
     .slice(0, 2600);
+
+  if (animeTab) {
+    const lead = `${buildAnimeTemptationStyleLead(tier)} `;
+    const maxBody = Math.max(0, 2600 - lead.length);
+    return `${lead}${body.slice(0, maxBody)}`.trim();
+  }
+  return body;
 }

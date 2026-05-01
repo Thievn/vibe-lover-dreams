@@ -121,6 +121,7 @@ function buildDefaultForgeTabFeaturesAllTabs(): Record<string, unknown> {
       skirtPhysics: 58,
       ahegaoIntensity: 12,
       hairHighlights: 64,
+      designPickIds: [],
     },
     monster_desire: {
       tentacleCount: 4,

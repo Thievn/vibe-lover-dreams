@@ -1,3 +1,9 @@
+import {
+  buildAnimeTemptationStyleLead,
+  FORGE_ANIME_STYLE_LOCK_REGEX,
+  isAnimeTemptationForgeTabId,
+} from "./forgeAnimeStyleDna.ts";
+
 /**
  * Profile companion-page loop videos: image-to-video via Grok Imagine (`generate-profile-loop-video`).
  * Duration is mirrored in edge function API calls.
@@ -37,6 +43,15 @@ function joinList(v: unknown, maxItems: number, maxLen: number): string {
 }
 
 /** Active forge tab + pose from persisted theme snapshot (V2 or legacy V1). */
+function readActiveForgeTabFromPersonalityForge(raw: unknown): string {
+  if (!raw || typeof raw !== "object") return "";
+  const r = raw as Record<string, unknown>;
+  const inner = (r._forgeThemeV2 ?? r._forgeThemeV1) as Record<string, unknown> | undefined;
+  if (!inner || typeof inner !== "object") return "";
+  const t = inner.activeForgeTab;
+  return typeof t === "string" ? t.trim() : "";
+}
+
 function forgeThemeSnapshotSummary(raw: unknown, maxLen: number): string {
   if (!raw || typeof raw !== "object") return "";
   const root = raw as Record<string, unknown>;
@@ -85,8 +100,14 @@ export function buildMinimalProfileLoopVideoPrompt(row: Record<string, unknown>)
   const name = sliceStr(row.name, 80) || "Character";
   const tags = joinList(row.tags, 10, 240);
   const oneLine = sliceStr(row.appearance, 220) || sliceStr(row.tagline, 160);
+  const activeTab = readActiveForgeTabFromPersonalityForge(row.personality_forge);
+  const animePrefix =
+    isAnimeTemptationForgeTabId(activeTab) && !FORGE_ANIME_STYLE_LOCK_REGEX.test(oneLine)
+      ? `${buildAnimeTemptationStyleLead("preview")} `
+      : "";
   return sanitizePromptForVideoApi(
     [
+      animePrefix,
       `${PROFILE_LOOP_VIDEO_FALLBACK_DURATION_SECONDS}s vertical 2:3 seamless loop from the source still. Character: ${name}.`,
       tags ? `Themes: ${tags}.` : "",
       oneLine ? `Visual vibe: ${oneLine}` : "",
@@ -175,6 +196,12 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>): strin
 
   /** Video I2V APIs: stay conservative — oversized prompts correlated with failures. */
   const MAX_PROMPT_CHARS = 2800;
-  const capped = body.length <= MAX_PROMPT_CHARS ? body : `${body.slice(0, MAX_PROMPT_CHARS).trimEnd()}…`;
+  const activeTab = readActiveForgeTabFromPersonalityForge(row.personality_forge);
+  const animePrefix =
+    isAnimeTemptationForgeTabId(activeTab) && !FORGE_ANIME_STYLE_LOCK_REGEX.test(body)
+      ? `${buildAnimeTemptationStyleLead("preview")}\n\n`
+      : "";
+  const rawOut = animePrefix + body;
+  const capped = rawOut.length <= MAX_PROMPT_CHARS ? rawOut : `${rawOut.slice(0, MAX_PROMPT_CHARS).trimEnd()}…`;
   return sanitizePromptForVideoApi(capped);
 }

@@ -9,6 +9,12 @@ import {
 } from "../_shared/anatomyImageRules.ts";
 import { rewritePromptForImagine } from "../_shared/safeImagePromptRewriter.ts";
 import { maybeAppendForgeStyleSceneBlock } from "../_shared/forgePortraitAugmentation.ts";
+import {
+  buildAnimeTemptationStyleLead,
+  effectiveForgeArtStyleLabelForCharacterData,
+  FORGE_ANIME_STYLE_LOCK_REGEX,
+  isAnimeTemptationForgeTabId,
+} from "../_shared/forgeAnimeStyleDna.ts";
 import { buildForgeStyleDnaPrefix } from "../_shared/forgeTabStyleDna.ts";
 import { forgePortraitBodyTypeContract } from "../_shared/forgeBodyTypeContract.ts";
 import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
@@ -220,12 +226,19 @@ serve(async (req) => {
     const anatomyDirective = buildAnatomyRewriterDirective(anatomyVariant);
     const anatomyKeyRules = buildAnatomyImagineKeyRules(anatomyVariant);
 
-    const dnaPrefix = buildForgeStyleDnaPrefix(
-      characterData as Record<string, unknown>,
-      effectiveTier === "forge_preview_sfw" ? "preview" : "full",
-    );
-    const sceneBlock = maybeAppendForgeStyleSceneBlock(String(prompt), characterData as Record<string, unknown>);
-    const rawForRewrite = [dnaPrefix, sceneBlock].filter((s) => String(s).trim()).join("\n\n");
+    const cd = characterData as Record<string, unknown>;
+    const tabForAnime = cd.selectedForgeTab ?? cd.selected_forge_tab ?? cd.activeForgeTab;
+    const isAnime = isAnimeTemptationForgeTabId(tabForAnime);
+    const tierRewrite = effectiveTier === "forge_preview_sfw" ? "preview" : "full";
+    const dnaPrefix = buildForgeStyleDnaPrefix(cd, tierRewrite);
+    const cdScene = { ...cd };
+    const artRaw = String(cdScene.artStyleLabel ?? cdScene.art_style_label ?? "").trim();
+    cdScene.artStyleLabel = effectiveForgeArtStyleLabelForCharacterData(artRaw, cdScene);
+    cdScene.art_style_label = cdScene.artStyleLabel;
+    const sceneBlock = maybeAppendForgeStyleSceneBlock(String(prompt), cdScene);
+    const promptHasAnimeLock = isAnime && FORGE_ANIME_STYLE_LOCK_REGEX.test(String(prompt));
+    const animeRewriteLead = isAnime && !promptHasAnimeLock ? buildAnimeTemptationStyleLead(tierRewrite) : "";
+    const rawForRewrite = [animeRewriteLead, dnaPrefix, sceneBlock].filter((s) => String(s).trim()).join("\n\n");
 
     const rewriteMode = effectiveTier === "forge_preview_sfw" ? "portrait_card" : "chat_session";
 
@@ -255,7 +268,10 @@ serve(async (req) => {
     }
 
     const forgeBody = String(characterData.bodyType ?? "").trim();
-    const forgeArt = String(characterData.artStyleLabel ?? characterData.art_style_label ?? "").trim();
+    const forgeArt = effectiveForgeArtStyleLabelForCharacterData(
+      String(characterData.artStyleLabel ?? characterData.art_style_label ?? ""),
+      characterData as Record<string, unknown>,
+    );
     const silCat = String(characterData.silhouetteCategory ?? characterData.silhouette_category ?? "").trim();
     const stylizedSilhouette = ["anthro", "fantasy", "hybrid", "otherworldly", "hyper", "creative"].includes(
       silCat,
@@ -317,8 +333,11 @@ serve(async (req) => {
       .filter(Boolean)
       .join("\n");
 
+    const needsFinalAnimeLead = isAnime && !FORGE_ANIME_STYLE_LOCK_REGEX.test(safeRewritten);
+    const animeFinalLead = needsFinalAnimeLead ? `${buildAnimeTemptationStyleLead(tierRewrite)}\n\n` : "";
+
     const finalPromptRaw = effectiveTier === "forge_preview_sfw"
-      ? `
+      ? `${animeFinalLead}
 ${PORTRAIT_IMAGE_DESIGN_BRIEF}
 
 Create a highly seductive, provocative, and artistic 2:3 (vertical card) portrait of ${baseDescription}.
@@ -330,6 +349,7 @@ Key Rules:
 - Extremely sexy and provocative but tasteful and artistic
 ${FORGE_PREVIEW_IMAGINE_HARD_SFW}
 ${forgeBody ? `- **Forge body type** (Character Details) overrides any conflicting silhouette or species wording in the primary scene text below — match the physique spec (human builds, stature, mobility, anthro, hybrid, elemental, hyper-shape, etc.); never paint that spec as legible text on the image.` : ""}
+${isAnime ? "- **2D anime discipline:** Authentic flat/soft-cel **2D anime illustration** — preserve stylized proportions, clean line art, and anime eyes; do not convert to photoreal or 3D.\n" : ""}
 - ${anatomyKeyRules}
 - Highly detailed, cinematic lighting, premium quality, vertical portrait composition — collectible quality without any printed titles, category names, or typography on the canvas
 ${refLines ? `${refLines}\n` : ""}
@@ -337,7 +357,7 @@ ${refLines ? `${refLines}\n` : ""}
 PRIMARY SCENE DIRECTION (follow this closely — premium, cinematic, maximum sensual tension through pose, gaze, fabric, and light; do not depict anything that violates SFW rules):
 ${safeRewritten}
     `.trim()
-      : `
+      : `${animeFinalLead}
 Adults-only companion product. This render is for a private chat / gallery session (not a public catalog card). Follow xAI's content policies; do not depict minors.
 
 ${UNIVERSAL_NON_PREVIEW_IMAGE_BASE}
@@ -350,7 +370,11 @@ Visual rules:
 - No legible logos, watermarks, UI chrome, fake app branding, or readable product/store signage in-frame.
 - **Tasteful adult:** sensual nude, lingerie, and strong tease are in-bounds; avoid hardcore pornographic depiction, graphic penetration, or obscene gynecological close-ups — premium boudoir / editorial tone.
 - **Roster reference vs outfit:** If continuity calls for the same individual as a profile portrait, match face, hair, and body from Character Details / portrait lock — but **do not** automatically reuse that portrait's swimsuit, bikini, or catalog garment when PRIMARY SCENE describes a different setting or wardrobe (lingerie, wet shirt, nude, gym, bed, etc.). Invent scene-accurate clothing or undress per PRIMARY SCENE.
-- **Chibi / exaggerated card art:** If the reference looks super-deformed or non-photoreal, render a **coherent photoreal adult human** who clearly resembles that character’s face and vibe — do not copy broken head-to-body proportions unless PRIMARY SCENE explicitly asks for stylized art.
+${
+        isAnime
+          ? "- **2D anime discipline:** Render as authentic flat/soft-cel **2D anime illustration** matching PRIMARY SCENE — preserve stylized proportions, line art, and anime eyes; do not convert to photoreal or 3D."
+          : "- **Chibi / exaggerated card art:** If the reference looks super-deformed or non-photoreal, render a **coherent photoreal adult human** who clearly resembles that character’s face and vibe — do not copy broken head-to-body proportions unless PRIMARY SCENE explicitly asks for stylized art."
+      }
 ${portraitLock ? `- **Portrait / roster continuity** (Character Details) wins over casual drift in PRIMARY SCENE — same character, same body-type label, same art style family unless RAW_TEXT explicitly requests a deliberate alternate.` : ""}
 ${forgeBody ? `- **Forge body type + silhouette contract** (Character Details) override conflicting silhouette, species, or build wording in the scene text below.` : ""}
 - ${anatomyKeyRules}

@@ -95,6 +95,7 @@ import {
   FORGE_SCENE_ATMOSPHERES,
   FORGE_SCENE_GROUPS,
   composeForgePortraitPrompt,
+  effectiveForgeArtStyleForGeneration,
   normalizeForgeArtStyle,
   normalizeForgeScene,
 } from "@/lib/forgePortraitPrompt";
@@ -966,6 +967,11 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     [extraNotes, tabPromptAddon],
   );
 
+  const effectiveArtForGeneration = useMemo(
+    () => effectiveForgeArtStyleForGeneration(artStyle, activeForgeTab),
+    [artStyle, activeForgeTab],
+  );
+
   const appearanceBlurb = useMemo(() => {
     const t = combinedAccentSelections.length ? combinedAccentSelections.join(", ") : "no listed signature accents";
     const eth =
@@ -974,8 +980,19 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     const lab = `Look lab: ${vt.hairColor} ${vt.hairStyle}, ${vt.eyeColor} eyes, ${vt.skinTone} skin, ${vt.height}; outfit ${vt.outfitStyle} (${vt.colorPalette}).`;
     const an = labelIdentityAnatomyForTags(identityAnatomyDetail);
     const anSeg = an ? `; optional anatomy label: ${an} (adult-consistent with identity)` : "";
-    return `${effectiveBodyType} silhouette (authoritative); gender/presentation (face & voice): ${gender}${anSeg}; ${eth}${artStyle} look; scene: ${sceneAtmosphere}; ${t}. ${lab} Personalities: ${personalityLabel}. ${mergedExtraNotes}`.trim();
-  }, [combinedAccentSelections, effectiveBodyType, gender, identityAnatomyDetail, ethnicity, artStyle, sceneAtmosphere, personalityLabel, mergedExtraNotes, visualTailoring]);
+    return `${effectiveBodyType} silhouette (authoritative); gender/presentation (face & voice): ${gender}${anSeg}; ${eth}${effectiveArtForGeneration} look; scene: ${sceneAtmosphere}; ${t}. ${lab} Personalities: ${personalityLabel}. ${mergedExtraNotes}`.trim();
+  }, [
+    combinedAccentSelections,
+    effectiveBodyType,
+    gender,
+    identityAnatomyDetail,
+    ethnicity,
+    effectiveArtForGeneration,
+    sceneAtmosphere,
+    personalityLabel,
+    mergedExtraNotes,
+    visualTailoring,
+  ]);
 
   const portraitAppearanceText = useMemo(
     () => narrativeAppearance.trim() || appearanceBlurb,
@@ -986,6 +1003,8 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     () =>
       composeForgePortraitPrompt({
         name: name || "an original companion",
+        forgeThemeTabId: activeForgeTab,
+        forgeImageStyleTier: "preview",
         bodyType: effectiveBodyType,
         genderPresentation: gender,
         identityAnatomy: identityAnatomyDetail,
@@ -1001,6 +1020,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       }),
     [
       name,
+      activeForgeTab,
       effectiveBodyType,
       gender,
       identityAnatomyDetail,
@@ -1354,8 +1374,8 @@ User flavor notes: ${extraNotes || "none"}`;
       ? `${staturePrimary}${nar.slice(0, 900)}${ethTail} ${vtLine}`
       : `${staturePrimary}Original character — authoritative physique from forge body type "${promptBodyType}"${combinedAccentSelections.length ? `; signature accents: ${combinedAccentSelections.slice(0, 8).join(", ")}` : ""}. Gender (${gender}) affects face/voice/presentation only, not base silhouette. Silhouette must match the forge label, not a default human model.${ethTail} ${vtLine}`;
     const clothingLine = nonHumanVisual
-      ? `Wardrobe and materials appropriate for ${bodyType} and ${artStyle} — species- and silhouette-first; avoid unrelated generic human runway looks unless clearly humanoid glam.`
-      : `Fashion and textures echoing ${sceneAtmosphere} and ${artStyle} — personality flavor: ${personalityLabel}`;
+      ? `Wardrobe and materials appropriate for ${bodyType} and ${effectiveArtForGeneration} — species- and silhouette-first; avoid unrelated generic human runway looks unless clearly humanoid glam.`
+      : `Fashion and textures echoing ${sceneAtmosphere} and ${effectiveArtForGeneration} — personality flavor: ${personalityLabel}`;
     const poseHuman = forgeCardPoseProse(forgeCardPose);
     const poseLine = nonHumanVisual
       ? `Pose that clearly sells "${bodyType}" — show correct limbs, tail, wings, hybrid junction, or non-human mass as implied; same forged identity, not a stock human substitute. Still **eyes toward camera** like: ${poseHuman}`
@@ -1370,14 +1390,14 @@ User flavor notes: ${extraNotes || "none"}`;
       subtitle: tagline || "LustForge forged",
       ...(referenceImageUrl ? { referenceImageUrl } : {}),
       characterData: {
-        style: artStyle.toLowerCase().replace(/\s+/g, "-"),
-        artStyleLabel: artStyle,
+        style: effectiveArtForGeneration.toLowerCase().replace(/\s+/g, "-"),
+        artStyleLabel: effectiveArtForGeneration,
         randomize: false,
         bodyType: promptBodyType,
         silhouetteCategory: silCat,
         ...(nar ? { appearance: nar.slice(0, 2500) } : {}),
         vibe: personalityLabel,
-        hair: `styled to match the scene, ${artStyle}, and the character's personality blend`,
+        hair: `styled to match the scene, ${effectiveArtForGeneration}, and the character's personality blend`,
         eyes: combinedAccentSelections.includes("Glowing eyes") ? "striking glowing eyes" : "expressive, magnetic eyes",
         clothing: clothingLine,
         expression: `${personalityLabel} energy`,
@@ -1403,6 +1423,7 @@ User flavor notes: ${extraNotes || "none"}`;
     name,
     tagline,
     artStyle,
+    effectiveArtForGeneration,
     sceneAtmosphere,
     effectiveBodyType,
     combinedAccentSelections,
@@ -1691,6 +1712,8 @@ User flavor notes: ${extraNotes || "none"}`;
       const portraitAppearanceForRow = effectiveNarrative || appearanceBlurb;
       const rowGrokPrompt = composeForgePortraitPrompt({
         name: forgeName || "an original companion",
+        forgeThemeTabId: activeForgeTab,
+        forgeImageStyleTier: "full",
         bodyType,
         genderPresentation: gender,
         identityAnatomy: identityAnatomyDetail,

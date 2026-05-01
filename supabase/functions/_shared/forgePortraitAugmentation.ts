@@ -3,6 +3,8 @@
  * Idempotent: skips if the raw prompt already contains the forge scene marker from `composeForgePortraitPrompt`.
  */
 
+import { effectiveForgeArtStyleLabelForCharacterData } from "./forgeAnimeStyleDna.ts";
+
 const MARKER = "Primary environment —";
 
 function artHint(art: string): string {
@@ -81,7 +83,10 @@ export function maybeAppendForgeStyleSceneBlock(
   const raw = String(rawPrompt ?? "").trim();
   if (!raw || raw.includes(MARKER)) return raw;
 
-  const art = String(characterData.artStyleLabel ?? characterData.art_style_label ?? "").trim();
+  const art = effectiveForgeArtStyleLabelForCharacterData(
+    String(characterData.artStyleLabel ?? characterData.art_style_label ?? ""),
+    characterData,
+  );
   const sceneRaw = String(
     characterData.sceneAtmosphere ?? characterData.scene_atmosphere ?? "",
   ).trim();

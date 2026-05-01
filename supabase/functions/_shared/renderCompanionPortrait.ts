@@ -4,6 +4,11 @@ import { buildAnatomyImagineKeyRules, buildAnatomyRewriterDirective, resolveAnat
 import type { ImageContentTier } from "./imageGenerationContentTier.ts";
 import { resolveImageContentTier, UNIVERSAL_NON_PREVIEW_IMAGE_BASE } from "./imageGenerationContentTier.ts";
 import { rewritePromptForImagine } from "./safeImagePromptRewriter.ts";
+import {
+  buildAnimeTemptationStyleLead,
+  FORGE_ANIME_STYLE_LOCK_REGEX,
+  isAnimeTemptationForgeTabId,
+} from "./forgeAnimeStyleDna.ts";
 import { buildForgeStyleDnaPrefix } from "./forgeTabStyleDna.ts";
 
 const DEFAULT_IMAGE_MODEL = "grok-imagine-image";
@@ -15,8 +20,12 @@ export type PortraitStorageTarget =
 export function buildPortraitFinalPrompt(imagePrompt: string, characterData: Record<string, unknown>): string {
   const anatomyKey = buildAnatomyImagineKeyRules(resolveAnatomyVariant(characterData));
   const dna = buildForgeStyleDnaPrefix(characterData, "preview");
+  const tabRaw = characterData.selectedForgeTab ?? characterData.selected_forge_tab ?? characterData.activeForgeTab;
+  const anime = isAnimeTemptationForgeTabId(tabRaw);
+  const animeLead =
+    anime && !FORGE_ANIME_STYLE_LOCK_REGEX.test(imagePrompt) ? `${buildAnimeTemptationStyleLead("preview")}\n\n` : "";
   return `
-${dna ? `${dna}\n\n` : ""}${PORTRAIT_IMAGE_DESIGN_BRIEF}
+${animeLead}${dna ? `${dna}\n\n` : ""}${PORTRAIT_IMAGE_DESIGN_BRIEF}
 
 Create a highly detailed, cinematic, seductive SFW portrait for a romance / AI companion catalog card.
 Strictly SFW: no nudity, no visible genitals, no explicit sex acts. Artistic pin-up or cover quality.
@@ -55,8 +64,14 @@ async function buildFullAdultArtPortraitPrompt(
     "a highly attractive character";
 
   const dna = buildForgeStyleDnaPrefix(characterData, "full");
+  const tabRaw = characterData.selectedForgeTab ?? characterData.selected_forge_tab ?? characterData.activeForgeTab;
+  const anime = isAnimeTemptationForgeTabId(tabRaw);
+  const animeLead =
+    anime && !FORGE_ANIME_STYLE_LOCK_REGEX.test(safeRewritten)
+      ? `${buildAnimeTemptationStyleLead("full")}\n\n`
+      : "";
   return `
-${dna ? `${dna}\n\n` : ""}${UNIVERSAL_NON_PREVIEW_IMAGE_BASE}
+${animeLead}${dna ? `${dna}\n\n` : ""}${UNIVERSAL_NON_PREVIEW_IMAGE_BASE}
 
 Adults-only companion product. Admin / roster portrait refresh (not Forge live preview). Follow xAI content policies; do not depict minors.
 

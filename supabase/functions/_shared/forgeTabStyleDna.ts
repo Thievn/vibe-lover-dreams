@@ -1,6 +1,7 @@
 /**
  * Forge tab → style DNA for Imagine prompts (Edge). Keep tab ids aligned with `nexusForgeThemeMerge.ts` / client `forgeThemeTabs.ts`.
  */
+import { isAnimeTemptationForgeTabId } from "./forgeAnimeStyleDna.ts";
 
 const CANONICAL_FORGE_THEME_TAB_IDS = [
   "anime_temptation",
@@ -58,8 +59,8 @@ function normalizeForgeTabIdForDna(raw: unknown): string {
 
 const STYLE_DNA: Record<string, { full: string; preview: string }> = {
   anime_temptation: {
-    full: "Anime temptation: 2D cel / soft-gradient anime key visual, expressive eyes, stylized hair, fashion-forward otaku glam.",
-    preview: "Stylized 2D anime portrait: expressive eyes, clean line art, modest fashion — tasteful pin-up, SFW.",
+    full: "Anime temptation: 2D anime lock is injected separately — preserve ultra-detailed 2D anime illustration discipline.",
+    preview: "Anime temptation: 2D anime lock is injected separately — preserve SFW 2D anime illustration discipline.",
   },
   monster_desire: {
     full: "Monster desire: coherent creature anatomy, horns/tail/wings, textured skin, seductive beast-royalty mood.",
@@ -145,6 +146,8 @@ export function buildForgeStyleDnaPrefix(characterData: Record<string, unknown>,
     characterData.selectedForgeTab ?? characterData.selected_forge_tab ?? characterData.activeForgeTab ?? "";
   const tab = normalizeForgeTabIdForDna(raw);
   if (!tab) return "";
+  /** Anime tab uses `buildAnimeTemptationStyleLead` in generate-image / portrait paths — avoid duplicate short DNA. */
+  if (isAnimeTemptationForgeTabId(raw) || tab === "anime_temptation") return "";
   const row = STYLE_DNA[tab];
   if (!row) return "";
   const body = tier === "preview" ? row.preview : row.full;
