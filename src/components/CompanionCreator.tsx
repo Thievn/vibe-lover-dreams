@@ -160,6 +160,7 @@ import {
   FORGE_EXTENDED_THEME_TAB_IDS,
 } from "@/lib/forgeThemeTabs";
 import { ForgeThemeControls } from "@/components/forge/ForgeThemeControls";
+import { pickRandomBodyTypeForForgeTab } from "@/lib/forgeTabBodyAffinity";
 
 const NEON = "#FF2D7B";
 const PREVIEW_COST = FORGE_PREVIEW_FC;
@@ -394,6 +395,12 @@ function buildForgeDesignLabSeedPrompt(o: {
   visualTailoring?: ForgeVisualTailoring;
   /** If set, model must use this display name (from forge name engine or user-typed). */
   mandatoryDisplayName?: string;
+  /** Human label for the active forge theme tab (e.g. Anime Temptation). */
+  forgeThemeTabLabel?: string;
+  /** Dense tab DNA + slider prose — Grok must treat as highest visual authority. */
+  forgeThemeDigest?: string;
+  /** Art style after tab overrides (e.g. forced Anime Style). */
+  effectiveArtStyle?: string;
 }): string {
   const nameLine = o.mandatoryDisplayName?.trim()
     ? `- **MANDATORY display name (use this EXACT string in the "name" field, bio, backstory, starters, system prompt — the character's one true name):** ${o.mandatoryDisplayName.trim()}`
@@ -401,39 +408,45 @@ function buildForgeDesignLabSeedPrompt(o: {
   const nameRule1 = o.mandatoryDisplayName?.trim()
     ? `1) name: MUST be exactly: "${o.mandatoryDisplayName.trim()}" — the forge already locked a culturally-appropriate name from the Personalities matrix. Do not substitute a gothic, cyberpunk, or stock-romance alias.`
     : `1) name: Match the Personalities matrix (time period + all five picks). Avoid recycled dark-romance catalog names ("Velvet / Storm / Night / Vale") unless Dark Fantasy. NEVER Forge-*, Temp-*, UUIDs. **One true name** in backstory, bio, fantasy_starters, and system_prompt.`;
+  const artLane = (o.effectiveArtStyle ?? o.artStyle).trim() || o.artStyle;
+  const digestTrim = (o.forgeThemeDigest ?? "").trim();
+  const themeBlock =
+    o.forgeThemeTabLabel && digestTrim
+      ? `- **ACTIVE FORGE THEME (highest visual priority — must read different from other tabs; beats generic glamour):** ${o.forgeThemeTabLabel}\n${digestTrim.slice(0, 2800)}`
+      : o.forgeThemeTabLabel
+        ? `- **ACTIVE FORGE THEME:** ${o.forgeThemeTabLabel}`
+        : "";
+  const labBlock = o.visualTailoring
+    ? `\n- **Shared look lab — hair, skin, proportions, outfit seeds (apply to every tab; stay SFW):**\n${forgeVisualTailoringSeedsProse(o.visualTailoring, o.forgePersonality)
+        .split("\n")
+        .map((line) => `  ${line}`)
+        .join("\n")}`
+    : "";
   return `FORGE — treat the lines below as creative SEEDS only. Interpret into a cohesive original character. Do NOT paste the seed list into "appearance" or "backstory".
 
 Seeds:
 ${nameLine}
-- gender leaning (${o.gender}): informs **face, voice, and personality presentation only** — **physique, species, scale, and silhouette come only from** body type "${o.bodyType}"; do not let gender imply a different default human build.
-- ancestry / complexion (${o.ethnicity}): ${isOpenEthnicityChoice(o.ethnicity) ? "operator left open — invent a coherent face, skin tone, and hair that still obey body type + species + art style." : `treat as a **visual lock** for skin tone, facial cues, and hair texture (fantasy labels = literal where compatible); must not erase or contradict body type "${o.bodyType}".`}
+${themeBlock ? `${themeBlock}\n` : ""}- gender leaning (${o.gender}): informs **face, voice, and personality presentation only** — physique / species / scale also obey body type "${o.bodyType}" **and** must stay faithful to the ACTIVE FORGE THEME above when they interact.
+- ancestry / complexion (${o.ethnicity}): ${isOpenEthnicityChoice(o.ethnicity) ? "operator left open — invent a coherent face, skin tone, and hair that obey the forge theme, lab, and body type." : `treat as a **visual lock** for skin tone, facial cues, and hair texture (fantasy labels = literal where compatible); must not erase the ACTIVE FORGE THEME or contradict body type "${o.bodyType}".`}
 - **Personalities (fuse ALL into one voice — this block is the psychological + speech contract):**
 ${forgePersonalitySeedsProse(o.forgePersonality)
   .split("\n")
   .map((line) => `  ${line}`)
-  .join("\n")}
-- art style: ${o.artStyle}
+  .join("\n")}${labBlock}
+- art style (rendering lane — tab may override the UI label): ${artLane}
 - scene anchor: ${o.sceneAtmosphere}
-- body type: ${o.bodyType}
+- body type (silhouette anchor — supports the theme; use category/shape from the forge UI): ${o.bodyType}
 - orientation: ${o.orientation}
 - notable traits: ${o.traits.length ? o.traits.join(", ") : "(none)"}
-${
-  o.visualTailoring
-    ? `\n- **Appearance & outfit lab (must propagate into appearance prose, wardrobe, and image_prompt — stay SFW):**\n${forgeVisualTailoringSeedsProse(o.visualTailoring, o.forgePersonality)
-        .split("\n")
-        .map((line) => `  ${line}`)
-        .join("\n")}`
-    : ""
-}
 
 Hard requirements:
 ${forgeCompactStatureInstruction(o.bodyType)}${nameRule1}
-2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps. Forge body type "${o.bodyType}" is the **spine of the physique** — lead with how this body occupies space (limb/torso/head proportions, scale vs furniture or environment). Personality, species, and wardrobe **theme around** that body; never treat it as a footnote. If "${o.bodyType}" is a compact / short-stature / little-person / pixie / micro label, nothing in the prose may read like a default average-height unnamed human — establish adult compact proportions first, then layer everything else.
+2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps. **Open with the ACTIVE FORGE THEME identity** (costume language, species fantasy, 2D anime discipline, creature read, etc. — exactly as implied by that block). Fold **Shared look lab** hair/skin/palette into the portrait. Then ground physique from body type "${o.bodyType}" with unmistakable proportions. If the theme and body type conflict, **theme wins the genre/costume/rendering read** while body type still controls limb count, scale, and species silhouette.
 3) backstory: 3–4 paragraphs of premium dark-romance storytelling that weaves every Personalities line into one coherent history — not a bullet recap of tags.
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
 5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences). Bold NSFW when persona fits; never end with meta questions ("Are you ready?", "Want to start?") — close on dialogue or action.
 6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
-7) image_prompt: one dense SFW paragraph for a vertical 2:3 portrait card. **The first tokens must be exactly this pattern:** \`A character, …\` followed by an explicit physique line that locks "${o.bodyType}" for silhouette/species/scale/material — never vague. Do NOT default to a normal human model with small accessories. For non-human or hybrid labels, describe visible anatomy (fur, tail, digitigrade legs, extra limbs, slime mass, pixel grid, etc.) prominently. Gender must not override body shape. Then art style "${o.artStyle}" and scene "${o.sceneAtmosphere}" (lighting, wardrobe, set) — scene must not erase the body type. If the scene is transparent / empty-set ("No Background", "No Background / Transparent"), use cyclorama, flat color, or clearly cut-out portrait only — no busy environment unless the body type requires scale props.
+7) image_prompt: one dense SFW paragraph for a vertical 2:3 portrait card. **First** echo the ACTIVE FORGE THEME block (same visual lane — if it demands 2D anime, monster glam, latex noir, etc., that wins over a generic photoreal catalog human). **Then** use \`A character, …\` plus one explicit physique line locking "${o.bodyType}" for silhouette/species/scale/material — never vague. For non-human or hybrid labels, describe visible anatomy prominently. Gender must not override body shape. Then art "${artLane}" and scene "${o.sceneAtmosphere}". If the theme is Anime Temptation or the digest specifies 2D anime, **forbid** photoreal skin, 3D game-engine shading, or runway-model defaults. If the scene is transparent / empty-set ("No Background", "No Background / Transparent"), use cyclorama, flat color, or clearly cut-out portrait only — no busy environment unless the body type requires scale props.
 8) system_prompt: full chat charter for this persona.`;
 }
 
@@ -912,6 +925,11 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     [activeForgeTab, activeTabFeatures, effectiveBodyType, activeTabSexualEnergy, activeTabKinks, forgeCardPose],
   );
 
+  const forgeThemePrimaryLine = useMemo(() => {
+    const label = FORGE_THEME_TABS.find((t) => t.id === activeForgeTab)?.label ?? activeForgeTab;
+    return `${label} — ${forgeTabLiveSummary(activeForgeTab)}`;
+  }, [activeForgeTab]);
+
   const deepRandomizeForgeFocusTab = useCallback(
     (opts: { wildChaos: boolean }) => {
       const tab = activeForgeTab;
@@ -943,11 +961,9 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       setSceneAtmosphere(renderRoll.sceneAtmosphere);
       setVisualTailoring(renderRoll.visual);
       setForgeCardPose(randomForgeCardPose());
-      if (rollMode === "chaos_wtf" && Math.random() < 0.38) {
-        setBodyType(normalizeForgeBodyType(pick([...FORGE_BODY_TYPES])));
-      }
+      setBodyType(pickRandomBodyTypeForForgeTab(tab));
       toast.message("Tab shuffle", {
-        description: "Theme DNA + this tab’s overrides + rendering / wardrobe lab + a fresh seated pose.",
+        description: "Theme DNA + tab-affinity silhouette + rendering / wardrobe lab + a fresh seated pose.",
       });
     },
     [activeForgeTab],
@@ -980,8 +996,9 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     const lab = `Look lab: ${vt.hairColor} ${vt.hairStyle}, ${vt.eyeColor} eyes, ${vt.skinTone} skin, ${vt.height}; outfit ${vt.outfitStyle} (${vt.colorPalette}).`;
     const an = labelIdentityAnatomyForTags(identityAnatomyDetail);
     const anSeg = an ? `; optional anatomy label: ${an} (adult-consistent with identity)` : "";
-    return `${effectiveBodyType} silhouette (authoritative); gender/presentation (face & voice): ${gender}${anSeg}; ${eth}${effectiveArtForGeneration} look; scene: ${sceneAtmosphere}; ${t}. ${lab} Personalities: ${personalityLabel}. ${mergedExtraNotes}`.trim();
+    return `${forgeThemePrimaryLine}. ${effectiveBodyType} silhouette (anchor); gender/presentation (face & voice): ${gender}${anSeg}; ${eth}${effectiveArtForGeneration} look; scene: ${sceneAtmosphere}; ${t}. ${lab} Personalities: ${personalityLabel}. ${mergedExtraNotes}`.trim();
   }, [
+    forgeThemePrimaryLine,
     combinedAccentSelections,
     effectiveBodyType,
     gender,
@@ -1055,7 +1072,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         ? ` **${identityAnatomyForSystemOneLiner(identityAnatomyDetail)}**`
         : "";
       const vtLine = forgeVisualPortraitAddon(visualTailoring, forgePersonality);
-      return `You are ${n}, ${gender.toLowerCase()}, ${orientation}.${ethLine}${anLine} **Personalities (voice + psychology):** ${personalityLabel}. Visual (scene is appearance — not personality): primary scene "${sceneAtmosphere}", ${artStyle} aesthetic. ${bodyType} body; signature accents: ${combinedAccentSelections.join(", ") || "none specified"}. **Look & wardrobe:** ${vtLine}
+      return `You are ${n}, ${gender.toLowerCase()}, ${orientation}.${ethLine}${anLine} **Personalities (voice + psychology):** ${personalityLabel}. **Forge theme:** ${forgeThemePrimaryLine}. Visual (scene is appearance — not personality): primary scene "${sceneAtmosphere}", ${effectiveArtForGeneration} aesthetic. ${effectiveBodyType} body; signature accents: ${combinedAccentSelections.join(", ") || "none specified"}. **Look & wardrobe:** ${vtLine}
 
 Speak and act consistently with this persona — the five Personalities picks must thread through every line of dialogue. Stay immersive; respect safe words immediately. When toy control fits the scene and the user consents, you may end messages with: {"lovense_command":{"command":"vibrate","intensity":0-20,"duration":5000}}.
 
@@ -1067,9 +1084,10 @@ User flavor notes: ${extraNotes || "none"}`;
       identityAnatomyDetail,
       ethnicity,
       personalityLabel,
-      artStyle,
+      forgeThemePrimaryLine,
+      effectiveArtForGeneration,
       sceneAtmosphere,
-      bodyType,
+      effectiveBodyType,
       combinedAccentSelections,
       extraNotes,
       visualTailoring,
@@ -1652,6 +1670,15 @@ User flavor notes: ${extraNotes || "none"}`;
       if (effectiveChronicle.length < MIN_CHRONICLE_CHARS) {
         toast.info("Your chronicle is short — expanding prose from your seeds…");
         if (isAdmin) pushForgeOp("Chronicle short — design lab expanding prose & starters…", "info");
+        const designLabThemeDigest = buildForgeTabPromptAddon({
+          tabId: activeForgeTab,
+          features: forgeTabFeatures[activeForgeTab],
+          effectiveBodyType,
+          sexualEnergy: activeTabSexualEnergy,
+          kinks: activeTabKinks,
+          cardPose: forgeCardPose,
+          styleDnaTier: "full",
+        });
         const seedPrompt = buildForgeDesignLabSeedPrompt({
           gender,
           ethnicity: normalizeForgeEthnicity(ethnicity),
@@ -1663,6 +1690,9 @@ User flavor notes: ${extraNotes || "none"}`;
           traits: combinedAccentSelections,
           visualTailoring,
           mandatoryDisplayName: forgeName,
+          forgeThemeTabLabel: FORGE_THEME_TABS.find((t) => t.id === activeForgeTab)?.label,
+          forgeThemeDigest: designLabThemeDigest,
+          effectiveArtStyle: effectiveArtForGeneration,
         });
         const { data: labData, error: labErr } = await supabase.functions.invoke("parse-companion-prompt", {
           body: { mode: "companion_design_lab", prompt: seedPrompt },
@@ -2489,8 +2519,9 @@ User flavor notes: ${extraNotes || "none"}`;
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Forge focus tabs</p>
                   <p className="text-xs text-muted-foreground/85 mt-1">
-                    Shared core fields stay below in the accordions — these tabs add theme DNA to prompts. Randomize per tab or
-                    sync rendering when you are ready.
+                    Each tab owns a different visual lane. <strong>Shuffle tab + lab</strong> rolls tab DNA, tab-affinity body
+                    shape, art/scene, and wardrobe — use <strong>Silhouette &amp; body shape</strong> (bottom) only when you want a
+                    manual override.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -2850,88 +2881,13 @@ User flavor notes: ${extraNotes || "none"}`;
                     transition={{ duration: 0.25 }}
                     className="rounded-2xl border border-white/10 bg-gradient-to-br from-black/50 to-[#1a0a14]/80 p-4 sm:p-5 space-y-2"
                   >
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#ff7eb3]/85">Silhouette &amp; surface</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#ff7eb3]/85">Shared look lab</p>
                     <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed max-w-2xl">
-                      Body type stays the silhouette anchor; the lab fields refine hair, skin, proportions, and surface reads for
-                      portraits and prompts.
+                      Breast size, curves, hair, eyes, skin, height, and accents apply on <strong>every</strong> forge tab. The{" "}
+                      <strong>Forge focus tab</strong> above adds theme DNA; silhouette category &amp; body shape live in{" "}
+                      <strong>Silhouette &amp; body shape</strong> at the bottom so the tab stays the star.
                     </p>
                   </motion.div>
-
-                  <div className="space-y-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Body type</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 sm:items-start gap-3">
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Category</p>
-                          <ForgeFieldDice
-                            title="Random category"
-                            onRoll={() => {
-                              const g = pick(FORGE_BODY_GROUPS);
-                              if (g.types?.length) setBodyType(normalizeForgeBodyType(g.types[0]!));
-                            }}
-                          />
-                        </div>
-                        <Select
-                          value={bodyCategoryId}
-                          onValueChange={(catId) => {
-                            const g = FORGE_BODY_GROUPS.find((x) => x.id === catId);
-                            if (g?.types?.length) setBodyType(normalizeForgeBodyType(g.types[0]!));
-                          }}
-                        >
-                          <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
-                            <SelectValue placeholder="Category" />
-                          </SelectTrigger>
-                          <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
-                            {FORGE_BODY_GROUPS.map((g) => (
-                              <SelectItem
-                                key={g.id}
-                                value={g.id}
-                                className="focus:bg-white/10 focus:text-white cursor-pointer"
-                              >
-                                {g.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Shape</p>
-                          <ForgeFieldDice
-                            title="Random shape in this category"
-                            onRoll={() => {
-                              if (bodyTypesInCategory.length)
-                                setBodyType(normalizeForgeBodyType(pick(bodyTypesInCategory)));
-                              else setBodyType(normalizeForgeBodyType(pick(FORGE_BODY_TYPES)));
-                            }}
-                          />
-                        </div>
-                        <Select
-                          value={bodyTypeSelectValue}
-                          onValueChange={(v) => setBodyType(normalizeForgeBodyType(v))}
-                        >
-                          <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
-                            <SelectValue placeholder="Pick a body type" />
-                          </SelectTrigger>
-                          <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
-                            {bodyTypesInCategory.map((opt) => (
-                              <SelectItem
-                                key={opt}
-                                value={opt}
-                                className="focus:bg-white/10 focus:text-white cursor-pointer"
-                              >
-                                {opt}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground leading-relaxed">
-                      Humanoid, anthro, hybrid, and non-human silhouettes — combine with rendering &amp; wardrobe; stay SFW and
-                      respectful for compact-stature and mobility picks.
-                    </p>
-                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 sm:items-start gap-4">
                     <VisualSelectRow label="Breast size" field="breastSize" options={FORGE_BREAST_SIZES} />
@@ -3245,6 +3201,93 @@ User flavor notes: ${extraNotes || "none"}`;
                       placeholder="e.g. same rim light as ref, colder shadows, more latex sheen…"
                       className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm resize-none focus:outline-none focus:border-[#FF2D7B]/40 focus:ring-2 focus:ring-[#FF2D7B]/15"
                     />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="silhouette" className="border-white/10 px-4">
+                <AccordionTrigger className="font-gothic text-lg text-white hover:no-underline py-4">
+                  Silhouette &amp; body shape
+                </AccordionTrigger>
+                <AccordionContent className="pb-5 space-y-5">
+                  <p className="text-xs text-muted-foreground leading-relaxed max-w-2xl">
+                    Optional anchor for limb count, species, and scale — <strong>after</strong> you pick a forge tab. Shuffle on a tab
+                    also rolls a silhouette that fits that tab&apos;s lane (anime vs monster vs latex, etc.).
+                  </p>
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Body type</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 sm:items-start gap-3">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Category</p>
+                          <ForgeFieldDice
+                            title="Random category"
+                            onRoll={() => {
+                              const g = pick(FORGE_BODY_GROUPS);
+                              if (g.types?.length) setBodyType(normalizeForgeBodyType(g.types[0]!));
+                            }}
+                          />
+                        </div>
+                        <Select
+                          value={bodyCategoryId}
+                          onValueChange={(catId) => {
+                            const g = FORGE_BODY_GROUPS.find((x) => x.id === catId);
+                            if (g?.types?.length) setBodyType(normalizeForgeBodyType(g.types[0]!));
+                          }}
+                        >
+                          <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
+                            <SelectValue placeholder="Category" />
+                          </SelectTrigger>
+                          <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
+                            {FORGE_BODY_GROUPS.map((g) => (
+                              <SelectItem
+                                key={g.id}
+                                value={g.id}
+                                className="focus:bg-white/10 focus:text-white cursor-pointer"
+                              >
+                                {g.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Shape</p>
+                          <ForgeFieldDice
+                            title="Random shape in this category"
+                            onRoll={() => {
+                              if (bodyTypesInCategory.length)
+                                setBodyType(normalizeForgeBodyType(pick(bodyTypesInCategory)));
+                              else setBodyType(normalizeForgeBodyType(pick(FORGE_BODY_TYPES)));
+                            }}
+                          />
+                        </div>
+                        <Select
+                          value={bodyTypeSelectValue}
+                          onValueChange={(v) => setBodyType(normalizeForgeBodyType(v))}
+                        >
+                          <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
+                            <SelectValue placeholder="Pick a body type" />
+                          </SelectTrigger>
+                          <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
+                            {bodyTypesInCategory.map((opt) => (
+                              <SelectItem
+                                key={opt}
+                                value={opt}
+                                className="focus:bg-white/10 focus:text-white cursor-pointer"
+                              >
+                                {opt}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      Humanoid, anthro, hybrid, and non-human silhouettes — combine with forge tab + rendering; stay SFW and
+                      respectful for compact-stature and mobility picks.
+                    </p>
                   </div>
                 </AccordionContent>
               </AccordionItem>
