@@ -17,7 +17,8 @@ function artHint(art: string): string {
     "Soft Glamour": "Diffused beauty light, pearlescent sheen, pastel/champagne palette, gentle bloom.",
     "Neon Cyberpunk": "RGB rim, holographic spill, rain reflections — futurist wardrobe, coherent anatomy.",
     "Dark Fantasy Art": "Painterly fantasy realism, moonlit or ember fill, occult accessories — cover art energy.",
-    "Anime Style": "Cel or soft-gradient anime paint, expressive eyes, clean silhouette — key visual polish.",
+    "Anime Style":
+      "Cel or soft-gradient 2D anime paint, clean line art, expressive eyes with controlled speculars, readable silhouette — key visual polish (avoid 3D game shader or semi-real doll skin unless RAW_TEXT demands it).",
     "Digital Oil Painting": "Brush energy, impasto highlights, rich glazes — sensual through drape and pose.",
     "Watercolor Painting": "Paper grain, wet blooms, luminous washes — dreamy romance illustration.",
     "Dramatic Baroque": "Tenebrism spotlight, velvet/metal textures, theatrical diagonal composition.",

@@ -101,7 +101,7 @@ export function rollForgeRenderingChaosWildcard(): TabRenderRoll {
 export function randomizeAllTabsFeatureMaps(mode: "normal" | "chaos_wtf"): ForgeTabFeatureMap {
   const out = {} as ForgeTabFeatureMap;
   for (const t of FORGE_THEME_TABS) {
-    const m = t.id === "chaos" && mode === "chaos_wtf" ? "chaos_wtf" : "normal";
+    const m = t.id === "hyper_degenerate" && mode === "chaos_wtf" ? "chaos_wtf" : "normal";
     out[t.id] = randomizeForgeTabFeatures(t.id, m);
   }
   return out;

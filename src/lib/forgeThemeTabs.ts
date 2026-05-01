@@ -3,33 +3,102 @@
  */
 import type { ForgeVisualTailoring } from "@/lib/forgeVisualTailoring";
 
-export const FORGE_CORE_THEME_TAB_IDS = ["anime", "monster", "gothic", "realistic", "dark_fantasy", "chaos"] as const;
-export type ForgeCoreThemeTabId = (typeof FORGE_CORE_THEME_TAB_IDS)[number];
+/** Radix Select cannot use `value=""` — lore whisper “off” uses this sentinel. */
+export const LORE_WHISPER_NONE_SENTINEL = "__lore_none__" as const;
 
+/** Canonical 20 forge theme tab ids. */
+export const FORGE_THEME_TAB_IDS = [
+  "anime_temptation",
+  "monster_desire",
+  "gothic_seduction",
+  "realistic_craving",
+  "dark_fantasy",
+  "furry_den",
+  "pet_play_kennel",
+  "insectoid_hive",
+  "celestial_lust",
+  "alien_embrace",
+  "demonic_ruin",
+  "aquatic_depths",
+  "mechanical_seduction",
+  "plant_bloom",
+  "horror_whore",
+  "mythic_beast",
+  "hyper_degenerate",
+  "latex_rubber",
+  "eldritch_brood",
+  "grotesque_goddess",
+] as const;
+
+export type ForgeThemeTabId = (typeof FORGE_THEME_TAB_IDS)[number];
+
+export const ALL_FORGE_THEME_TAB_IDS: readonly ForgeThemeTabId[] = FORGE_THEME_TAB_IDS;
+
+/** Classic shape-specific slider rows (not theme-lab). */
+export const FORGE_CORE_SHAPE_TAB_IDS = [
+  "anime_temptation",
+  "monster_desire",
+  "gothic_seduction",
+  "realistic_craving",
+  "dark_fantasy",
+] as const;
+export type ForgeCoreShapeTabId = (typeof FORGE_CORE_SHAPE_TAB_IDS)[number];
+
+/** Theme lab sliders + lore whisper. */
 export const FORGE_EXTENDED_THEME_TAB_IDS = [
-  "cyber_neon_syndicate",
-  "starlit_siren_sci_fi",
-  "steampunk_velvet",
-  "retro_pinup_heat",
-  "iron_glory_apex",
-  "velvet_romance_soft",
-  "horror_whisper_court",
-  "feral_nature_covenant",
-  "royal_sin_palace",
-  "neon_alley_predator",
-  "celestial_fallen_halo",
-  "infernal_high_table",
-  "abyssal_depth_siren",
-  "grotesque_goddess_majesty",
+  "furry_den",
+  "pet_play_kennel",
+  "insectoid_hive",
+  "celestial_lust",
+  "alien_embrace",
+  "demonic_ruin",
+  "aquatic_depths",
+  "mechanical_seduction",
+  "plant_bloom",
+  "horror_whore",
+  "mythic_beast",
+  "latex_rubber",
+  "eldritch_brood",
+  "grotesque_goddess",
 ] as const;
 export type ForgeExtendedThemeTabId = (typeof FORGE_EXTENDED_THEME_TAB_IDS)[number];
 
-export type ForgeThemeTabId = ForgeCoreThemeTabId | ForgeExtendedThemeTabId;
+/** @deprecated use FORGE_CORE_SHAPE_TAB_IDS + hyper_degenerate — kept for older imports */
+export const FORGE_CORE_THEME_TAB_IDS = [...FORGE_CORE_SHAPE_TAB_IDS, "hyper_degenerate"] as const;
+export type ForgeCoreThemeTabId = (typeof FORGE_CORE_THEME_TAB_IDS)[number];
 
-export const ALL_FORGE_THEME_TAB_IDS: readonly ForgeThemeTabId[] = [
-  ...FORGE_CORE_THEME_TAB_IDS,
-  ...FORGE_EXTENDED_THEME_TAB_IDS,
-];
+export const LEGACY_FORGE_TAB_ID_TO_CANONICAL: Record<string, ForgeThemeTabId> = {
+  anime: "anime_temptation",
+  monster: "monster_desire",
+  gothic: "gothic_seduction",
+  realistic: "realistic_craving",
+  dark_fantasy: "dark_fantasy",
+  chaos: "hyper_degenerate",
+  cyber_neon_syndicate: "mechanical_seduction",
+  starlit_siren_sci_fi: "celestial_lust",
+  steampunk_velvet: "mechanical_seduction",
+  retro_pinup_heat: "latex_rubber",
+  iron_glory_apex: "mythic_beast",
+  velvet_romance_soft: "plant_bloom",
+  horror_whisper_court: "horror_whore",
+  feral_nature_covenant: "mythic_beast",
+  royal_sin_palace: "demonic_ruin",
+  neon_alley_predator: "horror_whore",
+  celestial_fallen_halo: "celestial_lust",
+  infernal_high_table: "demonic_ruin",
+  abyssal_depth_siren: "aquatic_depths",
+  grotesque_goddess_majesty: "grotesque_goddess",
+};
+
+export function normalizeForgeThemeTabId(raw: unknown): ForgeThemeTabId {
+  if (typeof raw !== "string" || !raw.trim()) return "anime_temptation";
+  const t = raw.trim();
+  const migrated = LEGACY_FORGE_TAB_ID_TO_CANONICAL[t] ?? t;
+  if ((FORGE_THEME_TAB_IDS as readonly string[]).includes(migrated)) {
+    return migrated as ForgeThemeTabId;
+  }
+  return "anime_temptation";
+}
 
 export type ForgeExtendedLabFeatures = {
   voltage: number;
@@ -45,6 +114,12 @@ export type ForgeExtendedLabFeatures = {
 
 export function isForgeExtendedThemeTab(id: ForgeThemeTabId): id is ForgeExtendedThemeTabId {
   return (FORGE_EXTENDED_THEME_TAB_IDS as readonly string[]).includes(id);
+}
+
+function normalizeLoreWhisperStored(s: string): string {
+  const t = s.trim();
+  if (!t || t === LORE_WHISPER_NONE_SENTINEL) return LORE_WHISPER_NONE_SENTINEL;
+  return t.slice(0, 400);
 }
 
 /** Seated / lounging / low-height poses — always facing the lens, never a generic standing catalog shot. */
@@ -149,27 +224,154 @@ export const FORGE_CARD_POSE_UI: { id: ForgeCardPoseId; label: string }[] = FORG
   label: POSE_LABELS[id],
 }));
 
+/** Dominant style DNA: full expression vs SFW forge preview. Keep in sync with `supabase/functions/_shared/forgeTabStyleDna.ts`. */
+export const FORGE_TAB_STYLE_DNA: Record<
+  ForgeThemeTabId,
+  { styleDnaFull: string; styleDnaPreview: string }
+> = {
+  anime_temptation: {
+    styleDnaFull:
+      "Anime temptation lane: clean 2D cel or soft-gradient paint, large expressive eyes with controlled speculars, stylized hair silhouette, fashion-forward otaku glam — key visual polish, flirty but composed.",
+    styleDnaPreview:
+      "Stylized 2D anime key visual: expressive eyes, clean line art, modest coverage fashion — tasteful pin-up framing, no explicit nudity.",
+  },
+  monster_desire: {
+    styleDnaFull:
+      "Monster desire lane: coherent creature anatomy, horns/tail/wings or appendages as focal fantasy, textured skin (scales/fur/chitin), seductive beast-royalty mood — bold silhouette, still portrait-safe.",
+    styleDnaPreview:
+      "Fantasy creature portrait: tasteful hybrid anatomy hints, textured skin, dramatic lighting — heroic monster glam without graphic body horror.",
+  },
+  gothic_seduction: {
+    styleDnaFull:
+      "Gothic seduction lane: corsetry, lace veils, candlelit pallor, jewelry filigree, tragic-beauty romance — velvet noir palette, decadent stillness.",
+    styleDnaPreview:
+      "Gothic romance portrait: lace, corsetry silhouette, soft candlelight, elegant pallor — moody and alluring without explicit exposure.",
+  },
+  realistic_craving: {
+    styleDnaFull:
+      "Realistic craving lane: photographic skin micro-storytelling, believable weight and gravity, shallow depth of field, moody realism — intimate editorial, not sterile catalog.",
+    styleDnaPreview:
+      "Photoreal editorial portrait: natural skin texture, soft cinematic light, clothed glamour — sensual mood without explicit detail.",
+  },
+  dark_fantasy: {
+    styleDnaFull:
+      "Dark fantasy lane: runic markings, corruption glow, ritual scars, mana aura, fallen-or-rising occult archetype — moonlit or ember fill, cover-art drama.",
+    styleDnaPreview:
+      "Dark fantasy portrait: subtle runes or soft magical glow, moody shadows, regal wardrobe — mysterious power without gore.",
+  },
+  furry_den: {
+    styleDnaFull:
+      "Furry den lane: expressive anthro features, plush fur read, warm den or lounge set, playful predator-cozy intimacy — clear species design, portrait discipline.",
+    styleDnaPreview:
+      "Anthro fantasy portrait: soft fur styling, cozy lounge wardrobe, warm light — friendly charisma, family-safe framing.",
+  },
+  pet_play_kennel: {
+    styleDnaFull:
+      "Pet-play kennel lane: collar/leash as fashion accessory language, padded luxury kennel aesthetic, obedient-tease body language — stylized roleplay glam.",
+    styleDnaPreview:
+      "Fashion portrait with subtle collar accessory cues and plush interior — playful glam, no explicit acts.",
+  },
+  insectoid_hive: {
+    styleDnaFull:
+      "Insectoid hive lane: chitin sheen, compound-eye glints (stylized), hive throne or honeycomb light, alien elegance — sleek biomech seduction.",
+    styleDnaPreview:
+      "Stylized insectoid fantasy portrait: glossy carapace hints, geometric light, elegant pose — alien couture, not horror gore.",
+  },
+  celestial_lust: {
+    styleDnaFull:
+      "Celestial lust lane: tarnished gold, broken halo motifs, starfield skin shimmer, soft divine bruising — erotic fallen-angel tableau.",
+    styleDnaPreview:
+      "Celestial fantasy portrait: soft gold rim light, ethereal fabrics, serene gaze — divine glamour, modest coverage.",
+  },
+  alien_embrace: {
+    styleDnaFull:
+      "Alien embrace lane: biolume accents, non-human proportions kept elegant, ship-window rim light, zero-g silk drape — sci-fi seduction cover.",
+    styleDnaPreview:
+      "Soft sci-fi portrait: subtle alien skin tone or markings, clean futuristic wardrobe, cool rim light — approachable xeno glam.",
+  },
+  demonic_ruin: {
+    styleDnaFull:
+      "Demonic ruin lane: obsidian textures, slow-burn infernal couture, contract-ink motifs, ember underlight — sovereign corruption glam.",
+    styleDnaPreview:
+      "Infernal fantasy portrait: deep reds and blacks, subtle horn or eye glow hints, regal wardrobe — dramatic, not graphic.",
+  },
+  aquatic_depths: {
+    styleDnaFull:
+      "Aquatic depths lane: pressure-haze, pearl and scale accents, biolume teal/violet, drowned-palace architecture — siren couture.",
+    styleDnaPreview:
+      "Underwater fantasy portrait: soft caustics, pearlescent fabrics, serene expression — aquatic glam, clothed.",
+  },
+  mechanical_seduction: {
+    styleDnaFull:
+      "Mechanical seduction lane: chrome skin highlights, harness lines, synth-noir rain, HUD reflections — cyber courtesan precision.",
+    styleDnaPreview:
+      "Cyberpunk fashion portrait: metallic accents, neon rim, tailored techwear — sleek future noir, SFW.",
+  },
+  plant_bloom: {
+    styleDnaFull:
+      "Plant & bloom lane: vine jewelry, pollen haze, petal textures on fabric, greenhouse golden hour — fertile nature-witch seduction.",
+    styleDnaPreview:
+      "Botanical fantasy portrait: floral accessories, soft green-gold light, flowing fabrics — romantic nature glam.",
+  },
+  horror_whore: {
+    styleDnaFull:
+      "Horror whore lane: elegant dread, porcelain stillness, bloodless menace, marble gallery shadows — horror as high fashion.",
+    styleDnaPreview:
+      "Gothic horror glam portrait: pale tones, dramatic shadows, refined wardrobe — unsettling mood without gore.",
+  },
+  mythic_beast: {
+    styleDnaFull:
+      "Mythic beast lane: griffin/drake/kitsune cues as regalia, storm-lit mane, ancient gold — legendary creature royalty.",
+    styleDnaPreview:
+      "Mythic fantasy portrait: subtle beast features as accessories, heroic lighting, ornate wardrobe — epic but tasteful.",
+  },
+  hyper_degenerate: {
+    styleDnaFull:
+      "Hyper degenerate lane: maximal genre mash, prop storm, palette sabotage, asymmetry — controlled chaos, hybrid cute/weird energy.",
+    styleDnaPreview:
+      "Eclectic fashion portrait: playful mismatched styling, bold color, quirky props — energetic but SFW composition.",
+  },
+  latex_rubber: {
+    styleDnaFull:
+      "Latex & rubber lane: high-gloss speculars, seam discipline, studio rim trio, fetish-couture silhouette — liquid shine fetish glam.",
+    styleDnaPreview:
+      "High-gloss fashion portrait: structured latex-look outfit with full coverage, studio lighting — sleek and SFW.",
+  },
+  eldritch_brood: {
+    styleDnaFull:
+      "Eldritch brood lane: wrong-geometry set dressing, sickly biolume, tentacle-motif jewelry as couture — cosmic dread beauty.",
+    styleDnaPreview:
+      "Cosmic fantasy portrait: subtle non-euclidean background blur, moody biolume accents, elegant pose — mysterious, not grotesque.",
+  },
+  grotesque_goddess: {
+    styleDnaFull:
+      "Grotesque goddess lane: monstrous glam, crowned weird, beautiful wrongness — maximal sculptural silhouette, baroque unease.",
+    styleDnaPreview:
+      "Avant-garde fantasy portrait: sculptural wardrobe and crown props, dramatic light — striking beauty without body horror.",
+  },
+};
+
 export const FORGE_THEME_TABS: { id: ForgeThemeTabId; label: string; subtitle: string }[] = [
-  { id: "anime", label: "Anime Temptation", subtitle: "Stylized charm, expressive faces, playful presets." },
-  { id: "monster", label: "Monster Desire", subtitle: "Creature anatomy, appendages, and exotic silhouettes." },
-  { id: "gothic", label: "Gothic Seduction", subtitle: "Lace, pallor, dramatic romance, tragic elegance." },
-  { id: "realistic", label: "Realistic Craving", subtitle: "Natural skin detail, realism sliders, lived-in intimacy." },
+  { id: "anime_temptation", label: "Anime Temptation", subtitle: "Stylized charm, expressive faces, playful presets." },
+  { id: "monster_desire", label: "Monster Desire", subtitle: "Creature anatomy, appendages, and exotic silhouettes." },
+  { id: "gothic_seduction", label: "Gothic Seduction", subtitle: "Lace, pallor, dramatic romance, tragic elegance." },
+  { id: "realistic_craving", label: "Realistic Craving", subtitle: "Natural skin detail, realism sliders, lived-in intimacy." },
   { id: "dark_fantasy", label: "Dark Fantasy", subtitle: "Runes, corruption, ritual markings, fallen archetypes." },
-  { id: "chaos", label: "Eternal Chaos", subtitle: "Controlled insanity, hybrid horror/cute, maximal randomness." },
-  { id: "cyber_neon_syndicate", label: "Cyber Neon Syndicate", subtitle: "HUD gloss, chrome skin, synth-noir rain and hologram ads." },
-  { id: "starlit_siren_sci_fi", label: "Starlit Siren Sci-Fi", subtitle: "Zero-G silk, constellations on skin, soft ship-window rim light." },
-  { id: "steampunk_velvet", label: "Steampunk Velvet", subtitle: "Brass, cog jewelry, corsetry over boilersuit, coal-smoke warmth." },
-  { id: "retro_pinup_heat", label: "Retro Pin-Up Heat", subtitle: "Mid-century sets, film grain, cheeky poses, candy gloss." },
-  { id: "iron_glory_apex", label: "Iron Glory Apex", subtitle: "Sweat-sheen muscle, arena lights, victory-strut confidence." },
-  { id: "velvet_romance_soft", label: "Velvet Romance Soft", subtitle: "Candle haze, slow touches, whisper-close framing." },
-  { id: "horror_whisper_court", label: "Horror Whisper Court", subtitle: "Elegant dread, bloodless menace, porcelain stillness." },
-  { id: "feral_nature_covenant", label: "Feral Nature Covenant", subtitle: "Moss, rain, predator grace, pagan gold in twilight." },
-  { id: "royal_sin_palace", label: "Royal Sin Palace", subtitle: "Throne rooms, jewels, power posture, velvet cruelty." },
-  { id: "neon_alley_predator", label: "Neon Alley Predator", subtitle: "Wet asphalt, blade jewelry, hunted/hunter tension." },
-  { id: "celestial_fallen_halo", label: "Celestial Fallen Halo", subtitle: "Tarnished gold, broken halos, soft divine bruising." },
-  { id: "infernal_high_table", label: "Infernal High Table", subtitle: "Obsidian banquet, contract ink, slow-burn infernal glam." },
-  { id: "abyssal_depth_siren", label: "Abyssal Depth Siren", subtitle: "Biolume, pressure-haze, drowned-palace seduction." },
-  { id: "grotesque_goddess_majesty", label: "Grotesque Goddess Majesty", subtitle: "Monstrous glam, crowned weird, beautiful wrongness." },
+  { id: "furry_den", label: "Furry Den", subtitle: "Anthro warmth, plush fur reads, den lounge intimacy." },
+  { id: "pet_play_kennel", label: "Pet Play Kennel", subtitle: "Collar couture, padded luxury, obedient-tease glam." },
+  { id: "insectoid_hive", label: "Insectoid Hive", subtitle: "Chitin sheen, hive light, alien elegance." },
+  { id: "celestial_lust", label: "Celestial Lust", subtitle: "Tarnished halos, starfield shimmer, fallen-divine heat." },
+  { id: "alien_embrace", label: "Alien Embrace", subtitle: "Biolume, ship-window rim, sci-fi seduction." },
+  { id: "demonic_ruin", label: "Demonic Ruin", subtitle: "Obsidian couture, ember underlight, sovereign corruption." },
+  { id: "aquatic_depths", label: "Aquatic Depths", subtitle: "Pressure haze, pearl scales, siren palace mood." },
+  { id: "mechanical_seduction", label: "Mechanical Seduction", subtitle: "Chrome, harness lines, synth-noir rain." },
+  { id: "plant_bloom", label: "Plant & Bloom", subtitle: "Vine jewelry, pollen haze, greenhouse golden hour." },
+  { id: "horror_whore", label: "Horror Whore", subtitle: "Elegant dread, porcelain stillness, fashion horror." },
+  { id: "mythic_beast", label: "Mythic Beast", subtitle: "Legendary creature regalia, storm-lit mane, ancient gold." },
+  { id: "hyper_degenerate", label: "Hyper Degenerate", subtitle: "Maximal mash, palette sabotage, controlled chaos." },
+  { id: "latex_rubber", label: "Latex & Rubber", subtitle: "Liquid shine, seam discipline, fetish-couture silhouette." },
+  { id: "eldritch_brood", label: "Eldritch Brood", subtitle: "Wrong angles, cosmic biolume, beautiful unease." },
+  { id: "grotesque_goddess", label: "Grotesque Goddess", subtitle: "Monstrous glam, crowned weird, sculptural wrongness." },
 ];
 
 export type ForgeTabSharedOverride = {
@@ -247,12 +449,12 @@ export type ForgeChaosFeatures = {
 };
 
 type ForgeCoreTabFeatureMap = {
-  anime: ForgeAnimeFeatures;
-  monster: ForgeMonsterFeatures;
-  gothic: ForgeGothicFeatures;
-  realistic: ForgeRealisticFeatures;
+  anime_temptation: ForgeAnimeFeatures;
+  monster_desire: ForgeMonsterFeatures;
+  gothic_seduction: ForgeGothicFeatures;
+  realistic_craving: ForgeRealisticFeatures;
   dark_fantasy: ForgeDarkFantasyFeatures;
-  chaos: ForgeChaosFeatures;
+  hyper_degenerate: ForgeChaosFeatures;
 };
 
 type ForgeExtendedTabFeatureMap = { [K in ForgeExtendedThemeTabId]: ForgeExtendedLabFeatures };
@@ -304,13 +506,13 @@ function makeDefaultExtendedLabFeatures(): ForgeExtendedLabFeatures {
     intimacyBias: 55,
     worldWeirdness: 35,
     propLoad: 38,
-    loreWhisper: "",
+    loreWhisper: LORE_WHISPER_NONE_SENTINEL,
   };
 }
 
 export function makeDefaultTabFeatures(): ForgeTabFeatureMap {
   return {
-    anime: {
+    anime_temptation: {
       eyeShine: 72,
       ahogeVariety: 35,
       thighhighLayers: 60,
@@ -318,7 +520,7 @@ export function makeDefaultTabFeatures(): ForgeTabFeatureMap {
       ahegaoIntensity: 12,
       hairHighlights: 64,
     },
-    monster: {
+    monster_desire: {
       tentacleCount: 4,
       multiBreastRows: false,
       hornConfig: "curved",
@@ -327,7 +529,7 @@ export function makeDefaultTabFeatures(): ForgeTabFeatureMap {
       skinTexture: "scales",
       extraLimbs: false,
     },
-    gothic: {
+    gothic_seduction: {
       corsetTightness: 70,
       laceDensity: 66,
       fangLength: 30,
@@ -336,7 +538,7 @@ export function makeDefaultTabFeatures(): ForgeTabFeatureMap {
       jewelryOverload: 45,
       tragicBeauty: 58,
     },
-    realistic: {
+    realistic_craving: {
       softnessVsToned: 48,
       stretchMarkCellulite: 28,
       tanLineStrength: 22,
@@ -354,7 +556,7 @@ export function makeDefaultTabFeatures(): ForgeTabFeatureMap {
       manaAuraStrength: 54,
       fallenVsRising: "fallen_angel",
     },
-    chaos: {
+    hyper_degenerate: {
       garbagePailGrotesque: false,
       maxDegeneracy: false,
       bodyHorrorCuteBlend: 64,
@@ -376,10 +578,16 @@ export function makeDefaultTabFeatures(): ForgeTabFeatureMap {
 export function normalizeForgeTabFeatureMap(raw: unknown): ForgeTabFeatureMap {
   const d = makeDefaultTabFeatures();
   if (!raw || typeof raw !== "object") return d;
-  const r = raw as Record<string, unknown>;
+  const r0 = raw as Record<string, unknown>;
+  const r: Record<string, unknown> = { ...r0 };
+  for (const [legacy, canon] of Object.entries(LEGACY_FORGE_TAB_ID_TO_CANONICAL)) {
+    if (legacy in r && !(canon in r)) {
+      r[canon] = r[legacy];
+    }
+  }
 
   const mergeAnime = (o: unknown): ForgeAnimeFeatures => {
-    const base = { ...d.anime };
+    const base = { ...d.anime_temptation };
     if (!o || typeof o !== "object") return base;
     const x = o as Record<string, unknown>;
     const n = (k: keyof ForgeAnimeFeatures, min = 0, max = 100) =>
@@ -395,7 +603,7 @@ export function normalizeForgeTabFeatureMap(raw: unknown): ForgeTabFeatureMap {
   };
 
   const mergeMonster = (o: unknown): ForgeMonsterFeatures => {
-    const base = { ...d.monster };
+    const base = { ...d.monster_desire };
     if (!o || typeof o !== "object") return base;
     const x = o as Record<string, unknown>;
     const opts = FORGE_MONSTER_HORN_OPTIONS as readonly string[];
@@ -416,7 +624,7 @@ export function normalizeForgeTabFeatureMap(raw: unknown): ForgeTabFeatureMap {
   };
 
   const mergeGothic = (o: unknown): ForgeGothicFeatures => {
-    const base = { ...d.gothic };
+    const base = { ...d.gothic_seduction };
     if (!o || typeof o !== "object") return base;
     const x = o as Record<string, unknown>;
     const n = (k: keyof ForgeGothicFeatures) =>
@@ -435,7 +643,7 @@ export function normalizeForgeTabFeatureMap(raw: unknown): ForgeTabFeatureMap {
   };
 
   const mergeRealistic = (o: unknown): ForgeRealisticFeatures => {
-    const base = { ...d.realistic };
+    const base = { ...d.realistic_craving };
     if (!o || typeof o !== "object") return base;
     const x = o as Record<string, unknown>;
     const n = (k: keyof ForgeRealisticFeatures) =>
@@ -476,7 +684,7 @@ export function normalizeForgeTabFeatureMap(raw: unknown): ForgeTabFeatureMap {
   };
 
   const mergeChaos = (o: unknown): ForgeChaosFeatures => {
-    const base = { ...d.chaos };
+    const base = { ...d.hyper_degenerate };
     if (!o || typeof o !== "object") return base;
     const x = o as Record<string, unknown>;
     const n100 = (key: string, fallback: number) =>
@@ -510,7 +718,7 @@ export function normalizeForgeTabFeatureMap(raw: unknown): ForgeTabFeatureMap {
     const n = (k: keyof ForgeExtendedLabFeatures) =>
       k === "loreWhisper"
         ? typeof x.loreWhisper === "string"
-          ? x.loreWhisper.slice(0, 400)
+          ? normalizeLoreWhisperStored(x.loreWhisper)
           : base.loreWhisper
         : typeof x[k] === "number"
           ? clampForgeTabNum(x[k] as number, 0, 100)
@@ -533,12 +741,12 @@ export function normalizeForgeTabFeatureMap(raw: unknown): ForgeTabFeatureMap {
   ) as { [K in ForgeExtendedThemeTabId]: ForgeExtendedLabFeatures };
 
   return {
-    anime: mergeAnime(r.anime),
-    monster: mergeMonster(r.monster),
-    gothic: mergeGothic(r.gothic),
-    realistic: mergeRealistic(r.realistic),
+    anime_temptation: mergeAnime(r.anime_temptation),
+    monster_desire: mergeMonster(r.monster_desire),
+    gothic_seduction: mergeGothic(r.gothic_seduction),
+    realistic_craving: mergeRealistic(r.realistic_craving),
     dark_fantasy: mergeDark(r.dark_fantasy),
-    chaos: mergeChaos(r.chaos),
+    hyper_degenerate: mergeChaos(r.hyper_degenerate ?? r.chaos),
     ...extendedPart,
   };
 }
@@ -546,7 +754,13 @@ export function normalizeForgeTabFeatureMap(raw: unknown): ForgeTabFeatureMap {
 export function normalizeForgeTabSharedOverrides(raw: unknown): Record<ForgeThemeTabId, ForgeTabSharedOverride> {
   const d = makeDefaultTabSharedOverrides();
   if (!raw || typeof raw !== "object") return d;
-  const r = raw as Record<string, unknown>;
+  const r0 = raw as Record<string, unknown>;
+  const r: Record<string, unknown> = { ...r0 };
+  for (const [legacy, canon] of Object.entries(LEGACY_FORGE_TAB_ID_TO_CANONICAL)) {
+    if (legacy in r && !(canon in r)) {
+      r[canon] = r[legacy];
+    }
+  }
   const mergeOne = (id: ForgeThemeTabId, o: unknown): ForgeTabSharedOverride => {
     const base = { ...d[id] };
     if (!o || typeof o !== "object") return base;
@@ -564,13 +778,6 @@ export function normalizeForgeTabSharedOverrides(raw: unknown): Record<ForgeThem
     ForgeThemeTabId,
     ForgeTabSharedOverride
   >;
-}
-
-export function normalizeForgeThemeTabId(raw: unknown): ForgeThemeTabId {
-  if (typeof raw === "string" && (ALL_FORGE_THEME_TAB_IDS as readonly string[]).includes(raw)) {
-    return raw as ForgeThemeTabId;
-  }
-  return "anime";
 }
 
 // --- Select option pools (random + UI) ---
@@ -611,12 +818,21 @@ export function buildForgeTabPromptAddon(o: {
   sexualEnergy: string;
   kinks: string[];
   cardPose: ForgeCardPoseId;
+  /** `preview` uses SFW-tuned DNA for forge live preview; default full. */
+  styleDnaTier?: "full" | "preview";
 }): string {
   const tabLabel = FORGE_THEME_TABS.find((t) => t.id === o.tabId)?.label ?? o.tabId;
+  const dnaEntry = FORGE_TAB_STYLE_DNA[o.tabId];
+  const dnaLine =
+    dnaEntry != null
+      ? `**THEME_STYLE_DNA (highest priority):** ${
+          o.styleDnaTier === "preview" ? dnaEntry.styleDnaPreview : dnaEntry.styleDnaFull
+        } `
+      : "";
   let themeProse = "";
 
   switch (o.tabId) {
-    case "anime": {
+    case "anime_temptation": {
       const f = o.features as ForgeAnimeFeatures;
       themeProse = [
         `Anime-forward portrait: ${intensityLabel(f.eyeShine)} eye size emphasis and specular "shine" on stylized irises.`,
@@ -628,7 +844,7 @@ export function buildForgeTabPromptAddon(o: {
       ].join(" ");
       break;
     }
-    case "monster": {
+    case "monster_desire": {
       const f = o.features as ForgeMonsterFeatures;
       themeProse = [
         `Creature fantasy: ${f.tentacleCount} tentacle-like or appendage elements (placement varies; keep anatomy coherent).`,
@@ -640,7 +856,7 @@ export function buildForgeTabPromptAddon(o: {
       ].join(" ");
       break;
     }
-    case "gothic": {
+    case "gothic_seduction": {
       const f = o.features as ForgeGothicFeatures;
       themeProse = [
         `Gothic romance: corset cinch and rib silhouette emphasis ${intensityLabel(f.corsetTightness)}.`,
@@ -653,7 +869,7 @@ export function buildForgeTabPromptAddon(o: {
       ].join(" ");
       break;
     }
-    case "realistic": {
+    case "realistic_craving": {
       const f = o.features as ForgeRealisticFeatures;
       themeProse = [
         `Photoreal lean: body softness vs muscle ${biasSoftVsToned(f.softnessVsToned)}.`,
@@ -678,7 +894,7 @@ export function buildForgeTabPromptAddon(o: {
       ].join(" ");
       break;
     }
-    case "chaos": {
+    case "hyper_degenerate": {
       const f = o.features as ForgeChaosFeatures;
       themeProse = [
         `Chaos mode: grotesque-cute hybrid ${f.garbagePailGrotesque ? "ON — warped cute proportions, collectible-monster vibe" : "off — keep face mostly appealing"}.`,
@@ -708,7 +924,11 @@ export function buildForgeTabPromptAddon(o: {
           `Intimacy bias (close vs editorial) ${intensityLabel(f.intimacyBias)}.`,
           `World weirdness / genre bend ${intensityLabel(f.worldWeirdness)}.`,
           `Props & set-dressing load ${intensityLabel(f.propLoad)}.`,
-          f.loreWhisper.trim() ? `Lore whisper: "${f.loreWhisper.trim().slice(0, 200)}".` : "",
+          f.loreWhisper.trim() &&
+          f.loreWhisper.trim() !== LORE_WHISPER_NONE_SENTINEL &&
+          f.loreWhisper !== LORE_WHISPER_NONE_SENTINEL
+            ? `Lore whisper: "${f.loreWhisper.trim().slice(0, 200)}".`
+            : "",
         ]
           .filter(Boolean)
           .join(" ");
@@ -721,33 +941,33 @@ export function buildForgeTabPromptAddon(o: {
 
   const kinkLine = o.kinks.length ? o.kinks.join(", ") : "none specified";
   const poseLine = forgeCardPoseProse(o.cardPose);
-  return `Forge focus theme: "${tabLabel}" (high priority). ${themeProse} **Portrait pose (global):** ${poseLine} Shared anchors for this tab: physique "${o.effectiveBodyType}"; sexual energy "${o.sexualEnergy}"; kink undertones to weave into tension (subtle): ${kinkLine}. Fuse with the Personalities matrix, wardrobe lab, and scene into one coherent portrait and character.`;
+  return `${dnaLine}Forge focus theme: "${tabLabel}" (high priority). ${themeProse} **Portrait pose (global):** ${poseLine} Shared anchors for this tab: physique "${o.effectiveBodyType}"; sexual energy "${o.sexualEnergy}"; kink undertones to weave into tension (subtle): ${kinkLine}. Fuse with the Personalities matrix, wardrobe lab, and scene into one coherent portrait and character.`;
 }
 
 export function forgeTabLiveSummary(tabId: ForgeThemeTabId): string {
   const t = FORGE_THEME_TABS.find((x) => x.id === tabId);
   if (!t) return "";
   const bits: Partial<Record<ForgeThemeTabId, string>> = {
-    anime: "big-eye anime stylization, shine, pose presets",
-    monster: "appendages, texture, wings, creature silhouette",
-    gothic: "corsetry, lace, pallor, tragic glamour",
-    realistic: "skin truth, softness, lived-in detail",
+    anime_temptation: "big-eye anime stylization, shine, pose presets",
+    monster_desire: "appendages, texture, wings, creature silhouette",
+    gothic_seduction: "corsetry, lace, pallor, tragic glamour",
+    realistic_craving: "skin truth, softness, lived-in detail",
     dark_fantasy: "corruption, runes, aura, fallen vs rising",
-    chaos: "hybrid weirdness, maximal variety",
-    cyber_neon_syndicate: "HUD chrome, synth rain, hologram noir",
-    starlit_siren_sci_fi: "constellation skin, ship-window glow",
-    steampunk_velvet: "brass, velvet, cog jewelry, coal warmth",
-    retro_pinup_heat: "mid-century sets, film grain, cheeky tease",
-    iron_glory_apex: "arena lights, sweat sheen, power muscle",
-    velvet_romance_soft: "candles, slow touch, whisper framing",
-    horror_whisper_court: "elegant dread, porcelain stillness",
-    feral_nature_covenant: "moss, rain, pagan predator grace",
-    royal_sin_palace: "throne jewels, velvet cruelty, crown tension",
-    neon_alley_predator: "wet asphalt, blade jewelry, hunt tension",
-    celestial_fallen_halo: "tarnished gold, broken halo glam",
-    infernal_high_table: "obsidian banquet, contract ink heat",
-    abyssal_depth_siren: "biolume, drowned-palace seduction",
-    grotesque_goddess_majesty: "monstrous glam, crowned weird beauty",
+    furry_den: "anthro warmth, plush fur, den lounge",
+    pet_play_kennel: "collar couture, padded luxury cues",
+    insectoid_hive: "chitin sheen, hive geometry, alien elegance",
+    celestial_lust: "tarnished gold, halo motifs, star shimmer",
+    alien_embrace: "biolume, ship-window rim, sci-fi seduction",
+    demonic_ruin: "obsidian couture, ember underlight",
+    aquatic_depths: "pressure haze, pearl scales, siren mood",
+    mechanical_seduction: "chrome, harness lines, synth-noir",
+    plant_bloom: "vine jewelry, pollen haze, greenhouse gold",
+    horror_whore: "elegant dread, fashion horror stillness",
+    mythic_beast: "legendary regalia, storm mane, ancient gold",
+    hyper_degenerate: "hybrid weirdness, maximal mash, palette sabotage",
+    latex_rubber: "liquid shine, seam discipline, gloss fetish glam",
+    eldritch_brood: "wrong angles, cosmic biolume unease",
+    grotesque_goddess: "monstrous glam, crowned weird beauty",
   };
   const bit = bits[tabId] ?? "theme lab sliders + lore whisper";
   return `Active: ${t.label} — ${bit}. These notes merge into your preview prompt and Extra notes.`;
@@ -760,7 +980,7 @@ function rand100(): number {
 }
 
 export function randomizeForgeTabFeatures(tab: ForgeThemeTabId, mode: "normal" | "chaos_wtf"): ForgeTabFeatureMap[ForgeThemeTabId] {
-  if (tab === "anime") {
+  if (tab === "anime_temptation") {
     return {
       eyeShine: rand100(),
       ahogeVariety: rand100(),
@@ -770,7 +990,7 @@ export function randomizeForgeTabFeatures(tab: ForgeThemeTabId, mode: "normal" |
       hairHighlights: rand100(),
     };
   }
-  if (tab === "monster") {
+  if (tab === "monster_desire") {
     return {
       tentacleCount: Math.floor(Math.random() * 13),
       multiBreastRows: Math.random() < 0.35,
@@ -781,7 +1001,7 @@ export function randomizeForgeTabFeatures(tab: ForgeThemeTabId, mode: "normal" |
       extraLimbs: Math.random() < 0.4,
     };
   }
-  if (tab === "gothic") {
+  if (tab === "gothic_seduction") {
     return {
       corsetTightness: rand100(),
       laceDensity: rand100(),
@@ -792,7 +1012,7 @@ export function randomizeForgeTabFeatures(tab: ForgeThemeTabId, mode: "normal" |
       tragicBeauty: rand100(),
     };
   }
-  if (tab === "realistic") {
+  if (tab === "realistic_craving") {
     return {
       softnessVsToned: rand100(),
       stretchMarkCellulite: rand100(),
@@ -829,10 +1049,10 @@ export function randomizeForgeTabFeatures(tab: ForgeThemeTabId, mode: "normal" |
           ? pick(FORGE_EXTENDED_LORE_WHISPERS)
           : Math.random() < 0.35
             ? pick(FORGE_EXTENDED_LORE_WHISPERS)
-            : "",
+            : LORE_WHISPER_NONE_SENTINEL,
     };
   }
-  if (tab === "chaos") {
+  if (tab === "hyper_degenerate") {
     if (mode === "chaos_wtf") {
       return {
         garbagePailGrotesque: Math.random() < 0.65,
@@ -860,7 +1080,7 @@ export function randomizeForgeTabFeatures(tab: ForgeThemeTabId, mode: "normal" |
       oopsAllTropes: Math.random() < 0.28,
     };
   }
-  return randomizeForgeTabFeatures("anime", mode);
+  return randomizeForgeTabFeatures("anime_temptation", mode);
 }
 
 export function randomizeForgeTabField(
@@ -871,9 +1091,9 @@ export function randomizeForgeTabField(
   const c = { ...current } as Record<string, number | string | boolean>;
   const v = c[fieldKey];
   if (typeof v === "number") {
-    if (tab === "monster" && fieldKey === "tentacleCount") {
+    if (tab === "monster_desire" && fieldKey === "tentacleCount") {
       c[fieldKey] = Math.floor(Math.random() * 13);
-    } else if (tab === "chaos" && fieldKey === "whatTheFuckSeed") {
+    } else if (tab === "hyper_degenerate" && fieldKey === "whatTheFuckSeed") {
       c[fieldKey] = Math.floor(Math.random() * 9_000_000) + 1_000_000;
     } else {
       c[fieldKey] = rand100();
@@ -889,10 +1109,10 @@ export function randomizeForgeTabField(
       c[fieldKey] = pick([...FORGE_EXTENDED_LORE_WHISPERS]);
       return c as ForgeTabFeatureMap[ForgeThemeTabId];
     }
-    if (tab === "monster" && fieldKey === "hornConfig") c[fieldKey] = pick([...FORGE_MONSTER_HORN_OPTIONS]);
-    else if (tab === "monster" && fieldKey === "tailType") c[fieldKey] = pick([...FORGE_MONSTER_TAIL_OPTIONS]);
-    else if (tab === "monster" && fieldKey === "skinTexture") c[fieldKey] = pick([...FORGE_MONSTER_SKIN_OPTIONS]);
-    else if (tab === "gothic" && fieldKey === "gothicFashionMode") c[fieldKey] = Math.random() < 0.5 ? "victorian" : "modern";
+    if (tab === "monster_desire" && fieldKey === "hornConfig") c[fieldKey] = pick([...FORGE_MONSTER_HORN_OPTIONS]);
+    else if (tab === "monster_desire" && fieldKey === "tailType") c[fieldKey] = pick([...FORGE_MONSTER_TAIL_OPTIONS]);
+    else if (tab === "monster_desire" && fieldKey === "skinTexture") c[fieldKey] = pick([...FORGE_MONSTER_SKIN_OPTIONS]);
+    else if (tab === "gothic_seduction" && fieldKey === "gothicFashionMode") c[fieldKey] = Math.random() < 0.5 ? "victorian" : "modern";
     else if (tab === "dark_fantasy" && fieldKey === "runePlacement") c[fieldKey] = pick([...FORGE_DARK_RUNE_OPTIONS]);
     else if (tab === "dark_fantasy" && fieldKey === "ritualScars") c[fieldKey] = pick([...FORGE_DARK_SCAR_OPTIONS]);
     else if (tab === "dark_fantasy" && fieldKey === "manaAuraColor") c[fieldKey] = pick([...FORGE_DARK_MANA_COLORS]);
@@ -913,7 +1133,7 @@ export type ForgeTabRenderPreset = {
 };
 
 export const FORGE_TAB_RENDER_PRESETS: Record<ForgeThemeTabId, ForgeTabRenderPreset> = {
-  anime: {
+  anime_temptation: {
     artStyle: "Anime Style",
     sceneAtmosphere: "High-Key Fashion Test Wall",
     visualTailoringPatch: {
@@ -923,7 +1143,7 @@ export const FORGE_TAB_RENDER_PRESETS: Record<ForgeThemeTabId, ForgeTabRenderPre
       accessories: "Choker",
     },
   },
-  monster: {
+  monster_desire: {
     artStyle: "Dark Fantasy Art",
     sceneAtmosphere: "Black Void Infinity Cove",
     visualTailoringPatch: {
@@ -932,7 +1152,7 @@ export const FORGE_TAB_RENDER_PRESETS: Record<ForgeThemeTabId, ForgeTabRenderPre
       specialFeatures: ["Horns", "Tail", "Bioluminescent markings"],
     },
   },
-  gothic: {
+  gothic_seduction: {
     artStyle: "Gothic Victorian",
     sceneAtmosphere: "Crystal Chandelier Ballroom",
     visualTailoringPatch: {
@@ -942,7 +1162,7 @@ export const FORGE_TAB_RENDER_PRESETS: Record<ForgeThemeTabId, ForgeTabRenderPre
       accessories: "Layered chains",
     },
   },
-  realistic: {
+  realistic_craving: {
     artStyle: "Dark Moody Realism",
     sceneAtmosphere: "Neutral Gray Seamless Backdrop",
     visualTailoringPatch: {
@@ -960,7 +1180,62 @@ export const FORGE_TAB_RENDER_PRESETS: Record<ForgeThemeTabId, ForgeTabRenderPre
       specialFeatures: ["Runic sigils", "Glowing eyes"],
     },
   },
-  chaos: {
+  furry_den: {
+    artStyle: "Fantasy Nature Portrait",
+    sceneAtmosphere: "Moss Temple Ruins",
+    visualTailoringPatch: { outfitStyle: "Primitive luxe wraps", colorPalette: "Forest green + amber", specialFeatures: ["Fluffy ear accents"] },
+  },
+  pet_play_kennel: {
+    artStyle: "Soft Glamour",
+    sceneAtmosphere: "Candlelit Drawing Room",
+    visualTailoringPatch: { outfitStyle: "Silk slip and collar-chain fashion", colorPalette: "Rose smoke + gold" },
+  },
+  insectoid_hive: {
+    artStyle: "Bioluminescent Fantasy",
+    sceneAtmosphere: "Sunken Palace Balcony",
+    visualTailoringPatch: { outfitStyle: "Chitin-gloss couture", colorPalette: "Teal biolume + abyss blue" },
+  },
+  celestial_lust: {
+    artStyle: "Angelic Fantasy",
+    sceneAtmosphere: "Broken Cloud Stair",
+    visualTailoringPatch: { outfitStyle: "Tarnished celestial silks", colorPalette: "Pale gold + bruised violet" },
+  },
+  alien_embrace: {
+    artStyle: "Soft Sci-Fi Illustration",
+    sceneAtmosphere: "Observation Deck Stars",
+    visualTailoringPatch: { outfitStyle: "Flowing zero-g silks", colorPalette: "Silver + deep violet" },
+  },
+  demonic_ruin: {
+    artStyle: "Infernal Baroque",
+    sceneAtmosphere: "Obsidian Banquet Hall",
+    visualTailoringPatch: { outfitStyle: "Infernal couture", colorPalette: "Crimson + soot" },
+  },
+  aquatic_depths: {
+    artStyle: "Bioluminescent Fantasy",
+    sceneAtmosphere: "Underwater Palace Window",
+    visualTailoringPatch: { outfitStyle: "Pearl net and scales", colorPalette: "Teal biolume + abyss blue" },
+  },
+  mechanical_seduction: {
+    artStyle: "Cyberpunk Neon",
+    sceneAtmosphere: "Rain-Slick Rooftop With Hologram Sky",
+    visualTailoringPatch: { outfitStyle: "Tech harness streetwear", colorPalette: "Cyan + magenta + black" },
+  },
+  plant_bloom: {
+    artStyle: "Watercolor Painting",
+    sceneAtmosphere: "Misty Dark Forest",
+    visualTailoringPatch: { outfitStyle: "Botanical couture vines", colorPalette: "Emerald + pollen gold" },
+  },
+  horror_whore: {
+    artStyle: "Gothic Horror Glam",
+    sceneAtmosphere: "Marble Gallery After Hours",
+    visualTailoringPatch: { outfitStyle: "Victorian mourning chic", colorPalette: "Bone white + dried blood" },
+  },
+  mythic_beast: {
+    artStyle: "Sports Noir Realism",
+    sceneAtmosphere: "Arena Tunnel Rim Light",
+    visualTailoringPatch: { outfitStyle: "Athletic compression + tape", colorPalette: "Sweat sheen + steel blue" },
+  },
+  hyper_degenerate: {
     artStyle: "Surreal Dreamscape",
     sceneAtmosphere: "Rainbow After-Storm Street Puddle",
     visualTailoringPatch: {
@@ -970,72 +1245,17 @@ export const FORGE_TAB_RENDER_PRESETS: Record<ForgeThemeTabId, ForgeTabRenderPre
       specialFeatures: ["Heterochromia", "Bioluminescent markings"],
     },
   },
-  cyber_neon_syndicate: {
-    artStyle: "Cyberpunk Neon",
-    sceneAtmosphere: "Rain-Slick Rooftop With Hologram Sky",
-    visualTailoringPatch: { outfitStyle: "Tech harness streetwear", colorPalette: "Cyan + magenta + black" },
+  latex_rubber: {
+    artStyle: "High Fashion Editorial",
+    sceneAtmosphere: "Glass Box Editorial Set",
+    visualTailoringPatch: { outfitStyle: "Structured latex-look couture", colorPalette: "Onyx + chrome highlight" },
   },
-  starlit_siren_sci_fi: {
-    artStyle: "Soft Sci-Fi Illustration",
-    sceneAtmosphere: "Observation Deck Stars",
-    visualTailoringPatch: { outfitStyle: "Flowing zero-g silks", colorPalette: "Silver + deep violet" },
+  eldritch_brood: {
+    artStyle: "Surreal Dreamscape",
+    sceneAtmosphere: "Cathedral Of Wrong Angles",
+    visualTailoringPatch: { outfitStyle: "Crown regalia with tentacle-motif jewelry", colorPalette: "Sickly pearl + void black" },
   },
-  steampunk_velvet: {
-    artStyle: "Steampunk Portrait",
-    sceneAtmosphere: "Brass Atrium With Gear Windows",
-    visualTailoringPatch: { outfitStyle: "Corset over boilersuit", colorPalette: "Brass + burgundy" },
-  },
-  retro_pinup_heat: {
-    artStyle: "Vintage Pin-Up",
-    sceneAtmosphere: "Pastel Studio Cyclorama",
-    visualTailoringPatch: { outfitStyle: "High-waist retro glam", colorPalette: "Cherry red + cream" },
-  },
-  iron_glory_apex: {
-    artStyle: "Sports Noir Realism",
-    sceneAtmosphere: "Arena Tunnel Rim Light",
-    visualTailoringPatch: { outfitStyle: "Athletic compression + tape", colorPalette: "Sweat sheen + steel blue" },
-  },
-  velvet_romance_soft: {
-    artStyle: "Romantic Oil Study",
-    sceneAtmosphere: "Candlelit Drawing Room",
-    visualTailoringPatch: { outfitStyle: "Silk slip and robe", colorPalette: "Rose smoke + gold" },
-  },
-  horror_whisper_court: {
-    artStyle: "Gothic Horror Glam",
-    sceneAtmosphere: "Marble Gallery After Hours",
-    visualTailoringPatch: { outfitStyle: "Victorian mourning chic", colorPalette: "Bone white + dried blood" },
-  },
-  feral_nature_covenant: {
-    artStyle: "Fantasy Nature Portrait",
-    sceneAtmosphere: "Moss Temple Ruins",
-    visualTailoringPatch: { outfitStyle: "Primitive luxe wraps", colorPalette: "Forest green + amber" },
-  },
-  royal_sin_palace: {
-    artStyle: "Baroque Fantasy",
-    sceneAtmosphere: "Throne Antechamber",
-    visualTailoringPatch: { outfitStyle: "Regal armor-gown hybrid", colorPalette: "Gold leaf + ink black" },
-  },
-  neon_alley_predator: {
-    artStyle: "Neo-Noir",
-    sceneAtmosphere: "Wet Alley Neon Bounce",
-    visualTailoringPatch: { outfitStyle: "Leather and chain mesh", colorPalette: "Teal + hot pink" },
-  },
-  celestial_fallen_halo: {
-    artStyle: "Angelic Fantasy",
-    sceneAtmosphere: "Broken Cloud Stair",
-    visualTailoringPatch: { outfitStyle: "Tarnished celestial silks", colorPalette: "Pale gold + bruised violet" },
-  },
-  infernal_high_table: {
-    artStyle: "Infernal Baroque",
-    sceneAtmosphere: "Obsidian Banquet Hall",
-    visualTailoringPatch: { outfitStyle: "Infernal couture", colorPalette: "Crimson + soot" },
-  },
-  abyssal_depth_siren: {
-    artStyle: "Bioluminescent Fantasy",
-    sceneAtmosphere: "Sunken Palace Balcony",
-    visualTailoringPatch: { outfitStyle: "Pearl net and scales", colorPalette: "Teal biolume + abyss blue" },
-  },
-  grotesque_goddess_majesty: {
+  grotesque_goddess: {
     artStyle: "Monstrous Glam Illustration",
     sceneAtmosphere: "Cathedral Of Wrong Angles",
     visualTailoringPatch: { outfitStyle: "Grotesque crown regalia", colorPalette: "Sickly pearl + void black" },
@@ -1063,7 +1283,7 @@ function selOpts(opts: readonly string[], labels?: readonly string[]): Pick<Forg
   return { selectOptions: opts, selectLabels: labels ?? opts };
 }
 
-const LORE_WHISPER_SELECT_OPTIONS = ["", ...FORGE_EXTENDED_LORE_WHISPERS] as const;
+const LORE_WHISPER_SELECT_OPTIONS = [LORE_WHISPER_NONE_SENTINEL, ...FORGE_EXTENDED_LORE_WHISPERS] as const;
 const LORE_WHISPER_SELECT_LABELS = ["(none)", ...FORGE_EXTENDED_LORE_WHISPERS] as const;
 
 /** Shared Theme Lab rows for all extended (14) forge tabs. */
@@ -1087,7 +1307,7 @@ const FORGE_EXTENDED_THEME_FIELD_ROWS: readonly ForgeThemeFieldRow[] = [
 ];
 
 const FORGE_TAB_FIELD_ROWS_CORE = {
-  anime: [
+  anime_temptation: [
     { section: "Face & hair", key: "eyeShine", label: "Eye size & shine", hint: "Higher = bigger anime eyes and glossier highlights.", kind: "slider" },
     { key: "ahogeVariety", label: "Ahoge / stray locks", hint: "Silly hair antenna energy.", kind: "slider" },
     { key: "hairHighlights", label: "Streaks & highlights", hint: "Ribbon streaks and secondary hair colors.", kind: "slider" },
@@ -1095,7 +1315,7 @@ const FORGE_TAB_FIELD_ROWS_CORE = {
     { key: "skirtPhysics", label: "Skirt motion", hint: "Pleats, lift, and exaggerated cloth motion.", kind: "slider" },
     { section: "Expression", key: "ahegaoIntensity", label: "Exaggerated face play", hint: "Cartoon intensity (SFW card — no explicit acts).", kind: "slider" },
   ],
-  monster: [
+  monster_desire: [
     { section: "Anatomy", key: "tentacleCount", label: "Tentacles / tendrils", hint: "Count of prominent appendages (0–12).", kind: "slider", sliderMin: 0, sliderMax: 12 },
     { key: "extraLimbs", label: "Extra limbs", hint: "Additional arms or hybrid joints.", kind: "toggle" },
     { key: "multiBreastRows", label: "Multiple breast rows", hint: "Fantasy biology — keep portrait tasteful.", kind: "toggle" },
@@ -1104,7 +1324,7 @@ const FORGE_TAB_FIELD_ROWS_CORE = {
     { key: "skinTexture", label: "Skin / surface", kind: "select", ...selOpts([...FORGE_MONSTER_SKIN_OPTIONS]) },
     { key: "wingSize", label: "Wing scale", hint: "How large wings read in frame.", kind: "slider" },
   ],
-  gothic: [
+  gothic_seduction: [
     { section: "Silhouette", key: "corsetTightness", label: "Corset cinch", kind: "slider" },
     { key: "laceDensity", label: "Lace & veils", kind: "slider" },
     { key: "jewelryOverload", label: "Jewelry stacking", kind: "slider" },
@@ -1119,7 +1339,7 @@ const FORGE_TAB_FIELD_ROWS_CORE = {
       selectLabels: ["Victorian / gaslamp", "Modern goth"],
     },
   ],
-  realistic: [
+  realistic_craving: [
     { section: "Body", key: "softnessVsToned", label: "Soft vs toned", hint: "Left = softer, right = more athletic.", kind: "slider" },
     { key: "breastWeightRealism", label: "Breast weight & gravity", kind: "slider" },
     { section: "Skin truth", key: "stretchMarkCellulite", label: "Stretch & cellulite visibility", kind: "slider" },
@@ -1143,7 +1363,7 @@ const FORGE_TAB_FIELD_ROWS_CORE = {
       selectLabels: ["Fallen angel", "Rising demon"],
     },
   ],
-  chaos: [
+  hyper_degenerate: [
     { section: "Chaos switches", key: "garbagePailGrotesque", label: "Grotesque-cute", hint: "Warped cute / collectible monster vibe.", kind: "toggle" },
     { key: "maxDegeneracy", label: "Max weird wardrobe", hint: "Push odd props within SFW portrait rules.", kind: "toggle" },
     { key: "symmetryBreak", label: "Asymmetric framing", hint: "Tilted horizon, off-center weight, uneven shoulders.", kind: "toggle" },
@@ -1162,10 +1382,13 @@ const FORGE_TAB_FIELD_ROWS_CORE = {
       sliderMax: 9_999_999,
     },
   ],
-} as const satisfies Record<ForgeCoreThemeTabId, readonly ForgeThemeFieldRow[]>;
+} as const satisfies Record<ForgeCoreShapeTabId | "hyper_degenerate", readonly ForgeThemeFieldRow[]>;
 
 export const FORGE_TAB_FIELD_ROWS: Record<ForgeThemeTabId, readonly ForgeThemeFieldRow[]> = {
-  ...(FORGE_TAB_FIELD_ROWS_CORE as unknown as Record<ForgeCoreThemeTabId, readonly ForgeThemeFieldRow[]>),
+  ...(FORGE_TAB_FIELD_ROWS_CORE as unknown as Record<
+    ForgeCoreShapeTabId | "hyper_degenerate",
+    readonly ForgeThemeFieldRow[]
+  >),
   ...Object.fromEntries(
     FORGE_EXTENDED_THEME_TAB_IDS.map((id) => [id, FORGE_EXTENDED_THEME_FIELD_ROWS]),
   ),

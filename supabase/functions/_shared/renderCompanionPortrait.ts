@@ -4,6 +4,7 @@ import { buildAnatomyImagineKeyRules, buildAnatomyRewriterDirective, resolveAnat
 import type { ImageContentTier } from "./imageGenerationContentTier.ts";
 import { resolveImageContentTier, UNIVERSAL_NON_PREVIEW_IMAGE_BASE } from "./imageGenerationContentTier.ts";
 import { rewritePromptForImagine } from "./safeImagePromptRewriter.ts";
+import { buildForgeStyleDnaPrefix } from "./forgeTabStyleDna.ts";
 
 const DEFAULT_IMAGE_MODEL = "grok-imagine-image";
 
@@ -13,8 +14,9 @@ export type PortraitStorageTarget =
 
 export function buildPortraitFinalPrompt(imagePrompt: string, characterData: Record<string, unknown>): string {
   const anatomyKey = buildAnatomyImagineKeyRules(resolveAnatomyVariant(characterData));
+  const dna = buildForgeStyleDnaPrefix(characterData, "preview");
   return `
-${PORTRAIT_IMAGE_DESIGN_BRIEF}
+${dna ? `${dna}\n\n` : ""}${PORTRAIT_IMAGE_DESIGN_BRIEF}
 
 Create a highly detailed, cinematic, seductive SFW portrait for a romance / AI companion catalog card.
 Strictly SFW: no nudity, no visible genitals, no explicit sex acts. Artistic pin-up or cover quality.
@@ -52,8 +54,9 @@ async function buildFullAdultArtPortraitPrompt(
     (typeof characterData.appearance === "string" ? characterData.appearance.slice(0, 900) : "") ||
     "a highly attractive character";
 
+  const dna = buildForgeStyleDnaPrefix(characterData, "full");
   return `
-${UNIVERSAL_NON_PREVIEW_IMAGE_BASE}
+${dna ? `${dna}\n\n` : ""}${UNIVERSAL_NON_PREVIEW_IMAGE_BASE}
 
 Adults-only companion product. Admin / roster portrait refresh (not Forge live preview). Follow xAI content policies; do not depict minors.
 

@@ -9,6 +9,7 @@ import {
 } from "../_shared/anatomyImageRules.ts";
 import { rewritePromptForImagine } from "../_shared/safeImagePromptRewriter.ts";
 import { maybeAppendForgeStyleSceneBlock } from "../_shared/forgePortraitAugmentation.ts";
+import { buildForgeStyleDnaPrefix } from "../_shared/forgeTabStyleDna.ts";
 import { forgePortraitBodyTypeContract } from "../_shared/forgeBodyTypeContract.ts";
 import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
 import {
@@ -219,7 +220,12 @@ serve(async (req) => {
     const anatomyDirective = buildAnatomyRewriterDirective(anatomyVariant);
     const anatomyKeyRules = buildAnatomyImagineKeyRules(anatomyVariant);
 
-    const rawForRewrite = maybeAppendForgeStyleSceneBlock(String(prompt), characterData as Record<string, unknown>);
+    const dnaPrefix = buildForgeStyleDnaPrefix(
+      characterData as Record<string, unknown>,
+      effectiveTier === "forge_preview_sfw" ? "preview" : "full",
+    );
+    const sceneBlock = maybeAppendForgeStyleSceneBlock(String(prompt), characterData as Record<string, unknown>);
+    const rawForRewrite = [dnaPrefix, sceneBlock].filter((s) => String(s).trim()).join("\n\n");
 
     const rewriteMode = effectiveTier === "forge_preview_sfw" ? "portrait_card" : "chat_session";
 

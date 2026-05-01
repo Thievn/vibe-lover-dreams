@@ -134,6 +134,7 @@ export function buildNexusForgeThemeDigestFromSnapshot(
       sexualEnergy: se,
       kinks,
       cardPose: snap.forgeCardPose,
+      styleDnaTier: "full",
     });
     lines.push(`[${t.label}] ${prose}`);
   }

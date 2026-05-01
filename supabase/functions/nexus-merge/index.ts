@@ -6,7 +6,11 @@ import { mergeTcgForNexusChild } from "../_shared/tcgStatsGenerate.ts";
 import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
 import { buildNexusDisplayTraitRows } from "../_shared/nexusDisplayTraitsBuild.ts";
 import { rollNexusChildRarity } from "../_shared/nexusRarityRoll.ts";
-import { buildChildPersonalityForgeRow, readForgeThemeDna } from "../_shared/nexusForgeThemeMerge.ts";
+import {
+  buildChildPersonalityForgeRow,
+  FORGE_THEME_TAB_IDS,
+  resolveForgeThemeInnerForNexusMerge,
+} from "../_shared/nexusForgeThemeMerge.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -160,6 +164,7 @@ function buildNexusRandomName(parentA: Record<string, unknown>, parentB: Record<
     "ne", "ra", "th", "is", "elle", "yn", "or", "a", "ia", "yx", "on", "ae", "eth", "el", "ess", "ar",
   ];
   const family = [
+    "Veilborn", "Nexuskin", "Riftweaver", "Starforge", "Duskveil", "Bloomrift", "Hollowsong", "Thornveil",
     "Arclight", "Blackmere", "Cinderfall", "Duskborne", "Emberwynd", "Frostveil", "Glassthorn", "Holloway",
     "Ivoryn", "Juniper", "Kestrel", "Locke", "Mirewood", "Nightbloom", "Orchid", "Pyrelake", "Quill", "Rooke",
     "Stoneveil", "Thornfield", "Umber", "Vale", "Wilder", "Yarrow", "Zephyr",
@@ -496,8 +501,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    const themeA = readForgeThemeDna(pa.personality_forge);
-    const themeB = readForgeThemeDna(pb.personality_forge);
+    const mergePairSeed = `${idA}:nexus_forge:${idB}`;
+    const offspringUuid = crypto.randomUUID();
+    const themeInnerA = resolveForgeThemeInnerForNexusMerge(pa.personality_forge, "A", mergePairSeed);
+    const themeInnerB = resolveForgeThemeInnerForNexusMerge(pb.personality_forge, "B", mergePairSeed);
+
+    const mergedPersonalityForge = buildChildPersonalityForgeRow(
+      pa.personality_forge,
+      pb.personality_forge,
+      themeInnerA,
+      themeInnerB,
+      offspringUuid,
+    );
 
     const parentA = {
       name: pa.name,
@@ -514,7 +529,7 @@ Deno.serve(async (req) => {
       gradient_from: pa.gradient_from,
       gradient_to: pa.gradient_to,
       rarity: pa.rarity,
-      forge_theme_dna: themeA ?? undefined,
+      forge_theme_dna: themeInnerA,
     };
     const parentB = {
       name: pb.name,
@@ -531,7 +546,7 @@ Deno.serve(async (req) => {
       gradient_from: pb.gradient_from,
       gradient_to: pb.gradient_to,
       rarity: pb.rarity,
-      forge_theme_dna: themeB ?? undefined,
+      forge_theme_dna: themeInnerB,
     };
 
     let infuseLine = "";
@@ -582,7 +597,7 @@ Name quality rule (critical): generate a fresh random-feeling name that does not
 Visual inheritance rule (critical): preserve blended facial structure, body silhouette, and optional fantasy anatomy cues (ears/tail/horns/wings) when appropriate.
 ${visualDivergenceLine}
 
-Forge theme DNA (when present on a parent as \`forge_theme_dna\`): structured per-tab Companion Forge sliders + shared overrides + look lab + card pose from that parent's last save. **You must hybridize** these maps for the child — blend cues from BOTH parents across ALL tab keys (\`forgeTabFeatures\` per theme: anime, monster, gothic, realistic, dark_fantasy, chaos), respect each parent's \`forgeTabSharedOverrides\`, and merge \`visualTailoring\` + art/scene + \`forgeCardPose\` into one coherent new \`image_prompt\`. If only one parent has DNA, still borrow the other's appearance text. If neither has DNA, ignore this paragraph.
+Forge theme DNA (each parent JSON includes \`forge_theme_dna\` — always present; may be inferred defaults for older vault cards): structured per-tab Companion Forge sliders + shared overrides + look lab + card pose. **You must hybridize** these maps for the fused companion — blend cues from BOTH parents across **all** canonical theme tab ids in \`forgeTabFeatures\` (${FORGE_THEME_TAB_IDS.join(", ")}), respect each parent's \`forgeTabSharedOverrides\`, and merge \`visualTailoring\` + art/scene + \`forgeCardPose\` into one coherent new \`image_prompt\`. If one profile is lighter on sliders, still weave the other's appearance text.
 
 Rarity: the \`rarity\` field in your tool output is ignored — the server rolls the child’s tier from the Nexus outcome table using both parents’ rarities. Still output a plausible \`rarity\` string for logging only.
 
@@ -749,6 +764,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
     );
 
     const insertRow: Record<string, unknown> = {
+      id: offspringUuid,
       user_id: userId,
       name: resolvedName.slice(0, 120),
       tagline: String(fields.tagline || "").slice(0, 200),
@@ -777,6 +793,9 @@ Output ONLY via the nexus_merge_companion tool call.`;
       merge_stats,
       rarity: childRarity,
       tcg_stats: childTcg,
+      ...(mergedPersonalityForge && Object.keys(mergedPersonalityForge).length > 0
+        ? { personality_forge: mergedPersonalityForge }
+        : {}),
     };
 
     const { data: inserted, error: insErr } = await supabase
@@ -795,37 +814,20 @@ Output ONLY via the nexus_merge_companion tool call.`;
       });
     }
 
-    const childUuid = inserted.id as string;
+    const fusionUuid = (inserted?.id as string) || offspringUuid;
 
     const displayTraitRows = buildNexusDisplayTraitRows({
       childRarity: childRarity,
-      childIdUuid: childUuid,
+      childIdUuid: fusionUuid,
       parentA: pa as Record<string, unknown>,
       parentB: pb as Record<string, unknown>,
     });
     const { error: traitsUpdErr } = await supabase
       .from("custom_characters")
       .update({ display_traits: displayTraitRows })
-      .eq("id", childUuid);
+      .eq("id", fusionUuid);
     if (traitsUpdErr) {
       console.error("nexus-merge display_traits update", traitsUpdErr);
-    }
-
-    const mergedPersonalityForge = buildChildPersonalityForgeRow(
-      pa.personality_forge,
-      pb.personality_forge,
-      themeA,
-      themeB,
-      childUuid,
-    );
-    if (mergedPersonalityForge && Object.keys(mergedPersonalityForge).length > 0) {
-      const { error: pfErr } = await supabase
-        .from("custom_characters")
-        .update({ personality_forge: mergedPersonalityForge })
-        .eq("id", childUuid);
-      if (pfErr) {
-        console.error("nexus-merge personality_forge update", pfErr);
-      }
     }
 
     let portraitOk = false;
@@ -840,13 +842,13 @@ Output ONLY via the nexus_merge_companion tool call.`;
       try {
         const portraitKey = resolveXaiApiKey((name) => Deno.env.get(name));
         if (portraitKey) {
-          const characterData: Record<string, unknown> = { ...insertRow, id: childUuid };
+          const characterData: Record<string, unknown> = { ...insertRow, id: fusionUuid };
           const { publicUrl } = await renderPortraitToStorage({
             adminClient: supabase,
             apiKey: portraitKey,
             imagePrompt: imagePromptForPortrait,
             characterData,
-            target: { kind: "forge", uuid: childUuid },
+            target: { kind: "forge", uuid: fusionUuid },
           });
           const { error: portraitUpdErr } = await supabase
             .from("custom_characters")
@@ -856,7 +858,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
               static_image_url: publicUrl,
               image_prompt: imagePromptForPortrait,
             })
-            .eq("id", childUuid);
+            .eq("id", fusionUuid);
           if (portraitUpdErr) {
             console.error("nexus-merge portrait db update", portraitUpdErr);
             portraitError = portraitUpdErr.message;
@@ -890,7 +892,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
     return new Response(
       JSON.stringify({
         success: true,
-        childId: `cc-${inserted.id}`,
+        childId: `cc-${fusionUuid}`,
         name: insertRow.name,
         rarity: childRarity,
         merge_stats,

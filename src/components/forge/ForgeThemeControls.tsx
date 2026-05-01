@@ -75,7 +75,7 @@ export function ForgeThemeControls({ activeTab, features, onFeaturesChange }: Fo
                 </SelectTrigger>
                 <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white">
                   {row.selectOptions.map((opt, i) => (
-                    <SelectItem key={opt} value={opt} className="text-xs">
+                    <SelectItem key={`${row.key}-${i}-${opt}`} value={opt} className="text-xs">
                       {row.selectLabels?.[i] ?? opt}
                     </SelectItem>
                   ))}

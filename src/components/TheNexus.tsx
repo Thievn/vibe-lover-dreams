@@ -950,7 +950,7 @@ export default function TheNexus({
                   <div className="space-y-2 text-xs">
                     <p className="text-muted-foreground uppercase tracking-wider">Variance strength</p>
                     <p className="text-[11px] text-muted-foreground/85 leading-relaxed">
-                      Controls how different the child&apos;s outfit/background should be from both parents while keeping
+                      Controls how different the veilborn&apos;s outfit/background should be from both parents while keeping
                       face/body lineage cues.
                     </p>
                     <div className="flex flex-col gap-2">

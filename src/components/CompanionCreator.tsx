@@ -168,12 +168,14 @@ const FORGE_EXTENDED_TAB_ACCENT =
   "border-sky-400/35 bg-gradient-to-br from-slate-900/50 to-black/35 shadow-[0_0_14px_rgba(56,189,248,0.1)]";
 
 const FORGE_TAB_BUTTON_ACCENT: Record<ForgeThemeTabId, string> = {
-  anime: "border-fuchsia-400/45 bg-gradient-to-br from-fuchsia-950/55 via-black/40 to-black/30 shadow-[0_0_20px_rgba(232,121,249,0.12)]",
-  monster: "border-emerald-400/40 bg-gradient-to-br from-emerald-950/45 to-black/35 shadow-[0_0_18px_rgba(52,211,153,0.1)]",
-  gothic: "border-violet-400/45 bg-gradient-to-br from-violet-950/50 to-black/35",
-  realistic: "border-amber-400/38 bg-gradient-to-br from-amber-950/35 to-black/35",
+  anime_temptation:
+    "border-fuchsia-400/45 bg-gradient-to-br from-fuchsia-950/55 via-black/40 to-black/30 shadow-[0_0_20px_rgba(232,121,249,0.12)]",
+  monster_desire: "border-emerald-400/40 bg-gradient-to-br from-emerald-950/45 to-black/35 shadow-[0_0_18px_rgba(52,211,153,0.1)]",
+  gothic_seduction: "border-violet-400/45 bg-gradient-to-br from-violet-950/50 to-black/35",
+  realistic_craving: "border-amber-400/38 bg-gradient-to-br from-amber-950/35 to-black/35",
   dark_fantasy: "border-indigo-400/45 bg-gradient-to-br from-indigo-950/50 to-black/40",
-  chaos: "border-[#FF2D7B]/55 bg-gradient-to-br from-[#FF2D7B]/22 via-purple-950/35 to-black/35 shadow-[0_0_22px_rgba(255,45,123,0.18)]",
+  hyper_degenerate:
+    "border-[#FF2D7B]/55 bg-gradient-to-br from-[#FF2D7B]/22 via-purple-950/35 to-black/35 shadow-[0_0_22px_rgba(255,45,123,0.18)]",
   ...Object.fromEntries(FORGE_EXTENDED_THEME_TAB_IDS.map((id) => [id, FORGE_EXTENDED_TAB_ACCENT])),
 } as Record<ForgeThemeTabId, string>;
 
@@ -464,7 +466,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   const [orientation, setOrientation] = useState<string>(() => pickOne(ORIENTATIONS));
   const [ethnicity, setEthnicity] = useState<string>(() => FORGE_ETHNICITY_ANY_LABEL);
   const [extraNotes, setExtraNotes] = useState("");
-  const [activeForgeTab, setActiveForgeTab] = useState<ForgeThemeTabId>("anime");
+  const [activeForgeTab, setActiveForgeTab] = useState<ForgeThemeTabId>("anime_temptation");
   const [forgeTabFeatures, setForgeTabFeatures] = useState<ForgeTabFeatureMap>(() => makeDefaultTabFeatures());
   const [forgeCardPose, setForgeCardPose] = useState<ForgeCardPoseId>(() => normalizeForgeCardPoseId(undefined));
   const [forgeTabSharedOverrides, setForgeTabSharedOverrides] = useState<Record<ForgeThemeTabId, ForgeTabSharedOverride>>(
@@ -904,6 +906,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         sexualEnergy: activeTabSexualEnergy,
         kinks: activeTabKinks,
         cardPose: forgeCardPose,
+        styleDnaTier: "preview",
       }),
     [activeForgeTab, activeTabFeatures, effectiveBodyType, activeTabSexualEnergy, activeTabKinks, forgeCardPose],
   );
@@ -911,7 +914,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   const deepRandomizeForgeFocusTab = useCallback(
     (opts: { wildChaos: boolean }) => {
       const tab = activeForgeTab;
-      if (opts.wildChaos && tab === "chaos") {
+      if (opts.wildChaos && tab === "hyper_degenerate") {
         setForgeTabFeatures(randomizeAllTabsFeatureMaps("chaos_wtf"));
         setForgeTabSharedOverrides(randomizeAllTabSharedOverrides("chaos_wtf"));
         const roll = rollForgeRenderingChaosWildcard();
@@ -923,8 +926,9 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         toast.message("Wild roll", { description: "Every theme tab, overrides, look lab, body, and pose — maximum entropy." });
         return;
       }
-      const rollMode: "normal" | "chaos_wtf" = opts.wildChaos ? "chaos_wtf" : Math.random() < 0.14 ? "chaos_wtf" : "normal";
-      const featureMode: "normal" | "chaos_wtf" = tab === "chaos" && rollMode === "chaos_wtf" ? "chaos_wtf" : "normal";
+      const rollMode: "normal" | "chaos_wtf" = opts.wildChaos ? "chaos_wtf" : "normal";
+      const featureMode: "normal" | "chaos_wtf" =
+        tab === "hyper_degenerate" && rollMode === "chaos_wtf" ? "chaos_wtf" : "normal";
       setForgeTabFeatures((prev) => ({
         ...prev,
         [tab]: randomizeForgeTabFeatures(tab, featureMode),
@@ -2467,7 +2471,7 @@ User flavor notes: ${extraNotes || "none"}`;
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  {activeForgeTab === "chaos" ? (
+                  {activeForgeTab === "hyper_degenerate" ? (
                     <button
                       type="button"
                       onClick={() => deepRandomizeForgeFocusTab({ wildChaos: true })}
