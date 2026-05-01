@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, Baby, Sparkles, X } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { sendCommand, LovenseCommand } from "@/lib/lovense";
+import { saveBreedingRitualResult, BreedingOffspringData } from "@/lib/breedingRitualPersistence";
+import { formatSupabaseError } from "@/lib/supabaseError";
 
 interface BreedingRitualProps {
   companionId: string;
@@ -102,7 +103,7 @@ export const BreedingRitual = ({
 
     const selectedType = offspringTypes[Math.floor(Math.random() * offspringTypes.length)];
 
-    const offspringData = {
+    const offspringData: BreedingOffspringData = {
       id: `offspring-${Date.now()}`,
       name: `${companionName}'s ${selectedType.name} Offspring`,
       type: selectedType.name,
@@ -112,31 +113,14 @@ export const BreedingRitual = ({
       createdAt: new Date(),
     };
 
-    // Save to Supabase
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from("companion_relationships").upsert({
-          user_id: user.id,
-          companion_id: companionId,
-          breeding_progress: 100,
-          affection_level: 75,
-          last_interaction: new Date(),
-        });
-
-        await supabase.from("companion_gifts").insert({
-          user_id: user.id,
-          companion_id: companionId,
-          gift_type: "offspring",
-          gift_data: offspringData,
-        });
-      }
+      await saveBreedingRitualResult({ companionId, offspringData });
+      toast.success("🎉 Breeding ritual complete! A new offspring has been created!");
+      onComplete(offspringData);
     } catch (error) {
       console.error("Failed to save breeding result:", error);
+      toast.error(`Could not save breeding result: ${formatSupabaseError(error)}`);
     }
-
-    toast.success("🎉 Breeding ritual complete! A new offspring has been created!");
-    onComplete(offspringData);
   };
 
   const currentStageData = BREEDING_STAGES[currentStage];
