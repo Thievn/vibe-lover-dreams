@@ -145,15 +145,172 @@ export function extractOpenRouterAssistantText(json: unknown): string {
   return "";
 }
 
-export function extractFirstImageDataUrlFromOpenRouterResponse(json: unknown): string | null {
-  const msg = (json as { choices?: Array<{ message?: { images?: Array<{ image_url?: { url?: string } }> } }> })?.choices?.[0]
-    ?.message;
-  const imgs = msg?.images;
-  if (Array.isArray(imgs) && imgs.length > 0) {
-    const u = imgs[0]?.image_url?.url;
-    if (typeof u === "string" && u.startsWith("data:image")) return u;
+function isUsableOpenRouterImageRef(s: string): boolean {
+  const t = s.trim();
+  return t.startsWith("data:image") || t.startsWith("https://") || t.startsWith("http://");
+}
+
+/** Gateways sometimes wrap the OpenAI-shaped body under `data`, `result`, or `output`. */
+function unwrapOpenRouterChatCompletionJson(json: unknown): unknown {
+  if (!json || typeof json !== "object") return json;
+  const o = json as Record<string, unknown>;
+  if (Array.isArray(o.choices)) return json;
+  for (const key of ["data", "result", "output", "response"] as const) {
+    const inner = o[key];
+    if (inner && typeof inner === "object" && Array.isArray((inner as Record<string, unknown>).choices)) {
+      return inner;
+    }
+  }
+  return json;
+}
+
+function peelMessageLikeForImage(message: unknown): string | null {
+  if (!message || typeof message !== "object") return null;
+  const m = message as Record<string, unknown>;
+  return peelImageFromImagesArray(m.images) ?? peelImageFromMessageContent(m.content);
+}
+
+/** Last resort: find an embedded base64 still anywhere in the tree (odd provider shapes). */
+function deepScanOpenRouterDataImageUrl(json: unknown): string | null {
+  let nodes = 0;
+  const visit = (node: unknown, depth: number): string | null => {
+    if (depth > 16 || nodes++ > 800) return null;
+    if (typeof node === "string") {
+      const t = node.trim();
+      if (t.startsWith("data:image") && t.includes(";base64,") && t.length >= 80) return t;
+      return null;
+    }
+    if (!node || typeof node !== "object") return null;
+    if (Array.isArray(node)) {
+      for (const x of node) {
+        const u = visit(x, depth + 1);
+        if (u) return u;
+      }
+      return null;
+    }
+    for (const v of Object.values(node as Record<string, unknown>)) {
+      const u = visit(v, depth + 1);
+      if (u) return u;
+    }
+    return null;
+  };
+  return visit(json, 0);
+}
+
+function peelUrlFromImageBlock(img: Record<string, unknown>): string | null {
+  const nested = img.image_url ?? img.imageUrl;
+  if (nested && typeof nested === "object") {
+    const url = (nested as { url?: unknown }).url;
+    if (typeof url === "string" && isUsableOpenRouterImageRef(url)) return url.trim();
+  }
+  if (typeof nested === "string" && isUsableOpenRouterImageRef(nested)) return nested.trim();
+  if (typeof img.url === "string" && isUsableOpenRouterImageRef(img.url)) return img.url.trim();
+  return null;
+}
+
+function peelImageFromImagesArray(images: unknown): string | null {
+  if (!Array.isArray(images) || images.length === 0) return null;
+  for (const raw of images) {
+    if (typeof raw === "string" && isUsableOpenRouterImageRef(raw)) return raw.trim();
+    if (!raw || typeof raw !== "object") continue;
+    const u = peelUrlFromImageBlock(raw as Record<string, unknown>);
+    if (u) return u;
   }
   return null;
+}
+
+function peelImageFromMessageContent(content: unknown): string | null {
+  if (!Array.isArray(content)) return null;
+  for (const part of content) {
+    if (!part || typeof part !== "object") continue;
+    const o = part as Record<string, unknown>;
+    const typ = String(o.type ?? "").toLowerCase();
+    if (typ !== "image_url" && typ !== "output_image") continue;
+    const iu = o.image_url ?? o.imageUrl;
+    if (iu && typeof iu === "object") {
+      const url = (iu as { url?: unknown }).url;
+      if (typeof url === "string" && isUsableOpenRouterImageRef(url)) return url.trim();
+    }
+  }
+  return null;
+}
+
+/**
+ * First usable image reference from an OpenRouter `/chat/completions` JSON body:
+ * unwraps `data`/`result`/`output` wrappers; scans every `choices[]` entry; `message` / `delta` / choice-level `images`;
+ * snake or camelCase; optional `message.content` image parts; `data:` or `http(s)` URLs; bounded deep-scan for `data:image`.
+ */
+export function extractOpenRouterImageUrlCandidate(json: unknown): string | null {
+  const root = unwrapOpenRouterChatCompletionJson(json);
+  const choices = (root as { choices?: unknown })?.choices;
+  if (Array.isArray(choices)) {
+    for (const choice of choices) {
+      if (!choice || typeof choice !== "object") continue;
+      const ch = choice as Record<string, unknown>;
+      const u =
+        peelImageFromImagesArray(ch.images) ??
+        peelMessageLikeForImage(ch.message) ??
+        peelMessageLikeForImage(ch.delta);
+      if (u) return u;
+    }
+  }
+  return deepScanOpenRouterDataImageUrl(root);
+}
+
+export function extractFirstImageDataUrlFromOpenRouterResponse(json: unknown): string | null {
+  const c = extractOpenRouterImageUrlCandidate(json);
+  return c && c.startsWith("data:image") ? c : null;
+}
+
+function summarizeMissingOpenRouterImage(json: unknown): string {
+  const rawTop = json && typeof json === "object" ? (json as Record<string, unknown>) : null;
+  if (rawTop?.error && typeof rawTop.error === "object") {
+    const em = (rawTop.error as { message?: string }).message;
+    if (typeof em === "string" && em.trim()) return `API error: ${em.trim().slice(0, 450)}`;
+  }
+
+  const root = unwrapOpenRouterChatCompletionJson(json);
+  const top = root && typeof root === "object" ? (root as Record<string, unknown>) : null;
+  const topKeys = top ? Object.keys(top).slice(0, 28).join(",") : "non-object";
+  const rawKeys = rawTop && top !== rawTop ? Object.keys(rawTop).slice(0, 28).join(",") : "";
+
+  const choices = top?.choices;
+  if (!Array.isArray(choices)) {
+    return `no choices[] in response (unwrapped keys: ${topKeys}${rawKeys ? `; outer keys: ${rawKeys}` : ""})`;
+  }
+  if (choices.length === 0) return `empty choices[] (top keys: ${topKeys})`;
+
+  const ch0 = choices[0] as Record<string, unknown> | undefined;
+  if (!ch0 || typeof ch0 !== "object") return `choices[0] invalid (choices.length=${choices.length})`;
+
+  const msg = ch0.message;
+  if (!msg || typeof msg !== "object") {
+    const chKeys = Object.keys(ch0).join(",");
+    return `choices[0].message missing or null (choice keys: ${chKeys}; finish_reason=${String(ch0.finish_reason)}; native_finish_reason=${String(ch0.native_finish_reason)})`;
+  }
+
+  const keys = Object.keys(msg).join(",");
+  const im = msg.images;
+  const imDesc = Array.isArray(im) ? `images.length=${im.length}` : `images=${typeof im}`;
+  const c = msg.content;
+  const cDesc = Array.isArray(c) ? `content.parts=${c.length}` : `content=${typeof c}`;
+  return `no usable image URL (message keys: ${keys}; ${imDesc}; ${cDesc}). Check OPENROUTER_IMAGE_MODEL supports image output and modalities.`;
+}
+
+/** Fetch a hosted image URL and return a `data:image/*;base64,...` string for storage decode. */
+export async function openRouterFetchImageUrlToDataUrl(imageUrl: string): Promise<string> {
+  const res = await fetch(imageUrl.trim(), { redirect: "follow" });
+  if (!res.ok) throw new Error(`OpenRouter image fetch failed: HTTP ${res.status}`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  let ct = res.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() || "image/png";
+  if (!ct.startsWith("image/")) ct = "image/png";
+  const CHUNK = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  const b64 = btoa(binary);
+  return `data:${ct};base64,${b64}`;
 }
 
 /** Decode `data:image/png;base64,...` → bytes + mime. */
@@ -192,6 +349,7 @@ export async function openRouterGenerateFluxImage(args: {
       messages: [{ role: "user", content: prompt }],
       modalities: ["image"],
       max_tokens: 1024,
+      stream: false,
     };
     if (args.aspectRatio) {
       body.image_config = { aspect_ratio: args.aspectRatio };
@@ -220,9 +378,28 @@ export async function openRouterGenerateFluxImage(args: {
       lastErr = typeof errObj === "string" ? errObj : rawText.slice(0, 500);
       continue;
     }
-    const dataUrl = extractFirstImageDataUrlFromOpenRouterResponse(json);
+    const unwrapped = unwrapOpenRouterChatCompletionJson(json) as { choices?: unknown };
+    const err200 = (json as { error?: { message?: string } })?.error?.message;
+    if (typeof err200 === "string" && err200.trim() && !Array.isArray(unwrapped?.choices)) {
+      lastErr = err200.trim().slice(0, 500);
+      continue;
+    }
+    const candidate = extractOpenRouterImageUrlCandidate(json);
+    let dataUrl: string | null = null;
+    if (candidate) {
+      if (candidate.startsWith("data:image")) {
+        dataUrl = candidate;
+      } else if (candidate.startsWith("http://") || candidate.startsWith("https://")) {
+        try {
+          dataUrl = await openRouterFetchImageUrlToDataUrl(candidate);
+        } catch (fetchErr) {
+          lastErr = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+          continue;
+        }
+      }
+    }
     if (dataUrl) return { dataUrl, modelUsed: model };
-    lastErr = "response had no message.images[0].image_url (check model + modalities)";
+    lastErr = summarizeMissingOpenRouterImage(json);
   }
 
   throw new Error(`OpenRouter FLUX image failed: ${lastErr}`);
