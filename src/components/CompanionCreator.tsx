@@ -61,6 +61,7 @@ import {
   forgePersonalitySeedsProse,
   forgePersonalityToArchetypeList,
   inferForgePersonalityFromText,
+  normalizeForgePersonality,
   randomForgePersonality,
 } from "@/lib/forgePersonalityProfile";
 import { cn } from "@/lib/utils";
@@ -1257,6 +1258,7 @@ User flavor notes: ${extraNotes || "none"}`;
 
   const randomizeForgeCharacter = async () => {
     setRouletteLoading(true);
+    try {
     if (isAdmin) {
       pushForgeOp("The veil spun — new Personalities mix and local story pass (no model wait).", "info");
     }
@@ -1337,7 +1339,9 @@ User flavor notes: ${extraNotes || "none"}`;
     } else {
       toast.success("New mix sealed — preview your portrait when you are ready.");
     }
-    setRouletteLoading(false);
+    } finally {
+      setRouletteLoading(false);
+    }
   };
 
   const toggleAppearanceAccent = (accent: string) => {
