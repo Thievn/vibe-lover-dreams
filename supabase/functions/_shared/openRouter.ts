@@ -170,7 +170,8 @@ export function decodeOpenRouterImageDataUrl(dataUrl: string): { binary: Uint8Ar
 
 /**
  * FLUX still via OpenRouter (chat completions + `modalities`).
- * Defaults: FLUX.2 Pro, then FLUX.2 Flex. Prompts stay the same rich NSFW-adjacent briefs built upstream.
+ * FLUX is **image-only** on OpenRouter — use `modalities: ["image"]` only (`["image","text"]` is for models like Gemini and breaks FLUX routing).
+ * Defaults: FLUX.2 Pro, then FLUX.2 Flex.
  */
 export async function openRouterGenerateFluxImage(args: {
   prompt: string;
@@ -189,7 +190,7 @@ export async function openRouterGenerateFluxImage(args: {
     const body: Record<string, unknown> = {
       model,
       messages: [{ role: "user", content: prompt }],
-      modalities: ["image", "text"],
+      modalities: ["image"],
       max_tokens: 1024,
     };
     if (args.aspectRatio) {
