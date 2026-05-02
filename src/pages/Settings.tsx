@@ -33,6 +33,10 @@ const Settings = () => {
   const [deviceUid, setDeviceUid] = useState("");
   /** Empty = no global override (each companion / relationship voice applies). */
   const [ttsGlobalVoice, setTtsGlobalVoice] = useState("");
+  /** Empty = use project default (Together **FLUX.2-dev** via Edge secrets). */
+  const [togetherImageModel, setTogetherImageModel] = useState("");
+  /** Reserved for future Together video; stored for when the pipeline is wired. */
+  const [togetherVideoModel, setTogetherVideoModel] = useState("");
   const [saving, setSaving] = useState(false);
   const [linkedToys, setLinkedToys] = useState<LovenseToy[]>([]);
   const [pushCount, setPushCount] = useState(0);
@@ -50,13 +54,17 @@ const Settings = () => {
   const loadProfileSettings = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("device_uid, tts_voice_global_override")
+      .select("device_uid, tts_voice_global_override, together_image_model, together_video_model")
       .eq("user_id", userId)
       .single();
     if (data?.device_uid) setDeviceUid(data.device_uid);
     else setDeviceUid("");
     const g = data?.tts_voice_global_override;
     setTtsGlobalVoice(typeof g === "string" && g.trim() ? resolveUxVoiceId(g) : "");
+    const tim = data?.together_image_model;
+    setTogetherImageModel(typeof tim === "string" ? tim.trim() : "");
+    const tvm = data?.together_video_model;
+    setTogetherVideoModel(typeof tvm === "string" ? tvm.trim() : "");
   }, []);
 
   const {
@@ -171,9 +179,15 @@ const Settings = () => {
       localStorage.setItem("lustforge-safeword", safeWord);
       localStorage.setItem("lustforge-intensity", intensityLimit.toString());
       const override = ttsGlobalVoice.trim() ? resolveUxVoiceId(ttsGlobalVoice) : null;
+      const tim = togetherImageModel.trim() || null;
+      const tvm = togetherVideoModel.trim() || null;
       const { error } = await supabase
         .from("profiles")
-        .update({ tts_voice_global_override: override })
+        .update({
+          tts_voice_global_override: override,
+          together_image_model: tim,
+          together_video_model: tvm,
+        })
         .eq("user_id", user.id);
       if (error) throw error;
       toast.success("Settings saved");
@@ -287,6 +301,48 @@ const Settings = () => {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Together.ai — image / future video models */}
+          <div className="rounded-xl border border-border bg-card p-6 mb-6">
+            <h2 className="font-gothic text-lg font-bold text-foreground mb-2">Together image &amp; video</h2>
+            <p className="text-xs leading-relaxed text-muted-foreground mb-4">
+              Forge previews, chat pictures, portraits, and gallery stills run on{" "}
+              <strong className="text-foreground/90">Together.ai</strong> using FLUX.2 (default in the backend:{" "}
+              <code className="text-[10px] text-foreground/90">black-forest-labs/FLUX.2-dev</code>
+              ). Leave blank to use the server default or your project&apos;s Edge secret override; set a value here only
+              if you want <em>your</em> account to use a different Together image slug.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-foreground mb-1">Together image model</label>
+                <input
+                  type="text"
+                  value={togetherImageModel}
+                  onChange={(e) => setTogetherImageModel(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-muted border border-border text-foreground text-sm font-mono focus:outline-none focus:border-primary transition-colors"
+                  placeholder="black-forest-labs/FLUX.2-dev"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-foreground mb-1">Together video model</label>
+                <p className="text-[11px] text-muted-foreground mb-2">
+                  Not used by the app yet — stored so you can pick a default before in-chat / profile video moves to
+                  Together.
+                </p>
+                <input
+                  type="text"
+                  value={togetherVideoModel}
+                  onChange={(e) => setTogetherVideoModel(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-muted border border-border text-foreground text-sm font-mono focus:outline-none focus:border-primary transition-colors"
+                  placeholder="Future: e.g. a Together video slug when supported"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </div>
+            </div>
           </div>
 
           {/* Web Push — voice call alerts */}

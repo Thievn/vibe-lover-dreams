@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
+import { requireTogetherApiKey } from "../_shared/togetherClient.ts";
 import { renderPortraitToStorage } from "../_shared/renderCompanionPortrait.ts";
 
 const corsHeaders = {
@@ -83,12 +83,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    const orKey = resolveOpenRouterApiKey((name) => Deno.env.get(name));
-    if (!orKey) {
+    const togetherKey = requireTogetherApiKey();
+    if (!togetherKey) {
       return new Response(
         JSON.stringify({
           error:
-            "Missing OPENROUTER_API_KEY for admin/forge portrait generation (same as generate-image FLUX).",
+            "Missing TOGETHER_API_KEY for admin/forge portrait generation (Together FLUX.2 — same stack as generate-image).",
         }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -112,11 +112,18 @@ Deno.serve(async (req) => {
         ? ({ kind: "forge" as const, uuid: forgeRowUuid })
         : ({ kind: "catalog" as const, catalogId: companionId! });
 
+    const { data: operatorProf } = await adminClient
+      .from("profiles")
+      .select("together_image_model")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     const { publicUrl, displayUrl } = await renderPortraitToStorage({
       adminClient,
       imagePrompt,
       characterData,
       target: storageTarget,
+      profileTogetherImageModel: operatorProf?.together_image_model ?? null,
       ...(body.contentTier === "forge_preview_sfw" ? { contentTier: "forge_preview_sfw" as const } : {}),
     });
 

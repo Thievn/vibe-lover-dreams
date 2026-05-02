@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { openRouterChatCompletion, openRouterChatModel, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
+import { requireTogetherApiKey } from "../_shared/togetherClient.ts";
 import { requireAdminUser } from "../_shared/requireSessionUser.ts";
 import { renderPortraitToStorage } from "../_shared/renderCompanionPortrait.ts";
 
@@ -189,8 +190,9 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const gate = await requireAdminUser(req);
-  if ("response" in gate) return gate.response;
+  const adminAuth = await requireAdminUser(req);
+  if ("response" in adminAuth) return adminAuth.response;
+  const adminUserId = adminAuth.user.id;
 
   try {
     const body = await req.json() as {
@@ -242,8 +244,8 @@ Deno.serve(async (req) => {
     const getEnv = (n: string) => Deno.env.get(n);
 
     if (section === "portrait") {
-      if (!resolveOpenRouterApiKey(getEnv)) {
-        return new Response(JSON.stringify({ error: "OPENROUTER_API_KEY not configured" }), {
+      if (!requireTogetherApiKey()) {
+        return new Response(JSON.stringify({ error: "TOGETHER_API_KEY not configured (required for FLUX.2 portraits)" }), {
           status: 503,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -256,11 +258,18 @@ Deno.serve(async (req) => {
         ? { kind: "forge" as const, uuid: filterId }
         : { kind: "catalog" as const, catalogId: filterId };
 
+      const { data: opProf } = await adminClient
+        .from("profiles")
+        .select("together_image_model")
+        .eq("user_id", adminUserId)
+        .maybeSingle();
+
       const { publicUrl, displayUrl } = await renderPortraitToStorage({
         adminClient,
         imagePrompt,
         characterData: row,
         target,
+        profileTogetherImageModel: opProf?.together_image_model ?? null,
       });
 
       if (source === "forge") {

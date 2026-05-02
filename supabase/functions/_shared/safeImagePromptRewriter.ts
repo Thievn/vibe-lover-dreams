@@ -1,5 +1,5 @@
 /**
- * Rewrites raw text into a final image prompt for **OpenRouter FLUX** (same creative briefs as before).
+ * Rewrites raw text into a final image prompt for **Together FLUX.2** stills (OpenRouter **text** rewriter → Together `/v1/images/generations`; default image model **FLUX.2-dev**).
  * - `chat_session`: adult chat / in-session images — explicit content allowed in the rewritten prompt (provider enforces its own limits).
  * - `portrait_card`: catalog / forge **card portrait** only — output must stay SFW (pin-up / cover art); see `PORTRAIT_IMAGE_REWRITER_SYSTEM`.
  *
@@ -12,8 +12,8 @@ const getEnv = (name: string) => Deno.env.get(name);
 
 export type ImagineRewriteMode = "chat_session" | "portrait_card";
 
-/** In-session or marketing images: do not pre-sanitize for “SFW” — FLUX + provider handle policy. */
-export const CHAT_SESSION_IMAGE_REWRITER_SYSTEM = `You are the principal visual director for FLUX image generation on an adults-only fantasy companion product.
+/** In-session or marketing images: do not pre-sanitize for “SFW” — FLUX.2 on Together + provider handle policy. */
+export const CHAT_SESSION_IMAGE_REWRITER_SYSTEM = `You are the principal visual director for FLUX.2 image generation (Together.ai) on an adults-only fantasy companion product.
 
 INPUT: you receive RAW_TEXT — anything from a user's chat request to an AI roleplay reply. It may be blunt, explicit, or obscene. You also receive optional CONTEXT (character notes, scene, wardrobe hints).
 
@@ -96,7 +96,7 @@ function stripCodeFences(text: string): string {
 }
 
 /**
- * Calls OpenRouter chat completions to rewrite raw text into a FLUX-ready image prompt.
+ * Calls OpenRouter chat completions to rewrite raw text into a FLUX.2-ready image prompt (rendered on Together.ai).
  */
 export async function rewritePromptForImagine(args: RewritePromptForImagineArgs): Promise<string> {
   const raw = (args.raw || "").trim();

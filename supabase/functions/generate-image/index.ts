@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { decodeOpenRouterImageDataUrl, openRouterGenerateFluxImage, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
+import { requireTogetherApiKey } from "../_shared/togetherClient.ts";
+import { decodeImageDataUrl, togetherGenerateFluxImage } from "../_shared/togetherImage.ts";
 import { PORTRAIT_IMAGE_DESIGN_BRIEF } from "../_shared/portraitImageDesignBrief.ts";
 import {
   buildAnatomyImagineKeyRules,
@@ -33,7 +34,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-const OPENROUTER_IMAGE_PROMPT_SOFT_LIMIT = 7600;
+const TOGETHER_IMAGE_PROMPT_SOFT_LIMIT = 7600;
 
 function clampPromptForImagine(prompt: string, maxChars: number): string {
   const compact = prompt.replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -147,13 +148,13 @@ serve(async (req) => {
       );
     }
 
-    const orKey = resolveOpenRouterApiKey((name) => Deno.env.get(name));
-    if (!orKey) {
+    const togetherKey = requireTogetherApiKey();
+    if (!togetherKey) {
       return new Response(
         JSON.stringify({
           success: false,
           error:
-            "Missing OpenRouter key. Set Edge Function secret OPENROUTER_API_KEY (https://openrouter.ai/keys) for FLUX stills.",
+            "Missing Together API key. Set Edge Function secret TOGETHER_API_KEY (https://api.together.ai) for FLUX.2 image generation.",
         }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -165,16 +166,17 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    const { data: profRow, error: profRowErr } = await supabase
+      .from("profiles")
+      .select("tokens_balance, together_image_model")
+      .eq("user_id", userId)
+      .maybeSingle();
+
     if (tokenCost > 0) {
-      const { data: prof, error: profErr } = await supabase
-        .from("profiles")
-        .select("tokens_balance")
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (profErr || prof == null) {
+      if (profRowErr || profRow == null) {
         throw new Error("Could not read forge credits balance.");
       }
-      if (prof.tokens_balance < tokenCost) {
+      if (profRow.tokens_balance < tokenCost) {
         return new Response(
           JSON.stringify({
             success: false,
@@ -186,11 +188,11 @@ serve(async (req) => {
       }
       const { error: deductErr } = await supabase
         .from("profiles")
-        .update({ tokens_balance: prof.tokens_balance - tokenCost })
+        .update({ tokens_balance: profRow.tokens_balance - tokenCost })
         .eq("user_id", userId);
       if (deductErr) throw new Error(deductErr.message || "Could not reserve forge credits.");
       tokensCharged = true;
-      const balAfterDeduct = prof.tokens_balance - tokenCost;
+      const balAfterDeduct = profRow.tokens_balance - tokenCost;
       await recordFcTransaction(supabase, {
         userId,
         creditsChange: -tokenCost,
@@ -201,7 +203,7 @@ serve(async (req) => {
             ? "Forge: live preview portrait (Imagine, SFW)"
             : isPortrait
               ? "Forge / roster: portrait (Imagine, full expression)"
-              : "Chat / gallery: image (OpenRouter FLUX)",
+              : "Chat / gallery: image (Together FLUX.2)",
         metadata: { tokenCost, isPortrait, contentTier: effectiveTier },
       });
     }
@@ -382,19 +384,20 @@ ${refLines ? `${refLines}\n` : ""}
 PRIMARY SCENE (follow closely — rewriter output is authoritative for mood and explicitness):
 ${safeRewritten}
     `.trim();
-    const finalPrompt = clampPromptForImagine(finalPromptRaw, OPENROUTER_IMAGE_PROMPT_SOFT_LIMIT);
+    const finalPrompt = clampPromptForImagine(finalPromptRaw, TOGETHER_IMAGE_PROMPT_SOFT_LIMIT);
 
     let imageDataUrl: string;
     try {
-      const { dataUrl } = await openRouterGenerateFluxImage({
+      const { dataUrl } = await togetherGenerateFluxImage({
         prompt: finalPrompt,
         getEnv: (n) => Deno.env.get(n),
         aspectRatio: "2:3",
+        profileTogetherImageModel: profRow?.together_image_model ?? null,
       });
       imageDataUrl = dataUrl;
     } catch (imgErr) {
       if (tokensCharged) {
-        await refundTokens(supabase, userId, tokenCost, "OpenRouter FLUX image error");
+        await refundTokens(supabase, userId, tokenCost, "Together FLUX image error");
         tokensCharged = false;
       }
       const msg = imgErr instanceof Error ? imgErr.message : String(imgErr);
@@ -402,7 +405,7 @@ ${safeRewritten}
         JSON.stringify({
           success: false,
           error:
-            /xai|openrouter|content policy|moderation|blocked|safety/i.test(msg)
+            /xai|openrouter|together|content policy|moderation|blocked|safety|422/i.test(msg)
               ? msg
               : `Image generation failed: ${msg}. Your forge credits were refunded if this run charged you.`,
           tokensRefunded: tokenCost > 0,
@@ -416,7 +419,7 @@ ${safeRewritten}
     let uploadContentType: string;
     let fileExt: string;
     try {
-      const decoded = decodeOpenRouterImageDataUrl(imageDataUrl);
+      const decoded = decodeImageDataUrl(imageDataUrl);
       imageBytes = decoded.binary;
       uploadContentType = decoded.contentType;
       fileExt = decoded.ext;

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { openRouterChatCompletion, openRouterChatModel, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
+import { requireTogetherApiKey } from "../_shared/togetherClient.ts";
 import { renderPortraitToStorage } from "../_shared/renderCompanionPortrait.ts";
 import { requireAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { mergeTcgForNexusChild } from "../_shared/tcgStatsGenerate.ts";
@@ -822,14 +823,20 @@ Output ONLY via the nexus_merge_companion tool call.`;
 
     if (imagePromptForPortrait && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
       try {
-        const orKey = resolveOpenRouterApiKey((name) => Deno.env.get(name));
-        if (orKey) {
+        const togetherKey = requireTogetherApiKey();
+        if (togetherKey) {
+          const { data: nexusProf } = await supabase
+            .from("profiles")
+            .select("together_image_model")
+            .eq("user_id", userId)
+            .maybeSingle();
           const characterData: Record<string, unknown> = { ...insertRow, id: fusionUuid };
           const { publicUrl } = await renderPortraitToStorage({
             adminClient: supabase,
             imagePrompt: imagePromptForPortrait,
             characterData,
             target: { kind: "forge", uuid: fusionUuid },
+            profileTogetherImageModel: nexusProf?.together_image_model ?? null,
           });
           const { error: portraitUpdErr } = await supabase
             .from("custom_characters")
@@ -847,8 +854,8 @@ Output ONLY via the nexus_merge_companion tool call.`;
             portraitOk = true;
           }
         } else {
-          portraitError = "missing_openrouter_key";
-          console.warn("nexus-merge: skip portrait — set OPENROUTER_API_KEY on Edge Functions");
+          portraitError = "missing_together_key";
+          console.warn("nexus-merge: skip portrait — set TOGETHER_API_KEY on Edge Functions");
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);

@@ -1,5 +1,6 @@
 /**
- * Together.ai OpenAI-compatible chat completions (Edge / Deno).
+ * Together.ai OpenAI-compatible **chat** completions and shared API base (Edge / Deno).
+ * Image generation uses `/v1/images/generations` — see `togetherImage.ts`.
  * @see https://docs.together.ai/reference/chat-completions
  */
 
@@ -21,17 +22,24 @@ export type TogetherChatCompletionResult = {
 };
 
 /**
- * Official inference API is `https://api.together.xyz/v1` (docs.together.ai). The marketing site
- * uses together.ai; API keys from the dashboard work against this host.
- * Override only if Together support points you elsewhere: secret `TOGETHER_API_BASE_URL` (no trailing slash).
+ * Official inference API base is `https://api.together.xyz/v1` (docs also show api.together.ai — same keys).
+ * Override with secret `TOGETHER_API_BASE_URL` if Together support points you elsewhere (no trailing slash).
  */
-export function togetherChatCompletionsUrl(): string {
+export function togetherApiV1Base(): string {
   let base = (Deno.env.get("TOGETHER_API_BASE_URL") ?? "https://api.together.xyz/v1").trim();
   base = base.replace(/\uFEFF/g, "").replace(/\/+$/, "");
   if (!/^https?:\/\//i.test(base)) {
     base = "https://api.together.xyz/v1";
   }
-  return `${base}/chat/completions`;
+  return base;
+}
+
+export function togetherChatCompletionsUrl(): string {
+  return `${togetherApiV1Base()}/chat/completions`;
+}
+
+export function togetherImageGenerationsUrl(): string {
+  return `${togetherApiV1Base()}/images/generations`;
 }
 
 export async function togetherChatCompletion(

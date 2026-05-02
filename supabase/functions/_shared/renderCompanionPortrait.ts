@@ -10,7 +10,7 @@ import {
   isAnimeTemptationForgeTabId,
 } from "./forgeAnimeStyleDna.ts";
 import { buildForgeStyleDnaPrefix } from "./forgeTabStyleDna.ts";
-import { decodeOpenRouterImageDataUrl, openRouterGenerateFluxImage } from "./openRouter.ts";
+import { decodeImageDataUrl, togetherGenerateFluxImage } from "./togetherImage.ts";
 
 const getEnv = (name: string) => Deno.env.get(name);
 
@@ -92,15 +92,15 @@ function storageFileName(target: PortraitStorageTarget, ext: string): string {
 }
 
 /**
- * OpenRouter FLUX still → uploads to companion-portraits. Does not touch the database.
+ * Together.ai FLUX.2 still (`/v1/images/generations`, default **FLUX.2-dev**) → uploads to companion-portraits. Does not touch the database.
  */
 export async function renderPortraitToStorage(opts: {
   adminClient: SupabaseClient;
   imagePrompt: string;
   characterData: Record<string, unknown>;
   target: PortraitStorageTarget;
-  /** @deprecated Ignored — image model comes from OPENROUTER_IMAGE_MODEL* secrets. */
-  model?: string;
+  /** Optional profile override (`profiles.together_image_model`); otherwise `TOGETHER_IMAGE_MODEL` / default. */
+  profileTogetherImageModel?: string | null;
   /** Defaults to full expression (admin / nexus / catalog regen). */
   contentTier?: ImageContentTier | string;
 }): Promise<{ publicUrl: string; displayUrl: string; storagePath: string }> {
@@ -115,13 +115,14 @@ export async function renderPortraitToStorage(opts: {
       ? buildPortraitFinalPrompt(imagePrompt, characterData)
       : await buildFullAdultArtPortraitPrompt(imagePrompt, characterData);
 
-  const { dataUrl } = await openRouterGenerateFluxImage({
+  const { dataUrl } = await togetherGenerateFluxImage({
     prompt: finalPrompt,
     getEnv,
     aspectRatio: "2:3",
+    profileTogetherImageModel: opts.profileTogetherImageModel ?? null,
   });
 
-  const { binary, contentType, ext } = decodeOpenRouterImageDataUrl(dataUrl);
+  const { binary, contentType, ext } = decodeImageDataUrl(dataUrl);
 
   const fileName = storageFileName(target, ext);
 
