@@ -703,7 +703,7 @@ function AdminShell() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans relative overflow-hidden flex">
+    <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 overflow-hidden bg-background text-foreground font-sans relative">
       <ParticleBackground />
       <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.07] via-transparent to-accent/[0.05] pointer-events-none" />
       <div
@@ -712,7 +712,7 @@ function AdminShell() {
       />
 
       {/* Sidebar */}
-      <aside className="relative z-20 hidden lg:flex w-[280px] shrink-0 flex-col border-r border-border/80 bg-black/55 backdrop-blur-xl">
+      <aside className="relative z-20 hidden min-h-0 w-[280px] shrink-0 flex-col border-r border-border/80 bg-black/55 backdrop-blur-xl lg:flex">
         <div className="p-6 border-b border-border/60">
           <Link to="/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-primary text-xs mb-4 transition-colors">
             <ChevronRight className="h-3 w-3 rotate-180" />
@@ -752,7 +752,7 @@ function AdminShell() {
       </aside>
 
       {/* Main */}
-      <main className="relative z-10 flex-1 overflow-y-auto min-h-screen lg:min-h-0">
+      <main className="relative z-10 min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         <div
           className="lg:hidden sticky top-0 z-30 bg-black/80 backdrop-blur-md border-b border-border/60 px-2 py-2 flex items-center gap-2"
           style={{ paddingTop: "max(0.35rem, env(safe-area-inset-top))" }}
@@ -802,7 +802,7 @@ function AdminShell() {
             />
           )}
           {section === "creator" && (
-            <div className="relative flex min-h-0 flex-col overflow-hidden rounded-[1.75rem] border border-white/[0.09] bg-[#050508] font-sans text-foreground shadow-[0_0_60px_rgba(255,45,123,0.12),inset_0_1px_0_rgba(255,255,255,0.05)]">
+            <div className="relative flex flex-col overflow-x-hidden rounded-[1.75rem] border border-white/[0.09] bg-[#050508] font-sans text-foreground shadow-[0_0_60px_rgba(255,45,123,0.12),inset_0_1px_0_rgba(255,255,255,0.05)]">
               <ParticleBackground contain />
               <div
                 className="pointer-events-none absolute inset-0 z-[1]"
@@ -810,7 +810,7 @@ function AdminShell() {
                   background: `linear-gradient(180deg, ${NEON}0d 0%, transparent 35%, hsl(280 40% 8% / 0.4) 100%)`,
                 }}
               />
-              <div className="relative z-10 flex min-h-0 flex-col">
+              <div className="relative z-10 flex flex-col">
                 <div className="flex shrink-0 flex-col gap-3 border-b border-white/10 bg-white/[0.03] px-4 py-4 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between md:px-8">
                   <h2 className="font-gothic text-2xl tracking-wide text-white gradient-vice-text">Companion Forge</h2>
                   <div className="flex flex-wrap items-center gap-2">
@@ -826,34 +826,24 @@ function AdminShell() {
                     </span>
                   </div>
                 </div>
-                <div className="flex min-h-0 w-full max-h-[min(calc(100dvh-8.5rem),960px)] flex-col gap-4 overflow-hidden lg:max-h-[calc(100dvh-7.5rem)]">
-                  {/* Scroll schedule/parody separately so wheel events reach the forge split panes (no competing parent scroller). */}
-                  <div
-                    className={cn(
-                      "min-h-0 max-h-[min(40dvh,360px)] shrink-0 space-y-3 overflow-y-auto overscroll-y-contain px-4 pt-4 md:px-8 md:pt-5",
-                      "[scrollbar-gutter:stable] [scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin]",
-                      "[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-transparent",
-                    )}
-                  >
-                    <AdminForgeSchedulePanel
-                      onAutoForge={async (opts) => {
-                        await forgeRef.current?.runRandomRouletteAndForge(opts);
-                      }}
-                    />
-                    <AdminCelebrityParodyPanel
-                      onGenerate={async (celebrityName, grotesqueGpk) => {
-                        await forgeRef.current?.runCelebrityParody(celebrityName, { grotesqueGpk });
-                      }}
-                    />
-                  </div>
-                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden pb-1">
-                    <CompanionCreator
-                      ref={forgeRef}
-                      mode="admin"
-                      embedded
-                      onForged={() => goSection("characters")}
-                    />
-                  </div>
+                {/* One column, no nested max-height scrollers — the admin <main> scrolls the whole forge tab. */}
+                <div className="space-y-4 px-4 pb-10 pt-4 md:px-8 md:pt-5">
+                  <AdminForgeSchedulePanel
+                    onAutoForge={async (opts) => {
+                      await forgeRef.current?.runRandomRouletteAndForge(opts);
+                    }}
+                  />
+                  <AdminCelebrityParodyPanel
+                    onGenerate={async (celebrityName, grotesqueGpk) => {
+                      await forgeRef.current?.runCelebrityParody(celebrityName, { grotesqueGpk });
+                    }}
+                  />
+                  <CompanionCreator
+                    ref={forgeRef}
+                    mode="admin"
+                    embedded
+                    onForged={() => goSection("characters")}
+                  />
                 </div>
               </div>
             </div>

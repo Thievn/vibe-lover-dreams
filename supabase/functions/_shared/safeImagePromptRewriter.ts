@@ -148,8 +148,17 @@ export async function rewritePromptForImagine(args: RewritePromptForImagineArgs)
     throw new Error(`Rewriter: OpenRouter HTTP ${res.status}: ${msg}`);
   }
 
-  const content = stripCodeFences(extractOpenRouterAssistantText(res.json));
+  let content = stripCodeFences(extractOpenRouterAssistantText(res.json));
   if (content.length < 24) {
+    console.warn(
+      "rewritePromptForImagine: short/empty model output; using RAW_TEXT fallback. mode=",
+      mode,
+      "model=",
+      model,
+    );
+    content = raw;
+  }
+  if (content.trim().length < 12) {
     throw new Error("Rewriter: model returned an empty or unusable prompt. Try again.");
   }
 

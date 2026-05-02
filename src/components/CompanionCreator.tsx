@@ -2276,13 +2276,15 @@ User flavor notes: ${extraNotes || "none"}`;
     );
   }
 
-  /** Desktop + mobile “controls” tab: primary actions live with the form scroll. Mobile “preview” tab duplicates via `mobilePreview`. */
-  const forgePortraitCommitActions = (variant: "primary" | "mobilePreview") => (
+  /** Mobile controls column + mobile preview tab; desktop (`lg+`) actions sit under Live preview in the right rail. */
+  const forgePortraitCommitActions = (variant: "primary" | "mobilePreview" | "desktopUnderPreview") => (
     <div
-      id={variant === "primary" ? "forge-primary-actions" : undefined}
+      id={variant === "desktopUnderPreview" ? "forge-primary-actions" : undefined}
       className={cn(
         "grid grid-cols-1 gap-2.5",
-        variant === "primary" ? "mt-6 scroll-mt-6" : "mt-4 lg:hidden",
+        variant === "primary" && "mt-6 scroll-mt-6 lg:hidden",
+        variant === "mobilePreview" && "mt-4 lg:hidden",
+        variant === "desktopUnderPreview" && "mt-4 hidden scroll-mt-4 lg:grid",
       )}
     >
       <motion.button
@@ -2398,24 +2400,22 @@ User flavor notes: ${extraNotes || "none"}`;
 
         <div
           className={cn(
-            "mx-auto flex min-h-0 w-full max-w-[1700px] flex-col gap-5 lg:gap-7 lg:flex-row lg:items-stretch",
-            // Embedded admin: same centered width + gaps as /create-companion; fill parent height only.
-            embedded
-              ? "min-h-0 flex-1 lg:h-full lg:max-h-full lg:min-h-0 lg:overflow-hidden"
-              : "lg:min-h-[520px] lg:h-[calc(100dvh-8.5rem)]",
+            "mx-auto flex w-full max-w-[1700px] flex-col gap-5 lg:gap-7 lg:flex-row lg:items-start",
+            // Desktop: natural height — one outer scroll (page or admin main), no nested viewport traps.
+            embedded ? "min-h-0 flex-1" : "min-h-0",
             !lgBreakpointUp && "max-lg:min-h-0 max-lg:flex-1",
           )}
         >
-          {/* Controls — own scroll on lg+ so preview column never “releases” sticky and jumps */}
+          {/* Controls — full width stack; mobile keeps its own scroll when split with preview */}
           <div
             className={cn(
-              "order-2 flex w-full min-w-0 flex-col lg:order-1 lg:min-h-0 lg:flex-1 lg:min-w-0",
+              "order-2 flex w-full min-w-0 flex-col lg:order-1 lg:min-w-0 lg:flex-1",
               !lgBreakpointUp && forgeMobileView !== "controls" && "max-lg:hidden",
             )}
           >
             <div
               className={cn(
-                "motion-reduce:scroll-auto space-y-4 overscroll-y-contain lg:min-h-0 lg:max-h-full lg:flex-1 lg:overflow-y-auto lg:pb-8 lg:pr-2",
+                "motion-reduce:scroll-auto space-y-4 overscroll-y-contain lg:overflow-visible lg:pb-8 lg:pr-2",
                 "max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto",
                 "[scrollbar-gutter:stable]",
                 "[scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin]",
@@ -2539,15 +2539,15 @@ User flavor notes: ${extraNotes || "none"}`;
                 </div>
               </div>
 
-              <div className="max-h-[min(52vh,28rem)] overflow-y-auto overflow-x-hidden pr-1 -mr-1">
-                <div className="flex flex-wrap gap-2">
+              <div className="max-lg:max-h-[min(52vh,28rem)] max-lg:overflow-y-auto max-lg:overflow-x-hidden max-lg:pr-1 max-lg:-mr-1 lg:overflow-visible">
+                <div className="flex flex-wrap gap-2 lg:grid lg:grid-cols-4 xl:grid-cols-5 lg:flex-none">
                   {FORGE_THEME_TABS.map((tab) => (
                     <button
                       key={tab.id}
                       type="button"
                       onClick={() => setActiveForgeTab(tab.id)}
                       className={cn(
-                        "min-w-[calc(50%-0.25rem)] sm:min-w-[10.5rem] flex-1 sm:flex-none rounded-xl border px-2.5 py-2 text-left transition-colors sm:max-w-[12.5rem]",
+                        "min-w-[calc(50%-0.25rem)] flex-1 sm:min-w-[10.5rem] sm:flex-none rounded-xl border px-2.5 py-2 text-left transition-colors lg:min-w-0 lg:w-full lg:flex-none",
                         activeForgeTab === tab.id
                           ? `${FORGE_TAB_BUTTON_ACCENT[tab.id]} text-white`
                           : "border-white/12 bg-black/30 text-foreground/85 hover:bg-white/[0.05]",
@@ -2692,8 +2692,8 @@ User flavor notes: ${extraNotes || "none"}`;
                   ) : null}
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-2 max-h-[min(52dvh,400px)] overflow-y-auto pr-1 self-start w-full min-w-0">
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground sticky top-0 bg-black/30 pb-2 z-[1]">
+                <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-2 max-lg:max-h-[min(52dvh,400px)] max-lg:overflow-y-auto max-lg:pr-1 lg:overflow-visible self-start w-full min-w-0">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground max-lg:sticky max-lg:top-0 max-lg:bg-black/30 max-lg:pb-2 max-lg:z-[1]">
                     {FORGE_THEME_TABS.find((t) => t.id === activeForgeTab)?.label} controls
                   </p>
                   <ForgeThemeControls
@@ -3551,17 +3551,17 @@ User flavor notes: ${extraNotes || "none"}`;
             </div>
           </div>
 
-          {/* Preview — TCG-sized; lg+ shares row height with independent scroll (no sticky jump) */}
+          {/* Preview — sticky on wide screens so it stays visible while the form scrolls */}
           <div
             className={cn(
-              "order-1 flex min-h-0 w-full shrink-0 flex-col lg:order-2 lg:h-full lg:min-h-0 lg:w-[min(100%,380px)] xl:w-[400px]",
+              "order-1 flex w-full shrink-0 flex-col lg:order-2 lg:top-6 lg:w-[min(100%,380px)] lg:self-start lg:sticky xl:w-[400px]",
               !lgBreakpointUp && forgeMobileView !== "preview" && "max-lg:hidden",
             )}
           >
             <div
               className={cn(
-                "motion-reduce:scroll-auto min-h-0 space-y-3 overscroll-y-contain lg:max-h-full lg:flex-1 lg:overflow-y-auto lg:pl-0.5 lg:pr-1",
-                "max-lg:flex-1 max-lg:overflow-y-auto",
+                "motion-reduce:scroll-auto space-y-3 overscroll-y-contain lg:overflow-visible lg:pl-0.5 lg:pr-1",
+                "max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto",
                 "[scrollbar-gutter:stable]",
                 "[scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin]",
                 "[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/25 [&::-webkit-scrollbar-thumb]:hover:bg-white/35 [&::-webkit-scrollbar-track]:bg-transparent",
@@ -3585,7 +3585,7 @@ User flavor notes: ${extraNotes || "none"}`;
                     <span className="block text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">Live preview</span>
                     <span className="text-[9px] text-muted-foreground/80 hidden sm:block">
                       Portrait + profile card
-                      <span className="hidden lg:inline"> · portrait and save below the form</span>
+                      <span className="hidden lg:inline"> · generate &amp; create below</span>
                     </span>
                   </span>
                 </span>
@@ -3709,6 +3709,8 @@ User flavor notes: ${extraNotes || "none"}`;
                   </div>
                 </div>
 
+                {forgePortraitCommitActions("desktopUnderPreview")}
+
                 {!isAdmin && previewHistory.length > 0 ? (
                   <div className="mt-3 space-y-2">
                     <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -3734,7 +3736,7 @@ User flavor notes: ${extraNotes || "none"}`;
                   </div>
                 ) : null}
 
-                {/* Mobile “Preview” tab only — desktop uses forge-primary-actions in the form column */}
+                {/* Mobile “Preview” tab only — desktop actions are `desktopUnderPreview` above */}
                 {forgePortraitCommitActions("mobilePreview")}
 
                 <div className="mt-4 rounded-xl border border-white/10 bg-black/35 p-4 backdrop-blur-sm">

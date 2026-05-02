@@ -13,6 +13,9 @@ const OPENROUTER_API = "https://openrouter.ai/api/v1";
 /** Default text model — exact OpenRouter slug. */
 export const DEFAULT_OPENROUTER_CHAT_MODEL = "deepseek/deepseek-v4-pro";
 
+/** Default rewriter model — instruction-following text (avoid routing chat/reasoning models here). */
+export const DEFAULT_OPENROUTER_REWRITE_MODEL = "openai/gpt-4o-mini";
+
 export const DEFAULT_OPENROUTER_IMAGE_MODEL_PRIMARY = "black-forest-labs/flux.2-pro";
 export const DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK = "black-forest-labs/flux.2-flex";
 
@@ -30,7 +33,7 @@ export function openRouterChatModel(getEnv: (name: string) => string | undefined
 }
 
 export function openRouterRewriteModel(getEnv: (name: string) => string | undefined): string {
-  return getEnv("OPENROUTER_REWRITE_MODEL")?.trim() || openRouterChatModel(getEnv);
+  return getEnv("OPENROUTER_REWRITE_MODEL")?.trim() || DEFAULT_OPENROUTER_REWRITE_MODEL;
 }
 
 function openRouterImagePrimary(getEnv: (name: string) => string | undefined): string {
@@ -123,11 +126,21 @@ export function extractOpenRouterAssistantText(json: unknown): string {
   if (typeof c === "string") return c.trim();
   if (Array.isArray(c)) {
     const parts = c as Array<{ type?: string; text?: string }>;
-    return parts
-      .filter((p) => p && p.type === "text" && typeof p.text === "string")
-      .map((p) => p.text!)
-      .join("\n")
-      .trim();
+    const textParts = parts
+      .filter((p) => p && typeof p.text === "string")
+      .filter((p) => {
+        const t = (p.type ?? "text").toLowerCase();
+        return t === "text" || t === "output_text";
+      })
+      .map((p) => p.text!.trim())
+      .filter(Boolean);
+    if (textParts.length) return textParts.join("\n").trim();
+    // Mis-tagged segments: still join plain `text` fields (some providers omit type or use custom labels).
+    const any = parts
+      .filter((p) => p && typeof p.text === "string")
+      .map((p) => p.text!.trim())
+      .filter(Boolean);
+    return any.join("\n").trim();
   }
   return "";
 }
