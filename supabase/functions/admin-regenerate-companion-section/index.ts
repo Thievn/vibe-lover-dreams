@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { openRouterChatCompletion, openRouterChatModel, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
 import { requireAdminUser } from "../_shared/requireSessionUser.ts";
 import { renderPortraitToStorage } from "../_shared/renderCompanionPortrait.ts";
 
@@ -239,10 +239,11 @@ Deno.serve(async (req) => {
       });
     }
 
+    const getEnv = (n: string) => Deno.env.get(n);
+
     if (section === "portrait") {
-      const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
-      if (!apiKey) {
-        return new Response(JSON.stringify({ error: "xAI API key not configured" }), {
+      if (!resolveOpenRouterApiKey(getEnv)) {
+        return new Response(JSON.stringify({ error: "OPENROUTER_API_KEY not configured" }), {
           status: 503,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -257,7 +258,6 @@ Deno.serve(async (req) => {
 
       const { publicUrl, displayUrl } = await renderPortraitToStorage({
         adminClient,
-        apiKey,
         imagePrompt,
         characterData: row,
         target,
@@ -282,9 +282,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: "xAI API key not configured" }), {
+    if (!resolveOpenRouterApiKey(getEnv)) {
+      return new Response(JSON.stringify({ error: "OPENROUTER_API_KEY not configured" }), {
         status: 503,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -311,42 +310,36 @@ ${summarizeRow(row)}
 
 Rewrite this section to premium catalog quality while staying consistent with the rest.`;
 
-    const res = await fetch("https://api.x.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "grok-3",
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-        tools: [{ type: "function", function: { name: tool.name, description: "Refreshed field(s)", parameters: tool.parameters } }],
-        tool_choice: { type: "function", function: { name: tool.name } },
-        temperature: 0.75,
-      }),
+    const orRes = await openRouterChatCompletion({
+      getEnv,
+      model: openRouterChatModel(getEnv),
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      tools: [{ type: "function", function: { name: tool.name, description: "Refreshed field(s)", parameters: tool.parameters } }],
+      tool_choice: { type: "function", function: { name: tool.name } },
+      temperature: 0.75,
+      max_tokens: 4096,
     });
 
-    if (!res.ok) {
-      const t = await res.text();
-      return new Response(JSON.stringify({ error: "Grok request failed", details: t.slice(0, 500) }), {
+    if (!orRes.ok || orRes.json === null) {
+      return new Response(JSON.stringify({ error: "OpenRouter request failed", details: orRes.rawText.slice(0, 500) }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const data = await res.json();
+    const data = orRes.json as { choices?: Array<{ message?: { tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }> };
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall || toolCall.function.name !== tool.name) {
-      return new Response(JSON.stringify({ error: "Grok did not return the expected tool output" }), {
+    if (!toolCall || toolCall.function?.name !== tool.name) {
+      return new Response(JSON.stringify({ error: "Model did not return the expected tool output" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const fields = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+    const fields = JSON.parse(toolCall.function?.arguments ?? "{}") as Record<string, unknown>;
     const patch: Record<string, unknown> = {};
 
     if (section === "tags_kinks") {

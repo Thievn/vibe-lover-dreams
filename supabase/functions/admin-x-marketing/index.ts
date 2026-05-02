@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { openRouterChatCompletion, openRouterChatModel, extractOpenRouterAssistantText, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
 import { requireAdminUser } from "../_shared/requireSessionUser.ts";
 
 const corsHeaders = {
@@ -369,12 +369,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
-    if (!apiKey) {
+    const getEnv = (n: string) => Deno.env.get(n);
+    if (!resolveOpenRouterApiKey(getEnv)) {
       return new Response(
         JSON.stringify({
           error:
-            "xAI API key not configured. Set XAI_API_KEY or GROK_API_KEY on the Edge Function.",
+            "OpenRouter not configured. Set OPENROUTER_API_KEY on the Edge Function.",
         }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -390,41 +390,34 @@ Deno.serve(async (req) => {
       }
       const contextBlock = typeof body.contextBlock === "string" ? body.contextBlock.slice(0, 14_000) : "";
       const system =
-        `You are Grok, embedded in the LustForge AI **X Marketing Hub** for an adult (18+) AI companion product.\n` +
+        `You are the LustForge AI **X Marketing Hub** assistant (OpenRouter) for an adult (18+) AI companion product.\n` +
         `Help the operator refine tweets, threads, CTAs, hooks, tone shifts, and platform-safe innuendo.\n` +
         `Reply in **plain text** (no JSON) unless they explicitly ask for JSON.\n` +
         `Be concise but sharp. Never sexualize minors or non-consent. No slurs.\n` +
         (contextBlock ? `\n---\nContext dump (operator):\n${contextBlock}\n---\n` : "");
 
-      const grokMessages: { role: string; content: string }[] = [
-        { role: "system", content: system },
-        ...history.map((m) => ({ role: m.role, content: m.content })),
+      const orMessages = [
+        { role: "system" as const, content: system },
+        ...history.map((m) => ({ role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant", content: m.content })),
       ];
 
-      const response = await fetch("https://api.x.ai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "grok-3",
-          messages: grokMessages,
-          temperature: 0.85,
-        }),
+      const orRes = await openRouterChatCompletion({
+        getEnv,
+        model: openRouterChatModel(getEnv),
+        messages: orMessages,
+        temperature: 0.85,
+        max_tokens: 2048,
       });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error("admin-x-marketing chat:", errText);
+      if (!orRes.ok || orRes.json === null) {
+        console.error("admin-x-marketing chat:", orRes.rawText);
         return new Response(JSON.stringify({ error: "AI chat service error" }), {
           status: 502,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const data = await response.json();
-      const reply = data.choices?.[0]?.message?.content;
+      const reply = extractOpenRouterAssistantText(orRes.json);
       if (!reply || typeof reply !== "string") {
         return new Response(JSON.stringify({ error: "Empty AI reply" }), {
           status: 502,
@@ -533,33 +526,26 @@ Deno.serve(async (req) => {
       quickLine +
       `\nWrite 5 distinct angles (hook, CTA, question, lore tease, urgency) so the operator can pick one.`;
 
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "grok-3",
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: userBlock },
-        ],
-        temperature: 0.88,
-      }),
+    const genRes = await openRouterChatCompletion({
+      getEnv,
+      model: openRouterChatModel(getEnv),
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: userBlock },
+      ],
+      temperature: 0.88,
+      max_tokens: 2048,
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("Grok error:", errText);
+    if (!genRes.ok || genRes.json === null) {
+      console.error("admin-x-marketing generate:", genRes.rawText);
       return new Response(JSON.stringify({ error: "AI service error" }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    const content = extractOpenRouterAssistantText(genRes.json);
     if (!content || typeof content !== "string") {
       return new Response(JSON.stringify({ error: "Empty AI response" }), {
         status: 502,

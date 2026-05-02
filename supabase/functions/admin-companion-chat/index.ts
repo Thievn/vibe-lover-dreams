@@ -1,4 +1,4 @@
-import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { openRouterChatCompletion, openRouterChatModel, extractOpenRouterAssistantText, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
 import { buildForgeAssistantSystemPrompt } from "../_shared/forgeAssistantSystemPrompt.ts";
 import { requireAdminUser } from "../_shared/requireSessionUser.ts";
 
@@ -25,12 +25,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
-    if (!apiKey) {
+    const getEnv = (n: string) => Deno.env.get(n);
+    if (!resolveOpenRouterApiKey(getEnv)) {
       return new Response(
         JSON.stringify({
           error:
-            "xAI API key not configured. Set Edge Function secret XAI_API_KEY or GROK_API_KEY (https://console.x.ai/).",
+            "OpenRouter not configured. Set Edge Function secret OPENROUTER_API_KEY (https://openrouter.ai/keys).",
         }),
         {
           status: 503,
@@ -62,16 +62,14 @@ Deno.serve(async (req) => {
 
     messages.push({ role: "user", content: message });
 
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "grok-3",
-        messages,
-        tools: [
+    const model = openRouterChatModel(getEnv);
+    const orRes = await openRouterChatCompletion({
+      getEnv,
+      model,
+      messages,
+      temperature: 0.5,
+      max_tokens: 2048,
+      tools: [
           {
             type: "function",
             function: {
@@ -116,28 +114,26 @@ Deno.serve(async (req) => {
             }
           }
         ],
-        temperature: 0.5,
-      }),
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("Grok API error:", errText);
+    if (!orRes.ok || orRes.json === null) {
+      const errText = orRes.rawText;
+      console.error("OpenRouter admin-companion-chat error:", errText);
       return new Response(JSON.stringify({ error: "AI service error" }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const data = await response.json();
+    const data = orRes.json as { choices?: Array<{ message?: { content?: string; tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }> };
     const choice = data.choices?.[0]?.message;
 
     // Check for tool calls
     if (choice?.tool_calls && choice.tool_calls.length > 0) {
       const toolCall = choice.tool_calls[0];
-      const args = JSON.parse(toolCall.function.arguments);
+      const args = JSON.parse(toolCall.function?.arguments ?? "{}");
 
-      if (toolCall.function.name === "apply_companion_updates") {
+      if (toolCall.function?.name === "apply_companion_updates") {
         return new Response(JSON.stringify({
           type: "updates",
           updates: args.updates,
@@ -147,7 +143,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      if (toolCall.function.name === "respond_to_admin") {
+      if (toolCall.function?.name === "respond_to_admin") {
         return new Response(JSON.stringify({
           type: "message",
           message: args.message,
@@ -160,7 +156,7 @@ Deno.serve(async (req) => {
     // Fallback: plain text response
     return new Response(JSON.stringify({
       type: "message",
-      message: choice?.content || "I didn't understand that request.",
+      message: extractOpenRouterAssistantText(orRes.json) || choice?.content || "I didn't understand that request.",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

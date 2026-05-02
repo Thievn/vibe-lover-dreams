@@ -67,8 +67,9 @@ export function AdminLoopingVideoBlock({ companionId, className, onSuccess, show
         Looping portrait video
       </div>
       <p className="text-[11px] text-muted-foreground leading-relaxed">
-        Uses the current still as first frame — Grok Imagine short loop; motion follows profile fields. {CHAT_VIDEO_TIMING_USER_NOTE}{" "}
-        Enable below for profile + chat; not on the landing page.
+        Primary path after save: generate here or in Character management (forge no longer queues this automatically — faster saves).
+        Uses the current still as first frame — Grok Imagine I2V; motion follows profile fields. {CHAT_VIDEO_TIMING_USER_NOTE}{" "}
+        Use the row checkbox “Show looping MP4 on companion profile and chat” when the animated URL is the MP4.
       </p>
       {showMotionNotes ? (
         <div className="space-y-1.5">

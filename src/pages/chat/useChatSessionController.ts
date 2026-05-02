@@ -93,6 +93,7 @@ import { fetchChatImageTeaserLine } from "@/lib/fetchChatImageTeaserLine";
 import { inferChatMediaRoute, inferClipMoodFromUserText, pickRandomVideoLoadingLine } from "@/lib/chatVisualRouting";
 import { invokeGenerateChatVideo } from "@/lib/invokeGenerateChatVideo";
 import { type ChatMediaBarAction } from "@/components/chat/ChatMediaRequestBar";
+import { CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON } from "@/lib/chatVisualRouting";
 import {
   advanceChatAffectionState,
   buildAffectionLevelUpCopy,
@@ -1032,7 +1033,7 @@ export function useChatSessionController() {
     }
   };
 
-  /** In-chat text: Grok only (`grok-chat`) for Classic + Live Voice. */
+  /** Classic → `openrouter-chat`; Live Voice assistant text → `grok-chat` (xAI). */
   const composeChatSystemPrompt = () => {
     if (!companion) return "";
     const toyBlock =
@@ -1493,6 +1494,12 @@ export function useChatSessionController() {
     motionHint?: string;
   }) => {
     if (!user || !companion) return;
+    if (CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON) {
+      if (!opts?.silent) {
+        toast.message("In-chat video clips are coming soon — stills work today.");
+      }
+      return;
+    }
     const mood = opts?.mood ?? "lewd";
     const silent = opts?.silent ?? false;
     const cost = isAdminUser ? 0 : CHAT_VIDEO_TOKEN_COST;
@@ -1616,7 +1623,7 @@ export function useChatSessionController() {
           ]);
           void queryClient.invalidateQueries({ queryKey: ["companion-generated-images", user.id, companion.id] });
         }
-      } else {
+      } else if (!CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON) {
         await generateChatVideoClip({ mood: req.mood ?? "lewd", silent: true });
       }
     } catch (e) {
@@ -1861,7 +1868,8 @@ export function useChatSessionController() {
       styledSceneExtension: options?.styledSceneExtension ?? null,
     });
     const requestingImage = mediaRoute === "image";
-    const requestingVideo = mediaRoute === "video";
+    const requestingVideo = mediaRoute === "video" && !CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON;
+    const typedVideoButComingSoon = mediaRoute === "video" && CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON;
     const autoSpendImages = getChatAutoSpendImages(companion.id);
     const holdForImageButton =
       requestingImage && !autoSpendImages && !options?.bypassImageConfirmation;
@@ -1903,6 +1911,10 @@ export function useChatSessionController() {
         },
       });
       return;
+    }
+
+    if (typedVideoButComingSoon) {
+      toast.message("In-chat video clips are coming soon — stills work today.");
     }
 
     const skipUserInsert = Boolean(
@@ -2048,9 +2060,10 @@ export function useChatSessionController() {
           clearOpeningStarterContext();
           await applyChatAffectionAfterExchange();
         } else {
-        const chatFn = "grok-chat";
+        const chatFn = sessionMode === "live_voice" ? "grok-chat" : "openrouter-chat";
         const { data, error } = await supabase.functions.invoke(chatFn, {
           body: {
+            ...(sessionMode === "live_voice" ? { intent: "live_voice" as const } : {}),
             companionId: companion.id,
             messages: threadForModel,
             systemPrompt: composeChatSystemPrompt(),
@@ -2294,7 +2307,9 @@ export function useChatSessionController() {
   const draftImagePrompt = input.trim()
     ? resolveChatImageGenerationPrompt({ messageText: input, menuImagePrompt: null })
     : "";
-  const draftMediaRoute = input.trim() ? inferChatMediaRoute(input, false) : "text";
+  const rawDraftMediaRoute = input.trim() ? inferChatMediaRoute(input, false) : "text";
+  const draftMediaRoute =
+    CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON && rawDraftMediaRoute === "video" ? "text" : rawDraftMediaRoute;
   const draftImageStillFc =
     draftMediaRoute === "image" &&
     classifyChatImageMood({ rawUserMessage: input, menuBasePrompt: null }) === "nude"

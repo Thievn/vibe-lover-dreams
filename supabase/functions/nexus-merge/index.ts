@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { openRouterChatCompletion, openRouterChatModel, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
 import { renderPortraitToStorage } from "../_shared/renderCompanionPortrait.ts";
 import { requireAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { mergeTcgForNexusChild } from "../_shared/tcgStatsGenerate.ts";
@@ -460,14 +460,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
-    if (!apiKey) {
-      if (charged > 0) await refundTokens(supabase, userId, charged, "no xAI key");
+    const getEnv = (n: string) => Deno.env.get(n);
+    if (!resolveOpenRouterApiKey(getEnv)) {
+      if (charged > 0) await refundTokens(supabase, userId, charged, "no OpenRouter key");
       charged = 0;
       return new Response(
         JSON.stringify({
           error:
-            "xAI API key not configured. Set Edge Function secret XAI_API_KEY or GROK_API_KEY (https://console.x.ai/).",
+            "OpenRouter not configured. Set Edge Function secret OPENROUTER_API_KEY (https://openrouter.ai/keys).",
         }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -673,37 +673,31 @@ Output ONLY via the nexus_merge_companion tool call.`;
       ],
     };
 
-    const grokRes = await fetch("https://api.x.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "grok-3",
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: userContent },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "nexus_merge_companion",
-              description: "Return the fused companion profile and merge_stats",
-              parameters: toolParameters,
-            },
+    const orRes = await openRouterChatCompletion({
+      getEnv,
+      model: openRouterChatModel(getEnv),
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: userContent },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "nexus_merge_companion",
+            description: "Return the fused companion profile and merge_stats",
+            parameters: toolParameters,
           },
-        ],
-        tool_choice: { type: "function", function: { name: "nexus_merge_companion" } },
-        temperature: 0.85,
-      }),
+        },
+      ],
+      tool_choice: { type: "function", function: { name: "nexus_merge_companion" } },
+      temperature: 0.85,
+      max_tokens: 4096,
     });
 
-    if (!grokRes.ok) {
-      const errText = await grokRes.text();
-      console.error("nexus-merge Grok error:", errText);
-      if (charged > 0) await refundTokens(supabase, userId, charged, "Grok HTTP error");
+    if (!orRes.ok || orRes.json === null) {
+      console.error("nexus-merge OpenRouter error:", orRes.rawText);
+      if (charged > 0) await refundTokens(supabase, userId, charged, "OpenRouter HTTP error");
       charged = 0;
       return new Response(JSON.stringify({ error: "AI fusion service error" }), {
         status: 502,
@@ -711,7 +705,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
       });
     }
 
-    const grokData = await grokRes.json();
+    const grokData = orRes.json as { choices?: Array<{ message?: { tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }> };
     const toolCall = grokData.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall || toolCall.function?.name !== "nexus_merge_companion") {
       if (charged > 0) await refundTokens(supabase, userId, charged, "no fusion tool output");
@@ -724,7 +718,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
 
     let fields: Record<string, unknown>;
     try {
-      fields = JSON.parse(toolCall.function.arguments);
+      fields = JSON.parse(toolCall.function?.arguments ?? "{}");
     } catch {
       if (charged > 0) await refundTokens(supabase, userId, charged, "fusion JSON parse error");
       charged = 0;
@@ -828,12 +822,11 @@ Output ONLY via the nexus_merge_companion tool call.`;
 
     if (imagePromptForPortrait && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
       try {
-        const portraitKey = resolveXaiApiKey((name) => Deno.env.get(name));
-        if (portraitKey) {
+        const orKey = resolveOpenRouterApiKey((name) => Deno.env.get(name));
+        if (orKey) {
           const characterData: Record<string, unknown> = { ...insertRow, id: fusionUuid };
           const { publicUrl } = await renderPortraitToStorage({
             adminClient: supabase,
-            apiKey: portraitKey,
             imagePrompt: imagePromptForPortrait,
             characterData,
             target: { kind: "forge", uuid: fusionUuid },
@@ -854,8 +847,8 @@ Output ONLY via the nexus_merge_companion tool call.`;
             portraitOk = true;
           }
         } else {
-          portraitError = "missing_xai_key";
-          console.warn("nexus-merge: skip portrait — set GROK_API_KEY or XAI_API_KEY on Edge Functions");
+          portraitError = "missing_openrouter_key";
+          console.warn("nexus-merge: skip portrait — set OPENROUTER_API_KEY on Edge Functions");
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);

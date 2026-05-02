@@ -36,7 +36,7 @@ function parseErrorMessage(status: number, text: string): string {
 }
 
 /**
- * Calls `generate-image` (Grok Imagine + rewriter) with plain fetch so Authorization is exactly one Bearer token.
+ * Calls `generate-image` (OpenRouter FLUX + rewriter) with plain fetch so Authorization is exactly one Bearer token.
  * The shared Supabase fetch wrapper skips injecting a fresh JWT if `Authorization` is already
  * set (e.g. from a stale `invoke` header); this path avoids that class of "Invalid JWT" bugs.
  *

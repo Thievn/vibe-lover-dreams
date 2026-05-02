@@ -1,4 +1,4 @@
-import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { openRouterChatCompletion, openRouterChatModel, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
 import { requireSessionUser } from "../_shared/requireSessionUser.ts";
 
 const corsHeaders = {
@@ -33,12 +33,12 @@ Deno.serve(async (req) => {
     const companionDesignLab = mode === "companion_design_lab";
     const grotesqueGpk = celebrityParody && grotesque_gpk === true;
 
-    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
-    if (!apiKey) {
+    const getEnv = (n: string) => Deno.env.get(n);
+    if (!resolveOpenRouterApiKey(getEnv)) {
       return new Response(
         JSON.stringify({
           error:
-            "xAI API key not configured. Set Edge Function secret XAI_API_KEY or GROK_API_KEY (https://console.x.ai/).",
+            "OpenRouter not configured. Set Edge Function secret OPENROUTER_API_KEY (https://openrouter.ai/keys).",
         }),
         {
           status: 503,
@@ -227,59 +227,54 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
       ? systemCompanionDesignLab
       : systemDefault;
 
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "grok-3",
-        messages: [
-          {
-            role: "system",
-            content: effectiveSystem,
+    const orRes = await openRouterChatCompletion({
+      getEnv,
+      model: openRouterChatModel(getEnv),
+      messages: [
+        { role: "system", content: effectiveSystem },
+        { role: "user", content: userContent },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "extract_companion_fields",
+            description: "Extract structured companion profile fields from text",
+            parameters: toolParameters,
           },
-          {
-            role: "user",
-            content: userContent,
-          },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "extract_companion_fields",
-              description: "Extract structured companion profile fields from text",
-              parameters: toolParameters,
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "extract_companion_fields" } },
-        temperature: companionDesignLab || celebrityParody ? 0.88 : parodyLab ? 0.8 : 0.7,
-      }),
+        },
+      ],
+      tool_choice: { type: "function", function: { name: "extract_companion_fields" } },
+      temperature: companionDesignLab || celebrityParody ? 0.88 : parodyLab ? 0.8 : 0.7,
+      max_tokens: 4096,
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("Grok API error:", errText);
+    if (!orRes.ok || orRes.json === null) {
+      console.error("parse-companion-prompt OpenRouter error:", orRes.rawText);
       return new Response(JSON.stringify({ error: "AI service error" }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const data = await response.json();
+    const data = orRes.json as { choices?: Array<{ message?: { tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }> };
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
 
-    if (!toolCall || toolCall.function.name !== "extract_companion_fields") {
+    if (!toolCall || toolCall.function?.name !== "extract_companion_fields") {
       return new Response(JSON.stringify({ error: "Failed to parse profile" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const fields = JSON.parse(toolCall.function.arguments);
+    const args = toolCall.function?.arguments;
+    if (!args) {
+      return new Response(JSON.stringify({ error: "Failed to parse profile" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const fields = JSON.parse(args);
 
     return new Response(JSON.stringify({ fields }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

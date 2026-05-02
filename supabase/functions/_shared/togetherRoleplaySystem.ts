@@ -1,6 +1,6 @@
 /**
  * Server-side RP rules prepended to the client-built system prompt.
- * Used by `grok-chat` (Grok) for in-character assistant replies.
+ * Used by `openrouter-chat` and `grok-chat` (Live Voice) for in-character assistant replies.
  * Never name providers or models in-character.
  */
 

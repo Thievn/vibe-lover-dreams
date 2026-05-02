@@ -39,7 +39,7 @@ export const FORGE_PREVIEW_FC = 15;
 export const NEXUS_MERGE_FC = 350;
 export const NEXUS_INFUSE_ADDON_FC = 50;
 
-/** Short video clip in chat. */
+/** Short video clip in chat (when enabled). User-paid profile-card looping MP4 from Discover — FC TBD. */
 export const CHAT_SHORT_VIDEO_FC = 100;
 
 // --- Discover: unlock card to My Collection (must match discover_purchase_price_fc in SQL) ---

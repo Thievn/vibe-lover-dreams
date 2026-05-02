@@ -21,7 +21,7 @@ import { ChatGallerySheet } from "@/components/chat/ChatGallerySheet";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { inferChatMediaRoute } from "@/lib/chatVisualRouting";
+import { CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON, inferChatMediaRoute } from "@/lib/chatVisualRouting";
 import { LIVE_CALL_CREDITS_PER_MINUTE } from "@/lib/liveCallBilling";
 import { setChatSessionMode as persistChatSessionMode } from "@/lib/chatSessionMode";
 import { CHAT_IMAGE_LEWD_FC, CHAT_IMAGE_NUDE_FC, CHAT_MESSAGE_FC } from "@/lib/forgeEconomy";
@@ -362,7 +362,7 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
             placeholder={
               sessionMode === "live_voice"
                 ? `Type to ${companion.name} or use the mic above…`
-                : `Message ${companion.name}… stills, clips, or just talk`
+                : `Message ${companion.name}… stills or just talk`
             }
             mediaDraftKind={draftMediaRoute}
             isAdminUser={isAdminUser}
@@ -384,7 +384,10 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
               })
             }
             mediaMenuDisabled={Boolean(user && !isAdminUser && tokensBalance < CHAT_IMAGE_LEWD_FC)}
-            videoMenuDisabled={Boolean(user && !isAdminUser && tokensBalance < CHAT_VIDEO_TOKEN_COST)}
+            videoMenuDisabled={
+              CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ||
+              Boolean(user && !isAdminUser && tokensBalance < CHAT_VIDEO_TOKEN_COST)
+            }
             chatImageLewdFc={CHAT_IMAGE_LEWD_FC}
             chatImageNudeFc={CHAT_IMAGE_NUDE_FC}
             videoClipFc={CHAT_VIDEO_TOKEN_COST}

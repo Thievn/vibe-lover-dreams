@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { openRouterChatCompletion, openRouterChatModel, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
 import { requireSessionUser } from "../_shared/requireSessionUser.ts";
 import {
   LIVE_CALL_OPTIONS_TOOL_NAME,
@@ -159,12 +159,12 @@ Deno.serve(async (req) => {
       row = data as Record<string, unknown>;
     }
 
-    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
-    if (!apiKey) {
+    const getEnv = (n: string) => Deno.env.get(n);
+    if (!resolveOpenRouterApiKey(getEnv)) {
       return new Response(
         JSON.stringify({
           error:
-            "xAI API key not configured. Set Edge Function secret XAI_API_KEY or GROK_API_KEY (https://console.x.ai/).",
+            "OpenRouter not configured. Set Edge Function secret OPENROUTER_API_KEY (https://openrouter.ai/keys).",
         }),
         {
           status: 503,
@@ -177,34 +177,30 @@ Deno.serve(async (req) => {
     const nonce = crypto.randomUUID();
     const userMessage = buildLiveCallOptionsUserMessage(traits, nonce);
 
-    const grokRes = await fetch("https://api.x.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "grok-3",
-        messages: [
-          { role: "system", content: liveCallOptionsSystemPrompt() },
-          { role: "user", content: userMessage },
-        ],
-        tools: [LIVE_CALL_OPTIONS_TOOL_SCHEMA],
-        tool_choice: { type: "function", function: { name: LIVE_CALL_OPTIONS_TOOL_NAME } },
-        temperature: 0.88,
-      }),
+    const orRes = await openRouterChatCompletion({
+      getEnv,
+      model: openRouterChatModel(getEnv),
+      messages: [
+        { role: "system", content: liveCallOptionsSystemPrompt() },
+        { role: "user", content: userMessage },
+      ],
+      tools: [LIVE_CALL_OPTIONS_TOOL_SCHEMA],
+      tool_choice: { type: "function", function: { name: LIVE_CALL_OPTIONS_TOOL_NAME } },
+      temperature: 0.88,
+      max_tokens: 2048,
     });
 
-    if (!grokRes.ok) {
-      const errText = await grokRes.text();
-      console.error("Grok live-call-options error:", errText);
-      return new Response(JSON.stringify({ error: "AI service error", details: errText.slice(0, 400) }), {
+    if (!orRes.ok || orRes.json === null) {
+      console.error("live-call-options OpenRouter error:", orRes.rawText);
+      return new Response(JSON.stringify({ error: "AI service error", details: orRes.rawText.slice(0, 400) }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const data = await grokRes.json();
+    const data = orRes.json as {
+      choices?: Array<{ message?: { tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }>;
+    };
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall || toolCall.function?.name !== LIVE_CALL_OPTIONS_TOOL_NAME) {
       return new Response(JSON.stringify({ error: "Malformed AI response" }), {
@@ -215,7 +211,7 @@ Deno.serve(async (req) => {
 
     let parsed: { options?: RawOption[] };
     try {
-      parsed = JSON.parse(toolCall.function.arguments) as { options?: RawOption[] };
+      parsed = JSON.parse(toolCall.function?.arguments ?? "{}") as { options?: RawOption[] };
     } catch {
       return new Response(JSON.stringify({ error: "Invalid tool JSON" }), {
         status: 502,

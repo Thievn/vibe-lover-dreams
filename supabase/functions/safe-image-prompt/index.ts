@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
 import { buildAnatomyRewriterDirective, resolveAnatomyVariant } from "../_shared/anatomyImageRules.ts";
 import { rewritePromptForImagine } from "../_shared/safeImagePromptRewriter.ts";
 
@@ -82,11 +82,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
-    if (!apiKey) {
+    const orKey = resolveOpenRouterApiKey((name) => Deno.env.get(name));
+    if (!orKey) {
       return new Response(
         JSON.stringify({
-          error: "Missing XAI_API_KEY / GROK_API_KEY for the rewriter.",
+          error: "Missing OPENROUTER_API_KEY for the image prompt rewriter.",
         }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -111,7 +111,6 @@ Deno.serve(async (req) => {
     const safePrompt = await rewritePromptForImagine({
       raw,
       context,
-      apiKey,
       anatomyPolicy: buildAnatomyRewriterDirective(anatomyVariant),
       rewriteMode,
     });

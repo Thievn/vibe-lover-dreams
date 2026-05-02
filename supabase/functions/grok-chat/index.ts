@@ -1,11 +1,14 @@
 /**
- * In-chat assistant text (Classic + Live Voice) — xAI Grok only (`XAI_API_KEY` / `GROK_API_KEY`).
- * Same request/response shape as the legacy `together-chat` function for a stable client.
+ * **Live Voice** in-session assistant text only — xAI Grok (`XAI_API_KEY` / `GROK_API_KEY`).
+ * Classic chat uses `openrouter-chat` (OpenRouter + DeepSeek, etc.).
+ *
+ * Prepends a strong uncensored voice persona block before the normal LustForge system stack.
  */
 import { isLustforgeAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { lustforgeNarrowUserScopeBlock } from "../_shared/lustforgeNarrowUserScope.ts";
 import { togetherChatServerSystemPrefix } from "../_shared/togetherRoleplaySystem.ts";
+import { GROK_VOICE_UNCENSORED_SYSTEM_PREFIX } from "../_shared/grokVoiceUncensoredPrefix.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -44,6 +47,7 @@ Deno.serve(async (req) => {
     }
 
     const body = (await req.json().catch(() => null)) as {
+      intent?: string;
       companionId?: string;
       messages?: { role: string; content: string }[];
       systemPrompt?: string;
@@ -51,13 +55,24 @@ Deno.serve(async (req) => {
       connectedToys?: unknown;
     } | null;
 
+    if (String(body?.intent ?? "").trim() !== "live_voice") {
+      return json(
+        {
+          error:
+            "grok-chat is Live Voice only: pass body.intent === \"live_voice\". For Classic text chat use openrouter-chat.",
+        },
+        400,
+      );
+    }
+
     const systemRaw = String(body?.systemPrompt ?? "").trim();
     if (!systemRaw) {
       return json({ error: "systemPrompt is required" }, 400);
     }
 
     const scopeBlock = adminUnrestricted ? "" : `${lustforgeNarrowUserScopeBlock()}\n`;
-    const systemContent = `${togetherChatServerSystemPrefix()}\n${scopeBlock}${systemRaw}`.trim();
+    const systemContent =
+      `${GROK_VOICE_UNCENSORED_SYSTEM_PREFIX}${togetherChatServerSystemPrefix()}\n${scopeBlock}${systemRaw}`.trim();
 
     const threadRaw = Array.isArray(body?.messages) ? body!.messages! : [];
     const messages = [

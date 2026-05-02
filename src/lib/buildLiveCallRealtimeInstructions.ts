@@ -1,4 +1,5 @@
 import type { Companion } from "@/data/companions";
+import { GROK_VOICE_UNCENSORED_SYSTEM_PREFIX } from "@/lib/grokVoiceUncensoredPrefix";
 import { lustforgeNarrowUserScopeBlock } from "@/lib/lustforgeNarrowUserScope";
 import type { LiveCallOption } from "@/lib/liveCallTypes";
 
@@ -39,6 +40,7 @@ function moodBlock(mood: LiveCallMoodId | null | undefined): string {
 
 /**
  * Merges companion charter + call-type augment + realtime voice rules for xAI Realtime.
+ * Hybrid: prepends the same uncensored Grok voice persona block used by `grok-chat` (Live Voice).
  */
 export function buildLiveCallRealtimeInstructions(
   companion: Companion,
@@ -80,5 +82,5 @@ export function buildLiveCallRealtimeInstructions(
 
   const mood = moodBlock(extra?.callMood ?? null);
 
-  return `${core}\n\n--- Session rules ---\n${rules}${toyAppendix}${mood}`;
+  return `${GROK_VOICE_UNCENSORED_SYSTEM_PREFIX}${core}\n\n--- Session rules ---\n${rules}${toyAppendix}${mood}`;
 }

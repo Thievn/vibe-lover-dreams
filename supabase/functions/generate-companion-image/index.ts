@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
 import { renderPortraitToStorage } from "../_shared/renderCompanionPortrait.ts";
 
 const corsHeaders = {
@@ -83,12 +83,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
-    if (!apiKey) {
+    const orKey = resolveOpenRouterApiKey((name) => Deno.env.get(name));
+    if (!orKey) {
       return new Response(
         JSON.stringify({
           error:
-            "Missing xAI API key. Set Edge Function secret GROK_API_KEY or XAI_API_KEY (same key you use for generate-image).",
+            "Missing OPENROUTER_API_KEY for admin/forge portrait generation (same as generate-image FLUX).",
         }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -114,7 +114,6 @@ Deno.serve(async (req) => {
 
     const { publicUrl, displayUrl } = await renderPortraitToStorage({
       adminClient,
-      apiKey,
       imagePrompt,
       characterData,
       target: storageTarget,

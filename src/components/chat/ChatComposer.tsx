@@ -15,7 +15,10 @@ import {
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import type { ChatMediaRoute } from "@/lib/chatVisualRouting";
-import { CHAT_VIDEO_TIMING_USER_NOTE } from "@/lib/chatVisualRouting";
+import {
+  CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON,
+  CHAT_VIDEO_FOOTER_SECONDARY_NOTE,
+} from "@/lib/chatVisualRouting";
 import type { ChatMediaBarAction } from "@/components/chat/ChatMediaRequestBar";
 import {
   AlertDialog,
@@ -244,7 +247,7 @@ export function ChatComposer({
             aria-label={`Message ${companionName}`}
           />
           {userLoggedIn ? (
-            <div className="hidden shrink-0 items-center pr-0.5 sm:flex">
+            <div className="hidden shrink-0 flex-col items-end gap-0.5 pr-0.5 sm:flex">
               <MoodMediaDropdowns
                 disabled={mediaMenuDisabled}
                 videoDisabled={videoMenuDisabled}
@@ -256,13 +259,16 @@ export function ChatComposer({
                 chatImageNudeFc={chatImageNudeFc}
                 videoClipFc={videoClipFc}
               />
+              {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? (
+                <span className="text-[8px] font-medium uppercase tracking-wider text-cyan-300/80">Clips · soon</span>
+              ) : null}
             </div>
           ) : null}
         </div>
 
         {/* Mobile: media row under field */}
         {userLoggedIn ? (
-          <div className="sm:hidden">
+          <div className="flex flex-col gap-0.5 sm:hidden">
             <MoodMediaDropdowns
               disabled={mediaMenuDisabled}
               videoDisabled={videoMenuDisabled}
@@ -275,6 +281,9 @@ export function ChatComposer({
               videoClipFc={videoClipFc}
               compact
             />
+            {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? (
+              <span className="text-[8px] font-medium uppercase tracking-wider text-cyan-300/80">Clips · soon</span>
+            ) : null}
           </div>
         ) : null}
 
@@ -303,10 +312,11 @@ export function ChatComposer({
           "Admin session · "
         ) : (
           <>
-            {tokenCost <= 0 ? "Free msgs" : `${tokenCost} FC/msg`} / {imageTokenCost} still / {videoTokenCost} clip ·{" "}
+            {tokenCost <= 0 ? "Free msgs" : `${tokenCost} FC/msg`} / {imageTokenCost} still
+            {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? "" : ` / ${videoTokenCost} clip`} ·{" "}
           </>
         )}
-        18+ only · {CHAT_VIDEO_TIMING_USER_NOTE}
+        18+ only · {CHAT_VIDEO_FOOTER_SECONDARY_NOTE}
         {!isAdminUser && tokensBalance <= 0 ? (
           <>
             {" "}
@@ -540,7 +550,8 @@ function PhotoMoodMenu({
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1 space-y-2">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/45">
-                  {which === "selfie" ? "SFW" : which === "lewd" ? "Spicy" : "Explicit"} · Stills & clips
+                  {which === "selfie" ? "SFW" : which === "lewd" ? "Spicy" : "Explicit"} ·{" "}
+                  {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? "Stills (clips soon)" : "Stills & clips"}
                 </p>
                 <DialogTitle className="font-gothic text-xl font-normal tracking-tight text-white sm:text-2xl">
                   {title}
@@ -631,7 +642,14 @@ function PhotoMoodMenu({
                             (disabled || videoDisabled) && "pointer-events-none opacity-40",
                           )}
                         >
-                          Clip · {clipPrice}
+                          {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? (
+                            <span className="block leading-tight">
+                              Clip
+                              <span className="mt-0.5 block text-[8px] font-normal text-cyan-200/75">Coming soon</span>
+                            </span>
+                          ) : (
+                            <>Clip · {clipPrice}</>
+                          )}
                         </button>
                       </div>
                     </div>

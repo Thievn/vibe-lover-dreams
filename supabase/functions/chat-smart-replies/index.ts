@@ -1,5 +1,5 @@
 import { isLustforgeAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
-import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { openRouterChatCompletion, extractOpenRouterAssistantText, openRouterChatModel, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,8 +8,10 @@ const corsHeaders = {
 
 const STATIC_FALLBACK = ["Tell me more…", "I love that.", "Keep going."];
 
-function defaultModel(): string {
-  return (Deno.env.get("GROK_SMART_REPLIES_MODEL") ?? Deno.env.get("GROK_CHAT_MODEL") ?? "grok-3").trim();
+const getEnv = (n: string) => Deno.env.get(n);
+
+function smartRepliesModel(): string {
+  return (getEnv("OPENROUTER_SMART_REPLIES_MODEL") ?? openRouterChatModel(getEnv)).trim();
 }
 
 Deno.serve(async (req) => {
@@ -34,8 +36,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
-    if (!apiKey) {
+    if (!resolveOpenRouterApiKey(getEnv)) {
       return new Response(JSON.stringify({ suggestions: STATIC_FALLBACK, degraded: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -49,10 +50,11 @@ Deno.serve(async (req) => {
 Rules: JSON only, no markdown. Format: {"suggestions":["...","...","..."]}
 Each string max 72 characters. Match thread energy: flirty, playful, or explicitly sexual language is allowed when it fits; stay consensual-adults fiction.${scopeLine}`;
 
-    const body = {
-      model: defaultModel(),
+    const res = await openRouterChatCompletion({
+      getEnv,
+      model: smartRepliesModel(),
       messages: [
-        { role: "system" as const, content: system },
+        { role: "system", content: system },
         ...thread.map((m) => ({
           role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant",
           content: String(m.content ?? "").slice(0, 4000),
@@ -61,34 +63,15 @@ Each string max 72 characters. Match thread energy: flirty, playful, or explicit
       max_tokens: 220,
       temperature: 0.8,
       top_p: 0.9,
-    };
-
-    const res = await fetch("https://api.x.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
     });
 
-    const rawText = await res.text();
-    let raw: unknown;
-    try {
-      raw = JSON.parse(rawText) as unknown;
-    } catch {
-      return new Response(JSON.stringify({ suggestions: STATIC_FALLBACK, degraded: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (!res.ok) {
+    if (!res.ok || res.json === null) {
       return new Response(JSON.stringify({ suggestions: STATIC_FALLBACK, degraded: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const content = (raw as { choices?: Array<{ message?: { content?: string } }> })?.choices?.[0]?.message?.content
-      ?.trim() || "";
+    const content = extractOpenRouterAssistantText(res.json);
 
     let suggestions: string[] = [];
     try {

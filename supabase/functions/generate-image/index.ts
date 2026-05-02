@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { decodeOpenRouterImageDataUrl, openRouterGenerateFluxImage, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
 import { PORTRAIT_IMAGE_DESIGN_BRIEF } from "../_shared/portraitImageDesignBrief.ts";
 import {
   buildAnatomyImagineKeyRules,
@@ -33,10 +33,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-const DEFAULT_IMAGE_MODEL = "grok-imagine-image";
-const XAI_IMAGE_PROMPT_SOFT_LIMIT = 7600;
+const OPENROUTER_IMAGE_PROMPT_SOFT_LIMIT = 7600;
 
-function clampPromptForXai(prompt: string, maxChars: number): string {
+function clampPromptForImagine(prompt: string, maxChars: number): string {
   const compact = prompt.replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   if (compact.length <= maxChars) return compact;
   return `${compact.slice(0, maxChars).trimEnd()}…`;
@@ -148,13 +147,13 @@ serve(async (req) => {
       );
     }
 
-    const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));
-    if (!apiKey) {
+    const orKey = resolveOpenRouterApiKey((name) => Deno.env.get(name));
+    if (!orKey) {
       return new Response(
         JSON.stringify({
           success: false,
           error:
-            "Missing API key. Set Edge Function secret XAI_API_KEY (or legacy GROK_API_KEY) to your xAI API key from https://console.x.ai/",
+            "Missing OpenRouter key. Set Edge Function secret OPENROUTER_API_KEY (https://openrouter.ai/keys) for FLUX stills.",
         }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -202,7 +201,7 @@ serve(async (req) => {
             ? "Forge: live preview portrait (Imagine, SFW)"
             : isPortrait
               ? "Forge / roster: portrait (Imagine, full expression)"
-              : "Chat / gallery: image (Grok Imagine)",
+              : "Chat / gallery: image (OpenRouter FLUX)",
         metadata: { tokenCost, isPortrait, contentTier: effectiveTier },
       });
     }
@@ -248,7 +247,6 @@ serve(async (req) => {
         raw: rawForRewrite,
         context: rewriterContext,
         anatomyPolicy: anatomyDirective,
-        apiKey,
         rewriteMode,
       });
     } catch (rewriteErr) {
@@ -358,7 +356,7 @@ PRIMARY SCENE DIRECTION (follow this closely — premium, cinematic, maximum sen
 ${safeRewritten}
     `.trim()
       : `${animeFinalLead}
-Adults-only companion product. This render is for a private chat / gallery session (not a public catalog card). Follow xAI's content policies; do not depict minors.
+Adults-only companion product. This render is for a private chat / gallery session (not a public catalog card). Follow the image provider's content policies; do not depict minors.
 
 ${UNIVERSAL_NON_PREVIEW_IMAGE_BASE}
 
@@ -384,53 +382,19 @@ ${refLines ? `${refLines}\n` : ""}
 PRIMARY SCENE (follow closely — rewriter output is authoritative for mood and explicitness):
 ${safeRewritten}
     `.trim();
-    const finalPrompt = clampPromptForXai(finalPromptRaw, XAI_IMAGE_PROMPT_SOFT_LIMIT);
+    const finalPrompt = clampPromptForImagine(finalPromptRaw, OPENROUTER_IMAGE_PROMPT_SOFT_LIMIT);
 
-    const model = Deno.env.get("GROK_IMAGE_MODEL")?.trim() || DEFAULT_IMAGE_MODEL;
-
-    let imageUrl: string | undefined;
+    let imageDataUrl: string;
     try {
-      const response = await fetch("https://api.x.ai/v1/images/generations", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          prompt: finalPrompt,
-          n: 1,
-          aspect_ratio: "2:3",
-        }),
+      const { dataUrl } = await openRouterGenerateFluxImage({
+        prompt: finalPrompt,
+        getEnv: (n) => Deno.env.get(n),
+        aspectRatio: "2:3",
       });
-
-      const rawText = await response.text();
-      let data: { data?: Array<{ url?: string; b64_json?: string }>; error?: { message?: string } } = {};
-      try {
-        data = JSON.parse(rawText) as typeof data;
-      } catch {
-        throw new Error(`xAI returned non-JSON (${response.status}): ${rawText.slice(0, 500)}`);
-      }
-
-      if (!response.ok) {
-        const msg = data.error?.message || rawText.slice(0, 500) || `HTTP ${response.status}`;
-        throw new Error(`xAI image API error: ${msg}`);
-      }
-
-      imageUrl = data.data?.[0]?.url;
-      const b64 = data.data?.[0]?.b64_json;
-
-      if (!imageUrl && b64) {
-        imageUrl = `data:image/jpeg;base64,${b64}`;
-      }
-
-      if (!imageUrl) {
-        console.error("xAI response:", rawText.slice(0, 2000));
-        throw new Error("Failed to generate image from xAI (no url or b64 in response)");
-      }
+      imageDataUrl = dataUrl;
     } catch (imgErr) {
       if (tokensCharged) {
-        await refundTokens(supabase, userId, tokenCost, "xAI image generation error");
+        await refundTokens(supabase, userId, tokenCost, "OpenRouter FLUX image error");
         tokensCharged = false;
       }
       const msg = imgErr instanceof Error ? imgErr.message : String(imgErr);
@@ -438,7 +402,7 @@ ${safeRewritten}
         JSON.stringify({
           success: false,
           error:
-            /xai|content policy|moderation|blocked|safety/i.test(msg)
+            /xai|openrouter|content policy|moderation|blocked|safety/i.test(msg)
               ? msg
               : `Image generation failed: ${msg}. Your forge credits were refunded if this run charged you.`,
           tokensRefunded: tokenCost > 0,
@@ -448,26 +412,14 @@ ${safeRewritten}
     }
 
     const bucket = isPortrait ? "companion-portraits" : "companion-images";
-    const fileName = isPortrait
-      ? `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`
-      : `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-
-    let imageBuffer: ArrayBuffer;
+    let imageBytes: Uint8Array;
+    let uploadContentType: string;
+    let fileExt: string;
     try {
-      if (imageUrl!.startsWith("data:")) {
-        const parts = imageUrl!.split(",");
-        if (parts.length < 2) throw new Error("Invalid base64 image data");
-        const binary = atob(parts[1]!);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        imageBuffer = bytes.buffer;
-      } else {
-        const imageResponse = await fetch(imageUrl!);
-        if (!imageResponse.ok) {
-          throw new Error(`Failed to download generated image: ${imageResponse.status}`);
-        }
-        imageBuffer = await imageResponse.arrayBuffer();
-      }
+      const decoded = decodeOpenRouterImageDataUrl(imageDataUrl);
+      imageBytes = decoded.binary;
+      uploadContentType = decoded.contentType;
+      fileExt = decoded.ext;
     } catch (dlErr) {
       if (tokensCharged) {
         await refundTokens(supabase, userId, tokenCost, "image download failed");
@@ -484,10 +436,14 @@ ${safeRewritten}
       );
     }
 
+    const fileName = isPortrait
+      ? `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`
+      : `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+
     try {
       const { error: uploadError } = await supabase.storage
         .from(bucket)
-        .upload(fileName, imageBuffer, { contentType: "image/jpeg", upsert: true });
+        .upload(fileName, imageBytes, { contentType: uploadContentType, upsert: true });
 
       if (uploadError) throw uploadError;
 

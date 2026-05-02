@@ -10,8 +10,9 @@ import {
   isAnimeTemptationForgeTabId,
 } from "./forgeAnimeStyleDna.ts";
 import { buildForgeStyleDnaPrefix } from "./forgeTabStyleDna.ts";
+import { decodeOpenRouterImageDataUrl, openRouterGenerateFluxImage } from "./openRouter.ts";
 
-const DEFAULT_IMAGE_MODEL = "grok-imagine-image";
+const getEnv = (name: string) => Deno.env.get(name);
 
 export type PortraitStorageTarget =
   | { kind: "catalog"; catalogId: string }
@@ -40,7 +41,6 @@ ${imagePrompt}
 async function buildFullAdultArtPortraitPrompt(
   imagePrompt: string,
   characterData: Record<string, unknown>,
-  apiKey: string,
 ): Promise<string> {
   const anatomyVariant = resolveAnatomyVariant(characterData);
   const anatomyDirective = buildAnatomyRewriterDirective(anatomyVariant);
@@ -54,7 +54,6 @@ async function buildFullAdultArtPortraitPrompt(
     raw: imagePrompt.trim(),
     context: rewriterContext,
     anatomyPolicy: anatomyDirective,
-    apiKey,
     rewriteMode: "chat_session",
   });
 
@@ -73,7 +72,7 @@ async function buildFullAdultArtPortraitPrompt(
   return `
 ${animeLead}${dna ? `${dna}\n\n` : ""}${UNIVERSAL_NON_PREVIEW_IMAGE_BASE}
 
-Adults-only companion product. Admin / roster portrait refresh (not Forge live preview). Follow xAI content policies; do not depict minors.
+Adults-only companion product. Admin / roster portrait refresh (not Forge live preview). Follow provider content policies; do not depict minors.
 
 Create a highly detailed, cinematic, vertical 2:3 portrait of ${baseDescription}.
 
@@ -93,21 +92,19 @@ function storageFileName(target: PortraitStorageTarget, ext: string): string {
 }
 
 /**
- * Calls xAI Imagine, uploads to companion-portraits, returns public + display URLs.
- * Does not touch the database.
+ * OpenRouter FLUX still → uploads to companion-portraits. Does not touch the database.
  */
 export async function renderPortraitToStorage(opts: {
   adminClient: SupabaseClient;
-  apiKey: string;
   imagePrompt: string;
   characterData: Record<string, unknown>;
   target: PortraitStorageTarget;
+  /** @deprecated Ignored — image model comes from OPENROUTER_IMAGE_MODEL* secrets. */
   model?: string;
   /** Defaults to full expression (admin / nexus / catalog regen). */
   contentTier?: ImageContentTier | string;
 }): Promise<{ publicUrl: string; displayUrl: string; storagePath: string }> {
-  const { adminClient, apiKey, imagePrompt, characterData, target } = opts;
-  const model = opts.model?.trim() || Deno.env.get("GROK_IMAGE_MODEL")?.trim() || DEFAULT_IMAGE_MODEL;
+  const { adminClient, imagePrompt, characterData, target } = opts;
   const effectiveTier = resolveImageContentTier({
     contentTier: opts.contentTier,
     isPortrait: false,
@@ -116,69 +113,19 @@ export async function renderPortraitToStorage(opts: {
   const finalPrompt =
     effectiveTier === "forge_preview_sfw"
       ? buildPortraitFinalPrompt(imagePrompt, characterData)
-      : await buildFullAdultArtPortraitPrompt(imagePrompt, characterData, apiKey);
+      : await buildFullAdultArtPortraitPrompt(imagePrompt, characterData);
 
-  const aiResponse = await fetch("https://api.x.ai/v1/images/generations", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      prompt: finalPrompt,
-      n: 1,
-      aspect_ratio: "2:3",
-    }),
+  const { dataUrl } = await openRouterGenerateFluxImage({
+    prompt: finalPrompt,
+    getEnv,
+    aspectRatio: "2:3",
   });
 
-  const rawText = await aiResponse.text();
-  let parsed: { data?: Array<{ url?: string; b64_json?: string }>; error?: { message?: string } } = {};
-  try {
-    parsed = JSON.parse(rawText) as typeof parsed;
-  } catch {
-    throw new Error(`xAI returned invalid JSON: ${rawText.slice(0, 400)}`);
-  }
-
-  if (!aiResponse.ok) {
-    const msg = parsed.error?.message || rawText.slice(0, 500);
-    throw new Error(`xAI image generation failed: ${msg}`);
-  }
-
-  let remoteUrl = parsed.data?.[0]?.url;
-  const b64 = parsed.data?.[0]?.b64_json;
-
-  let binaryData: Uint8Array;
-  let ext = "jpg";
-  let contentType = "image/jpeg";
-
-  if (remoteUrl) {
-    if (remoteUrl.startsWith("data:")) {
-      const m = remoteUrl.match(/^data:image\/(\w+);base64,(.+)$/);
-      if (!m) throw new Error("Invalid data URL from xAI");
-      ext = m[1] === "jpeg" ? "jpg" : m[1]!;
-      contentType = `image/${m[1] === "jpeg" ? "jpeg" : m[1]}`;
-      binaryData = Uint8Array.from(atob(m[2]!), (c) => c.charCodeAt(0));
-    } else {
-      const imgRes = await fetch(remoteUrl);
-      if (!imgRes.ok) throw new Error(`Failed to download image from xAI URL (${imgRes.status})`);
-      const ct = imgRes.headers.get("content-type") || "";
-      if (ct.includes("png")) {
-        ext = "png";
-        contentType = "image/png";
-      }
-      const buf = await imgRes.arrayBuffer();
-      binaryData = new Uint8Array(buf);
-    }
-  } else if (b64) {
-    binaryData = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-  } else {
-    throw new Error("No image URL or base64 in xAI response");
-  }
+  const { binary, contentType, ext } = decodeOpenRouterImageDataUrl(dataUrl);
 
   const fileName = storageFileName(target, ext);
 
-  const { error: uploadError } = await adminClient.storage.from("companion-portraits").upload(fileName, binaryData, {
+  const { error: uploadError } = await adminClient.storage.from("companion-portraits").upload(fileName, binary, {
     contentType,
     upsert: true,
   });

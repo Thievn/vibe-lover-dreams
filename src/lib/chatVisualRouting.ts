@@ -5,9 +5,17 @@
 
 import { wantsChatImageFromText } from "./chatImageSettings";
 
-/** Shown near video actions; Grok video is async and may take a few minutes. */
+/** When true, in-chat I2V clips are disabled; UI shows “coming soon” and requests short-circuit. */
+export const CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON = true;
+
+/** Shown near video actions when in-chat clips are enabled; Grok video is async and may take a few minutes. */
 export const CHAT_VIDEO_TIMING_USER_NOTE =
   "Videos can take 1–5+ minutes to generate — hang tight.";
+
+/** Footer / helper line under the chat composer (stills vs in-chat video availability). */
+export const CHAT_VIDEO_FOOTER_SECONDARY_NOTE = CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON
+  ? "In-chat video clips: coming soon."
+  : CHAT_VIDEO_TIMING_USER_NOTE;
 
 const VIDEO_LOADING_LINES = [
   "Filming that for you…",

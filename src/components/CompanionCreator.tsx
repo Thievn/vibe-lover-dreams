@@ -470,7 +470,6 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   const [identityAnatomyDetail, setIdentityAnatomyDetail] = useState<IdentityAnatomyDetail>("");
   const [forgePersonality, setForgePersonality] = useState<ForgePersonalityProfile>(() => randomForgePersonality());
   const [visualTailoring, setVisualTailoring] = useState<ForgeVisualTailoring>(() => ({ ...DEFAULT_FORGE_VISUAL_TAILORING }));
-  const [profileLoopJob, setProfileLoopJob] = useState<"idle" | "queued" | "running" | "done" | "error">("idle");
   const [artStyle, setArtStyle] = useState<string>(() => "Photorealistic");
   const [sceneAtmosphere, setSceneAtmosphere] = useState<string>(() =>
     normalizeForgeScene("No Background / Transparent"),
@@ -1362,12 +1361,6 @@ User flavor notes: ${extraNotes || "none"}`;
     [forgePersonality, visualTailoring.outfitStyle],
   );
 
-  useEffect(() => {
-    if (profileLoopJob !== "done") return;
-    const t = window.setTimeout(() => setProfileLoopJob("idle"), 6500);
-    return () => window.clearTimeout(t);
-  }, [profileLoopJob]);
-
   const buildPortraitGeneratePayload = useCallback(
     (
       narrativeOverride?: string,
@@ -1991,49 +1984,10 @@ User flavor notes: ${extraNotes || "none"}`;
         if (isAdmin) {
           setLastForgedCcId(ccFull);
           pushForgeOp(
-            `Saved ${ccFull}. Open profile to review visuals, or chat to smoke-test behavior.`,
+            `Saved ${ccFull}. Open profile to review visuals, or chat to smoke-test behavior. Generate a looping profile video (Grok I2V) from Character management or the block below when ready.`,
             "ok",
           );
         }
-
-        setProfileLoopJob("queued");
-        void (async () => {
-          setProfileLoopJob("running");
-          try {
-            toast.info(isAdmin ? "Generating looping profile video…" : "Creating your looping portrait video…", {
-              duration: 6000,
-            });
-            if (isAdmin) {
-              pushForgeOp("Queued looping profile video (runs async; refresh Character management if needed).", "info");
-            }
-            const { data: vidData, error: vidErr } = await supabase.functions.invoke("generate-profile-loop-video", {
-              body: { companionId: ccFull },
-            });
-            if (vidErr) throw new Error(await getEdgeFunctionInvokeMessage(vidErr, vidData));
-            if ((vidData as { error?: string })?.error) throw new Error(String((vidData as { error?: string }).error));
-            toast.success("Profile loop video saved — enable on profile if needed.");
-            if (isAdmin) pushForgeOp("Profile loop video finished and saved.", "ok");
-            setProfileLoopJob("done");
-            void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
-            void queryClient.invalidateQueries({ queryKey: ["companions"] });
-          } catch (e) {
-            console.error(e);
-            setProfileLoopJob("error");
-            if (isAdmin) {
-              pushForgeOp(
-                e instanceof Error
-                  ? `Loop video: ${e.message.slice(0, 160)}…`
-                  : "Loop video failed — retry from Character management.",
-                "warn",
-              );
-            }
-            toast.error(
-              e instanceof Error
-                ? `${e.message.slice(0, 220)}${isAdmin ? " — retry from Character management if needed." : " — open their profile → Live call tab is still ready; you can retry loop video from Character management if you have access."}`
-                : "Loop video failed — try again from Character management or your profile tools.",
-            );
-          }
-        })();
       }
       clearForgeSessionDraft(userId, isAdmin ? "admin" : "user");
       if (!isAdmin) {
@@ -2552,48 +2506,6 @@ User flavor notes: ${extraNotes || "none"}`;
                 ? "Draws a new mix from the same lists, locks a name, and fills copy + starters locally (no model round-trip) — edit the Narrative tab if you want a longer hand-written chronicle."
                 : "Instant random roll: Personalities, scene, body, name, and a starter story pass — all from the forge’s own options, on your device."}
             </p>
-
-            <AnimatePresence>
-              {(profileLoopJob === "queued" ||
-                profileLoopJob === "running" ||
-                profileLoopJob === "done" ||
-                profileLoopJob === "error") && (
-                <motion.div
-                  key={profileLoopJob}
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.22 }}
-                  className={cn(
-                    "rounded-xl border px-4 py-3 text-sm flex flex-col sm:flex-row sm:items-center gap-2",
-                    profileLoopJob === "error"
-                      ? "border-amber-500/35 bg-amber-500/10 text-amber-50"
-                      : profileLoopJob === "done"
-                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-50"
-                        : "border-[#FF2D7B]/28 bg-[#FF2D7B]/[0.08] text-white",
-                  )}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    {profileLoopJob === "running" || profileLoopJob === "queued" ? (
-                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[#FF2D7B]" />
-                    ) : profileLoopJob === "done" ? (
-                      <Check className="h-4 w-4 shrink-0 text-emerald-400" />
-                    ) : (
-                      <ScanEye className="h-4 w-4 shrink-0 text-amber-300" />
-                    )}
-                    <span className="font-medium leading-snug">
-                      {profileLoopJob === "queued" && "Profile loop video queued…"}
-                      {profileLoopJob === "running" && "Rendering your looping profile video…"}
-                      {profileLoopJob === "done" && "Loop video saved — you can keep browsing the forge."}
-                      {profileLoopJob === "error" && "Loop video hit a snag — retry from Character management when ready."}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-white/65 sm:ml-auto sm:text-right leading-snug">
-                    Runs in the background after save — safe to plan your next character.
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             <div className="rounded-2xl border border-white/[0.1] bg-black/35 p-3 sm:p-4 space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
