@@ -47,6 +47,7 @@ import {
 import { buildLocalSpinForgeFields } from "@/lib/forgeLocalSpinContent";
 import { clearForgeSessionDraft, loadForgeSessionDraft, saveForgeSessionDraft } from "@/lib/forgeSessionDraft";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
+import { withAsyncTimeout } from "@/lib/withAsyncTimeout";
 import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
 import { formatSupabaseError } from "@/lib/supabaseError";
 import { fallbackForgeDisplayName } from "@/lib/forgeRandomName";
@@ -383,6 +384,8 @@ function padFantasyStartersToFour(
 
 /** Minimum chronicle length before we auto-run design-lab to avoid saving one-line stubs. */
 const MIN_CHRONICLE_CHARS = 500;
+/** Grok tool-call in `parse-companion-prompt` can be slow; cap wait so Create does not spin forever. */
+const PARSE_COMPANION_TIMEOUT_MS = 180_000;
 
 function buildForgeDesignLabSeedPrompt(o: {
   gender: string;
@@ -1691,9 +1694,13 @@ User flavor notes: ${extraNotes || "none"}`;
           forgeThemeDigest: designLabThemeDigest,
           effectiveArtStyle: effectiveArtForGeneration,
         });
-        const { data: labData, error: labErr } = await supabase.functions.invoke("parse-companion-prompt", {
-          body: { mode: "companion_design_lab", prompt: seedPrompt },
-        });
+        const { data: labData, error: labErr } = await withAsyncTimeout(
+          supabase.functions.invoke("parse-companion-prompt", {
+            body: { mode: "companion_design_lab", prompt: seedPrompt },
+          }),
+          PARSE_COMPANION_TIMEOUT_MS,
+          "Forge design lab (parse-companion-prompt / Grok)",
+        );
         if (labErr) throw new Error(await getEdgeFunctionInvokeMessage(labErr, labData));
         if (labData?.error) throw new Error(String(labData.error));
         const fields = labData?.fields as Record<string, unknown> | undefined;

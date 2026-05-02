@@ -16,6 +16,8 @@ import { resolveLiveCallOptionBySlug } from "@/lib/resolveLiveCallOptionFromSlug
 import { resolveUxVoiceId, uxVoiceToXaiVoice, type TtsUxVoiceId, type XaiVoiceId } from "@/lib/ttsVoicePresets";
 import { getToys, sendCommand, type LovenseToy } from "@/lib/lovense";
 import { liveCallToyCommandFromAssistantLine } from "@/lib/liveCallToyFromAssistantSpeech";
+import { createSustainedLovenseSession } from "@/lib/sustainedLovenseSession";
+import { readStashedLiveCallOption, clearStashedLiveCallOption } from "@/lib/liveCallSessionStorage";
 import { fetchTtsSampleAudioUrl } from "@/lib/invokeGrokTtsSample";
 import { LIVE_CALL_CREDITS_PER_MINUTE } from "@/lib/liveCallBilling";
 import { spendForgeCoins } from "@/lib/forgeCoinsClient";
@@ -64,8 +66,16 @@ const LiveCallPage = () => {
 
   const activeCallOption = useMemo(() => {
     if (callOptionFromState) return callOptionFromState;
-    if (!companion || !id || !slugFromUrl) return null;
-    return resolveLiveCallOptionBySlug(id, companion, slugFromUrl);
+    if (companion && id && slugFromUrl) {
+      const resolved = resolveLiveCallOptionBySlug(id, companion, slugFromUrl);
+      if (resolved) return resolved;
+    }
+    if (id) {
+      const stashed = readStashedLiveCallOption(id);
+      if (!stashed) return null;
+      if (!slugFromUrl || stashed.slug === slugFromUrl) return stashed;
+    }
+    return null;
   }, [callOptionFromState, companion, id, slugFromUrl]);
 
   const { relationship, loading: relationshipLoading, refresh: refreshRelationship } = useCompanionRelationship(
@@ -94,6 +104,7 @@ const LiveCallPage = () => {
   const sessionStartedFor = useRef<string | null>(null);
   const callVoiceRef = useRef<TtsUxVoiceId>("velvet_whisper");
   const toyForSessionRef = useRef<LovenseToy | null>(null);
+  const sustainedToySessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
   const userIdRef = useRef<string | null>(null);
   const liveAtRef = useRef<number | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -221,6 +232,9 @@ const LiveCallPage = () => {
     } catch {
       /* ignore */
     }
+    void sustainedToySessionRef.current?.stop();
+    sustainedToySessionRef.current = null;
+    if (companionId) clearStashedLiveCallOption(companionId);
     stopRef.current = null;
     updateSessionRef.current = null;
     sendUserTextRef.current = () => {};
@@ -309,6 +323,14 @@ const LiveCallPage = () => {
     if (!companion) return;
     if (callOptionFromState) return;
     if (!slugFromUrl) {
+      const stash = readStashedLiveCallOption(id);
+      if (stash?.slug) {
+        navigate(`/live-call/${id}?call=${encodeURIComponent(stash.slug)}`, {
+          replace: true,
+          state: { callOption: stash },
+        });
+        return;
+      }
       navigate(`/companions/${id}`, { replace: true });
       return;
     }
@@ -395,9 +417,19 @@ const LiveCallPage = () => {
           const u = userIdRef.current;
           if (!t || !u) return;
           const cmd = liveCallToyCommandFromAssistantLine(String(text), { toyDeviceUid: t.id });
-          if (cmd) {
+          if (!cmd) return;
+          if (cmd.command === "stop") {
+            void sustainedToySessionRef.current?.stop();
+            sustainedToySessionRef.current = null;
             void sendCommand(u, cmd).catch(() => undefined);
+            return;
           }
+          if (cmd.command === "vibrate" || cmd.command === "pattern") {
+            void sustainedToySessionRef.current?.stop();
+            sustainedToySessionRef.current = createSustainedLovenseSession(u, cmd);
+            return;
+          }
+          void sendCommand(u, cmd).catch(() => undefined);
         },
       });
       stopRef.current = api.stop;
@@ -407,6 +439,8 @@ const LiveCallPage = () => {
 
     return () => {
       cancelled = true;
+      void sustainedToySessionRef.current?.stop();
+      sustainedToySessionRef.current = null;
       try {
         stopRef.current?.();
       } catch {

@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { openRouterChatCompletion, openRouterChatModel, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
-import { requireTogetherApiKey } from "../_shared/togetherClient.ts";
+import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { requireAdminUser } from "../_shared/requireSessionUser.ts";
 import { renderPortraitToStorage } from "../_shared/renderCompanionPortrait.ts";
 
@@ -244,8 +244,8 @@ Deno.serve(async (req) => {
     const getEnv = (n: string) => Deno.env.get(n);
 
     if (section === "portrait") {
-      if (!requireTogetherApiKey()) {
-        return new Response(JSON.stringify({ error: "TOGETHER_API_KEY not configured (required for FLUX.2 portraits)" }), {
+      if (!resolveXaiApiKey(getEnv)) {
+        return new Response(JSON.stringify({ error: "XAI_API_KEY or GROK_API_KEY not configured (required for Grok Imagine portraits)" }), {
           status: 503,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -258,18 +258,11 @@ Deno.serve(async (req) => {
         ? { kind: "forge" as const, uuid: filterId }
         : { kind: "catalog" as const, catalogId: filterId };
 
-      const { data: opProf } = await adminClient
-        .from("profiles")
-        .select("together_image_model")
-        .eq("user_id", adminUserId)
-        .maybeSingle();
-
       const { publicUrl, displayUrl } = await renderPortraitToStorage({
         adminClient,
         imagePrompt,
         characterData: row,
         target,
-        profileTogetherImageModel: opProf?.together_image_model ?? null,
       });
 
       if (source === "forge") {

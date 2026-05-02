@@ -1,5 +1,6 @@
-import { openRouterChatCompletion, openRouterChatModel, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
 import { requireSessionUser } from "../_shared/requireSessionUser.ts";
+import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { defaultGrokForgeParseModel, grokChatCompletionRaw } from "../_shared/xaiGrokChatRaw.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,12 +34,12 @@ Deno.serve(async (req) => {
     const companionDesignLab = mode === "companion_design_lab";
     const grotesqueGpk = celebrityParody && grotesque_gpk === true;
 
-    const getEnv = (n: string) => Deno.env.get(n);
-    if (!resolveOpenRouterApiKey(getEnv)) {
+    const xaiKey = resolveXaiApiKey((n) => Deno.env.get(n));
+    if (!xaiKey) {
       return new Response(
         JSON.stringify({
           error:
-            "OpenRouter not configured. Set Edge Function secret OPENROUTER_API_KEY (https://openrouter.ai/keys).",
+            "Grok not configured. Set Edge Function secret XAI_API_KEY or GROK_API_KEY (https://console.x.ai/).",
         }),
         {
           status: 503,
@@ -227,37 +228,42 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
       ? systemCompanionDesignLab
       : systemDefault;
 
-    const orRes = await openRouterChatCompletion({
-      getEnv,
-      model: openRouterChatModel(getEnv),
-      messages: [
-        { role: "system", content: effectiveSystem },
-        { role: "user", content: userContent },
-      ],
-      tools: [
-        {
-          type: "function",
-          function: {
-            name: "extract_companion_fields",
-            description: "Extract structured companion profile fields from text",
-            parameters: toolParameters,
+    const model = defaultGrokForgeParseModel();
+    const trRes = await grokChatCompletionRaw(
+      {
+        model,
+        messages: [
+          { role: "system", content: effectiveSystem },
+          { role: "user", content: userContent },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "extract_companion_fields",
+              description: "Extract structured companion profile fields from text",
+              parameters: toolParameters,
+            },
           },
-        },
-      ],
-      tool_choice: { type: "function", function: { name: "extract_companion_fields" } },
-      temperature: companionDesignLab || celebrityParody ? 0.88 : parodyLab ? 0.8 : 0.7,
-      max_tokens: 4096,
-    });
+        ],
+        tool_choice: { type: "function", function: { name: "extract_companion_fields" } },
+        temperature: companionDesignLab || celebrityParody ? 0.88 : parodyLab ? 0.8 : 0.7,
+        max_tokens: 4096,
+      },
+      xaiKey,
+    );
 
-    if (!orRes.ok || orRes.json === null) {
-      console.error("parse-companion-prompt OpenRouter error:", orRes.rawText);
+    if (!trRes.ok || trRes.json === null) {
+      console.error("parse-companion-prompt Grok error:", trRes.rawText);
       return new Response(JSON.stringify({ error: "AI service error" }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const data = orRes.json as { choices?: Array<{ message?: { tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }> };
+    const data = trRes.json as {
+      choices?: Array<{ message?: { tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }>;
+    };
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
 
     if (!toolCall || toolCall.function?.name !== "extract_companion_fields") {

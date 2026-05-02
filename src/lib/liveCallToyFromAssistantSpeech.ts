@@ -18,6 +18,14 @@ export function liveCallToyCommandFromAssistantLine(
     return { command: "stop", intensity: 0, duration: 0, toyId: opts.toyDeviceUid };
   }
 
+  if (
+    /\b(turn (the toy |it )?on|switch (the toy |it )?on|power (it )?on|wake (the toy |it )?up|start (the )?(vibrat|buzz)|make (it )?buzz|get (the toy |it )?going)\b/.test(
+      t,
+    )
+  ) {
+    return { command: "vibrate", intensity: 48, ...base };
+  }
+
   if (/\b(pulse|pulsing|rhythm(ing)?|beat(ing)? like a heart)\b/.test(t)) {
     return {
       command: "pattern",

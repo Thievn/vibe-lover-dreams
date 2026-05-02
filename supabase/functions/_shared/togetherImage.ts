@@ -116,7 +116,7 @@ function formatTogetherImageError(json: unknown, fallbackRaw: string, httpStatus
 /** Decode `data:image/png;base64,...` → bytes + mime (shared by portrait + chat image uploads). */
 export function decodeImageDataUrl(dataUrl: string): { binary: Uint8Array; contentType: string; ext: string } {
   const m = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/i);
-  if (!m) throw new Error("Together image: expected data:image/*;base64 URL");
+  if (!m) throw new Error("Image data URL: expected data:image/*;base64,…");
   const mimeSub = m[1]!.toLowerCase();
   const b64 = m[2]!;
   const contentType = mimeSub === "jpg" ? "image/jpeg" : `image/${mimeSub}`;

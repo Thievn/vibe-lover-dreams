@@ -172,12 +172,13 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
         tokensBalance={tokensBalance}
         isAdminUser={isAdminUser}
         safeWord={safeWord}
+        mobileCompact
         onBack={() => {
           void handleEmergencyStop();
-          const backTo = (location.state as { from?: string } | undefined)?.from;
-          if (backTo) navigate(backTo);
-          else if (location.key !== "default") navigate(-1);
-          else navigate(`/companions/${companion.id}`);
+          const st = location.state as { from?: string; profileBackTarget?: string } | undefined;
+          navigate(`/companions/${companion.id}`, {
+            state: { from: st?.profileBackTarget ?? st?.from ?? "/discover" },
+          });
         }}
         onEmergencyStop={() => void handleEmergencyStopFromUi()}
         onOpenGallery={user ? () => setGalleryOpen(true) : undefined}
@@ -238,6 +239,7 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
           imageUrl={portraitStillUrl}
           headerAnimated={headerAnimated}
           onVoiceClick={() => setVoiceSettingsOpen(true)}
+          compact
         />
         <ChatDevicesCollapsible
           companionName={companion.name}
@@ -275,7 +277,7 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
         )}
 
         <div
-          className="relative z-0 min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-20"
+          className="relative z-0 min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-14"
           style={{ WebkitOverflowScrolling: "touch" }}
         >
           <ChatAmbientBackground activityKey={messages.length} />
@@ -407,8 +409,8 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
         size="icon"
         onClick={() => setToolsOpen(true)}
         className={cn(
-          "fixed z-[45] h-14 w-14 rounded-full border border-primary/40 bg-gradient-to-br from-primary/90 to-primary/60 shadow-lg shadow-primary/20",
-          "bottom-[max(7rem,calc(5.5rem+env(safe-area-inset-bottom,0px)))] right-4",
+          "fixed z-[45] h-12 w-12 rounded-full border border-primary/40 bg-gradient-to-br from-primary/90 to-primary/60 shadow-lg shadow-primary/20 sm:h-14 sm:w-14",
+          "bottom-[max(5.25rem,calc(4.25rem+env(safe-area-inset-bottom,0px)))] right-3 sm:bottom-[max(7rem,calc(5.5rem+env(safe-area-inset-bottom,0px)))] sm:right-4",
           "touch-manipulation",
         )}
         aria-label="Chat tools"

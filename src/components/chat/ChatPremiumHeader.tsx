@@ -25,6 +25,8 @@ type Props = {
   toyStatusLabel?: string;
   /** Shown in split layout: portrait lives in the left column, not here. */
   showHeroInLeftColumn?: boolean;
+  /** Tighter header + hide bond bar / footer links — mobile chat shell. */
+  mobileCompact?: boolean;
 };
 
 /**
@@ -48,6 +50,7 @@ export function ChatPremiumHeader({
   showMobileGalleryButton = true,
   toyStatusLabel,
   showHeroInLeftColumn = true,
+  mobileCompact = false,
 }: Props) {
   const tier = Math.min(5, Math.max(1, affectionTier));
   const max = Math.max(1, affectionProgressMax);
@@ -55,12 +58,17 @@ export function ChatPremiumHeader({
   const pct = tier >= 5 ? 100 : Math.round((prog / max) * 100);
   const rarity = normalizeCompanionRarity(companion.rarity);
 
+  const compact = mobileCompact;
+
   return (
     <header
-      className="shrink-0 border-b border-white/[0.08] bg-black/55 shadow-[0_4px_32px_rgba(0,0,0,0.35)] backdrop-blur-xl"
+      className={cn(
+        "shrink-0 border-b border-white/[0.08] bg-black/55 shadow-[0_4px_32px_rgba(0,0,0,0.35)] backdrop-blur-xl",
+        compact && "shadow-[0_2px_16px_rgba(0,0,0,0.25)]",
+      )}
       style={{ paddingTop: "max(0.25rem, env(safe-area-inset-top))" }}
     >
-      <div className="flex items-center gap-2 px-2 py-2.5 sm:px-4 sm:py-3">
+      <div className={cn("flex items-center gap-2 px-2 sm:px-4", compact ? "py-1.5 sm:py-2" : "py-2.5 sm:py-3")}>
         <button
           type="button"
           onClick={onBack}
@@ -88,12 +96,21 @@ export function ChatPremiumHeader({
 
         <div className="min-w-0 flex-1 text-left">
           <h1
-            className="font-gothic text-base font-bold leading-tight tracking-tight text-foreground sm:text-lg"
+            className={cn(
+              "font-gothic font-bold leading-tight tracking-tight text-foreground",
+              compact ? "text-sm sm:text-base" : "text-base sm:text-lg",
+            )}
             title={companion.name}
           >
             {companion.name}
           </h1>
-          <p className="line-clamp-1 text-[11px] text-primary/85 sm:text-xs" title={companion.tagline}>
+          <p
+            className={cn(
+              "line-clamp-1 text-primary/85",
+              compact ? "text-[10px] sm:text-[11px]" : "text-[11px] sm:text-xs",
+            )}
+            title={companion.tagline}
+          >
             {companion.tagline}
           </p>
           {showHeroInLeftColumn && (
@@ -144,7 +161,12 @@ export function ChatPremiumHeader({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-white/[0.05] px-2 py-1.5 sm:px-3 sm:py-2">
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-white/[0.05] px-2 sm:px-3",
+          compact ? "py-1 sm:py-1.5" : "gap-y-1.5 py-1.5 sm:py-2",
+        )}
+      >
         <div className="sm:hidden w-full min-w-0 flex justify-center">{sessionControls}</div>
         <span
           className="inline-flex max-w-full items-center rounded-full border border-primary/30 bg-primary/8 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary/95"
@@ -193,9 +215,9 @@ export function ChatPremiumHeader({
             {toyStatusLabel}
           </span>
         ) : null}
-        <span className="ml-auto text-[8px] uppercase text-muted-foreground/70">{rarity}</span>
+        {!compact ? <span className="ml-auto text-[8px] uppercase text-muted-foreground/70">{rarity}</span> : null}
       </div>
-      {tier < 5 ? (
+      {!compact && tier < 5 ? (
         <div
           className="mx-2 mb-1.5 h-1 max-w-sm overflow-hidden rounded-full bg-white/[0.08] sm:mx-3"
           title="Bond"
@@ -209,25 +231,27 @@ export function ChatPremiumHeader({
         </div>
       ) : null}
 
-      <p className="px-2 pb-1.5 text-center text-[9px] text-muted-foreground/80 sm:px-3 sm:text-[10px] sm:pb-2">
-        <Link to={`/companions/${companion.id}`} className="text-primary/80 underline-offset-2 hover:underline">
-          Full profile
-        </Link>
-        {onOpenGallery ? (
-          <span>
-            {" "}
-            ·{" "}
-            <button
-              type="button"
-              onClick={onOpenGallery}
-              className="text-primary/80 underline-offset-2 hover:underline"
-            >
-              Gallery sheet
-            </button>
-          </span>
-        ) : null}
-        {safeWord ? <span className="text-muted-foreground/50"> · Safe: {safeWord}</span> : null}
-      </p>
+      {!compact ? (
+        <p className="px-2 pb-1.5 text-center text-[9px] text-muted-foreground/80 sm:px-3 sm:text-[10px] sm:pb-2">
+          <Link to={`/companions/${companion.id}`} className="text-primary/80 underline-offset-2 hover:underline">
+            Full profile
+          </Link>
+          {onOpenGallery ? (
+            <span>
+              {" "}
+              ·{" "}
+              <button
+                type="button"
+                onClick={onOpenGallery}
+                className="text-primary/80 underline-offset-2 hover:underline"
+              >
+                Gallery sheet
+              </button>
+            </span>
+          ) : null}
+          {safeWord ? <span className="text-muted-foreground/50"> · Safe: {safeWord}</span> : null}
+        </p>
+      ) : null}
     </header>
   );
 }

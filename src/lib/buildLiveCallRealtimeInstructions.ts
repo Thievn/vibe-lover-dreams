@@ -76,6 +76,7 @@ export function buildLiveCallRealtimeInstructions(
           "",
           "--- Linked device (Lovense) ---",
           "The user may have a Lovense toy connected. You can narrate first-person control in plain speech — describe what you are doing to them in the moment.",
+          "When you turn intensity on or describe sustained buzzing / a pattern that should keep going, the app holds that sensation until they clearly ask to stop (e.g. stop, ease off completely, full stop) OR you deliberately wind the scene down after a long stretch (several minutes of continuous play) with in-character easing language the app can map to slowing or stopping.",
           "Use natural language the app can align with, e.g. mention pulsing, a rolling wave, teasing light touches, cranking the intensity, or asking for a full stop. Never read technical codes, JSON, or instructions aloud.",
           "",
           "--- Toy dial (on-screen controls only; Live Voice) ---",

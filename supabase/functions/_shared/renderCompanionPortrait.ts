@@ -10,7 +10,9 @@ import {
   isAnimeTemptationForgeTabId,
 } from "./forgeAnimeStyleDna.ts";
 import { buildForgeStyleDnaPrefix } from "./forgeTabStyleDna.ts";
-import { decodeImageDataUrl, togetherGenerateFluxImage } from "./togetherImage.ts";
+import { decodeImageDataUrl } from "./togetherImage.ts";
+import { resolveXaiApiKey } from "./resolveXaiApiKey.ts";
+import { grokGenerateImageDataUrl } from "./xaiGrokImage.ts";
 
 const getEnv = (name: string) => Deno.env.get(name);
 
@@ -92,15 +94,13 @@ function storageFileName(target: PortraitStorageTarget, ext: string): string {
 }
 
 /**
- * Together.ai FLUX.2 still (`/v1/images/generations`, default **FLUX.2-dev**) → uploads to companion-portraits. Does not touch the database.
+ * xAI Grok Imagine still (`/v1/images/generations`) → uploads to companion-portraits. Does not touch the database.
  */
 export async function renderPortraitToStorage(opts: {
   adminClient: SupabaseClient;
   imagePrompt: string;
   characterData: Record<string, unknown>;
   target: PortraitStorageTarget;
-  /** Optional profile override (`profiles.together_image_model`); otherwise `TOGETHER_IMAGE_MODEL` / default. */
-  profileTogetherImageModel?: string | null;
   /** Defaults to full expression (admin / nexus / catalog regen). */
   contentTier?: ImageContentTier | string;
 }): Promise<{ publicUrl: string; displayUrl: string; storagePath: string }> {
@@ -115,11 +115,15 @@ export async function renderPortraitToStorage(opts: {
       ? buildPortraitFinalPrompt(imagePrompt, characterData)
       : await buildFullAdultArtPortraitPrompt(imagePrompt, characterData);
 
-  const { dataUrl } = await togetherGenerateFluxImage({
+  const apiKey = resolveXaiApiKey(getEnv);
+  if (!apiKey) {
+    throw new Error("Missing XAI_API_KEY or GROK_API_KEY for Grok portrait render.");
+  }
+  const { dataUrl } = await grokGenerateImageDataUrl({
+    apiKey,
     prompt: finalPrompt,
     getEnv,
     aspectRatio: "2:3",
-    profileTogetherImageModel: opts.profileTogetherImageModel ?? null,
   });
 
   const { binary, contentType, ext } = decodeImageDataUrl(dataUrl);

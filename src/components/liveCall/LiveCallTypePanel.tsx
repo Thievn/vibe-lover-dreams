@@ -13,6 +13,7 @@ import type { LiveCallOption } from "@/lib/liveCallTypes";
 import { ensureCompanionCallNotifications } from "@/lib/companionCallNotifications";
 import { dispatchRequestInstallHint, needsInstallForIosWebPush } from "@/lib/pwaCallAlerts";
 import { cn } from "@/lib/utils";
+import { stashLiveCallOption } from "@/lib/liveCallSessionStorage";
 
 type Props = {
   companion: Companion;
@@ -88,6 +89,7 @@ export function LiveCallTypePanel({ companion, className }: Props) {
     if (needsInstallForIosWebPush()) {
       dispatchRequestInstallHint();
     }
+    stashLiveCallOption(companion.id, opt);
     navigate(`/live-call/${companion.id}?call=${encodeURIComponent(opt.slug)}`, {
       state: { callOption: opt },
     });

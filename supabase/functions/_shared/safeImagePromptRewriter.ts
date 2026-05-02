@@ -1,23 +1,24 @@
 /**
- * Rewrites raw text into a final image prompt for **Together FLUX.2** stills (OpenRouter **text** rewriter → Together `/v1/images/generations`; default image model **FLUX.2-dev**).
+ * Rewrites raw text into a final image prompt for **xAI Grok Imagine** stills (Grok **text** rewriter → `/v1/images/generations`).
  * - `chat_session`: adult chat / in-session images — explicit content allowed in the rewritten prompt (provider enforces its own limits).
  * - `portrait_card`: catalog / forge **card portrait** only — output must stay SFW (pin-up / cover art); see `PORTRAIT_IMAGE_REWRITER_SYSTEM`.
  *
  * Used by `safe-image-prompt` and `generate-image`.
  */
 
-import { extractOpenRouterAssistantText, openRouterChatCompletion, openRouterRewriteModel } from "./openRouter.ts";
+import { resolveXaiApiKey } from "./resolveXaiApiKey.ts";
+import { defaultGrokRewriteModel, grokSingleChatAssistantText } from "./xaiGrokChatRaw.ts";
 
 const getEnv = (name: string) => Deno.env.get(name);
 
 export type ImagineRewriteMode = "chat_session" | "portrait_card";
 
-/** In-session or marketing images: do not pre-sanitize for “SFW” — FLUX.2 on Together + provider handle policy. */
-export const CHAT_SESSION_IMAGE_REWRITER_SYSTEM = `You are the principal visual director for FLUX.2 image generation (Together.ai) on an adults-only fantasy companion product.
+/** In-session or marketing images: do not pre-sanitize for “SFW” — Grok Imagine + provider handle policy. */
+export const CHAT_SESSION_IMAGE_REWRITER_SYSTEM = `You are the principal visual director for Grok Imagine image generation (xAI) on an adults-only fantasy companion product.
 
 INPUT: you receive RAW_TEXT — anything from a user's chat request to an AI roleplay reply. It may be blunt, explicit, or obscene. You also receive optional CONTEXT (character notes, scene, wardrobe hints).
 
-YOUR JOB: produce ONE final English image prompt (plain text only, no markdown, no quotes) that:
+YOUR JOB: produce ONE final English image prompt for the image API (plain text only, no markdown, no quotes) that:
 
 1) Keeps strong sensual heat — never dull or generic — but stay in **tasteful premium adult** territory (fashion editorial, perfume-ad intimacy, neon-noir romance, cinematic boudoir). Avoid hardcore pornographic staging.
 
@@ -46,7 +47,7 @@ export const PORTRAIT_IMAGE_REWRITER_SYSTEM = `You are the visual director for *
 
 INPUT: RAW_TEXT and optional CONTEXT (appearance, wardrobe, character).
 
-YOUR JOB: produce ONE final English image prompt for FLUX (plain text only, no markdown, no quotes) that:
+YOUR JOB: produce ONE final English image prompt for Grok Imagine (plain text only, no markdown, no quotes) that:
 
 1) Stays **strictly SFW**: no nudity, no visible genitals, no explicit sex acts — seductive pin-up, fashion editorial, or cinematic cover art only. **No visible areolas or nipples, including through sheer, wet, or stretched fabric.** Maximum sensual tension through pose, gaze, opaque or artfully covered wardrobe, and light.
 
@@ -96,7 +97,7 @@ function stripCodeFences(text: string): string {
 }
 
 /**
- * Calls OpenRouter chat completions to rewrite raw text into a FLUX.2-ready image prompt (rendered on Together.ai).
+ * Calls Grok chat completions to rewrite raw text into a Grok Imagine–ready image prompt.
  */
 export async function rewritePromptForImagine(args: RewritePromptForImagineArgs): Promise<string> {
   const raw = (args.raw || "").trim();
@@ -104,11 +105,16 @@ export async function rewritePromptForImagine(args: RewritePromptForImagineArgs)
     throw new Error("Rewriter: empty raw prompt.");
   }
 
+  const apiKey = resolveXaiApiKey(getEnv);
+  if (!apiKey) {
+    throw new Error("Rewriter: set Edge Function secret XAI_API_KEY or GROK_API_KEY for Grok.");
+  }
+
   const mode: ImagineRewriteMode = args.rewriteMode ?? "chat_session";
   const system =
     mode === "portrait_card" ? PORTRAIT_IMAGE_REWRITER_SYSTEM : CHAT_SESSION_IMAGE_REWRITER_SYSTEM;
 
-  const model = (args.chatModel && args.chatModel.trim()) || openRouterRewriteModel(getEnv);
+  const model = (args.chatModel && args.chatModel.trim()) || defaultGrokRewriteModel(getEnv);
 
   const contextBlock = (args.context || "").trim().slice(0, 6000);
   const anatomy = (args.anatomyPolicy || "").trim();
@@ -129,26 +135,15 @@ export async function rewritePromptForImagine(args: RewritePromptForImagineArgs)
     .filter(Boolean)
     .join("\n");
 
-  const res = await openRouterChatCompletion({
-    getEnv,
-    model,
-    temperature: 0.88,
-    max_tokens: 900,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: userContent },
-    ],
-  });
-
-  if (!res.ok || res.json === null) {
-    const msg =
-      typeof res.json === "object" && res.json !== null && "error" in res.json
-        ? JSON.stringify((res.json as { error?: unknown }).error)
-        : res.rawText.slice(0, 500);
-    throw new Error(`Rewriter: OpenRouter HTTP ${res.status}: ${msg}`);
-  }
-
-  let content = stripCodeFences(extractOpenRouterAssistantText(res.json));
+  let content = stripCodeFences(
+    await grokSingleChatAssistantText({
+      model,
+      system,
+      user: userContent,
+      temperature: 0.88,
+      max_tokens: 900,
+    }),
+  );
   if (content.length < 24) {
     console.warn(
       "rewritePromptForImagine: short/empty model output; using RAW_TEXT fallback. mode=",

@@ -74,6 +74,11 @@ import { useLovensePairing } from "@/hooks/useLovensePairing";
 import { useWindowVisibleRefresh } from "@/hooks/useWindowVisibleRefresh";
 import { LovensePairingQrBlock } from "@/components/toy/LovensePairingQrBlock";
 import { LiveCallTypePanel } from "@/components/liveCall/LiveCallTypePanel";
+import { ProfileLoopingVideoUpsell } from "@/components/companion/ProfileLoopingVideoUpsell";
+import { isPlatformAdmin } from "@/config/auth";
+import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
+import { stashAndNavigateToLiveCall } from "@/lib/navigateToLiveCall";
+import { ensureCompanionCallNotifications } from "@/lib/companionCallNotifications";
 
 function PremiumDisabledButton({
   label,
@@ -163,6 +168,8 @@ const CompanionProfile = () => {
   const [fcBalanceProfile, setFcBalanceProfile] = useState<number | null>(null);
   const [buyConfirmProfileOpen, setBuyConfirmProfileOpen] = useState(false);
   const [purchasingDiscoverProfile, setPurchasingDiscoverProfile] = useState(false);
+
+  const isAdminUser = useMemo(() => (user ? isPlatformAdmin(user) : false), [user]);
 
   const { data: vibrationPatterns = [], isLoading: vibrationPatternsLoading } = useCompanionVibrationPatterns(id);
 
@@ -410,7 +417,7 @@ const CompanionProfile = () => {
   }, [id, user?.id]);
 
   useEffect(() => {
-    if (!discoverPreview || !user?.id) {
+    if (!user?.id) {
       setFcBalanceProfile(null);
       return;
     }
@@ -428,7 +435,7 @@ const CompanionProfile = () => {
     return () => {
       cancelled = true;
     };
-  }, [discoverPreview, user?.id]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!discoverFeatureLock) return;
@@ -543,13 +550,35 @@ const CompanionProfile = () => {
       return;
     }
     const prompt = starterPrompt?.trim();
+    const profileEntry = location.state as { from?: string } | undefined;
     navigate(`/chat/${companion.id}`, {
       state: {
         from: `/companions/${companion.id}`,
+        profileBackTarget: profileEntry?.from ?? "/discover",
         starterPrompt: prompt || undefined,
         starterTitle: starterTitle || undefined,
       },
     });
+  };
+
+  const handleQuickLiveCall = () => {
+    if (discoverFeatureLock) {
+      toast.message("Vault sealed", {
+        description: "Acquire this card to unlock live voice.",
+      });
+      return;
+    }
+    if (!user) {
+      navigate("/auth", { state: { from: `/companions/${companion.id}` } });
+      return;
+    }
+    void ensureCompanionCallNotifications();
+    const ok = stashAndNavigateToLiveCall(navigate, companion.id, companion);
+    if (!ok) {
+      toast.error("No call style available right now.");
+      return;
+    }
+    void invokeGenerateLiveCallOptions(companion.id);
   };
 
   const handlePortraitFromGallery = async (imageUrl: string) => {
@@ -721,8 +750,7 @@ const CompanionProfile = () => {
               navigate(st.from);
               return;
             }
-            if (location.key !== "default") navigate(-1);
-            else navigate("/dashboard");
+            navigate("/discover");
           }}
           className="flex items-center gap-2 text-muted-foreground hover:text-primary text-sm mb-8 transition-colors touch-manipulation"
         >
@@ -1005,11 +1033,11 @@ const CompanionProfile = () => {
                     icon={<Phone className="h-4 w-4 shrink-0" />}
                   />
                   <Link
-                    to="/"
+                    to="/discover"
                     className="inline-flex items-center gap-2 rounded-xl border border-white/[0.1] bg-card/60 px-5 py-3.5 text-sm font-semibold text-muted-foreground backdrop-blur-md hover:border-primary/35 hover:text-primary transition-colors"
                   >
                     <Flame className="h-4 w-4" />
-                    Browse forge
+                    Discover
                   </Link>
                 </>
               ) : (
@@ -1019,17 +1047,27 @@ const CompanionProfile = () => {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => handleStartChat()}
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-primary px-6 py-3.5 text-base font-bold text-primary-foreground shadow-lg shadow-primary/30 glow-pink touch-manipulation"
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-primary px-5 py-3 text-base font-bold text-primary-foreground shadow-lg shadow-primary/30 glow-pink touch-manipulation max-md:min-h-[48px]"
                   >
                     <MessageCircle className="h-5 w-5 shrink-0" />
                     Start chat
                   </motion.button>
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleQuickLiveCall()}
+                    className="inline-flex items-center gap-2 rounded-xl border border-primary/40 bg-card/70 px-5 py-3 text-sm font-bold text-primary backdrop-blur-md touch-manipulation max-md:min-h-[48px]"
+                  >
+                    <Phone className="h-5 w-5 shrink-0" />
+                    Live call
+                  </motion.button>
                   <Link
-                    to="/"
+                    to="/discover"
                     className="inline-flex items-center gap-2 rounded-xl border border-white/[0.1] bg-card/60 px-5 py-3.5 text-sm font-semibold text-muted-foreground backdrop-blur-md hover:border-primary/35 hover:text-primary transition-colors"
                   >
                     <Flame className="h-4 w-4" />
-                    Browse forge
+                    Discover
                   </Link>
                 </>
               )}
@@ -1236,6 +1274,30 @@ const CompanionProfile = () => {
             </div>
 
             <VibeTraitProfilePanel traits={vibeTraits} isNexus={Boolean(companion.isNexusHybrid)} />
+
+            {user && companion && !discoverFeatureLock && !isDropLanding && id ? (
+              <ProfileLoopingVideoUpsell
+                companionId={companion.id}
+                disabled={false}
+                tokensBalance={fcBalanceProfile}
+                isAdminUser={isAdminUser}
+                onSuccess={() => {
+                  void queryClient.invalidateQueries({ queryKey: ["companions"] });
+                  void queryClient.invalidateQueries({ queryKey: ["portrait-override", user?.id, id] });
+                }}
+                onBalanceMaybeChanged={() => {
+                  if (!user?.id) return;
+                  void supabase
+                    .from("profiles")
+                    .select("tokens_balance")
+                    .eq("user_id", user.id)
+                    .maybeSingle()
+                    .then(({ data }) => {
+                      setFcBalanceProfile(typeof data?.tokens_balance === "number" ? data.tokens_balance : null);
+                    });
+                }}
+              />
+            ) : null}
 
             {companion.kinks.length > 0 ? (
               <div className="rounded-2xl border border-primary/20 bg-black/40 p-5 backdrop-blur-xl ring-1 ring-primary/10">

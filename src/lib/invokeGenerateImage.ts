@@ -36,7 +36,7 @@ function parseErrorMessage(status: number, text: string): string {
 }
 
 /**
- * Calls `generate-image` (Together FLUX.2 stills + OpenRouter rewriter) with plain fetch so Authorization is exactly one Bearer token.
+ * Calls `generate-image` (Grok Imagine stills + Grok rewriter) with plain fetch so Authorization is exactly one Bearer token.
  * The shared Supabase fetch wrapper skips injecting a fresh JWT if `Authorization` is already
  * set (e.g. from a stale `invoke` header); this path avoids that class of "Invalid JWT" bugs.
  *
@@ -53,7 +53,9 @@ export async function invokeGenerateImage(
 
   const url = `${base}/functions/v1/generate-image`;
 
-  const post = (bearer: string) =>
+  /** FLUX + rewriter can exceed 60s; cap wait so forge UI does not spin forever on hung gateways. */
+  const IMAGE_GEN_TIMEOUT_MS = 240_000;
+  const post = (bearer: string, signal?: AbortSignal) =>
     fetch(url, {
       method: "POST",
       headers: {
@@ -62,6 +64,7 @@ export async function invokeGenerateImage(
         apikey: anon,
       },
       body: JSON.stringify(body),
+      signal,
     });
 
   await supabase.auth.refreshSession();
@@ -71,7 +74,31 @@ export async function invokeGenerateImage(
     return { data: null, error: new Error("Sign in again — image generation needs an active session.") };
   }
 
-  let res = await post(bearer);
+  const runFetch = async (token: string) => {
+    const controller = new AbortController();
+    const tid = globalThis.setTimeout(() => controller.abort(), IMAGE_GEN_TIMEOUT_MS);
+    try {
+      return await post(token, controller.signal);
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name === "AbortError") {
+        throw new Error(
+          `Image generation timed out after ${IMAGE_GEN_TIMEOUT_MS / 1000}s (generate-image). ` +
+            `Check TOGETHER_API_KEY, Edge function logs, and network.`,
+        );
+      }
+      throw e;
+    } finally {
+      globalThis.clearTimeout(tid);
+    }
+  };
+
+  let res: Response;
+  try {
+    res = await runFetch(bearer);
+  } catch (e: unknown) {
+    return { data: null, error: e instanceof Error ? e : new Error(String(e)) };
+  }
+
   if (!res.ok) {
     const t = await res.clone().text();
     const msg = parseErrorMessage(res.status, t);
@@ -79,7 +106,11 @@ export async function invokeGenerateImage(
       await supabase.auth.refreshSession();
       const t2 = (await supabase.auth.getSession()).data.session?.access_token;
       if (t2) {
-        res = await post(t2);
+        try {
+          res = await runFetch(t2);
+        } catch (e: unknown) {
+          return { data: null, error: e instanceof Error ? e : new Error(String(e)) };
+        }
       }
     }
   }

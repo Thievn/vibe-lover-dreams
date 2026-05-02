@@ -1,7 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { requireTogetherApiKey } from "../_shared/togetherClient.ts";
-import { decodeImageDataUrl, togetherGenerateFluxImage } from "../_shared/togetherImage.ts";
+import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { decodeImageDataUrl } from "../_shared/togetherImage.ts";
+import { grokGenerateImageDataUrl } from "../_shared/xaiGrokImage.ts";
 import { PORTRAIT_IMAGE_DESIGN_BRIEF } from "../_shared/portraitImageDesignBrief.ts";
 import {
   buildAnatomyImagineKeyRules,
@@ -148,13 +149,13 @@ serve(async (req) => {
       );
     }
 
-    const togetherKey = requireTogetherApiKey();
-    if (!togetherKey) {
+    const xaiKey = resolveXaiApiKey((n) => Deno.env.get(n));
+    if (!xaiKey) {
       return new Response(
         JSON.stringify({
           success: false,
           error:
-            "Missing Together API key. Set Edge Function secret TOGETHER_API_KEY (https://api.together.ai) for FLUX.2 image generation.",
+            "Missing Grok / xAI key. Set Edge Function secret XAI_API_KEY or GROK_API_KEY (https://console.x.ai/) for image generation.",
         }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -168,7 +169,7 @@ serve(async (req) => {
 
     const { data: profRow, error: profRowErr } = await supabase
       .from("profiles")
-      .select("tokens_balance, together_image_model")
+      .select("tokens_balance")
       .eq("user_id", userId)
       .maybeSingle();
 
@@ -203,7 +204,7 @@ serve(async (req) => {
             ? "Forge: live preview portrait (Imagine, SFW)"
             : isPortrait
               ? "Forge / roster: portrait (Imagine, full expression)"
-              : "Chat / gallery: image (Together FLUX.2)",
+              : "Chat / gallery: image (Grok Imagine)",
         metadata: { tokenCost, isPortrait, contentTier: effectiveTier },
       });
     }
@@ -388,16 +389,16 @@ ${safeRewritten}
 
     let imageDataUrl: string;
     try {
-      const { dataUrl } = await togetherGenerateFluxImage({
+      const { dataUrl } = await grokGenerateImageDataUrl({
+        apiKey: xaiKey,
         prompt: finalPrompt,
         getEnv: (n) => Deno.env.get(n),
         aspectRatio: "2:3",
-        profileTogetherImageModel: profRow?.together_image_model ?? null,
       });
       imageDataUrl = dataUrl;
     } catch (imgErr) {
       if (tokensCharged) {
-        await refundTokens(supabase, userId, tokenCost, "Together FLUX image error");
+        await refundTokens(supabase, userId, tokenCost, "Grok image error");
         tokensCharged = false;
       }
       const msg = imgErr instanceof Error ? imgErr.message : String(imgErr);

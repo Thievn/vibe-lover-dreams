@@ -42,6 +42,9 @@ export const NEXUS_INFUSE_ADDON_FC = 50;
 /** Short video clip in chat (when enabled). User-paid profile-card looping MP4 from Discover — FC TBD. */
 export const CHAT_SHORT_VIDEO_FC = 100;
 
+/** User-initiated looping profile portrait video (Grok I2V) from companion profile. */
+export const PROFILE_LOOP_VIDEO_FC = 75;
+
 // --- Discover: unlock card to My Collection (must match discover_purchase_price_fc in SQL) ---
 const DISCOVER_FC: Record<CompanionRarity, number> = {
   common: 12,

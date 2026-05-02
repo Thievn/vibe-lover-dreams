@@ -155,10 +155,10 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
         safeWord={safeWord}
         onBack={() => {
           void handleEmergencyStop();
-          const backTo = (location.state as { from?: string } | undefined)?.from;
-          if (backTo) navigate(backTo);
-          else if (location.key !== "default") navigate(-1);
-          else navigate(`/companions/${companion.id}`);
+          const st = location.state as { from?: string; profileBackTarget?: string } | undefined;
+          navigate(`/companions/${companion.id}`, {
+            state: { from: st?.profileBackTarget ?? st?.from ?? "/discover" },
+          });
         }}
         onEmergencyStop={() => void handleEmergencyStopFromUi()}
         onOpenGallery={user ? () => setGalleryOpen(true) : undefined}

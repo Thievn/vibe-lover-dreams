@@ -1,8 +1,9 @@
 /**
- * **Live Voice** in-session assistant text only — xAI Grok (`XAI_API_KEY` / `GROK_API_KEY`).
- * Classic chat uses `openrouter-chat` (OpenRouter + DeepSeek, etc.).
+ * xAI Grok (`XAI_API_KEY` / `GROK_API_KEY`):
+ * - **Live Voice** — in-session assistant text (uncensored voice stack).
+ * - **image_teaser** — one short in-character line before a still is shown (not classic chat).
  *
- * Prepends a strong uncensored voice persona block before the normal LustForge system stack.
+ * Classic **text** chat uses `openrouter-chat` (OpenRouter + DeepSeek, etc.).
  */
 import { isLustforgeAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
@@ -55,11 +56,12 @@ Deno.serve(async (req) => {
       connectedToys?: unknown;
     } | null;
 
-    if (String(body?.intent ?? "").trim() !== "live_voice") {
+    const intent = String(body?.intent ?? "").trim();
+    if (intent !== "live_voice" && intent !== "image_teaser") {
       return json(
         {
           error:
-            "grok-chat is Live Voice only: pass body.intent === \"live_voice\". For Classic text chat use openrouter-chat.",
+            "grok-chat: pass body.intent \"live_voice\" (Live Voice) or \"image_teaser\" (pre-still line). For Classic text chat use openrouter-chat.",
         },
         400,
       );
@@ -70,21 +72,30 @@ Deno.serve(async (req) => {
       return json({ error: "systemPrompt is required" }, 400);
     }
 
-    const scopeBlock = adminUnrestricted ? "" : `${lustforgeNarrowUserScopeBlock()}\n`;
-    const systemContent =
-      `${GROK_VOICE_UNCENSORED_SYSTEM_PREFIX}${togetherChatServerSystemPrefix()}\n${scopeBlock}${systemRaw}`.trim();
-
     const threadRaw = Array.isArray(body?.messages) ? body!.messages! : [];
-    const messages = [
-      {
-        role: "system" as const,
-        content: systemContent.slice(0, 120_000),
-      },
-      ...threadRaw.slice(-40).map((m) => {
-        const role = m.role === "assistant" ? ("assistant" as const) : ("user" as const);
-        return { role, content: String(m.content ?? "").slice(0, 24_000) };
-      }),
-    ];
+
+    let messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+
+    if (intent === "image_teaser") {
+      messages = [
+        { role: "system", content: systemRaw.slice(0, 120_000) },
+        ...threadRaw.slice(-8).map((m) => {
+          const role = m.role === "assistant" ? ("assistant" as const) : ("user" as const);
+          return { role, content: String(m.content ?? "").slice(0, 24_000) };
+        }),
+      ];
+    } else {
+      const scopeBlock = adminUnrestricted ? "" : `${lustforgeNarrowUserScopeBlock()}\n`;
+      const systemContent =
+        `${GROK_VOICE_UNCENSORED_SYSTEM_PREFIX}${togetherChatServerSystemPrefix()}\n${scopeBlock}${systemRaw}`.trim();
+      messages = [
+        { role: "system", content: systemContent.slice(0, 120_000) },
+        ...threadRaw.slice(-40).map((m) => {
+          const role = m.role === "assistant" ? ("assistant" as const) : ("user" as const);
+          return { role, content: String(m.content ?? "").slice(0, 24_000) };
+        }),
+      ];
+    }
 
     const model = defaultGrokChatModel();
 
@@ -97,8 +108,8 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model,
         messages,
-        max_tokens: 1024,
-        temperature: 0.8,
+        max_tokens: intent === "image_teaser" ? 512 : 1024,
+        temperature: intent === "image_teaser" ? 0.85 : 0.8,
         top_p: 0.9,
       }),
     });

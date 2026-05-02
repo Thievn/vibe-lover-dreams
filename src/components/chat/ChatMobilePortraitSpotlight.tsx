@@ -11,6 +11,8 @@ type Props = {
   headerAnimated: string | null;
   onVoiceClick?: () => void;
   className?: string;
+  /** Shorter hero so the thread + composer get more vertical room on phones. */
+  compact?: boolean;
 };
 
 /**
@@ -22,6 +24,7 @@ export function ChatMobilePortraitSpotlight({
   headerAnimated,
   onVoiceClick,
   className,
+  compact = false,
 }: Props) {
   return (
     <motion.div
@@ -29,13 +32,14 @@ export function ChatMobilePortraitSpotlight({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
-        "relative z-[1] shrink-0 px-3 pt-1 pb-2 md:hidden",
+        "relative z-[1] shrink-0 px-2 pt-0.5 pb-1 md:hidden",
+        !compact && "px-3 pt-1 pb-2",
         className,
       )}
     >
       <div
         className="relative mx-auto w-full max-w-md overflow-hidden rounded-[1.75rem] border border-white/[0.12] bg-black/40 shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_24px_64px_-12px_rgba(0,0,0,0.65),0_0_80px_-20px_rgba(168,85,247,0.35)]"
-        style={{ height: "min(42vh, 22rem)" }}
+        style={{ height: compact ? "min(26vh, 10.5rem)" : "min(42vh, 22rem)" }}
       >
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20" />
         <PortraitViewLightbox

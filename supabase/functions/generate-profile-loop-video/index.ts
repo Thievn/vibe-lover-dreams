@@ -1,10 +1,10 @@
 /**
  * Profile portrait loop — Grok Imagine image-to-video (`grok-imagine-video` via xAI).
- * Auth: signed-in owner of `cc-…` custom characters, or admin for any companion (including catalog).
+ * Auth: `cc-…` owner; catalog: admin **or** paid user (75 FC) with relationship or discover pin.
  * Requires `XAI_API_KEY` or `GROK_API_KEY`. Optional: `GROK_VIDEO_MODEL`, `GROK_VIDEO_DURATION_SECONDS` (5–15, default 10).
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { requireAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
+import { isLustforgeAdminUser, requireAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import {
   DEFAULT_GROK_VIDEO_MODEL,
@@ -16,11 +16,14 @@ import {
   buildProfileLoopVideoPrompt,
   sanitizePromptForVideoApi,
 } from "../_shared/profileLoopVideoPrompt.ts";
+import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const PAID_LOOP_FC = 75;
 
 function jsonResponse(obj: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(obj), {
@@ -33,6 +36,35 @@ function profileVideoDurationSeconds(): number {
   const n = Math.round(Number(Deno.env.get("GROK_VIDEO_DURATION_SECONDS") ?? "10"));
   if (!Number.isFinite(n)) return 10;
   return Math.max(5, Math.min(15, n));
+}
+
+async function refundProfileLoopFc(
+  supabaseClient: ReturnType<typeof createClient>,
+  userId: string,
+  amount: number,
+  reason: string,
+): Promise<void> {
+  if (amount <= 0) return;
+  try {
+    const { data: row } = await supabaseClient
+      .from("profiles")
+      .select("tokens_balance")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const bal = row?.tokens_balance ?? 0;
+    const nxt = bal + amount;
+    await supabaseClient.from("profiles").update({ tokens_balance: nxt }).eq("user_id", userId);
+    await recordFcTransaction(supabaseClient, {
+      userId,
+      creditsChange: amount,
+      balanceAfter: nxt,
+      transactionType: "profile_loop_refund",
+      description: `Refund: ${reason}`,
+      metadata: { fc: amount },
+    });
+  } catch (e) {
+    console.error("refundProfileLoopFc", e);
+  }
 }
 
 Deno.serve(async (req) => {
@@ -61,7 +93,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  let body: { companionId?: string; motionNotes?: string };
+  let body: { companionId?: string; motionNotes?: string; tokenCost?: number };
   try {
     body = await req.json();
   } catch {
@@ -73,6 +105,22 @@ Deno.serve(async (req) => {
   }
   const motionNotesRaw = typeof body.motionNotes === "string" ? body.motionNotes.trim() : "";
   const motionNotes = motionNotesRaw.slice(0, 800);
+
+  const adminUser = await isLustforgeAdminUser(sessionUser);
+  const tokenCostRaw = (body as { tokenCost?: unknown }).tokenCost;
+  const tokenCostParsed =
+    typeof tokenCostRaw === "number" && Number.isFinite(tokenCostRaw) && tokenCostRaw > 0
+      ? Math.floor(tokenCostRaw)
+      : 0;
+
+  if (!adminUser && tokenCostParsed !== 0 && tokenCostParsed !== PAID_LOOP_FC) {
+    return jsonResponse(
+      { error: `tokenCost must be ${PAID_LOOP_FC} for paid profile loop, or omit for staff paths.` },
+      400,
+    );
+  }
+
+  const shouldCharge = !adminUser && tokenCostParsed === PAID_LOOP_FC;
 
   const svc = createClient(supabaseUrl, serviceKey);
 
@@ -90,9 +138,8 @@ Deno.serve(async (req) => {
     row = data as Record<string, unknown>;
     const ownerId = String(row.user_id ?? "").trim();
     const isOwner = ownerId.length > 0 && ownerId === sessionUser.id;
-    if (!isOwner) {
-      const adminGate = await requireAdminUser(req);
-      if ("response" in adminGate) return adminGate.response;
+    if (!isOwner && !adminUser) {
+      return jsonResponse({ error: "Forbidden" }, 403);
     }
     const raw =
       (typeof row.static_image_url === "string" && row.static_image_url) ||
@@ -107,8 +154,31 @@ Deno.serve(async (req) => {
     if (error) return jsonResponse({ error: error.message }, 500);
     if (!data) return jsonResponse({ error: "Companion not found" }, 404);
     row = data as Record<string, unknown>;
-    const adminGate = await requireAdminUser(req);
-    if ("response" in adminGate) return adminGate.response;
+    if (!adminUser) {
+      if (shouldCharge) {
+        const { data: rel } = await svc
+          .from("companion_relationships")
+          .select("user_id")
+          .eq("user_id", sessionUser.id)
+          .eq("companion_id", companionId)
+          .maybeSingle();
+        const { data: pin } = await svc
+          .from("user_discover_pins")
+          .select("companion_id")
+          .eq("user_id", sessionUser.id)
+          .eq("companion_id", companionId)
+          .maybeSingle();
+        if (!rel && !pin) {
+          return jsonResponse(
+            { error: "Chat with or collect this companion before purchasing a profile loop video." },
+            403,
+          );
+        }
+      } else {
+        const adminGate = await requireAdminUser(req);
+        if ("response" in adminGate) return adminGate.response;
+      }
+    }
     const raw =
       (typeof row.static_image_url === "string" && row.static_image_url) ||
       (typeof row.image_url === "string" && row.image_url) ||
@@ -118,6 +188,43 @@ Deno.serve(async (req) => {
 
   if (!imageUrl) {
     return jsonResponse({ error: "No public profile image URL — set a static portrait first." }, 400);
+  }
+
+  let tokensCharged = false;
+  const chargedAmount = shouldCharge ? PAID_LOOP_FC : 0;
+
+  if (shouldCharge) {
+    const { data: profRow, error: profRowErr } = await svc
+      .from("profiles")
+      .select("tokens_balance")
+      .eq("user_id", sessionUser.id)
+      .maybeSingle();
+    if (profRowErr || profRow == null) {
+      return jsonResponse({ error: "Could not read forge credits balance." }, 500);
+    }
+    if (profRow.tokens_balance < PAID_LOOP_FC) {
+      return jsonResponse(
+        { error: `Not enough forge credits (${PAID_LOOP_FC} required).`, code: "INSUFFICIENT_TOKENS" },
+        402,
+      );
+    }
+    const nextBal = profRow.tokens_balance - PAID_LOOP_FC;
+    const { error: deductErr } = await svc
+      .from("profiles")
+      .update({ tokens_balance: nextBal })
+      .eq("user_id", sessionUser.id);
+    if (deductErr) {
+      return jsonResponse({ error: deductErr.message || "Could not reserve forge credits." }, 500);
+    }
+    tokensCharged = true;
+    await recordFcTransaction(svc, {
+      userId: sessionUser.id,
+      creditsChange: -PAID_LOOP_FC,
+      balanceAfter: nextBal,
+      transactionType: "profile_loop_video",
+      description: "Profile loop video (Grok I2V)",
+      metadata: { companionId, fc: PAID_LOOP_FC },
+    });
   }
 
   try {
@@ -134,7 +241,8 @@ Deno.serve(async (req) => {
           );
 
     const durationSec = profileVideoDurationSeconds();
-    const videoModel = (Deno.env.get("GROK_VIDEO_MODEL") ?? DEFAULT_GROK_VIDEO_MODEL).trim() || DEFAULT_GROK_VIDEO_MODEL;
+    const videoModel = (Deno.env.get("GROK_VIDEO_MODEL") ?? DEFAULT_GROK_VIDEO_MODEL).trim() ||
+      DEFAULT_GROK_VIDEO_MODEL;
 
     const { videoUrl: xaiVideoUrl } = await runGrokImagineImageToVideo({
       apiKey: xaiKey,
@@ -149,6 +257,9 @@ Deno.serve(async (req) => {
 
     const vidRes = await fetch(xaiVideoUrl);
     if (!vidRes.ok) {
+      if (tokensCharged) {
+        await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "xAI video download failed");
+      }
       return jsonResponse({ error: `Download from xAI video URL failed HTTP ${vidRes.status}` }, 502);
     }
     const buf = new Uint8Array(await vidRes.arrayBuffer());
@@ -161,6 +272,9 @@ Deno.serve(async (req) => {
       upsert: true,
     });
     if (upErr) {
+      if (tokensCharged) {
+        await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "storage upload failed");
+      }
       return jsonResponse({ error: `Storage upload failed: ${upErr.message}` }, 500);
     }
 
@@ -175,11 +289,22 @@ Deno.serve(async (req) => {
       .eq("id", rowPk);
 
     if (upRow) {
+      if (tokensCharged) {
+        await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "database update failed");
+      }
       return jsonResponse({ error: upRow.message }, 500);
     }
 
     return jsonResponse({ success: true, publicUrl, source: "grok", durationSeconds: durationSec });
   } catch (e) {
+    if (tokensCharged) {
+      await refundProfileLoopFc(
+        svc,
+        sessionUser.id,
+        chargedAmount,
+        e instanceof Error ? e.message : "profile loop video error",
+      );
+    }
     const msg = e instanceof Error ? e.message : String(e);
     return jsonResponse({ error: msg }, 500);
   }

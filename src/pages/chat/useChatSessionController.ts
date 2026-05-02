@@ -16,7 +16,6 @@ import type { Json } from "@/integrations/supabase/types";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { invokeGenerateImageTensor } from "@/lib/invokeGenerateImageTensor";
 import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
-import { getLiveCallPresetsFallback } from "@/lib/liveCallPresetsFallback";
 import { matchesSafeWord } from "@/lib/matchesSafeWord";
 import { isPlatformAdmin } from "@/config/auth";
 import { toast } from "sonner";
@@ -69,6 +68,7 @@ import {
 import { CHAT_IMAGE_LEWD_FC, CHAT_IMAGE_NUDE_FC, CHAT_MESSAGE_FC } from "@/lib/forgeEconomy";
 import { spendForgeCoins } from "@/lib/forgeCoinsClient";
 import { LIVE_CALL_CREDITS_PER_MINUTE } from "@/lib/liveCallBilling";
+import { stashAndNavigateToLiveCall } from "@/lib/navigateToLiveCall";
 import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFromGallery";
 import { useLovensePairing } from "@/hooks/useLovensePairing";
 import { useWindowVisibleRefresh } from "@/hooks/useWindowVisibleRefresh";
@@ -2210,39 +2210,19 @@ export function useChatSessionController() {
       navigate("/auth", { state: { from: `/chat/${companion.id}` } });
       return;
     }
-    void (async () => {
-      const loading = toast.loading("Starting your call…");
-      try {
-        const res = await invokeGenerateLiveCallOptions(companion.id);
-        const options =
-          res.ok && res.options.length > 0 ? res.options : getLiveCallPresetsFallback(companion);
-        if (!res.ok && res.error !== "timeout") {
-          const errText = "error" in res ? res.error : "Could not reach the call designer.";
-          toast.message("Using offline call themes", {
-            description: errText || "Could not reach the call designer.",
-          });
-        }
-        const opt = options[0];
-        if (!opt) {
-          toast.error("No call style available right now.");
-          return;
-        }
-        navigate(`/live-call/${companion.id}?call=${encodeURIComponent(opt.slug)}`, { state: { callOption: opt } });
-      } catch (e) {
-        const options = getLiveCallPresetsFallback(companion);
-        const opt = options[0];
-        if (opt) {
-          navigate(`/live-call/${companion.id}?call=${encodeURIComponent(opt.slug)}`, { state: { callOption: opt } });
-          toast.message("Using offline call themes", {
-            description: e instanceof Error ? e.message : "Could not reach the call designer.",
-          });
-        } else {
-          toast.error(e instanceof Error ? e.message : "Could not start the call");
-        }
-      } finally {
-        toast.dismiss(loading);
+    const ok = stashAndNavigateToLiveCall(navigate, companion.id, companion);
+    if (!ok) {
+      toast.error("No call style available right now.");
+      return;
+    }
+    void invokeGenerateLiveCallOptions(companion.id).then((res) => {
+      if (!res.ok && res.error !== "timeout") {
+        const errText = "error" in res ? res.error : "Could not reach the call designer.";
+        toast.message("Using offline call themes", {
+          description: errText || "Could not reach the call designer.",
+        });
       }
-    })();
+    });
   }, [companion, user, navigate]);
 
   const handleRampPill = useCallback(() => {

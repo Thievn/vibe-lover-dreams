@@ -42,6 +42,40 @@ export function togetherImageGenerationsUrl(): string {
   return `${togetherApiV1Base()}/images/generations`;
 }
 
+/** OpenAI-shaped chat completion (tool calls, etc.) — raw JSON for Edge functions that parse `choices[0].message.tool_calls`. */
+export type TogetherChatCompletionRawResult = {
+  ok: boolean;
+  status: number;
+  json: unknown;
+  rawText: string;
+};
+
+/**
+ * Raw `/v1/chat/completions` POST (OpenAI-compatible). Use for tool calling; see `togetherChatCompletion` for simple text.
+ */
+export async function togetherChatCompletionRaw(body: Record<string, unknown>): Promise<TogetherChatCompletionRawResult> {
+  const apiKey = requireTogetherApiKey();
+  if (!apiKey) {
+    throw new Error("Together: set Edge Function secret TOGETHER_API_KEY.");
+  }
+  const res = await fetch(togetherChatCompletionsUrl(), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const rawText = await res.text();
+  let json: unknown = null;
+  try {
+    json = JSON.parse(rawText) as unknown;
+  } catch {
+    /* leave null */
+  }
+  return { ok: res.ok, status: res.status, json, rawText };
+}
+
 export async function togetherChatCompletion(
   args: TogetherChatCompletionArgs,
 ): Promise<TogetherChatCompletionResult> {
@@ -101,6 +135,13 @@ export async function togetherChatCompletion(
  */
 export function defaultTogetherChatModel(): string {
   return (Deno.env.get("TOGETHER_CHAT_MODEL") ?? "Qwen/Qwen2.5-72B-Instruct-Turbo").trim();
+}
+
+/** Forge / `parse-companion-prompt` tool-calling model (defaults to same as chat if unset). */
+export function togetherForgeParseModel(): string {
+  const m = Deno.env.get("TOGETHER_FORGE_PARSE_MODEL")?.trim();
+  if (m) return m;
+  return defaultTogetherChatModel();
 }
 
 /**

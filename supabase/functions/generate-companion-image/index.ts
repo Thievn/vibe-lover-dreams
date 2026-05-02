@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { requireTogetherApiKey } from "../_shared/togetherClient.ts";
+import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { renderPortraitToStorage } from "../_shared/renderCompanionPortrait.ts";
 
 const corsHeaders = {
@@ -83,12 +83,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    const togetherKey = requireTogetherApiKey();
-    if (!togetherKey) {
+    const xaiKey = resolveXaiApiKey((n) => Deno.env.get(n));
+    if (!xaiKey) {
       return new Response(
         JSON.stringify({
           error:
-            "Missing TOGETHER_API_KEY for admin/forge portrait generation (Together FLUX.2 — same stack as generate-image).",
+            "Missing XAI_API_KEY or GROK_API_KEY for admin/forge portrait generation (Grok Imagine — same stack as generate-image).",
         }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -112,18 +112,11 @@ Deno.serve(async (req) => {
         ? ({ kind: "forge" as const, uuid: forgeRowUuid })
         : ({ kind: "catalog" as const, catalogId: companionId! });
 
-    const { data: operatorProf } = await adminClient
-      .from("profiles")
-      .select("together_image_model")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
     const { publicUrl, displayUrl } = await renderPortraitToStorage({
       adminClient,
       imagePrompt,
       characterData,
       target: storageTarget,
-      profileTogetherImageModel: operatorProf?.together_image_model ?? null,
       ...(body.contentTier === "forge_preview_sfw" ? { contentTier: "forge_preview_sfw" as const } : {}),
     });
 
