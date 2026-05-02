@@ -80,6 +80,10 @@ const LiveCallPage = () => {
   const [previewLoadingId, setPreviewLoadingId] = useState<TtsUxVoiceId | null>(null);
 
   const [phase, setPhase] = useState<LiveCallUiPhase>("preparing");
+  const phaseRef = useRef(phase);
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
   const [statusLine, setStatusLine] = useState("Preparing…");
   const [liveElapsedSec, setLiveElapsedSec] = useState(0);
   const [callMood, setCallMood] = useState<LiveCallMoodId | null>(null);
@@ -175,8 +179,18 @@ const LiveCallPage = () => {
   }, [phase]);
 
   const primaryToy = useMemo(() => pickPrimaryToy(toyList), [toyList]);
-  const toyBarProps =
-    userId && primaryToy ? { userId, toyId: primaryToy.id, toyName: primaryToy.name } : null;
+  const toyBarProps = useMemo(() => {
+    if (!userId || !primaryToy) return null;
+    return {
+      userId,
+      toyId: primaryToy.id,
+      toyName: primaryToy.name,
+      onToyUiDial: (dial: string) => {
+        if (phaseRef.current !== "live") return;
+        sendUserTextRef.current(dial);
+      },
+    };
+  }, [userId, primaryToy]);
 
   useEffect(() => {
     ringNotifiedRef.current = false;

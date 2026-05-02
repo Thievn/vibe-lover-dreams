@@ -28,7 +28,12 @@ function formatMMSS(totalSec: number): string {
   return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
 }
 
-type ToyBarInput = { userId: string; toyId: string; toyName: string | null } | null;
+type ToyBarInput = {
+  userId: string;
+  toyId: string;
+  toyName: string | null;
+  onToyUiDial?: (dialLine: string) => void;
+} | null;
 
 type Props = {
   companion: Companion;
@@ -300,7 +305,14 @@ export function LiveCallPhoneShell({
         }}
       >
         <div className="flex items-center gap-2.5 rounded-full border border-white/[0.1] bg-black/50 px-2.5 py-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-          {toyBar ? <LiveCallToyBar userId={toyBar.userId} toyId={toyBar.toyId} toyName={toyBar.toyName} /> : (
+          {toyBar ? (
+            <LiveCallToyBar
+              userId={toyBar.userId}
+              toyId={toyBar.toyId}
+              toyName={toyBar.toyName}
+              onToyUiDial={toyBar.onToyUiDial}
+            />
+          ) : (
             <div
               className="flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full border border-dashed border-white/10 text-white/25"
               title="No linked device"

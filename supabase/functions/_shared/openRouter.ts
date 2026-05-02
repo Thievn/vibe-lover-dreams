@@ -19,6 +19,10 @@ export const DEFAULT_OPENROUTER_REWRITE_MODEL = "openai/gpt-4o-mini";
 export const DEFAULT_OPENROUTER_IMAGE_MODEL_PRIMARY = "black-forest-labs/flux.2-pro";
 export const DEFAULT_OPENROUTER_IMAGE_MODEL_FALLBACK = "black-forest-labs/flux.2-flex";
 
+/** Prepended to every FLUX prompt (artistic nude / fine-art wording; avoids crude clinical terms in the base layer). */
+export const FLUX_OPENROUTER_UNIVERSAL_BASE_PREFIX =
+  "masterpiece, best quality, beautiful woman, artistic nude, tasteful sensual photography, elegant female form, soft cinematic lighting, highly detailed skin texture, delicate beauty, sensual pose, aesthetic nude, graceful, alluring, seductive atmosphere, fine art photography, soft shadows, beautiful composition";
+
 export function resolveOpenRouterApiKey(getEnv: (name: string) => string | undefined): string | null {
   const k = getEnv("OPENROUTER_API_KEY")?.trim();
   return k || null;
@@ -435,7 +439,10 @@ export async function openRouterGenerateFluxImage(args: {
   if (!apiKey) {
     throw new Error("OpenRouter: set OPENROUTER_API_KEY for image generation.");
   }
-  const prompt = args.prompt.trim().slice(0, 12_000);
+  const rawUser = args.prompt.trim();
+  const sep = "\n\n";
+  const maxUser = Math.max(0, 12_000 - FLUX_OPENROUTER_UNIVERSAL_BASE_PREFIX.length - sep.length);
+  const prompt = `${FLUX_OPENROUTER_UNIVERSAL_BASE_PREFIX}${sep}${rawUser.slice(0, maxUser)}`.trim();
   const models = [openRouterImagePrimary(args.getEnv), openRouterImageFallback(args.getEnv)];
   let lastErr = "unknown";
 

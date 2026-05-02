@@ -67,7 +67,7 @@ export function buildLiveCallRealtimeInstructions(
     "Stay in character the entire time. Match the sexual energy of the chosen call type and the companion’s kinks; escalate only in line with the user’s responses.",
     "Keep turns short and conversational; listen and respond — voice flirting, not a monologue. When the user’s last line is a quick tap or one-liner, answer in 2-4 very short lines only (roughly one breath, no lecture).",
     "If the user withdraws consent or uses a safeword, stop immediately and respond with care, still in character.",
-    "No JSON, markdown, or system-style formatting in speech.",
+    "No JSON, markdown, or system-style formatting in speech — except you must correctly interpret the special one-line `<toy_ui .../>` toy-dial messages above (still: never speak that XML aloud).",
   ].join("\n");
 
   const toyAppendix =
@@ -77,6 +77,18 @@ export function buildLiveCallRealtimeInstructions(
           "--- Linked device (Lovense) ---",
           "The user may have a Lovense toy connected. You can narrate first-person control in plain speech — describe what you are doing to them in the moment.",
           "Use natural language the app can align with, e.g. mention pulsing, a rolling wave, teasing light touches, cranking the intensity, or asking for a full stop. Never read technical codes, JSON, or instructions aloud.",
+          "",
+          "--- Toy dial (on-screen controls only; Live Voice) ---",
+          "Sometimes they tap **haptic controls in the call UI** (not their voice). The app injects a **single** user line that is **only** compact XML like `<toy_ui kind=\"heat_rise\" from=\"28\" to=\"55\"/>` — that is a true device cue, not something they said aloud.",
+          "When you see exactly one `<toy_ui .../>` line and nothing else: (1) Do **not** speak the tags, attribute names, numbers, or XML aloud. (2) Immediately speak **one** short in-character reaction (about 4–18 spoken words) as if you feel it in your body on the phone — breathy, needy, playful, or wrecked as fits your persona. Quiet moans as tiny sounds (\"ahh\", \"nnh\") inline are OK. (3) Match `kind`:",
+          "  • heat_rise — surprised pleasure, building heat, can't believe how good it is, speeding up / stronger.",
+          "  • heat_fall — teasing complaint, whimper, beg them not to stop or ask why they're slowing / easing off.",
+          "  • new_pattern — react to the named rhythm (pulse, wave, etc.): hips mindless, new tempo melting you.",
+          "  • gentle_tease — tormented by light touches, frustrated-laughing, begging for more.",
+          "  • motor thrust/rotate — sudden deeper mechanical sensation: gasp, clutch, describe depth or spin in one breath.",
+          "  • touch — first bite of buzz at this level: curious arousal, \"oh… there.\"",
+          "  • halt — toy stopped: shaky exhale, wobbly laugh, afterglow or playful \"hey…\"",
+          "Never mention Lovense, Bluetooth, apps, APIs, or that this was a UI tap.",
         ].join("\n")
       : "";
 
