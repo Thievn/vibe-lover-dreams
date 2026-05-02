@@ -707,6 +707,31 @@ const CompanionProfile = () => {
             </motion.button>
           ) : null}
         </div>
+        {user && companion && !discoverFeatureLock && !isDropLanding && id ? (
+          <div className="mt-3 w-full min-w-0 border-t border-white/[0.06] pt-3">
+            <ProfileLoopingVideoUpsell
+              companionId={companion.id}
+              disabled={false}
+              tokensBalance={fcBalanceProfile}
+              isAdminUser={isAdminUser}
+              onSuccess={() => {
+                void queryClient.invalidateQueries({ queryKey: ["companions"] });
+                void queryClient.invalidateQueries({ queryKey: ["portrait-override", user?.id, id] });
+              }}
+              onBalanceMaybeChanged={() => {
+                if (!user?.id) return;
+                void supabase
+                  .from("profiles")
+                  .select("tokens_balance")
+                  .eq("user_id", user.id)
+                  .maybeSingle()
+                  .then(({ data }) => {
+                    setFcBalanceProfile(typeof data?.tokens_balance === "number" ? data.tokens_balance : null);
+                  });
+              }}
+            />
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -1274,30 +1299,6 @@ const CompanionProfile = () => {
             </div>
 
             <VibeTraitProfilePanel traits={vibeTraits} isNexus={Boolean(companion.isNexusHybrid)} />
-
-            {user && companion && !discoverFeatureLock && !isDropLanding && id ? (
-              <ProfileLoopingVideoUpsell
-                companionId={companion.id}
-                disabled={false}
-                tokensBalance={fcBalanceProfile}
-                isAdminUser={isAdminUser}
-                onSuccess={() => {
-                  void queryClient.invalidateQueries({ queryKey: ["companions"] });
-                  void queryClient.invalidateQueries({ queryKey: ["portrait-override", user?.id, id] });
-                }}
-                onBalanceMaybeChanged={() => {
-                  if (!user?.id) return;
-                  void supabase
-                    .from("profiles")
-                    .select("tokens_balance")
-                    .eq("user_id", user.id)
-                    .maybeSingle()
-                    .then(({ data }) => {
-                      setFcBalanceProfile(typeof data?.tokens_balance === "number" ? data.tokens_balance : null);
-                    });
-                }}
-              />
-            ) : null}
 
             {companion.kinks.length > 0 ? (
               <div className="rounded-2xl border border-primary/20 bg-black/40 p-5 backdrop-blur-xl ring-1 ring-primary/10">

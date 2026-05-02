@@ -3,7 +3,7 @@ import { Loader2, Video, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
-import { CHAT_VIDEO_TIMING_USER_NOTE, pickRandomVideoLoadingLine } from "@/lib/chatVisualRouting";
+import { pickRandomVideoLoadingLine } from "@/lib/chatVisualRouting";
 import { PROFILE_LOOP_VIDEO_FC } from "@/lib/forgeEconomy";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
@@ -21,9 +21,7 @@ type Props = {
   onBalanceMaybeChanged?: () => void;
 };
 
-/**
- * Paid profile looping MP4 (same Edge path as admin) — Grok Imagine I2V from current still.
- */
+/** Paid profile looping MP4 from the current portrait still (Grok Imagine I2V). */
 export function ProfileLoopingVideoUpsell({
   companionId,
   className,
@@ -84,9 +82,10 @@ export function ProfileLoopingVideoUpsell({
         Looping portrait video
       </div>
       <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground/90">
-        Animates your current still into a short seamless loop (same engine as staff tools).{" "}
-        <span className="text-amber-200/90">Results vary</span> with pose, lighting, and prompt — motion is inferred, not
-        guaranteed frame-perfect. {CHAT_VIDEO_TIMING_USER_NOTE}
+        Turns your current portrait into a short seamless loop — typically about{" "}
+        <span className="text-foreground/90 font-medium">8–10 seconds</span> of motion once it finishes.{" "}
+        <span className="text-amber-200/90">Results vary</span> with pose, lighting, and your hint — motion is inferred,
+        not guaranteed frame-perfect. Rendering can take a few minutes; hang tight.
       </p>
       <div className="mt-3 space-y-1.5">
         <Label htmlFor={`profile-loop-motion-${companionId}`} className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">

@@ -28,6 +28,9 @@ import {
 
 type ViewMode = "list" | "edit" | "create";
 
+type CharacterStockSortKey = "name" | "newest" | "rarity";
+type CharacterMediaFilterKey = "all" | "has_loop" | "needs_loop";
+
 const emptyCompanion: Omit<DbCompanion, "created_at" | "updated_at"> = {
   id: "",
   name: "",
@@ -147,6 +150,45 @@ function adminForgeRowNeedsLoopVideo(row: {
     (row.static_image_url && row.static_image_url.trim()) ||
       (row.image_url && row.image_url.trim()) ||
       (row.avatar_url && row.avatar_url.trim()),
+  );
+}
+
+/** True when `animated_image_url` is an MP4/WebM/MOV (looping portrait was generated). */
+function hasProfileLoopMp4(row: { animated_image_url?: string | null }): boolean {
+  const anim = row.animated_image_url?.trim();
+  return Boolean(anim && isVideoPortraitUrl(anim));
+}
+
+function AdminLoopVideoBadge({
+  hasMp4,
+  loopEnabled,
+  compact,
+}: {
+  hasMp4: boolean;
+  loopEnabled?: boolean;
+  compact?: boolean;
+}) {
+  if (!hasMp4) return null;
+  const onProfile = loopEnabled !== false;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border font-medium",
+        onProfile
+          ? "border-emerald-400/45 bg-emerald-500/15 text-emerald-200"
+          : "border-amber-400/35 bg-amber-500/12 text-amber-100/90",
+        compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-0.5 text-[10px]",
+      )}
+      title={
+        onProfile
+          ? "Looping MP4 exists and is allowed on profile/chat"
+          : "MP4 exists but “show on profile” is off in the editor"
+      }
+    >
+      <Video className={compact ? "h-2.5 w-2.5" : "h-3 w-3"} />
+      Loop MP4
+      {!onProfile ? " · off" : ""}
+    </span>
   );
 }
 
@@ -416,7 +458,7 @@ const CompanionManager = () => {
       const { data, error: qErr } = await supabase
         .from("custom_characters")
         .select(
-          "id,name,user_id,is_public,approved,created_at,image_url,avatar_url,tagline,rarity,gradient_from,gradient_to,rarity_border_overlay_url",
+          "id,name,user_id,is_public,approved,created_at,image_url,avatar_url,static_image_url,animated_image_url,profile_loop_video_enabled,tagline,rarity,gradient_from,gradient_to,rarity_border_overlay_url",
         )
         .order("created_at", { ascending: false })
         .limit(80);
@@ -427,6 +469,8 @@ const CompanionManager = () => {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
+  const [stockSort, setStockSort] = useState<CharacterStockSortKey>("name");
+  const [mediaFilter, setMediaFilter] = useState<CharacterMediaFilterKey>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Record<string, Partial<DbCompanion>>>({});
@@ -467,16 +511,88 @@ const CompanionManager = () => {
     );
   }
 
-  const filtered = (companions || []).filter((c) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      c.name.toLowerCase().includes(q) ||
-      c.tags.some((t) => t.toLowerCase().includes(q)) ||
-      c.gender.toLowerCase().includes(q) ||
-      c.role.toLowerCase().includes(q)
-    );
+  const searchLower = search.trim().toLowerCase();
+
+  const forgedFiltered = (forgedRows || []).filter((row) => {
+    const fr = row as Record<string, unknown>;
+    const name = String(fr.name ?? "").toLowerCase();
+    const tagline = String(fr.tagline ?? "").toLowerCase();
+    const uid = String(fr.user_id ?? "").toLowerCase();
+    const idStr = String(fr.id ?? "").toLowerCase();
+    if (searchLower) {
+      const matchesSearch =
+        name.includes(searchLower) ||
+        tagline.includes(searchLower) ||
+        uid.includes(searchLower) ||
+        idStr.includes(searchLower) ||
+        `cc-${idStr}`.includes(searchLower);
+      if (!matchesSearch) return false;
+    }
+    const loopRow = {
+      animated_image_url: typeof fr.animated_image_url === "string" ? fr.animated_image_url : null,
+      static_image_url: typeof fr.static_image_url === "string" ? fr.static_image_url : null,
+      image_url: typeof fr.image_url === "string" ? fr.image_url : null,
+      avatar_url: typeof fr.avatar_url === "string" ? fr.avatar_url : null,
+    };
+    if (mediaFilter === "has_loop" && !hasProfileLoopMp4(loopRow)) return false;
+    if (mediaFilter === "needs_loop" && !adminForgeRowNeedsLoopVideo(loopRow)) return false;
+    return true;
   });
+
+  const stockSearchMatches = (c: DbCompanion) => {
+    if (!searchLower) return true;
+    const bio = (c.bio || "").toLowerCase();
+    return (
+      c.name.toLowerCase().includes(searchLower) ||
+      (c.tagline || "").toLowerCase().includes(searchLower) ||
+      c.tags.some((t) => t.toLowerCase().includes(searchLower)) ||
+      c.kinks.some((k) => k.toLowerCase().includes(searchLower)) ||
+      c.gender.toLowerCase().includes(searchLower) ||
+      c.role.toLowerCase().includes(searchLower) ||
+      c.id.toLowerCase().includes(searchLower) ||
+      bio.includes(searchLower)
+    );
+  };
+
+  const stockFiltered = (companions || []).filter((c) => {
+    if (!stockSearchMatches(c)) return false;
+    if (mediaFilter === "has_loop" && !hasProfileLoopMp4(c)) return false;
+    if (mediaFilter === "needs_loop" && !adminStockNeedsLoopVideo(c)) return false;
+    return true;
+  });
+
+  const stockSorted = [...stockFiltered].sort((a, b) => {
+    if (stockSort === "name") return a.name.localeCompare(b.name);
+    if (stockSort === "newest") {
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
+    const ia = COMPANION_RARITIES.indexOf(normalizeCompanionRarity(a.rarity));
+    const ib = COMPANION_RARITIES.indexOf(normalizeCompanionRarity(b.rarity));
+    return ib - ia;
+  });
+
+  const forgeLoopStats = {
+    withMp4: (forgedRows || []).filter((r) =>
+      hasProfileLoopMp4({
+        animated_image_url: typeof (r as Record<string, unknown>).animated_image_url === "string"
+          ? (r as Record<string, unknown>).animated_image_url as string
+          : null,
+      }),
+    ).length,
+    needs: (forgedRows || []).filter((r) => {
+      const fr = r as Record<string, unknown>;
+      return adminForgeRowNeedsLoopVideo({
+        animated_image_url: typeof fr.animated_image_url === "string" ? fr.animated_image_url : null,
+        static_image_url: typeof fr.static_image_url === "string" ? fr.static_image_url : null,
+        image_url: typeof fr.image_url === "string" ? fr.image_url : null,
+        avatar_url: typeof fr.avatar_url === "string" ? fr.avatar_url : null,
+      });
+    }).length,
+  };
+  const stockLoopStats = {
+    withMp4: (companions || []).filter((c) => hasProfileLoopMp4(c)).length,
+    needs: (companions || []).filter((c) => adminStockNeedsLoopVideo(c)).length,
+  };
 
   const getEdit = (id: string): Partial<DbCompanion> => editData[id] || {};
   const setField = (id: string, field: string, value: any) => {
@@ -1614,37 +1730,101 @@ const CompanionManager = () => {
 
   // LIST VIEW
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <div className="rounded-xl border border-border/80 bg-card/45 p-4 shadow-sm space-y-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search name, tagline, tags, kinks, bio, id, forge user id…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-xl border border-border bg-muted py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+            <Select value={mediaFilter} onValueChange={(v) => setMediaFilter(v as CharacterMediaFilterKey)}>
+              <SelectTrigger className="h-10 w-[min(100%,220px)] border-border bg-muted text-xs sm:text-sm">
+                <SelectValue placeholder="Portrait filter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All (any portrait state)</SelectItem>
+                <SelectItem value="has_loop">Has loop MP4</SelectItem>
+                <SelectItem value="needs_loop">Needs loop video</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={stockSort} onValueChange={(v) => setStockSort(v as CharacterStockSortKey)}>
+              <SelectTrigger className="h-10 w-[min(100%,200px)] border-border bg-muted text-xs sm:text-sm">
+                <SelectValue placeholder="Sort stock list" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Stock sort: Name A–Z</SelectItem>
+                <SelectItem value="newest">Stock sort: Newest first</SelectItem>
+                <SelectItem value="rarity">Stock sort: Rarity (high first)</SelectItem>
+              </SelectContent>
+            </Select>
+            <button
+              type="button"
+              disabled={bulkLoopBusy}
+              onClick={() => void bulkGenerateMissingLoopVideos()}
+              title="Stock + forge rows: generate MP4 loop for anyone with a still portrait but no MP4 yet"
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-3 text-sm font-medium text-primary transition-colors hover:bg-primary/15 disabled:opacity-50"
+            >
+              {bulkLoopBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
+              Missing loops
+            </button>
+            <button
+              type="button"
+              onClick={openCreate}
+              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              <Plus className="h-4 w-4" /> New companion
+            </button>
+          </div>
+        </div>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
+          <span className="text-foreground/85">Loop MP4:</span> Forge {forgeLoopStats.withMp4}/{forgedRows.length} with clip
+          {forgeLoopStats.needs > 0 ? ` · ${forgeLoopStats.needs} still need a loop` : ""}. Stock {stockLoopStats.withMp4}/{companions?.length ?? 0} with clip
+          {stockLoopStats.needs > 0 ? ` · ${stockLoopStats.needs} still need a loop` : ""}. Green video dot on a card means a loop file exists.
+        </p>
+      </div>
+
       <div className="rounded-xl border border-accent/25 bg-accent/5 p-4 space-y-3">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <h3 className="text-sm font-semibold text-foreground">Community forge saves</h3>
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Community forge saves</h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Showing {forgedFiltered.length} of {forgedRows.length} · custom_characters
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 justify-end">
             <button
               type="button"
               disabled={repairVibBusy}
               onClick={() => void repairMissingVibrationPatterns()}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-600/85 text-white text-[10px] font-semibold border border-violet-400/30 hover:opacity-90 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-violet-400/30 bg-violet-600/85 px-2.5 py-1 text-[10px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
               title="Assign patterns for any stock or forge row that has zero rows (does not overwrite existing)"
             >
               {repairVibBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Waves className="h-3 w-3" />}
               Repair missing toy patterns
             </button>
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">custom_characters</span>
           </div>
         </div>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          Entries created from <strong className="text-foreground/90">Companion Forge → Create</strong>. Catalog rows
-          are listed below under stock companions.
+          From <strong className="text-foreground/90">Companion Forge → Create</strong>. Catalog stock is in the section below.
         </p>
         {forgedLoading ? (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
-            <Loader2 className="h-4 w-4 animate-spin shrink-0" /> Loading forged rows…
+          <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> Loading forged rows…
           </div>
         ) : forgedRows.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-1">No community forge rows yet.</p>
+          <p className="py-1 text-xs text-muted-foreground">No community forge rows yet.</p>
+        ) : forgedFiltered.length === 0 ? (
+          <p className="py-2 text-xs text-muted-foreground">No forge rows match your search or portrait filter.</p>
         ) : (
-          <ul className="space-y-3 max-h-[28rem] overflow-y-auto pr-1">
-            {forgedRows.map((row) => {
+          <ul className="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
+            {forgedFiltered.map((row) => {
               const fr = row as Record<string, unknown>;
               const frRarity = normalizeCompanionRarity(typeof fr.rarity === "string" ? fr.rarity : undefined);
               const frGf =
@@ -1654,12 +1834,20 @@ const CompanionManager = () => {
                 typeof fr.rarity_border_overlay_url === "string" && fr.rarity_border_overlay_url.trim()
                   ? fr.rarity_border_overlay_url
                   : null;
+              const staticU = typeof fr.static_image_url === "string" ? fr.static_image_url.trim() : "";
+              const forgeThumb =
+                staticU ||
+                (typeof row.image_url === "string" && row.image_url.trim() ? row.image_url : null) ||
+                (typeof row.avatar_url === "string" && row.avatar_url.trim() ? row.avatar_url : null);
+              const animU = typeof fr.animated_image_url === "string" ? fr.animated_image_url : null;
+              const loopEnabled = Boolean(fr.profile_loop_video_enabled);
+              const forgeHasLoop = hasProfileLoopMp4({ animated_image_url: animU });
               return (
               <li
                 key={String(fr.id)}
-                className="flex items-stretch gap-3 text-xs border border-border/60 rounded-xl p-3 bg-gradient-to-br from-black/40 to-muted/20"
+                className="flex items-stretch gap-3 rounded-xl border border-border/60 bg-gradient-to-br from-black/40 to-muted/20 p-3 text-xs"
               >
-                <div className="w-14 h-[4.5rem] shrink-0 overflow-visible p-0.5">
+                <div className="relative h-[4.5rem] w-14 shrink-0 overflow-visible p-0.5">
                   <TierHaloPortraitFrame
                     variant="compact"
                     frameStyle="clean"
@@ -1667,16 +1855,16 @@ const CompanionManager = () => {
                     gradientFrom={frGf}
                     gradientTo={frGt}
                     overlayUrl={frOb}
-                    aspectClassName="aspect-[2/3] w-full h-full"
+                    aspectClassName="aspect-[2/3] h-full w-full"
                     rarityFrameBleed
                   >
                     <div
                       className="absolute inset-0 z-0"
                       style={{ background: `linear-gradient(135deg, ${frGf}, ${frGt})` }}
                     />
-                    {row.image_url || row.avatar_url ? (
+                    {forgeThumb ? (
                       <img
-                        src={(row.image_url || row.avatar_url)!}
+                        src={forgeThumb}
                         alt=""
                         className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.02] object-cover"
                         referrerPolicy="no-referrer"
@@ -1687,26 +1875,40 @@ const CompanionManager = () => {
                       </span>
                     )}
                   </TierHaloPortraitFrame>
+                  {forgeHasLoop ? (
+                    <div
+                      className="absolute bottom-0 right-0 z-[6] flex h-5 w-5 items-center justify-center rounded-full border border-emerald-400/55 bg-black/80 text-emerald-300 shadow-md"
+                      title="Looping profile MP4 is saved"
+                    >
+                      <Video className="h-3 w-3" aria-hidden />
+                    </div>
+                  ) : null}
                 </div>
-                <div className="min-w-0 flex-1 flex flex-col gap-2">
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <div>
-                    <p className="font-semibold text-foreground truncate">{row.name}</p>
-                    <p className="text-[10px] text-muted-foreground line-clamp-2">{row.tagline || "—"}</p>
-                    <p className="text-[10px] text-muted-foreground font-mono truncate mt-0.5">{row.user_id}</p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="truncate font-semibold text-foreground">{row.name}</p>
+                      <span className="shrink-0 rounded-full border border-white/15 bg-black/30 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-muted-foreground">
+                        {frRarity}
+                      </span>
+                    </div>
+                    <p className="line-clamp-2 text-[10px] text-muted-foreground">{row.tagline || "—"}</p>
+                    <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">{row.user_id}</p>
                   </div>
-                  <div className="flex flex-wrap gap-1.5 items-center">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/40 text-muted-foreground border border-white/10">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="rounded-full border border-white/10 bg-black/40 px-2 py-0.5 text-[10px] text-muted-foreground">
                       {row.is_public ? "Public intent" : "Private"} · {row.approved ? "live on carousel" : "pending approval"}
                     </span>
+                    <AdminLoopVideoBadge hasMp4={forgeHasLoop} loopEnabled={loopEnabled} compact />
                     <Link
                       to={`/companions/cc-${row.id}`}
                       state={{ from: "/admin?section=characters" }}
-                      className="text-primary hover:underline text-[10px] font-medium"
+                      className="text-[10px] font-medium text-primary hover:underline"
                     >
                       Open profile
                     </Link>
                   </div>
-                  <div className="flex flex-wrap gap-2 mt-auto">
+                  <div className="mt-auto flex flex-wrap gap-2">
                     <button
                       type="button"
                       disabled={forgeEditLoadingId === row.id}
@@ -1777,98 +1979,120 @@ const CompanionManager = () => {
         )}
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
-        <div className="relative flex-1 w-full min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search by name, tag, gender, role..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-muted border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
-          />
-        </div>
-        <div className="flex flex-wrap gap-2 shrink-0 justify-end">
-          <button
-            type="button"
-            disabled={bulkLoopBusy}
-            onClick={() => void bulkGenerateMissingLoopVideos()}
-            title="Stock + forge rows: generate MP4 loop for anyone with a still portrait but no MP4 yet"
-            className="px-4 py-2.5 rounded-xl border border-primary/40 bg-primary/10 text-primary text-sm font-medium inline-flex items-center gap-2 hover:bg-primary/15 transition-colors disabled:opacity-50"
-          >
-            {bulkLoopBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
-            Generate missing loop videos
-          </button>
-          <button onClick={openCreate} className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium flex items-center gap-2 hover:opacity-90 transition-opacity shrink-0">
-            <Plus className="h-4 w-4" /> New Companion
-          </button>
-        </div>
-      </div>
-
-      <p className="text-xs text-muted-foreground">{filtered.length} of {companions?.length || 0} companions</p>
-
-      {filtered.map((companion) => (
-        <div
-          key={companion.id}
-          className="rounded-xl border border-border bg-card hover:border-primary/30 transition-colors cursor-pointer"
-          onClick={() => openEdit(companion.id)}
-        >
-          <div className="flex items-center gap-3 p-4">
-            <div className="w-14 h-[4.5rem] shrink-0 overflow-visible p-0.5">
-              <TierHaloPortraitFrame
-                variant="compact"
-                frameStyle="clean"
-                rarity={normalizeCompanionRarity(companion.rarity)}
-                gradientFrom={companion.gradient_from}
-                gradientTo={companion.gradient_to}
-                overlayUrl={companion.rarity_border_overlay_url}
-                aspectClassName="aspect-[2/3] w-full h-full"
-                rarityFrameBleed
-              >
-                <div
-                  className="absolute inset-0 z-0"
-                  style={{ background: `linear-gradient(135deg, ${companion.gradient_from}, ${companion.gradient_to})` }}
-                />
-                {companion.static_image_url || companion.image_url ? (
-                  <img
-                    src={(companion.static_image_url || companion.image_url)!}
-                    alt={companion.name}
-                    className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.02] object-cover"
-                  />
-                ) : (
-                  <span className="absolute inset-0 z-[2] flex items-center justify-center text-lg font-bold text-white/80">
-                    {companion.name.charAt(0)}
-                  </span>
-                )}
-              </TierHaloPortraitFrame>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-foreground text-sm truncate">{companion.name}</h3>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] ${companion.is_active ? "bg-green-500/20 text-green-400" : "bg-muted text-muted-foreground"}`}>
-                  {companion.is_active ? "Active" : "Inactive"}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground truncate">{companion.tagline}</p>
-              <p className="text-[10px] text-muted-foreground truncate mt-0.5">{companion.gender} · {companion.role} · {companion.tags.slice(0, 3).join(", ")}</p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={(e) => { e.stopPropagation(); toggleActive(companion); }}
-                className="p-2 rounded-lg hover:bg-muted transition-colors"
-                title={companion.is_active ? "Deactivate" : "Activate"}
-              >
-                {companion.is_active ? <Eye className="h-4 w-4 text-green-400" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
-              </button>
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            </div>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-end justify-between gap-2 border-b border-border/60 pb-2">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Stock companions</h3>
+            <p className="text-[11px] text-muted-foreground">
+              Showing {stockSorted.length} of {companions?.length ?? 0} catalog rows (companions table)
+            </p>
           </div>
         </div>
-      ))}
 
-      {filtered.length === 0 && (
-        <p className="text-center text-muted-foreground py-12">No companions match your search.</p>
-      )}
+        {stockSorted.map((companion) => {
+          const stockHasLoop = hasProfileLoopMp4(companion);
+          return (
+            <div
+              key={companion.id}
+              className="cursor-pointer rounded-xl border border-border bg-card transition-colors hover:border-primary/30"
+              onClick={() => openEdit(companion.id)}
+            >
+              <div className="flex items-center gap-3 p-4">
+                <div className="relative h-[4.5rem] w-14 shrink-0 overflow-visible p-0.5">
+                  <TierHaloPortraitFrame
+                    variant="compact"
+                    frameStyle="clean"
+                    rarity={normalizeCompanionRarity(companion.rarity)}
+                    gradientFrom={companion.gradient_from}
+                    gradientTo={companion.gradient_to}
+                    overlayUrl={companion.rarity_border_overlay_url}
+                    aspectClassName="aspect-[2/3] h-full w-full"
+                    rarityFrameBleed
+                  >
+                    <div
+                      className="absolute inset-0 z-0"
+                      style={{
+                        background: `linear-gradient(135deg, ${companion.gradient_from}, ${companion.gradient_to})`,
+                      }}
+                    />
+                    {companion.static_image_url || companion.image_url ? (
+                      <img
+                        src={(companion.static_image_url || companion.image_url)!}
+                        alt={companion.name}
+                        className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.02] object-cover"
+                      />
+                    ) : (
+                      <span className="absolute inset-0 z-[2] flex items-center justify-center text-lg font-bold text-white/80">
+                        {companion.name.charAt(0)}
+                      </span>
+                    )}
+                  </TierHaloPortraitFrame>
+                  {stockHasLoop ? (
+                    <div
+                      className="absolute bottom-0 right-0 z-[6] flex h-5 w-5 items-center justify-center rounded-full border border-emerald-400/55 bg-black/80 text-emerald-300 shadow-md"
+                      title="Looping profile MP4 is saved"
+                    >
+                      <Video className="h-3 w-3" aria-hidden />
+                    </div>
+                  ) : null}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <h3 className="truncate text-sm font-bold text-foreground">{companion.name}</h3>
+                    <span className="shrink-0 rounded-full border border-white/15 bg-black/25 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-muted-foreground">
+                      {normalizeCompanionRarity(companion.rarity)}
+                    </span>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${
+                        companion.is_active ? "bg-green-500/20 text-green-400" : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {companion.is_active ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  <p className="truncate text-xs text-muted-foreground">{companion.tagline}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <p className="truncate text-[10px] text-muted-foreground">
+                      {companion.gender} · {companion.role} · {companion.tags.slice(0, 4).join(", ")}
+                      {companion.tags.length > 4 ? "…" : ""}
+                    </p>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <AdminLoopVideoBadge hasMp4={stockHasLoop} loopEnabled={companion.profile_loop_video_enabled} />
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleActive(companion);
+                    }}
+                    className="rounded-lg p-2 transition-colors hover:bg-muted"
+                    title={companion.is_active ? "Deactivate" : "Activate"}
+                  >
+                    {companion.is_active ? (
+                      <Eye className="h-4 w-4 text-green-400" />
+                    ) : (
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {stockSorted.length === 0 && (companions?.length ?? 0) > 0 && (
+          <p className="py-10 text-center text-sm text-muted-foreground">
+            No stock companions match your search or portrait filter.
+          </p>
+        )}
+        {(companions?.length ?? 0) === 0 && (
+          <p className="py-10 text-center text-sm text-muted-foreground">No catalog companions loaded.</p>
+        )}
+      </div>
     </div>
   );
 };
