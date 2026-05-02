@@ -150,6 +150,98 @@ function isUsableOpenRouterImageRef(s: string): boolean {
   return t.startsWith("data:image") || t.startsWith("https://") || t.startsWith("http://");
 }
 
+function safeOpenRouterJsonSnippet(v: unknown, max: number): string {
+  try {
+    const s = typeof v === "string" ? v : JSON.stringify(v);
+    const one = s.replace(/\s+/g, " ").trim();
+    return one.length > max ? `${one.slice(0, max)}…` : one;
+  } catch {
+    return String(v).slice(0, max);
+  }
+}
+
+function openRouterErrorMetadataParts(errObj: Record<string, unknown>): string[] {
+  const meta = errObj.metadata;
+  if (!meta || typeof meta !== "object") return [];
+  const m = meta as Record<string, unknown>;
+  const parts: string[] = [];
+  if (typeof m.provider_name === "string" && m.provider_name.trim()) parts.push(`provider=${m.provider_name.trim()}`);
+  if (typeof m.model_slug === "string" && m.model_slug.trim()) parts.push(`model=${m.model_slug.trim()}`);
+  if (m.raw !== undefined && m.raw !== null) parts.push(`raw=${safeOpenRouterJsonSnippet(m.raw, 700)}`);
+  if (Array.isArray(m.reasons) && m.reasons.length) parts.push(`reasons=${safeOpenRouterJsonSnippet(m.reasons, 300)}`);
+  return parts;
+}
+
+/** Rich OpenRouter / upstream error text (message is often only "Provider returned error"). */
+export function formatOpenRouterApiError(json: unknown, fallbackRaw: string, httpStatus: number): string {
+  const hasTopLevelError =
+    json &&
+    typeof json === "object" &&
+    typeof (json as Record<string, unknown>).error === "object";
+
+  const bits: string[] = [];
+  if (httpStatus === 200 && hasTopLevelError) {
+    bits.push("OpenRouter HTTP 200 + error body (upstream rejected request; check model id & request params)");
+  } else {
+    bits.push(`HTTP ${httpStatus}`);
+  }
+
+  if (json && typeof json === "object") {
+    const top = json as Record<string, unknown>;
+    const e = top.error;
+    if (e && typeof e === "object") {
+      const er = e as Record<string, unknown>;
+      if (typeof er.message === "string" && er.message.trim()) bits.push(er.message.trim());
+      if (er.code !== undefined && er.code !== null && String(er.code).trim()) bits.push(`code=${String(er.code)}`);
+      if (typeof er.type === "string" && er.type.trim()) bits.push(`type=${er.type.trim()}`);
+      const metaParts = openRouterErrorMetadataParts(er);
+      bits.push(...metaParts);
+      if (!metaParts.length) {
+        bits.push(`error_json=${safeOpenRouterJsonSnippet(er, 900)}`);
+      }
+    } else if (typeof e === "string" && e.trim()) {
+      bits.push(e.trim());
+    }
+  }
+  if (bits.length <= 1) {
+    const fb = fallbackRaw.replace(/\s+/g, " ").trim();
+    if (fb) bits.push(fb.slice(0, 800));
+  }
+  return bits.join(" — ").slice(0, 1600);
+}
+
+function formatOpenRouterErrorObjectMetadata(errObj: Record<string, unknown>): string {
+  const parts = openRouterErrorMetadataParts(errObj);
+  if (!parts.length) return "";
+  return ` | ${parts.join("; ")}`;
+}
+
+/** When HTTP 200 but no image: append `error.metadata` if OpenRouter still sent an error object. */
+function formatOpenRouterTopLevelErrorExtra(json: unknown): string {
+  if (!json || typeof json !== "object") return "";
+  const err = (json as Record<string, unknown>).error;
+  if (!err || typeof err !== "object") return "";
+  return formatOpenRouterErrorObjectMetadata(err as Record<string, unknown>);
+}
+
+function extractOpenRouterChoiceLevelError(json: unknown): string | null {
+  const root = unwrapOpenRouterChatCompletionJson(json);
+  const choices = (root as { choices?: Array<Record<string, unknown>> })?.choices;
+  if (!Array.isArray(choices)) return null;
+  for (const ch of choices) {
+    if (!ch || typeof ch !== "object") continue;
+    const ce = ch.error;
+    if (ce && typeof ce === "object") {
+      const cer = ce as Record<string, unknown>;
+      const msg = cer.message;
+      if (typeof msg === "string" && msg.trim()) {
+        return `${msg.trim()}${formatOpenRouterErrorObjectMetadata(cer)}`;
+      }
+    }
+  }
+  return null;
+}
+
 /** Gateways sometimes wrap the OpenAI-shaped body under `data`, `result`, or `output`. */
 function unwrapOpenRouterChatCompletionJson(json: unknown): unknown {
   if (!json || typeof json !== "object") return json;
@@ -265,8 +357,11 @@ export function extractFirstImageDataUrlFromOpenRouterResponse(json: unknown): s
 function summarizeMissingOpenRouterImage(json: unknown): string {
   const rawTop = json && typeof json === "object" ? (json as Record<string, unknown>) : null;
   if (rawTop?.error && typeof rawTop.error === "object") {
-    const em = (rawTop.error as { message?: string }).message;
-    if (typeof em === "string" && em.trim()) return `API error: ${em.trim().slice(0, 450)}`;
+    const er = rawTop.error as Record<string, unknown>;
+    const em = er.message;
+    if (typeof em === "string" && em.trim()) {
+      return `${em.trim()}${formatOpenRouterErrorObjectMetadata(er)}`.slice(0, 1200);
+    }
   }
 
   const root = unwrapOpenRouterChatCompletionJson(json);
@@ -328,6 +423,7 @@ export function decodeOpenRouterImageDataUrl(dataUrl: string): { binary: Uint8Ar
 /**
  * FLUX still via OpenRouter (chat completions + `modalities`).
  * FLUX is **image-only** on OpenRouter — use `modalities: ["image"]` only (`["image","text"]` is for models like Gemini and breaks FLUX routing).
+ * Do **not** send `max_tokens` here: BFL / some upstreams return 400 "Provider returned error" when it is present on image-only generations.
  * Defaults: FLUX.2 Pro, then FLUX.2 Flex.
  */
 export async function openRouterGenerateFluxImage(args: {
@@ -348,7 +444,6 @@ export async function openRouterGenerateFluxImage(args: {
       model,
       messages: [{ role: "user", content: prompt }],
       modalities: ["image"],
-      max_tokens: 1024,
       stream: false,
     };
     if (args.aspectRatio) {
@@ -374,14 +469,13 @@ export async function openRouterGenerateFluxImage(args: {
       continue;
     }
     if (!res.ok) {
-      const errObj = (json as { error?: { message?: string } })?.error?.message;
-      lastErr = typeof errObj === "string" ? errObj : rawText.slice(0, 500);
+      lastErr = formatOpenRouterApiError(json, rawText, res.status);
       continue;
     }
     const unwrapped = unwrapOpenRouterChatCompletionJson(json) as { choices?: unknown };
     const err200 = (json as { error?: { message?: string } })?.error?.message;
     if (typeof err200 === "string" && err200.trim() && !Array.isArray(unwrapped?.choices)) {
-      lastErr = err200.trim().slice(0, 500);
+      lastErr = formatOpenRouterApiError(json, rawText, res.status);
       continue;
     }
     const candidate = extractOpenRouterImageUrlCandidate(json);
@@ -399,7 +493,9 @@ export async function openRouterGenerateFluxImage(args: {
       }
     }
     if (dataUrl) return { dataUrl, modelUsed: model };
-    lastErr = summarizeMissingOpenRouterImage(json);
+    const choiceErr = extractOpenRouterChoiceLevelError(json);
+    if (choiceErr) lastErr = choiceErr;
+    else lastErr = summarizeMissingOpenRouterImage(json) + formatOpenRouterTopLevelErrorExtra(json);
   }
 
   throw new Error(`OpenRouter FLUX image failed: ${lastErr}`);
