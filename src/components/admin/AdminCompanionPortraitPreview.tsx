@@ -57,8 +57,7 @@ export function AdminCompanionPortraitPreview({
         aspectClassName={cn(portraitAspectClass, "w-full")}
         rarityFrameBleed
         profilePolish={loopVideoActive}
-        overlayClassName={loopVideoActive ? "z-[4]" : undefined}
-        neonEdgeBreathing={!loopVideoActive}
+        neonEdgeBreathing={false}
       >
         <div
           className={cn(

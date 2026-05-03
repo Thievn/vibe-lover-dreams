@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Flame, Loader2, Mic, Square } from "lucide-react";
+import { ChevronDown, Flame, Loader2, Mic, Square } from "lucide-react";
 import { toast } from "sonner";
 import { invokeGrokStt } from "@/lib/invokeGrokStt";
 import { matchesSafeWord } from "@/lib/matchesSafeWord";
@@ -8,6 +8,14 @@ import { startRampModeDriver, type RampModeDriver } from "@/lib/rampModeDriver";
 import type { RampPresetId } from "@/lib/rampModePresets";
 import { RAMP_PRESET_IDS, RAMP_PRESET_LABELS, RAMP_PRESET_SHORT } from "@/lib/rampModePresets";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const QUICK_LINES: { label: string; send: string }[] = [
   { label: "Take control of my toy and edge me", send: "Take control of my toy and edge me." },
@@ -353,7 +361,7 @@ export function LiveVoicePanel({
     <div
       id="lf-live-voice-panel"
       className={cn(
-        "rounded-xl border border-[#00ffd4]/20 bg-gradient-to-br from-black/70 via-[hsl(280_30%_8%)]/95 to-black/80 p-2.5 space-y-2 shadow-[0_0_32px_rgba(0,255,212,0.06)]",
+        "rounded-xl border border-[#00ffd4]/20 bg-gradient-to-br from-black/70 via-[hsl(280_30%_8%)]/95 to-black/80 p-2 space-y-1.5 shadow-[0_0_32px_rgba(0,255,212,0.06)]",
         className,
       )}
     >
@@ -378,15 +386,14 @@ export function LiveVoicePanel({
               </button>
             ) : null}
           </div>
-          <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight line-clamp-3">
-            Forge coins accrue only while the mic is open (same per-started-minute rule as full-screen Live Call).{" "}
-            <span className="text-[#00ffd4]/85">Mic open — tap the square when you are done</span> to send and transcribe.
-            You can always type below; open the mic again for another voice turn, ramp, or quick line.
+          <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight line-clamp-2">
+            Coins accrue while the mic is open. <span className="text-[#00ffd4]/85">Tap the square</span> to send &amp;
+            transcribe; type anytime below.
             {disabled && rate != null ? (
-              <span className="mt-1 block text-amber-200/85">Need at least {rate} FC to use mic &amp; ramp — top up or switch to Classic.</span>
+              <span className="mt-0.5 block text-amber-200/85">Need {rate} FC+ for mic &amp; ramp.</span>
             ) : null}
             {voiceInteractiveLocked && !disabled ? (
-              <span className="mt-1 block text-[#00ffd4]/80">Mic is closed — ramp &amp; quick lines unlock when you tap Open.</span>
+              <span className="mt-0.5 block text-[#00ffd4]/80">Open the mic for ramp &amp; quick lines.</span>
             ) : null}
           </p>
         </div>
@@ -425,38 +432,72 @@ export function LiveVoicePanel({
       <div
         id="lf-ramp-block"
         className={cn(
-          "rounded-lg border border-white/[0.07] bg-black/25 px-2.5 py-2 space-y-1.5",
+          "rounded-lg border border-white/[0.07] bg-black/25 px-2 py-1.5 space-y-1.5",
           rampModeActive && "border-orange-500/25 bg-gradient-to-br from-orange-950/20 to-transparent",
         )}
       >
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-orange-200/90">Ramp</p>
-          {rampModeActive && hasDevice ? (
-            <span className="text-[9px] text-muted-foreground/90 tabular-nums">{Math.round(rampDisplayIntensity)}%</span>
-          ) : null}
+          <div className="flex min-w-0 items-baseline gap-2">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-orange-200/90">Ramp</p>
+            {rampModeActive && hasDevice ? (
+              <span className="text-[9px] text-muted-foreground/90 tabular-nums">{Math.round(rampDisplayIntensity)}%</span>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            disabled={off || rampQuickLocked}
+            onClick={toggleRampMode}
+            className={cn(
+              "shrink-0 rounded-lg border px-3 py-1 text-[10px] font-semibold transition-all touch-manipulation",
+              rampModeActive
+                ? "border-orange-400/50 bg-gradient-to-r from-orange-600/90 to-rose-700/90 text-white"
+                : "border-orange-400/35 bg-orange-500/15 text-orange-100 hover:bg-orange-500/25",
+              (off || rampQuickLocked) && "opacity-40 pointer-events-none",
+            )}
+          >
+            {rampModeActive ? "Stop" : "Activate"}
+          </button>
         </div>
 
-        <button
-          type="button"
-          disabled={off || rampQuickLocked}
-          onClick={toggleRampMode}
-          className={cn(
-            "w-full rounded-lg px-3 py-2 text-xs font-semibold transition-all touch-manipulation text-center",
-            rampModeActive
-              ? "bg-gradient-to-r from-orange-600/90 to-rose-700/90 text-white"
-              : "bg-gradient-to-r from-orange-500/25 to-rose-600/25 border border-orange-400/30 text-orange-100 hover:from-orange-500/35 hover:to-rose-600/35",
-            (off || rampQuickLocked) && "opacity-40 pointer-events-none",
-          )}
-        >
-          {rampModeActive ? "On — tap to stop" : "Activate 🔥"}
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              disabled={off || rampQuickLocked}
+              className={cn(
+                "flex w-full items-center justify-between gap-2 rounded-lg border border-white/12 bg-black/35 px-2 py-1 text-left text-[10px] font-medium text-foreground/90 touch-manipulation",
+                (off || rampQuickLocked) && "pointer-events-none opacity-40",
+              )}
+              aria-label="Choose ramp preset"
+            >
+              <span className="min-w-0 truncate">{RAMP_PRESET_LABELS[rampPreset]}</span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="max-h-[min(50vh,18rem)] w-[min(calc(100vw-2rem),16rem)] overflow-y-auto border-white/10 bg-[hsl(280_18%_8%)]/98 text-foreground">
+            <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
+              Preset
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-white/10" />
+            {RAMP_PRESET_IDS.map((id) => (
+              <DropdownMenuItem
+                key={id}
+                disabled={off || rampQuickLocked}
+                onClick={() => onRampPresetChange(id)}
+                className={cn("text-xs", rampPreset === id && "bg-orange-500/15 text-orange-100")}
+              >
+                <span className="flex flex-col gap-0.5">
+                  <span>{RAMP_PRESET_LABELS[id]}</span>
+                  <span className="text-[10px] font-normal text-muted-foreground/90">{RAMP_PRESET_SHORT[id]}</span>
+                </span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {rampModeActive ? (
           <div className="relative">
-            <div
-              className="h-1 w-full overflow-hidden rounded-full bg-white/[0.06]"
-              aria-hidden
-            >
+            <div className="h-1 w-full overflow-hidden rounded-full bg-white/[0.06]" aria-hidden>
               <div
                 className="h-full rounded-full bg-gradient-to-r from-amber-500/50 via-orange-500/70 to-rose-500/60 transition-[width] duration-500 ease-out"
                 style={{ width: `${hasDevice ? rampDisplayIntensity : 0}%` }}
@@ -468,48 +509,42 @@ export function LiveVoicePanel({
                 aria-hidden
               />
             ) : null}
-            <p className="text-[9px] text-muted-foreground/80 mt-1 leading-tight line-clamp-1">
-              {hasDevice
-                ? "Grok lines steer intensity; toy runs the preset."
-                : "Add a linked toy for real hardware ramping."}
+            <p className="text-[9px] text-muted-foreground/80 mt-0.5 leading-tight line-clamp-1">
+              {hasDevice ? "Grok steers intensity; toy runs the preset." : "Link a toy for hardware ramp."}
             </p>
           </div>
         ) : null}
 
-        <div className="flex flex-nowrap gap-1 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-w-full">
-          {RAMP_PRESET_IDS.map((id) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <button
-              key={id}
               type="button"
-              disabled={off || rampQuickLocked}
-              title={RAMP_PRESET_SHORT[id]}
-              onClick={() => onRampPresetChange(id)}
+              disabled={quickLineOff}
               className={cn(
-                "shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-medium transition-colors touch-manipulation max-w-[8rem] truncate",
-                rampPreset === id
-                  ? "border-orange-400/50 bg-orange-500/15 text-orange-100"
-                  : "border-white/10 bg-black/30 text-foreground/80 hover:bg-white/[0.05]",
-                (off || rampQuickLocked) && "opacity-40 pointer-events-none",
+                "flex w-full items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-left text-[10px] font-medium text-foreground/90 touch-manipulation",
+                quickLineOff && "pointer-events-none opacity-40",
               )}
+              aria-label="Send a suggested line"
             >
-              {RAMP_PRESET_LABELS[id]}
+              <span className="truncate">Quick line…</span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
             </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="max-h-14 overflow-y-auto flex flex-wrap gap-1 [scrollbar-width:thin]">
-        {QUICK_LINES.map((q) => (
-          <button
-            key={q.label}
-            type="button"
-            disabled={quickLineOff}
-            onClick={() => onSendText(q.send)}
-            className="rounded-full border border-white/10 bg-black/35 px-2 py-0.5 text-[9px] font-medium text-foreground/90 hover:bg-white/[0.06] disabled:opacity-40 text-left leading-tight"
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            className="max-h-[min(50vh,20rem)] w-[min(calc(100vw-2rem),18rem)] overflow-y-auto border-white/10 bg-[hsl(280_18%_8%)]/98 text-foreground"
           >
-            {q.label}
-          </button>
-        ))}
+            <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
+              Suggested
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-white/10" />
+            {QUICK_LINES.map((q) => (
+              <DropdownMenuItem key={q.label} className="whitespace-normal text-xs" onClick={() => onSendText(q.send)}>
+                {q.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

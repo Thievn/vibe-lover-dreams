@@ -48,17 +48,18 @@ export function ProfilePortraitTierHalo({
   const r = profileTierHaloRadius(variant, frameStyle);
   const isProfile = variant === "profile";
   const isCleanCard = frameStyle === "clean" && !isProfile;
-  /** Clean profile hero: keep tier tint subtle so the portrait (stacked above) stays the hero. */
-  const gradientOpacity = isProfile ? "opacity-[0.52]" : isCleanCard ? "opacity-[0.26]" : "opacity-[0.62]";
+  const gradientOpacity = isProfile ? "opacity-[0.52]" : "opacity-[0.62]";
 
   return (
     <div className={cn("relative isolate", r.outer, className)}>
-      <RarityNeonGlowLayers
-        rarity={rarity}
-        variant={variant}
-        profileBreathing={neonEdgeBreathing}
-        roundClass={r.outer}
-      />
+      {!isCleanCard ? (
+        <RarityNeonGlowLayers
+          rarity={rarity}
+          variant={variant}
+          profileBreathing={neonEdgeBreathing}
+          roundClass={r.outer}
+        />
+      ) : null}
       <div
         className={cn(
           "relative z-[1] overflow-hidden isolate",
@@ -75,7 +76,7 @@ export function ProfilePortraitTierHalo({
           mix-blend-screen some engines composite it above the photo. Keep decoration behind art.
         */}
         <div className={cn("relative z-[2] min-h-0 overflow-hidden", r.gutter, r.inner)}>
-          {!isProfile ? (
+          {!isProfile && !isCleanCard ? (
             <div
               aria-hidden
               className="pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-[inherit]"
@@ -94,23 +95,25 @@ export function ProfilePortraitTierHalo({
               </div>
             </div>
           ) : null}
-          <div
-            aria-hidden
-            className={cn(
-              "pointer-events-none absolute inset-0 z-[1]",
-              gradientOpacity,
-              isAbyssal
-                ? "bg-gradient-to-br from-[#ff2d7b]/45 via-fuchsia-600/35 to-[#00ffd4]/28"
-                : "",
-            )}
-            style={
-              isAbyssal
-                ? undefined
-                : {
-                    background: `linear-gradient(135deg, ${gradientFrom}55, ${gradientTo}44)`,
-                  }
-            }
-          />
+          {!isCleanCard ? (
+            <div
+              aria-hidden
+              className={cn(
+                "pointer-events-none absolute inset-0 z-[1]",
+                gradientOpacity,
+                isAbyssal
+                  ? "bg-gradient-to-br from-[#ff2d7b]/45 via-fuchsia-600/35 to-[#00ffd4]/28"
+                  : "",
+              )}
+              style={
+                isAbyssal
+                  ? undefined
+                  : {
+                      background: `linear-gradient(135deg, ${gradientFrom}55, ${gradientTo}44)`,
+                    }
+              }
+            />
+          ) : null}
           {!isCleanCard && r.ring ? (
             <div
               className={cn(
@@ -121,7 +124,7 @@ export function ProfilePortraitTierHalo({
               aria-hidden
             />
           ) : null}
-          <div className="relative z-[3] min-h-0 h-full min-w-0">{children}</div>
+          <div className="relative z-[30] min-h-0 h-full min-w-0 bg-black">{children}</div>
         </div>
       </div>
     </div>

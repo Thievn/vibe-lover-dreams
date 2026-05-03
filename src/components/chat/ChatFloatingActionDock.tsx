@@ -15,6 +15,8 @@ type Props = {
   companionId: string;
   onLiveCall: () => void;
   onRamp: () => void;
+  /** Hide Ramp in the dock (e.g. Live Voice already has ramp controls above the composer). */
+  hideRampButton?: boolean;
   onGallery: () => void;
   onVoiceOptions: () => void;
   safeWord: string;
@@ -37,6 +39,7 @@ export function ChatFloatingActionDock({
   companionId,
   onLiveCall,
   onRamp,
+  hideRampButton = false,
   onGallery,
   onVoiceOptions,
   safeWord,
@@ -71,23 +74,25 @@ export function ChatFloatingActionDock({
           </span>
           <span className="max-[380px]:sr-only">Call</span>
         </motion.button>
-        <motion.button
-          type="button"
-          whileTap={{ scale: 0.98 }}
-          onClick={rampAvailable ? onRamp : undefined}
-          disabled={disabled || !rampAvailable}
-          className={cn(
-            dockBtn,
-            rampActive &&
-              "border-fuchsia-400/40 from-fuchsia-950/40 to-black/50 text-fuchsia-100 ring-1 ring-fuchsia-500/25 shadow-[0_0_30px_rgba(232,121,249,0.12)]",
-          )}
-          title={rampAvailable ? "Ramp mode" : "Sign in for Ramp · Live Voice"}
-        >
-          <span className={cn(iconwrap, rampActive && "bg-fuchsia-500/20 text-amber-200")}>
-            <Zap className="h-4 w-4 sm:h-[1.1rem] sm:w-[1.1rem]" />
-          </span>
-          <span className="max-[380px]:sr-only">Ramp</span>
-        </motion.button>
+        {!hideRampButton ? (
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.98 }}
+            onClick={rampAvailable ? onRamp : undefined}
+            disabled={disabled || !rampAvailable}
+            className={cn(
+              dockBtn,
+              rampActive &&
+                "border-fuchsia-400/40 from-fuchsia-950/40 to-black/50 text-fuchsia-100 ring-1 ring-fuchsia-500/25 shadow-[0_0_30px_rgba(232,121,249,0.12)]",
+            )}
+            title={rampAvailable ? "Ramp mode" : "Sign in for Ramp · Live Voice"}
+          >
+            <span className={cn(iconwrap, rampActive && "bg-fuchsia-500/20 text-amber-200")}>
+              <Zap className="h-4 w-4 sm:h-[1.1rem] sm:w-[1.1rem]" />
+            </span>
+            <span className="max-[380px]:sr-only">Ramp</span>
+          </motion.button>
+        ) : null}
         <motion.button
           type="button"
           whileTap={{ scale: 0.98 }}

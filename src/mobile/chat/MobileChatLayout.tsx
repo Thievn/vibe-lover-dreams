@@ -412,6 +412,7 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
               setChatAutoSpendImages(companion.id, enabled);
             }}
             userLoggedIn={Boolean(user)}
+            photoDockLayout={sessionMode === "live_voice" ? "live_voice" : "full"}
             onGalleryClipRequest={(p) => void generateChatVideoClip({ mood: p.mood, motionHint: p.motionHint })}
           />
         </div>

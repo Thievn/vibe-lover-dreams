@@ -25,7 +25,7 @@ type Props = {
   rarityFrameBleed?: boolean;
   /** Profile looping video — diagonal polish + stronger rim (same as `CompanionProfile` overlay pass). */
   profilePolish?: boolean;
-  /** Merged onto `RarityBorderOverlay` (e.g. raise z-index when a video vignette sits above the default rim). */
+  /** Merged onto `RarityBorderOverlay` (z-index / rounding tweaks). */
   overlayClassName?: string;
   className?: string;
   children: ReactNode;
@@ -72,11 +72,9 @@ export function TierHaloPortraitFrame({
           frameStyle={frameStyle}
           frameBleed={overlayBleed}
           profilePolish={profilePolish}
-          gradientFrom={gradientFrom}
-          gradientTo={gradientTo}
           className={cn("z-0", innerRound, overlayClassName)}
         />
-        <div className="relative z-[5] min-h-0 h-full w-full">{children}</div>
+        <div className="relative z-[40] min-h-0 h-full w-full">{children}</div>
       </div>
     </ProfilePortraitTierHalo>
   );

@@ -3864,7 +3864,6 @@ User flavor notes: ${extraNotes || "none"}`;
                     gradientFrom="#7B2D8E"
                     gradientTo={NEON}
                     rarityFrameBleed
-                    neonEdgeBreathing
                     className="overflow-visible"
                   >
                     <AnimatePresence mode="wait">

@@ -963,7 +963,7 @@ const CompanionProfile = () => {
               aspectClassName={cn(portraitAspectClass, "w-full")}
               rarityFrameBleed
               profilePolish={loopVideoActive}
-              neonEdgeBreathing={!loopVideoActive}
+              neonEdgeBreathing={false}
             >
               <PortraitViewLightbox
                 alt={companion.name}

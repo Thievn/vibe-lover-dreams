@@ -349,6 +349,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
                 companionId={companion.id}
                 onLiveCall={goLiveCallFromChat}
                 onRamp={handleRampPill}
+                hideRampButton={sessionMode === "live_voice"}
                 onGallery={() => (user ? setGalleryOpen(true) : void navigate("/auth", { state: { from: location.pathname } }))}
                 onVoiceOptions={() => setVoiceSettingsOpen(true)}
                 safeWord={safeWord}
@@ -419,6 +420,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
                   setChatAutoSpendImages(companion.id, enabled);
                 }}
                 userLoggedIn={Boolean(user)}
+                photoDockLayout={sessionMode === "live_voice" ? "live_voice" : "full"}
                 onGalleryClipRequest={(p) => void generateChatVideoClip({ mood: p.mood, motionHint: p.motionHint })}
               />
             </div>
