@@ -45,6 +45,7 @@ export function TierHaloPortraitFrame({
   neonEdgeBreathing = false,
   rarityFrameBleed = false,
   profilePolish = false,
+  overlayClassName,
   className,
   children,
 }: Props) {
