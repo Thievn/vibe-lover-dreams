@@ -5,6 +5,7 @@ import { useCompanionGeneratedImages } from "@/hooks/useCompanionGeneratedImages
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { useForgeCompanionOverlay } from "@/hooks/useForgeCompanionOverlay";
 import { VAULT_COLLECTION_QUERY_KEY } from "@/hooks/useVaultCollection";
+import { PURCHASED_COMPANION_IDS_QUERY_KEY } from "@/hooks/usePurchasedCompanionIds";
 import Navbar from "@/components/Navbar";
 import ParticleBackground from "@/components/ParticleBackground";
 import { motion } from "framer-motion";
@@ -753,6 +754,7 @@ const CompanionProfile = () => {
       setPinned(true);
       setHasPaidForThisCard(true);
       void queryClient.invalidateQueries({ queryKey: [...VAULT_COLLECTION_QUERY_KEY, user.id] });
+      void queryClient.invalidateQueries({ queryKey: [...PURCHASED_COMPANION_IDS_QUERY_KEY, user.id] });
       if (r.alreadyOwned) {
         toast.message("Already in your collection", { description: companion.name });
       } else {

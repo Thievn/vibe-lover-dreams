@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Crown, Filter, Gem, Loader2, Search, Sparkles, UserRound, Wand2, X } from "lucide-react";
+import { BadgeCheck, Crown, Filter, Gem, Loader2, Search, Sparkles, UserRound, Wand2, X } from "lucide-react";
 import { toast } from "sonner";
 import type { Companion } from "@/data/companions";
 import { useCompanions, dbToCompanion, type DbCompanion } from "@/hooks/useCompanions";
@@ -14,6 +14,7 @@ import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame
 import { CompanionVibeTraitStrip } from "@/components/traits/CompanionVibeTraitStrip";
 import { resolveDisplayTraitsForCompanion } from "@/lib/vibeDisplayTraits";
 import { VAULT_COLLECTION_QUERY_KEY } from "@/hooks/useVaultCollection";
+import { PURCHASED_COMPANION_IDS_QUERY_KEY, usePurchasedCompanionIds } from "@/hooks/usePurchasedCompanionIds";
 import { supabase } from "@/integrations/supabase/client";
 import { discoverCardPriceFc } from "@/lib/forgeEconomy";
 import { purchaseDiscoverCompanion } from "@/lib/forgeCoinsClient";
@@ -27,6 +28,8 @@ export type CommunityGalleryRow = Companion & {
   imageUrl: string | null;
   galleryCredit: string | null;
   rarityBorderOverlayUrl: string | null;
+  /** `custom_characters.user_id` when this row is a forge card; null for stock catalog. */
+  forgeOwnerUserId: string | null;
 };
 
 function rowsFromDb(dbList: DbCompanion[]): CommunityGalleryRow[] {
@@ -40,6 +43,7 @@ function rowsFromDb(dbList: DbCompanion[]): CommunityGalleryRow[] {
       imageUrl,
       galleryCredit: db.gallery_credit_name ?? null,
       rarityBorderOverlayUrl: db.rarity_border_overlay_url ?? null,
+      forgeOwnerUserId: typeof db.user_id === "string" ? db.user_id : null,
     };
   });
 }
@@ -55,6 +59,8 @@ export default function DiscoverCompanionsGallery() {
   const [fcBalance, setFcBalance] = useState<number | null>(null);
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const [buyConfirmFor, setBuyConfirmFor] = useState<CommunityGalleryRow | null>(null);
+
+  const { data: purchasedCompanionIds } = usePurchasedCompanionIds(sessionUserId);
 
   const refreshSessionWallet = useCallback(async () => {
     const {
@@ -160,6 +166,7 @@ export default function DiscoverCompanionsGallery() {
       }
       setFcBalance(r.newBalance);
       void queryClient.invalidateQueries({ queryKey: [...VAULT_COLLECTION_QUERY_KEY, sessionUserId] });
+      void queryClient.invalidateQueries({ queryKey: [...PURCHASED_COMPANION_IDS_QUERY_KEY, sessionUserId] });
       if (r.alreadyOwned) {
         toast.message("Already in your collection", { description: c.name });
       } else {
@@ -421,6 +428,9 @@ export default function DiscoverCompanionsGallery() {
                 const glow = tierGlowForDiscoverCard(c.rarity);
                 const buyBusy = purchasingId === c.id;
                 const discoverTraits = resolveDisplayTraitsForCompanion(c);
+                const acquired =
+                  Boolean(sessionUserId && purchasedCompanionIds?.has(c.id)) ||
+                  Boolean(sessionUserId && c.id.startsWith("cc-") && c.forgeOwnerUserId === sessionUserId);
                 return (
                   <motion.div
                     key={c.id}
@@ -429,9 +439,15 @@ export default function DiscoverCompanionsGallery() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: Math.min(i * 0.03, 0.35), type: "spring", stiffness: 300, damping: 30 }}
                     whileHover={{ y: -2, scale: 1.01 }}
-                    className="relative text-left rounded-2xl border border-transparent bg-card/50 backdrop-blur-md overflow-visible group shadow-lg shadow-black/30 transition-all hover:shadow-[0_0_28px_rgba(255,45,123,0.15)] p-1.5 max-md:p-1"
+                    className={cn(
+                      "relative text-left rounded-2xl border border-transparent bg-card/50 backdrop-blur-md overflow-visible group shadow-lg shadow-black/30 transition-all hover:shadow-[0_0_28px_rgba(255,45,123,0.15)] p-1.5 max-md:p-1",
+                      acquired &&
+                        "ring-1 ring-emerald-400/40 shadow-[0_0_40px_rgba(52,211,153,0.16),0_10px_30px_rgba(0,0,0,0.32)] hover:shadow-[0_0_36px_rgba(52,211,153,0.22)]",
+                    )}
                     style={{
-                      boxShadow: `0 10px 30px rgba(0,0,0,0.32), ${glow.glow}`,
+                      boxShadow: acquired
+                        ? "0 10px 30px rgba(0,0,0,0.32), 0 0 32px rgba(52,211,153,0.14)"
+                        : `0 10px 30px rgba(0,0,0,0.32), ${glow.glow}`,
                     }}
                   >
                     <div className="flex flex-col rounded-2xl overflow-visible border border-white/[0.06] bg-black/20 shadow-inner">
@@ -472,6 +488,19 @@ export default function DiscoverCompanionsGallery() {
                               Nexus
                             </div>
                           ) : null}
+                          {acquired ? (
+                            <div
+                              className="absolute top-2 right-2 z-[4] pointer-events-none"
+                              aria-hidden
+                            >
+                              <div className="flex items-center gap-0.5 rounded-md border border-emerald-400/55 bg-gradient-to-br from-emerald-600/25 via-black/70 to-teal-700/20 px-1.5 py-0.5 shadow-[0_0_20px_rgba(52,211,153,0.35)] backdrop-blur-sm rotate-[-4deg]">
+                                <BadgeCheck className="h-3 w-3 text-emerald-300 shrink-0" strokeWidth={2.5} />
+                                <span className="text-[8px] font-extrabold uppercase tracking-wider text-emerald-50/95">
+                                  Vaulted
+                                </span>
+                              </div>
+                            </div>
+                          ) : null}
                           {discoverTraits.length > 0 ? (
                             <div className="absolute bottom-24 left-0 right-0 z-[3] px-2 pointer-events-none">
                               <CompanionVibeTraitStrip
@@ -493,46 +522,88 @@ export default function DiscoverCompanionsGallery() {
                               </p>
                             ) : null}
                             <div className="pt-1">
-                              <div
-                                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-[0_0_24px_rgba(255,45,123,0.18)]"
-                                style={{
-                                  ...rarityPriceStyle,
-                                  borderColor: `${rarityTierCaptionColor(c.rarity)}55`,
-                                  background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(0,0,0,0.28))",
-                                }}
-                                aria-label={`${buyFc} Forge Coins`}
-                              >
-                                <Gem className="h-3.5 w-3.5" />
-                                <span className="font-gothic text-base tabular-nums leading-none">{buyFc}</span>
-                                <span className="text-[10px] uppercase tracking-wider text-white/85">FC</span>
-                              </div>
+                              {acquired ? (
+                                <div
+                                  className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/50 px-2.5 py-1 shadow-[0_0_22px_rgba(52,211,153,0.28)] bg-gradient-to-r from-emerald-950/50 via-black/45 to-teal-950/35"
+                                  aria-label="Collected in your vault"
+                                >
+                                  <Sparkles className="h-3.5 w-3.5 text-amber-200/95 shrink-0" />
+                                  <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-emerald-100/95">
+                                    Collected
+                                  </span>
+                                </div>
+                              ) : (
+                                <div
+                                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-[0_0_24px_rgba(255,45,123,0.18)]"
+                                  style={{
+                                    ...rarityPriceStyle,
+                                    borderColor: `${rarityTierCaptionColor(c.rarity)}55`,
+                                    background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(0,0,0,0.28))",
+                                  }}
+                                  aria-label={`${buyFc} Forge Coins`}
+                                >
+                                  <Gem className="h-3.5 w-3.5" />
+                                  <span className="font-gothic text-base tabular-nums leading-none">{buyFc}</span>
+                                  <span className="text-[10px] uppercase tracking-wider text-white/85">FC</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                           <div className="absolute inset-0 z-[3] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/[0.07] to-primary/10 pointer-events-none" />
                         </TierHaloPortraitFrame>
                       </Link>
-                      <button
-                        type="button"
-                        onClick={() => setBuyConfirmFor(c)}
-                        disabled={buyBusy}
-                        className="w-full text-left px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/50 hover:bg-black/60 transition-colors disabled:opacity-70 rounded-b-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-inset"
-                      >
-                        <span className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground uppercase tracking-widest">
-                          <Crown className="h-3.5 w-3.5 text-amber-300/90" />
-                          {buyBusy ? "Unlocking…" : "Acquire card"}
-                        </span>
-                        {buyBusy ? (
-                          <Loader2 className="h-3.5 w-3.5 text-accent animate-spin" />
-                        ) : (
+                      {acquired ? (
+                        <Link
+                          to={`/companions/${c.id}`}
+                          state={{ from: `${location.pathname}${location.search}` }}
+                          className="w-full text-left px-3 py-2.5 flex items-center justify-between border-t border-emerald-500/35 bg-gradient-to-r from-emerald-950/50 via-black/55 to-teal-950/35 hover:from-emerald-900/55 hover:via-black/50 rounded-b-2xl transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/45 focus-visible:ring-inset group/acq"
+                        >
+                          <span className="inline-flex items-center gap-2 min-w-0">
+                            <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-emerald-400/45 bg-emerald-500/15 shadow-[0_0_18px_rgba(52,211,153,0.3)]">
+                              <BadgeCheck className="h-4 w-4 text-emerald-300" strokeWidth={2.5} />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-100/95">
+                                Card acquired
+                              </span>
+                              <span className="block text-[9px] text-emerald-200/75 mt-0.5 truncate">
+                                In your vault — open full profile
+                              </span>
+                            </span>
+                          </span>
                           <motion.span
-                            animate={{ scale: [1, 1.12, 1], rotate: [0, 4, 0] }}
-                            transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-                            className="inline-flex"
+                            aria-hidden
+                            className="shrink-0 text-amber-200/95"
+                            animate={{ scale: [1, 1.08, 1], rotate: [0, -6, 6, 0] }}
+                            transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
                           >
-                            <Gem className="h-3.5 w-3.5 text-accent" style={rarityPriceStyle} />
+                            <Sparkles className="h-4 w-4" />
                           </motion.span>
-                        )}
-                      </button>
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setBuyConfirmFor(c)}
+                          disabled={buyBusy}
+                          className="w-full text-left px-3 py-2 flex items-center justify-between border-t border-border/60 bg-black/50 hover:bg-black/60 transition-colors disabled:opacity-70 rounded-b-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-inset"
+                        >
+                          <span className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground uppercase tracking-widest">
+                            <Crown className="h-3.5 w-3.5 text-amber-300/90" />
+                            {buyBusy ? "Unlocking…" : "Acquire card"}
+                          </span>
+                          {buyBusy ? (
+                            <Loader2 className="h-3.5 w-3.5 text-accent animate-spin" />
+                          ) : (
+                            <motion.span
+                              animate={{ scale: [1, 1.12, 1], rotate: [0, 4, 0] }}
+                              transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+                              className="inline-flex"
+                            >
+                              <Gem className="h-3.5 w-3.5 text-accent" style={rarityPriceStyle} />
+                            </motion.span>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 );
