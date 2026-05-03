@@ -38,6 +38,8 @@ type Props = {
   /** Companion / pattern is actively driving the toy (sustained session). */
   toyDriveActive?: boolean;
   onStopToyDrive?: () => void;
+  /** Live Voice: tighter scroll padding + density so more messages fit above the dock. */
+  compactThread?: boolean;
 };
 
 export function ChatMessageThread({
@@ -64,11 +66,19 @@ export function ChatMessageThread({
   pendingImageButtonLabel = "Generate image",
   toyDriveActive = false,
   onStopToyDrive,
+  compactThread = false,
 }: Props) {
   const typingVariant = getChatTypingVariant(companion);
 
   return (
-    <div className="relative z-[1] mx-auto min-h-0 w-full min-w-0 max-w-full flex-1 space-y-4 overflow-y-auto overflow-x-hidden scroll-pb-36 px-3 py-3 [-webkit-overflow-scrolling:touch] sm:px-5 md:space-y-5 md:py-5">
+    <div
+      className={cn(
+        "relative z-[1] mx-auto min-h-0 w-full min-w-0 max-w-full flex-1 overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch]",
+        compactThread
+          ? "space-y-3 scroll-pb-20 px-2.5 py-2 sm:px-4 md:space-y-4 md:py-3"
+          : "space-y-4 scroll-pb-36 px-3 py-3 sm:px-5 md:space-y-5 md:py-5",
+      )}
+    >
       {/* Phase 4: toy session — persistent strip so “toy active” is obvious without breaking chat layout */}
       {toyDriveActive ? (
         <div className="sticky top-0 z-10 -mx-0.5 mb-1 flex items-center justify-center rounded-xl border border-fuchsia-500/30 bg-gradient-to-r from-fuchsia-950/90 via-primary/20 to-fuchsia-950/90 px-2 py-1.5 text-center text-[10px] font-semibold uppercase tracking-widest text-fuchsia-100/95 shadow-lg shadow-black/30">

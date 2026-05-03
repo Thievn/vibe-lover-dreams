@@ -25,6 +25,7 @@ import { setChatSessionMode as persistChatSessionMode } from "@/lib/chatSessionM
 import { CHAT_IMAGE_LEWD_FC, CHAT_IMAGE_NUDE_FC } from "@/lib/forgeEconomy";
 import { DailyFreeMessagesBar } from "@/components/chat/DailyFreeMessagesBar";
 import { CHAT_VIDEO_TOKEN_COST, FAB_SELFIE, setChatAutoSpendImages } from "@/lib/chatImageSettings";
+import { cn } from "@/lib/utils";
 import type { UseChatSessionControllerReturn } from "./useChatSessionController";
 
 export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
@@ -301,14 +302,21 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
                 pendingImageButtonLabel={pendingImageButtonLabel}
                 toyDriveActive={toyDriveActive}
                 onStopToyDrive={() => void stopSustainedToy()}
+                compactThread={sessionMode === "live_voice"}
               />
             </div>
 
-            <div className="z-20 shrink-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1 sm:px-3">
+            <div
+              className={cn(
+                "z-20 shrink-0 bg-gradient-to-t from-black/80 to-transparent px-2 sm:px-3",
+                sessionMode === "live_voice" ? "pb-0" : "pb-1",
+              )}
+            >
               <ChatSmartReplies
                 suggestions={smartSuggestions}
                 disabled={loading}
                 loading={loading}
+                compact={sessionMode === "live_voice"}
                 onPick={(s) => {
                   setInput(s);
                   void sendMessage(s);
@@ -317,7 +325,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
             </div>
 
             {sessionMode === "live_voice" ? (
-              <div className="z-10 shrink-0 border-t border-white/[0.06] bg-gradient-to-b from-black/40 to-transparent px-2 pb-1 sm:px-3">
+              <div className="z-10 shrink-0 border-t border-white/[0.06] bg-gradient-to-b from-black/40 to-transparent px-2 pb-0 sm:px-3">
                 <LiveVoicePanel
                   companionName={companion.name}
                   disabled={!isAdminUser && tokensBalance < LIVE_CALL_CREDITS_PER_MINUTE}
@@ -344,12 +352,18 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
               </div>
             ) : null}
 
-            <div className="z-20 shrink-0 space-y-2 border-t border-white/[0.06] bg-gradient-to-t from-black/85 via-black/50 to-transparent pt-2 pb-1">
+            <div
+              className={cn(
+                "z-20 shrink-0 border-t border-white/[0.06] bg-gradient-to-t from-black/85 via-black/50 to-transparent pb-1",
+                sessionMode === "live_voice" ? "space-y-1 pt-1" : "space-y-2 pt-2",
+              )}
+            >
               <ChatFloatingActionDock
                 companionId={companion.id}
                 onLiveCall={goLiveCallFromChat}
                 onRamp={handleRampPill}
                 hideRampButton={sessionMode === "live_voice"}
+                compact={sessionMode === "live_voice"}
                 onGallery={() => (user ? setGalleryOpen(true) : void navigate("/auth", { state: { from: location.pathname } }))}
                 onVoiceOptions={() => setVoiceSettingsOpen(true)}
                 safeWord={safeWord}
@@ -363,11 +377,11 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
             <div
               className={
                 sessionMode === "live_voice"
-                  ? "z-20 shrink-0 bg-gradient-to-t from-black/90 to-black/50 pb-[max(0.25rem,env(safe-area-inset-bottom))]"
+                  ? "z-20 shrink-0 bg-gradient-to-t from-black/90 to-black/50 pb-[max(0.15rem,env(safe-area-inset-bottom))]"
                   : "z-20 shrink-0"
               }
             >
-              <div className="px-2 pb-1.5 sm:px-3">
+              <div className={sessionMode === "live_voice" ? "px-2 pb-0.5 sm:px-3" : "px-2 pb-1.5 sm:px-3"}>
                 <DailyFreeMessagesBar
                   visible={Boolean(user)}
                   remainingFree={chatDailyQuotaUi.remainingFree}

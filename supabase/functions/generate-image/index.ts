@@ -256,28 +256,58 @@ serve(async (req) => {
           ? "chat_session"
           : "tasteful_adult_brief";
 
+    /**
+     * Gallery Selfie/Lewd presets: the Grok **text rewriter** often collapses diverse menu scenes into the same
+     * “standing / three-quarter / facing camera” catalog portrait. Skip it and send the fused client brief + anatomy
+     * policy straight to Imagine so **Requested framing (from menu)** survives verbatim intent.
+     */
+    const skipRewriterForMenuGallery = chatMenuSceneLock && isChatSessionStill;
+
     let safeRewritten: string;
-    try {
-      safeRewritten = await rewritePromptForImagine({
-        raw: rawForRewrite,
-        context: rewriterContext,
-        anatomyPolicy: anatomyDirective,
-        rewriteMode,
-      });
-    } catch (rewriteErr) {
-      if (tokensCharged) {
-        await refundTokens(supabase, userId, tokenCost, "prompt rewrite failed");
-        tokensCharged = false;
+    if (skipRewriterForMenuGallery) {
+      /**
+       * `clampPromptForImagine` keeps the **start** of the string. The old order put the long master brief first and
+       * the execution block last — at 7600 chars the anti–“catalog portrait” directives were often **truncated away**,
+       * so Imagine fell back to the same standing / card-style shot. Head must be: execution → anatomy → brief.
+       */
+      const executionHead = [
+        "[EXECUTION — NOT A PORTRAIT REMASTER — READ FIRST]",
+        "Render the **Requested framing (from menu)** block **literally**: named **location**, **body configuration / pose**, **wardrobe or undress state**, **props**, and **camera relationship** as written.",
+        "**Forbidden default:** facing-camera standing glam bust, neutral catalog three-quarter, phone-mirror bathroom headshot, or “same silhouette as a roster card” unless the menu text explicitly demands that.",
+        "Identity = **text CHARACTER APPEARANCE only** — same person, **new** photograph in the menu scenario.",
+      ].join("\n\n");
+      const anatomyHead = anatomyDirective
+        ? `ANATOMY_POLICY (must obey — do not contradict in the image):\n${anatomyDirective}`
+        : "";
+      const headJoined = [executionHead, anatomyHead].filter((s) => String(s).trim()).join("\n\n");
+      const reserved = headJoined.length + 32;
+      const rawBudget = Math.max(2000, TOGETHER_IMAGE_PROMPT_SOFT_LIMIT - reserved);
+      const rawClamped = clampPromptForImagine(rawForRewrite, rawBudget);
+      const fused = [headJoined, rawClamped].filter((s) => String(s).trim()).join("\n\n\n");
+      safeRewritten = clampPromptForImagine(fused, TOGETHER_IMAGE_PROMPT_SOFT_LIMIT);
+    } else {
+      try {
+        safeRewritten = await rewritePromptForImagine({
+          raw: rawForRewrite,
+          context: rewriterContext,
+          anatomyPolicy: anatomyDirective,
+          rewriteMode,
+        });
+      } catch (rewriteErr) {
+        if (tokensCharged) {
+          await refundTokens(supabase, userId, tokenCost, "prompt rewrite failed");
+          tokensCharged = false;
+        }
+        const msg = rewriteErr instanceof Error ? rewriteErr.message : String(rewriteErr);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Prompt preparation failed: ${msg}`,
+            tokensRefunded: tokenCost > 0,
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
-      const msg = rewriteErr instanceof Error ? rewriteErr.message : String(rewriteErr);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `Prompt preparation failed: ${msg}`,
-          tokensRefunded: tokenCost > 0,
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
     }
 
     const forgeBody = String(characterData.bodyType ?? "").trim();
@@ -416,7 +446,11 @@ ${portraitLock && !isChatSessionStill ? `- **Portrait / roster continuity** (Cha
 ${portraitLock && isChatSessionStill ? `- **Character bible** (written profile) anchors identity; PRIMARY SCENE wins on pose, wardrobe, location, and lighting unless the user explicitly overrides.` : ""}
 ${forgeBody ? `- **Forge body type + silhouette contract** (Character Details) override conflicting silhouette, species, or build wording in the scene text below.` : ""}
 - ${anatomyKeyRules}
-- Premium lighting, cinematic composition, flattering portrait discipline.
+${
+        menuSceneLockEffective
+          ? "- Premium lighting and cinematic composition — **story / environment / pose** lead the frame (not a default glam bust-up or catalog three-quarter)."
+          : "- Premium lighting, cinematic composition, flattering portrait discipline."
+      }
 ${refLines ? `${refLines}\n` : ""}
 
 PRIMARY SCENE (follow closely — rewriter output is authoritative for mood and explicitness):

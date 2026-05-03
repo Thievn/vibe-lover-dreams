@@ -240,9 +240,18 @@ export function ChatComposer({
     [input, onChange],
   );
 
+  const liveDock = photoDockLayout === "live_voice";
+
   return (
-    <div className="shrink-0 border-t border-white/[0.07] bg-gradient-to-t from-black/95 via-black/80 to-black/40 px-3 pt-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] backdrop-blur-2xl sm:px-4 sm:pt-3.5">
-      <div className="mb-2.5 flex items-center justify-between gap-2 px-0.5">
+    <div
+      className={cn(
+        "shrink-0 border-t border-white/[0.07] bg-gradient-to-t from-black/95 via-black/80 to-black/40 backdrop-blur-2xl",
+        liveDock
+          ? "px-2.5 pt-2 pb-[max(0.65rem,env(safe-area-inset-bottom))] sm:px-3 sm:pt-2"
+          : "px-3 pt-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] sm:px-4 sm:pt-3.5",
+      )}
+    >
+      <div className={cn("flex items-center justify-between gap-2 px-0.5", liveDock ? "mb-1" : "mb-2.5")}>
         <p className="min-w-0 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground/90">Message</p>
         {userLoggedIn ? (
           <label className="inline-flex max-w-[55%] cursor-pointer select-none items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-1 text-[9px] font-medium text-foreground/90 sm:text-[10px]">
@@ -280,11 +289,12 @@ export function ChatComposer({
           e.preventDefault();
           onSubmit();
         }}
-        className="space-y-2.5"
+        className={liveDock ? "space-y-1.5" : "space-y-2.5"}
       >
         <div
           className={cn(
-            "flex min-h-[3.75rem] items-stretch gap-2 rounded-[1.15rem] border p-1.5 transition-[box-shadow,background,border-color] sm:min-h-16",
+            "flex items-stretch gap-2 rounded-[1.15rem] border p-1.5 transition-[box-shadow,background,border-color]",
+            liveDock ? "min-h-[3.35rem] sm:min-h-[3.5rem]" : "min-h-[3.75rem] sm:min-h-16",
             focused
               ? "border-primary/45 bg-gradient-to-r from-fuchsia-950/45 to-black/55 shadow-[0_0_0_1px_hsl(320_85%_50%_/_0.25),0_0_40px_hsl(320_85%_50%_/_0.15)]"
               : "border-white/11 bg-black/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
@@ -346,7 +356,12 @@ export function ChatComposer({
         </div>
       </form>
 
-      <p className="text-[9px] leading-relaxed text-muted-foreground/85 text-center mt-2.5 px-0.5 sm:text-[10px]">
+      <p
+        className={cn(
+          "text-[9px] leading-relaxed text-muted-foreground/85 text-center px-0.5 sm:text-[10px]",
+          liveDock ? "mt-1.5" : "mt-2.5",
+        )}
+      >
         Safe: <span className="text-destructive font-bold">{safeWord}</span> ·{" "}
         {isAdminUser ? (
           "Admin session · "
@@ -498,7 +513,7 @@ function StillStylePicker({
       <div
         className={cn(
           "flex flex-wrap items-center justify-end gap-2",
-          photoDockLayout === "full" ? "mb-2" : "mb-1.5",
+          photoDockLayout === "full" ? "mb-2" : "mb-1",
         )}
       >
         {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? (

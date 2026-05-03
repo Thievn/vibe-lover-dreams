@@ -280,7 +280,10 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
         )}
 
         <div
-          className="relative z-0 min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-14"
+          className={cn(
+            "relative z-0 min-h-0 flex-1 overflow-y-auto overscroll-y-contain",
+            sessionMode === "live_voice" ? "pb-6" : "pb-14",
+          )}
           style={{ WebkitOverflowScrolling: "touch" }}
         >
           <ChatAmbientBackground activityKey={messages.length} />
@@ -307,15 +310,22 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
             onConfirmPendingImage={() => void confirmPendingImageGeneration()}
             pendingImageButtonLabel={pendingImageButtonLabel}
             toyDriveActive={toyDriveActive}
+            compactThread={sessionMode === "live_voice"}
             onStopToyDrive={() => void stopSustainedToy()}
           />
         </div>
 
-        <div className="z-20 shrink-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1">
+        <div
+          className={cn(
+            "z-20 shrink-0 bg-gradient-to-t from-black/80 to-transparent px-2",
+            sessionMode === "live_voice" ? "pb-0" : "pb-1",
+          )}
+        >
           <ChatSmartReplies
             suggestions={smartSuggestions}
             disabled={loading}
             loading={loading}
+            compact={sessionMode === "live_voice"}
             onPick={(s) => {
               setInput(s);
               void sendMessage(s);
@@ -324,7 +334,7 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
         </div>
 
         {sessionMode === "live_voice" ? (
-          <div className="z-10 shrink-0 border-t border-white/[0.06] bg-gradient-to-b from-black/40 to-transparent px-2 pb-1">
+          <div className="z-10 shrink-0 border-t border-white/[0.06] bg-gradient-to-b from-black/40 to-transparent px-2 pb-0">
             <LiveVoicePanel
               companionName={companion.name}
               disabled={!isAdminUser && tokensBalance < LIVE_CALL_CREDITS_PER_MINUTE}
@@ -353,13 +363,11 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
 
         <div
           className={cn(
-            "z-20 shrink-0 border-t border-white/[0.06] bg-gradient-to-t from-black/90 via-black/55 to-black/40 pt-2",
-            sessionMode === "live_voice"
-              ? "pb-[max(0.35rem,env(safe-area-inset-bottom))]"
-              : "pb-[max(0.5rem,env(safe-area-inset-bottom))]",
+            "z-20 shrink-0 border-t border-white/[0.06] bg-gradient-to-t from-black/90 via-black/55 to-black/40",
+            sessionMode === "live_voice" ? "pt-1 pb-[max(0.35rem,env(safe-area-inset-bottom))]" : "pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]",
           )}
         >
-          <div className="px-2 pb-1.5">
+          <div className={sessionMode === "live_voice" ? "px-2 pb-0.5" : "px-2 pb-1.5"}>
             <DailyFreeMessagesBar
               visible={Boolean(user)}
               remainingFree={chatDailyQuotaUi.remainingFree}
