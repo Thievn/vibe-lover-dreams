@@ -59,7 +59,7 @@ function moodNsfwClauses(m: FabSelfieTier): string {
     return "Artistic intimate nude (Grok Imagine): fine-art boudoir or editorial silhouette — sensual, graceful, soft light; **no** crude anatomy, graphic acts, or pornographic staging. **One** consistent individual per the written Character appearance; believable photoreal body. Wardrobe absent only when the scene calls for nude; do not default to swimwear unless USER SCENE is beach/pool.";
   }
   if (m === "lewd") {
-    return "Tasteful lewd: lingerie, sheer, wet fabric, silhouette, teasing poses — premium editorial / perfume-ad heat, **not** explicit porn staging or obscene wording. Same character as the **appearance paragraph** below. Match mood to personality and USER SCENE; vary sets — no generic bikini unless the scene calls for it.";
+    return "Tasteful lewd: lingerie, sheer, wet fabric, silhouette, teasing poses — premium editorial / perfume-ad heat, **not** explicit porn staging or obscene wording. Same **identity** (face, hair, skin, build) as CHARACTER APPEARANCE — **wardrobe, pose, and room** only from USER SCENE / menu framing, not from any implied catalog photo. No generic bikini unless the scene calls for it.";
   }
   return "SFW — flirty, romantic, or cute; fully clothed for public-safe framing. Same individual as the **written** character description (face + body type). Outfit must fit THIS preset and USER SCENE.";
 }
@@ -297,6 +297,9 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
 
   const charBlock = `CHARACTER APPEARANCE (primary likeness — text only): ${companion.name}, ${companion.gender}. ${(companion.appearance || "").trim().slice(0, 2000)}`;
 
+  const appearanceStripForMenu =
+    "**APPEARANCE-TEXT STRIP (gallery preset):** The CHARACTER APPEARANCE paragraph may repeat how she looks on a **roster / profile card**. For **this** render, mine it **only** for face shape, eyes, brows, nose, mouth, hair, skin, species markers, and body proportions. **Discard** any sentences about catalog outfit, cape, swimsuit, jewelry, throne room, studio backdrop, or “icon pose” if they disagree with **Requested framing (from menu)** — the menu wins 100% on clothes, location, pose, props, and camera.";
+
   const prompt = (
     menuSceneLock
       ? [
@@ -307,6 +310,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
           theming,
           tech,
           charBlock,
+          appearanceStripForMenu,
         ]
       : [
           "LUSTFORGE MASTER BRIEF — in-session generative still (no reference image)",

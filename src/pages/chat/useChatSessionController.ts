@@ -2247,8 +2247,8 @@ export function useChatSessionController() {
         toast.error("Sign in to generate a new still.");
         return;
       }
-      const base = imageUrl.split("?")[0] ?? imageUrl;
-      const brief = `New in-session still. Match the energy, pose, and wardrobe vibe of the reference still, but as a fresh key-art shot. Framing: upper body, chest to midriff, boudoir, tasteful lingerie, sheer or implied, premium sensual — use reference image mood only: ${base}`;
+      const brief =
+        "New in-session still: **same character** from CHARACTER APPEARANCE (face, hair, skin, build) — **invent a different outfit, pose, and room** than any roster/profile shot. Boudoir / tease energy, upper body or three-quarter OK, but **not** a remaster of the previous image’s composition or wardrobe.";
       void sendMessage("New still with the same heat as that pick — upper body, lingerie or tease.", {
         imageGenerationPrompt: brief,
         bypassImageConfirmation: true,

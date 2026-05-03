@@ -22,6 +22,7 @@ import { forgePortraitBodyTypeContract } from "../_shared/forgeBodyTypeContract.
 import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
 import {
   CHAT_SESSION_IMAGINE_CREATIVE_BASE,
+  CHAT_SESSION_MENU_STILL_IMAGINE_BASE,
   FORGE_PREVIEW_IMAGINE_HARD_SFW,
   resolveImageContentTier,
   UNIVERSAL_NON_PREVIEW_IMAGE_BASE,
@@ -274,7 +275,7 @@ serve(async (req) => {
         "[EXECUTION — NOT A PORTRAIT REMASTER — READ FIRST]",
         "Render the **Requested framing (from menu)** block **literally**: named **location**, **body configuration / pose**, **wardrobe or undress state**, **props**, and **camera relationship** as written.",
         "**Forbidden default:** facing-camera standing glam bust, neutral catalog three-quarter, phone-mirror bathroom headshot, or “same silhouette as a roster card” unless the menu text explicitly demands that.",
-        "Identity = **text CHARACTER APPEARANCE only** — same person, **new** photograph in the menu scenario.",
+        "**No profile-JPEG continuity:** Do not match pixels, palette, outfit, or composition to an imagined roster/portrait image — text identity only, **new** photograph in the menu scenario.",
       ].join("\n\n");
       const anatomyHead = anatomyDirective
         ? `ANATOMY_POLICY (must obey — do not contradict in the image):\n${anatomyDirective}`
@@ -382,7 +383,7 @@ serve(async (req) => {
       .filter((line): line is string => line != null && line !== "")
       .join("\n");
 
-    const refLines = [
+    const refLinesRaw = [
       characterData.referencePalette
         ? `- Loosely echo this abstract color mood from a user-supplied reference thumbnail (palette only; do not copy any real person's face): ${characterData.referencePalette}`
         : "",
@@ -392,13 +393,17 @@ serve(async (req) => {
     ]
       .filter(Boolean)
       .join("\n");
+    /** Menu tiles: never pull “palette from reference thumbnail” — it steers models back toward the card look. */
+    const refLines = menuSceneLockEffective ? "" : refLinesRaw;
 
     const needsFinalAnimeLead = isAnime && !FORGE_ANIME_STYLE_LOCK_REGEX.test(safeRewritten);
     const animeFinalLead = needsFinalAnimeLead ? `${buildAnimeTemptationStyleLead(tierRewrite)}\n\n` : "";
 
     const adultUniversalBase =
       effectiveTier === "full_adult_art" && isChatSessionStill
-        ? CHAT_SESSION_IMAGINE_CREATIVE_BASE
+        ? menuSceneLockEffective
+          ? CHAT_SESSION_MENU_STILL_IMAGINE_BASE
+          : CHAT_SESSION_IMAGINE_CREATIVE_BASE
         : UNIVERSAL_NON_PREVIEW_IMAGE_BASE;
 
     const finalPromptRaw = effectiveTier === "forge_preview_sfw"
@@ -435,7 +440,8 @@ Visual rules:
 - No legible logos, watermarks, UI chrome, fake app branding, or readable product/store signage in-frame.
 - **Tasteful adult:** sensual nude, lingerie, and strong tease are in-bounds; avoid hardcore pornographic depiction, graphic penetration, or obscene gynecological close-ups — premium boudoir / editorial tone.
 - **Likeness vs outfit (text-derived):** Keep **one consistent individual** per Character Details / character bible — face, hair, skin, and body type from the **written** profile — but **do not** invent wardrobe from an imaginary “card photo.” When PRIMARY SCENE describes lingerie, gym, rain, bed, nude, etc., **invent** scene-accurate clothing or undress per PRIMARY SCENE (no default bikini paste).
-${isChatSessionStill ? "- **Chat still / gallery preset:** There is **no input reference image** — PRIMARY SCENE + the character’s **appearance paragraph and forge prompt** define look and styling. Each preset should read as a **new** shot (pose, lens, set, wardrobe), not a remaster of any stored portrait.\n" : ""}
+${isChatSessionStill && !menuSceneLockEffective ? "- **Chat still / gallery preset:** There is **no input reference image** — PRIMARY SCENE + the character’s **appearance paragraph and forge prompt anchors** guide look and styling. Each generation should read as a **new** shot when the user asks for variety.\n" : ""}
+${isChatSessionStill && menuSceneLockEffective ? "- **Gallery menu still:** **No reference image.** Identity = **face, hair, skin, species, body type** from the character bible only. **Wardrobe, pose, room, props, light, and crop** = PRIMARY SCENE / menu only — **not** the roster/profile picture, **not** forge packshot prose as a shot list.\n" : ""}
 ${chatMenuSceneLock && isChatSessionStill ? "- **Gallery menu lock:** PRIMARY SCENE must realize the **menu category’s** location and action — **not** a head-and-shoulders glam reskin. If PRIMARY SCENE names a bed, car, tub, desk, beach, shower, gym, etc., the **environment and body–world interaction** must clearly show that place.\n" : ""}
 ${
         isAnime
