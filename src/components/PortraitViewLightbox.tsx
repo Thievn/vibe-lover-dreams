@@ -27,8 +27,11 @@ export function PortraitViewLightbox({ alt, stillSrc, animatedSrc, children, tri
   const videoSrc = imgSrc ? null : videoCandidate;
 
   const enlargeable = Boolean(imgSrc || videoSrc);
+  /** Must fill the tier-halo aspect slot; abs-positioned portrait children give the button no intrinsic height otherwise. */
+  const triggerFill = "block h-full min-h-0 w-full";
+
   if (!enlargeable) {
-    return <div className={triggerClassName}>{children}</div>;
+    return <div className={cn(triggerFill, triggerClassName)}>{children}</div>;
   }
 
   return (
@@ -36,7 +39,8 @@ export function PortraitViewLightbox({ alt, stillSrc, animatedSrc, children, tri
       <button
         type="button"
         className={cn(
-          "group relative block w-full cursor-zoom-in border-0 bg-transparent p-0 text-left outline-none",
+          "group relative cursor-zoom-in border-0 bg-transparent p-0 text-left outline-none",
+          triggerFill,
           "rounded-[inherit] focus-visible:ring-2 focus-visible:ring-primary/55 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           triggerClassName,
         )}
