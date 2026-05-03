@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Send,
   ImageIcon,
@@ -9,7 +9,6 @@ import {
   ChevronDown,
   Camera,
   Aperture,
-  Sparkles,
   Loader2,
   CircleHelp,
 } from "lucide-react";
@@ -32,12 +31,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { FAB_SELFIE, resolveFabDisplay, type FabSelfieTier } from "@/lib/chatImageSettings";
-import {
-  cardGradientForOption,
-  smartPhotoStylesForTier,
-  type SmartChatPhotoStyleOption,
-} from "@/lib/smartChatPhotoMenus";
+import type { FabSelfieTier } from "@/lib/chatImageSettings";
+import type { ChatStillMenuCategory } from "@/lib/chatStillMenuCategories";
+import { CHAT_LEWD_STILL_CATEGORIES, CHAT_SELFIE_STILL_CATEGORIES } from "@/lib/chatStillMenuCategories";
 import { cn } from "@/lib/utils";
 
 function MicWaveBars({ active }: { active: boolean }) {
@@ -82,7 +78,7 @@ type Props = {
   companionName: string;
   /** Stills & clips: same contract as the previous top media bar. */
   onMediaRequest: (action: ChatMediaBarAction) => void;
-  /** Smart still menus (Selfie / Lewd / Nude) — tier base + styled scene extension. */
+  /** Stills sheet: FAB tier base + Grok scene line from `chatStillMenuCategories`. */
   onStyledStillRequest: (p: { tier: FabSelfieTier; userLine: string; sceneExtension: string }) => void;
   mediaMenuDisabled: boolean;
   videoMenuDisabled: boolean;
@@ -106,7 +102,7 @@ const CLIP_PURCHASE_DISCLAIMER =
   "Short clips are built from her portrait plus the vibe you chose; every now and then framing or motion comes out a little unexpected. Forge coins still apply. Continue?";
 
 /**
- * Glowing field + mic (Web Speech) + three mood media dropdowns, send CTA, auto-spend toggle.
+ * Glowing field + mic (Web Speech) + stills sheet (Selfies / Lewd), send CTA, auto-spend toggle.
  */
 export function ChatComposer({
   input,
@@ -312,7 +308,8 @@ export function ChatComposer({
           />
           {userLoggedIn ? (
             <div className="hidden shrink-0 flex-col items-end gap-0.5 pr-0.5 sm:flex">
-              <MoodMediaDropdowns
+              <StillStylePicker
+                companionName={companionName}
                 disabled={mediaMenuDisabled}
                 videoDisabled={videoMenuDisabled}
                 onRequest={onMediaRequest}
@@ -333,7 +330,8 @@ export function ChatComposer({
         {/* Mobile: media row under field */}
         {userLoggedIn ? (
           <div className="flex flex-col gap-0.5 sm:hidden">
-            <MoodMediaDropdowns
+            <StillStylePicker
+              companionName={companionName}
               disabled={mediaMenuDisabled}
               videoDisabled={videoMenuDisabled}
               onRequest={onMediaRequest}
@@ -395,7 +393,10 @@ export function ChatComposer({
   );
 }
 
-function MoodMediaDropdowns({
+type StillTab = "selfies" | "lewd";
+
+function StillStylePicker({
+  companionName,
   disabled,
   videoDisabled,
   onRequest,
@@ -403,10 +404,11 @@ function MoodMediaDropdowns({
   onGalleryClipRequest,
   isAdminUser,
   chatImageLewdFc,
-  chatImageNudeFc,
+  chatImageNudeFc: _chatImageNudeFc,
   videoClipFc,
   compact,
 }: {
+  companionName: string;
   disabled: boolean;
   videoDisabled: boolean;
   onRequest: (a: ChatMediaBarAction) => void;
@@ -418,314 +420,213 @@ function MoodMediaDropdowns({
   videoClipFc: number;
   compact?: boolean;
 }) {
-  return (
-    <div className={cn("flex flex-wrap items-center justify-end gap-0.5", compact && "w-full justify-start")}>
-      <PhotoMoodMenu
-        label="Selfie"
-        icon={Camera}
-        accent="border-white/10 bg-white/[0.04]"
-        tier="sfw"
-        which="selfie"
-        disabled={disabled}
-        videoDisabled={videoDisabled}
-        onRequest={onRequest}
-        onStyledStillRequest={onStyledStillRequest}
-        onGalleryClipRequest={onGalleryClipRequest}
-        isAdminUser={isAdminUser}
-        chatImageLewdFc={chatImageLewdFc}
-        chatImageNudeFc={chatImageNudeFc}
-        videoClipFc={videoClipFc}
-      />
-      <PhotoMoodMenu
-        label="Lewd"
-        icon={Aperture}
-        accent="border-primary/25 bg-primary/[0.08] text-primary/95"
-        tier="lewd"
-        which="lewd"
-        disabled={disabled}
-        videoDisabled={videoDisabled}
-        onRequest={onRequest}
-        onStyledStillRequest={onStyledStillRequest}
-        onGalleryClipRequest={onGalleryClipRequest}
-        isAdminUser={isAdminUser}
-        chatImageLewdFc={chatImageLewdFc}
-        chatImageNudeFc={chatImageNudeFc}
-        videoClipFc={videoClipFc}
-      />
-      <PhotoMoodMenu
-        label="Nude"
-        icon={Sparkles}
-        accent="border-fuchsia-500/30 bg-fuchsia-950/30 text-fuchsia-100"
-        tier="nude"
-        which="nude"
-        disabled={disabled}
-        videoDisabled={videoDisabled}
-        onRequest={onRequest}
-        onStyledStillRequest={onStyledStillRequest}
-        onGalleryClipRequest={onGalleryClipRequest}
-        isAdminUser={isAdminUser}
-        chatImageLewdFc={chatImageLewdFc}
-        chatImageNudeFc={chatImageNudeFc}
-        videoClipFc={videoClipFc}
-      />
-    </div>
-  );
-}
-
-type Which = "selfie" | "lewd" | "nude";
-
-function buildQuickSceneExtension(tier: FabSelfieTier): string {
-  if (tier === "nude") {
-    return "Artistic nude still: fine-art boudoir pose, soft cinematic light, **fresh environment** — match the roster portrait **exactly** for face, hair, skin tone, age read, and silhouette; same personality matrix; **editorial / tasteful** adult framing only; **no pasted-on swimsuit from the card.**";
-  }
-  if (tier === "lewd") {
-    return "Lewd still: editorial teasing heat — lingerie, sheer, wet fabric, silhouette, tasteful undressing that fits personality and era; **new wardrobe + backdrop each time**, not a reshoot of their roster swimsuit unless swim is the vibe; **same face and body** as the roster portrait — no look-alike drift.";
-  }
-  return "SFW still: creative flattering selfie — **distinct outfit and location** from their catalog portrait when possible; era-appropriate clothes; fully clothed; **same face, hair, and body** as the roster portrait (no substitute model).";
-}
-
-function PhotoMoodMenu({
-  label,
-  icon: Icon,
-  accent,
-  tier,
-  which,
-  onRequest,
-  onStyledStillRequest,
-  onGalleryClipRequest,
-  disabled,
-  videoDisabled,
-  isAdminUser,
-  chatImageLewdFc,
-  chatImageNudeFc,
-  videoClipFc,
-}: {
-  label: string;
-  icon: typeof Camera;
-  accent: string;
-  tier: FabSelfieTier;
-  which: Which;
-  onRequest: (a: ChatMediaBarAction) => void;
-  onStyledStillRequest: (p: { tier: FabSelfieTier; userLine: string; sceneExtension: string }) => void;
-  onGalleryClipRequest?: (p: { mood: "sfw" | "lewd" | "nude"; motionHint: string }) => void;
-  disabled: boolean;
-  videoDisabled: boolean;
-  isAdminUser: boolean;
-  chatImageLewdFc: number;
-  chatImageNudeFc: number;
-  videoClipFc: number;
-}) {
   const [open, setOpen] = useState(false);
-  const [showGalleryDisclaimer, setShowGalleryDisclaimer] = useState(false);
-  const [clipConfirmOpt, setClipConfirmOpt] = useState<SmartChatPhotoStyleOption | null>(null);
+  const [tab, setTab] = useState<StillTab>("selfies");
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
+  const [clipMood, setClipMood] = useState<"sfw" | "lewd" | "nude" | null>(null);
 
-  const vid: ChatMediaBarAction = which === "selfie" ? "selfie_video" : which === "lewd" ? "lewd_video" : "nude_video";
-  const clipMood: "sfw" | "lewd" | "nude" = which === "selfie" ? "sfw" : which === "nude" ? "nude" : "lewd";
-  const stillFcNum = tier === "nude" ? chatImageNudeFc : chatImageLewdFc;
   const fmtFc = (n: number) => (isAdminUser ? "Included" : `${n} FC`);
-  const stillPrice = fmtFc(stillFcNum);
+  const stillPrice = fmtFc(chatImageLewdFc);
   const clipPrice = fmtFc(videoClipFc);
 
-  const styleOptions = useMemo((): SmartChatPhotoStyleOption[] => {
-    const quick: SmartChatPhotoStyleOption = {
-      id: `${which}-quick`,
-      label: "Surprise me",
-      hint: "Pose, set, and light matched to their personality — you still pick the tier.",
-      userLine: resolveFabDisplay(FAB_SELFIE[tier].display),
-      sceneExtension: buildQuickSceneExtension(tier),
-      paletteIndex: 7,
-    };
-    return [quick, ...smartPhotoStylesForTier(tier)];
-  }, [which, tier]);
+  const categories = useMemo(
+    () => (tab === "selfies" ? CHAT_SELFIE_STILL_CATEGORIES : CHAT_LEWD_STILL_CATEGORIES),
+    [tab],
+  );
 
-  const title =
-    which === "selfie" ? "Selfie studio" : which === "lewd" ? "Lewd gallery" : "Nude gallery";
-  const description =
-    which === "selfie"
-      ? "Flattering SFW stills — identity matches their portrait; each preset uses its own outfit and backdrop."
-      : which === "lewd"
-        ? "Tasteful adult heat — wardrobe and scene follow each card (not a copy of their catalog swimsuit)."
-        : "Explicit stills — uncensored where allowed; same face & body, fresh sets per preset. FC follows tier.";
-  const tierShell =
-    which === "selfie"
-      ? "border-emerald-500/15 shadow-[0_0_0_1px_rgba(16,185,129,0.12)]"
-      : which === "lewd"
-        ? "border-rose-500/20 shadow-[0_0_0_1px_rgba(244,63,94,0.14)]"
-        : "border-violet-500/20 shadow-[0_0_0_1px_rgba(139,92,246,0.14)]";
-  const tierHeroGlow =
-    which === "selfie"
-      ? "from-emerald-500/12 via-transparent to-cyan-950/25"
-      : which === "lewd"
-        ? "from-rose-500/15 via-transparent to-fuchsia-950/30"
-        : "from-violet-500/15 via-transparent to-purple-950/35";
-
-  const pickStill = (opt: SmartChatPhotoStyleOption) => {
-    onStyledStillRequest({ tier, userLine: opt.userLine, sceneExtension: opt.sceneExtension });
+  const pickStill = (cat: ChatStillMenuCategory) => {
+    onStyledStillRequest({
+      tier: cat.tier,
+      userLine: `${companionName} — "${cat.label}" still for me?`,
+      sceneExtension: cat.imagePrompt,
+    });
     setOpen(false);
   };
 
-  const runClipForOpt = (opt: SmartChatPhotoStyleOption) => {
-    const motionHint = [opt.label, opt.hint, opt.sceneExtension].filter(Boolean).join(" — ").slice(0, 480);
+  const runClip = () => {
+    if (!clipMood) return;
+    const motionHint =
+      clipMood === "sfw"
+        ? "Flattering SFW vertical clip — selfie energy, safe wardrobe, smooth handheld motion."
+        : clipMood === "lewd"
+          ? "Tasteful spicy vertical clip — lingerie / silhouette tease, editorial motion."
+          : "Explicit adult vertical clip — fine-art boudoir motion, intimate framing.";
     if (onGalleryClipRequest) {
       onGalleryClipRequest({ mood: clipMood, motionHint });
     } else {
-      onRequest(vid);
+      onRequest(clipMood === "sfw" ? "selfie_video" : clipMood === "lewd" ? "lewd_video" : "nude_video");
     }
-    setClipConfirmOpt(null);
+    setClipMood(null);
     setOpen(false);
   };
 
   return (
     <>
-      <motion.button
-        type="button"
-        whileTap={{ scale: 0.99 }}
-        disabled={disabled}
-        onClick={() => setOpen(true)}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-label={`${label} photo styles`}
-        className={cn(
-          "inline-flex items-center gap-0.5 rounded-md border px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide touch-manipulation shadow-sm transition-[box-shadow,transform] sm:gap-0.5 sm:px-1.5 sm:text-[9px]",
-          accent,
-          which === "selfie" && "ring-1 ring-emerald-400/15 hover:ring-emerald-400/30",
-          which === "lewd" && "ring-1 ring-rose-400/15 hover:ring-rose-400/35",
-          which === "nude" && "ring-1 ring-violet-400/15 hover:ring-violet-400/35",
-        )}
-      >
-        <Icon className="h-2.5 w-2.5 shrink-0 sm:h-3 sm:w-3" />
-        {label}
-        <ChevronDown className="h-2 w-2 opacity-70 text-muted-foreground" aria-hidden />
-      </motion.button>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent
+      <div className={cn("flex flex-wrap items-center justify-end gap-0.5", compact && "w-full justify-start")}>
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.99 }}
+          disabled={disabled}
+          onClick={() => setOpen(true)}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          aria-label="Chat still presets"
           className={cn(
-            "max-h-[min(92vh,42rem)] w-[min(100vw-0.75rem,36rem)] gap-0 overflow-hidden border bg-[hsl(280_18%_6%)]/[0.98] p-0 text-foreground shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-2xl sm:max-w-xl",
-            tierShell,
+            "inline-flex items-center gap-0.5 rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-foreground/95 shadow-sm transition-[box-shadow,transform] sm:gap-1 sm:px-2 sm:text-[9px]",
+            "ring-1 ring-white/10 hover:ring-primary/35 hover:bg-white/[0.07]",
           )}
         >
-          <DialogHeader
-            className={cn(
-              "space-y-1.5 border-b border-white/[0.08] bg-gradient-to-br px-4 py-3 text-left sm:px-4 sm:py-3.5",
-              tierHeroGlow,
-            )}
-          >
+          <Camera className="h-2.5 w-2.5 shrink-0 sm:h-3 sm:w-3" aria-hidden />
+          Stills
+          <ChevronDown className="h-2 w-2 shrink-0 opacity-70 text-muted-foreground" aria-hidden />
+        </motion.button>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[min(92vh,44rem)] w-[min(100vw-0.75rem,26rem)] gap-0 overflow-hidden border border-white/[0.1] bg-[hsl(280_18%_6%)]/[0.98] p-0 text-foreground shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-2xl sm:max-w-md">
+          <DialogHeader className="space-y-2 border-b border-white/[0.08] bg-gradient-to-br from-fuchsia-950/25 via-black/40 to-cyan-950/20 px-3 py-3 sm:px-4">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45">
-                  {which === "selfie" ? "SFW" : which === "lewd" ? "Spicy" : "Explicit"} ·{" "}
-                  {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? "Stills (clips soon)" : "Stills & clips"}
+                  Grok stills · {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? "clips soon" : "clips below"}
                 </p>
                 <DialogTitle className="font-gothic text-lg font-normal tracking-tight text-white sm:text-xl">
-                  {title}
+                  Selfies & Lewd
                 </DialogTitle>
-                <DialogDescription className="text-[11px] leading-snug text-muted-foreground/95 sm:text-[12px]">
-                  {description}
+                <DialogDescription className="text-[11px] leading-snug text-muted-foreground/95">
+                  Tap a tile — she replies first, then the still lands. Identity follows her portrait.
                 </DialogDescription>
               </div>
               <button
                 type="button"
                 className="mt-0.5 shrink-0 rounded-lg border border-white/10 bg-black/30 p-1.5 text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
                 title="About results & pricing"
-                aria-expanded={showGalleryDisclaimer}
-                onClick={() => setShowGalleryDisclaimer((v) => !v)}
+                aria-expanded={showDisclaimer}
+                onClick={() => setShowDisclaimer((v) => !v)}
               >
                 <CircleHelp className="h-4 w-4" aria-hidden />
                 <span className="sr-only">Gallery disclaimer</span>
               </button>
             </div>
-            {showGalleryDisclaimer ? (
+            {showDisclaimer ? (
               <p className="rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-[11px] leading-snug text-muted-foreground/95">
                 {GALLERY_RESULT_DISCLAIMER}
               </p>
             ) : null}
+
+            <div className="flex rounded-lg border border-white/10 bg-black/35 p-0.5">
+              <button
+                type="button"
+                onClick={() => setTab("selfies")}
+                className={cn(
+                  "relative flex flex-1 items-center justify-center gap-1 rounded-md py-1.5 text-[10px] font-semibold uppercase tracking-wide transition-colors sm:text-[11px]",
+                  tab === "selfies" ? "text-white" : "text-muted-foreground hover:text-foreground/90",
+                )}
+              >
+                <Camera className="h-3 w-3 opacity-80" aria-hidden />
+                Selfies
+                {tab === "selfies" ? (
+                  <motion.span
+                    layoutId="stillTabGlow"
+                    className="absolute inset-0 -z-10 rounded-md bg-emerald-500/20 ring-1 ring-emerald-400/25"
+                    transition={{ type: "spring", stiffness: 380, damping: 32 }}
+                  />
+                ) : null}
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab("lewd")}
+                className={cn(
+                  "relative flex flex-1 items-center justify-center gap-1 rounded-md py-1.5 text-[10px] font-semibold uppercase tracking-wide transition-colors sm:text-[11px]",
+                  tab === "lewd" ? "text-white" : "text-muted-foreground hover:text-foreground/90",
+                )}
+              >
+                <Aperture className="h-3 w-3 opacity-80" aria-hidden />
+                Lewd
+                {tab === "lewd" ? (
+                  <motion.span
+                    layoutId="stillTabGlow"
+                    className="absolute inset-0 -z-10 rounded-md bg-rose-500/20 ring-1 ring-rose-400/30"
+                    transition={{ type: "spring", stiffness: 380, damping: 32 }}
+                  />
+                ) : null}
+              </button>
+            </div>
           </DialogHeader>
 
-          <div className="max-h-[min(64vh,26rem)] overflow-y-auto overscroll-contain px-3 pb-3 pt-2 sm:max-h-[min(60vh,28rem)] sm:px-4">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {styleOptions.map((opt) => {
-                const isQuick = opt.id.endsWith("-quick");
-                return (
-                  <div
-                    key={opt.id}
+          <div className="max-h-[min(58vh,24rem)] overflow-y-auto overscroll-contain px-2.5 pb-2.5 pt-2 sm:max-h-[min(56vh,26rem)] sm:px-3">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={tab}
+                initial={{ opacity: 0, x: tab === "selfies" ? -14 : 14 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: tab === "selfies" ? 10 : -10 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="grid grid-cols-2 gap-1.5 sm:grid-cols-3"
+              >
+                {categories.map((cat, i) => (
+                  <motion.button
+                    key={cat.id}
+                    type="button"
+                    disabled={disabled}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(i * 0.018, 0.22), duration: 0.2 }}
+                    onClick={() => pickStill(cat)}
                     className={cn(
-                      "group relative flex flex-col overflow-hidden rounded-lg border text-left transition-all duration-300",
-                      "border-white/[0.09] bg-gradient-to-b from-white/[0.06] to-white/[0.02] hover:-translate-y-0.5 hover:border-white/25 hover:from-white/[0.09] hover:to-white/[0.04]",
-                      "hover:shadow-[0_16px_40px_rgba(0,0,0,0.5)]",
-                      isQuick && "ring-1 ring-amber-400/45 border-amber-500/40 shadow-[0_8px_28px_rgba(251,191,36,0.08)]",
-                      !isQuick &&
-                        which === "selfie" &&
-                        "hover:border-emerald-400/25 hover:shadow-[0_16px_40px_rgba(16,185,129,0.07)]",
-                      !isQuick && which === "lewd" && "hover:border-rose-400/28 hover:shadow-[0_16px_40px_rgba(244,63,94,0.08)]",
-                      !isQuick && which === "nude" && "hover:border-violet-400/28 hover:shadow-[0_16px_40px_rgba(139,92,246,0.09)]",
+                      "rounded-lg border border-white/[0.08] bg-gradient-to-b from-white/[0.07] to-white/[0.02] px-2 py-2 text-left text-[10px] font-medium leading-snug text-foreground/95 shadow-sm transition-[transform,box-shadow,border-color] sm:py-2.5 sm:text-[11px]",
+                      "hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45)] active:translate-y-0",
+                      tab === "selfies" && "hover:border-emerald-400/30",
+                      tab === "lewd" && "hover:border-rose-400/35",
+                      disabled && "pointer-events-none opacity-40",
                     )}
                   >
-                    <div
-                      className={cn(
-                        "relative h-[4.25rem] shrink-0 sm:h-[4.75rem]",
-                        cardGradientForOption(tier, opt.paletteIndex),
-                      )}
-                    >
-                      <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_70%_at_50%_-10%,rgba(255,255,255,0.22),transparent_55%)]" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
-                      <ImageIcon
-                        className="pointer-events-none absolute right-1.5 top-1.5 h-3.5 w-3.5 text-white/20 transition-transform duration-300 group-hover:scale-105 group-hover:text-white/28 sm:h-4 sm:w-4"
-                        aria-hidden
-                      />
-                      <div className="absolute bottom-0 left-0 right-0 p-1.5 pt-4 sm:p-2 sm:pt-5">
-                        <p className="text-[10px] font-semibold leading-tight text-white drop-shadow-md sm:text-[11px]">
-                          {opt.label}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex flex-1 flex-col gap-1.5 p-2 sm:p-2">
-                      <p className="text-[9px] leading-snug text-muted-foreground/90 line-clamp-2 sm:text-[10px] sm:line-clamp-3">
-                        {opt.hint}
-                      </p>
-                      <div className="mt-auto flex flex-col gap-1 sm:flex-row sm:gap-1">
-                        <button
-                          type="button"
-                          disabled={disabled}
-                          onClick={() => pickStill(opt)}
-                          className={cn(
-                            "flex-1 rounded-md border border-white/12 bg-black/40 px-1.5 py-1 text-center text-[8px] font-semibold text-foreground/95 transition-colors sm:text-[9px]",
-                            "hover:bg-white/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
-                            disabled && "pointer-events-none opacity-40",
-                          )}
-                        >
-                          Still · {stillPrice}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={disabled || videoDisabled}
-                          onClick={() => setClipConfirmOpt(opt)}
-                          className={cn(
-                            "flex-1 rounded-md border border-cyan-500/30 bg-cyan-950/25 px-1.5 py-1 text-center text-[8px] font-semibold text-cyan-100/95 transition-colors sm:text-[9px]",
-                            "hover:bg-cyan-950/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/35",
-                            (disabled || videoDisabled) && "pointer-events-none opacity-40",
-                          )}
-                        >
-                          {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? (
-                            <span className="block leading-tight">
-                              Clip
-                              <span className="mt-0.5 block text-[8px] font-normal text-cyan-200/75">Coming soon</span>
-                            </span>
-                          ) : (
-                            <>Clip · {clipPrice}</>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                    <span className="line-clamp-3">{cat.label}</span>
+                    <span className="mt-1 block text-[8px] font-normal uppercase tracking-wider text-muted-foreground/80">
+                      Still · {stillPrice}
+                    </span>
+                  </motion.button>
+                ))}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          <div className="border-t border-white/[0.07] bg-black/40 px-2.5 py-2 sm:px-3">
+            <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/90">Clips</p>
+            <div className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                disabled={disabled || videoDisabled}
+                onClick={() => setClipMood("sfw")}
+                className="rounded-md border border-emerald-500/25 bg-emerald-950/20 px-2 py-1 text-[9px] font-medium text-emerald-100/95 hover:bg-emerald-950/35 disabled:opacity-40"
+              >
+                SFW · {clipPrice}
+              </button>
+              <button
+                type="button"
+                disabled={disabled || videoDisabled}
+                onClick={() => setClipMood("lewd")}
+                className="rounded-md border border-rose-500/25 bg-rose-950/20 px-2 py-1 text-[9px] font-medium text-rose-100/95 hover:bg-rose-950/35 disabled:opacity-40"
+              >
+                Spicy · {clipPrice}
+              </button>
+              <button
+                type="button"
+                disabled={disabled || videoDisabled}
+                onClick={() => setClipMood("nude")}
+                className="rounded-md border border-violet-500/25 bg-violet-950/25 px-2 py-1 text-[9px] font-medium text-violet-100/95 hover:bg-violet-950/40 disabled:opacity-40"
+              >
+                Explicit · {clipPrice}
+              </button>
             </div>
+            {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? (
+              <p className="mt-1.5 text-[8px] text-cyan-200/75">Clips are coming soon — button will queue when live.</p>
+            ) : null}
           </div>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={clipConfirmOpt != null} onOpenChange={(o) => !o && setClipConfirmOpt(null)}>
+      <AlertDialog open={clipMood != null} onOpenChange={(o) => !o && setClipMood(null)}>
         <AlertDialogContent className="border-white/10 bg-[hsl(280_18%_8%)] text-foreground">
           <AlertDialogHeader>
             <AlertDialogTitle>Queue this clip?</AlertDialogTitle>
@@ -741,10 +642,7 @@ function PhotoMoodMenu({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Not now</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={disabled || videoDisabled || !clipConfirmOpt}
-              onClick={() => clipConfirmOpt && runClipForOpt(clipConfirmOpt)}
-            >
+            <AlertDialogAction disabled={disabled || videoDisabled || !clipMood} onClick={runClip}>
               Yes — use {clipPrice}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -101,6 +101,7 @@ import {
   tierToLegacyAffectionPct,
   type AffectionRewardKind,
 } from "@/lib/chatAffection";
+import { pickRandomAffectionStillPreset } from "@/lib/chatStillMenuCategories";
 import { parseAssistantDisplayContent } from "@/lib/chatSignatureBeat";
 import { parseAssistantStructuredBlocks } from "@/lib/parseAssistantStructuredBlocks";
 import type { LustforgeMediaRequest } from "@/lib/parseLustforgeMediaRequest";
@@ -817,13 +818,19 @@ export function useChatSessionController() {
   const generateAffectionRewardImage = async (kind: AffectionRewardKind) => {
     if (!companion || !dbComp || !user) return null;
     try {
-      const tierPrompt = kind === "lewd" ? FAB_SELFIE.lewd.imagePrompt : FAB_SELFIE.nude.imagePrompt;
+      const preset = pickRandomAffectionStillPreset();
+      const menuBase = FAB_SELFIE[preset.tier].imagePrompt;
+      const sceneFused = resolveChatImageGenerationPrompt({
+        messageText: preset.label,
+        menuImagePrompt: menuBase,
+        styledSceneExtension: preset.imagePrompt,
+      });
       const { prompt, portraitConsistencyLock } = buildMasterChatImagePrompt({
         companion,
         dbComp,
-        sceneRequest: tierPrompt,
-        rawUserMessage: tierPrompt,
-        menuImagePrompt: tierPrompt,
+        sceneRequest: sceneFused,
+        rawUserMessage: preset.label,
+        menuImagePrompt: menuBase,
         variationSeed: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`,
       });
 
@@ -840,7 +847,8 @@ export function useChatSessionController() {
           ((dbComp as Record<string, unknown>).image_url as string)) ||
         null;
 
-      const rewardExplicit = kind === "nude" || (kind === "lewd" && isExplicitImageRequest(tierPrompt));
+      const rewardExplicit =
+        kind === "nude" || isExplicitImageRequest(sceneFused) || isExplicitImageRequest(preset.imagePrompt);
       const cd = {
         companionId: companion.id,
         style: "chat-session" as const,
@@ -880,6 +888,7 @@ export function useChatSessionController() {
       return {
         imageUrl,
         imageId,
+        presetId: preset.id,
         timestamp: new Date().toISOString(),
       };
     } catch (err: unknown) {
@@ -1742,7 +1751,7 @@ export function useChatSessionController() {
     const imageResult = await generateAffectionRewardImage(reward);
     if (imageResult?.imageUrl && imageResult.imageId) {
       try {
-        const imagePromptTag = `[Bond reward · tier ${newLevel} · ${reward}]`;
+        const imagePromptTag = `[Bond reward · tier ${newLevel} · ${reward} · ${imageResult.presetId ?? "preset"}]`;
         const rowId = await insertAssistantImageMessage({
           content: imageCaption,
           imageUrl: imageResult.imageUrl,
@@ -2047,17 +2056,24 @@ export function useChatSessionController() {
 
       if (requestingImage) {
         const menuImagePrompt = options?.imageGenerationPrompt ?? null;
-        const teaser = imageRequestFromMenu
-          ? pickMenuImageTeaserLine(
-              classifyChatImageMood({ rawUserMessage: messageText, menuBasePrompt: menuImagePrompt }),
-            )
-          : (await fetchChatImageTeaserLine({
-              systemPrompt: composeChatSystemPrompt(),
-              userRequest: messageText,
-            })) ||
-            pickMenuImageTeaserLine(
-              classifyChatImageMood({ rawUserMessage: messageText, menuBasePrompt: menuImagePrompt }),
-            );
+        const styledExt = options?.styledSceneExtension?.trim();
+        const teaserUserRequest = imageRequestFromMenu
+          ? [
+              `They chose a chat still preset: "${messageText}".`,
+              styledExt ? `Scene direction: ${styledExt.slice(0, 720)}` : "",
+              menuImagePrompt ? `Tier anchor (internal): ${menuImagePrompt.slice(0, 400)}` : "",
+            ]
+              .filter(Boolean)
+              .join("\n")
+          : messageText;
+        const teaser =
+          (await fetchChatImageTeaserLine({
+            systemPrompt: composeChatSystemPrompt(),
+            userRequest: teaserUserRequest,
+          })) ||
+          pickMenuImageTeaserLine(
+            classifyChatImageMood({ rawUserMessage: messageText, menuBasePrompt: menuImagePrompt }),
+          );
         const teaserId = await insertAssistantMessage(teaser, null);
         setMessages((prev) => [
           ...prev,

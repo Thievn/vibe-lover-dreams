@@ -399,6 +399,8 @@ const PARSE_COMPANION_TIMEOUT_MS = 180_000;
 /** DB insert / portrait pipeline must not hang the UI indefinitely on stalled connections. */
 const FORGE_DB_INSERT_TIMEOUT_MS = 120_000;
 const FORGE_PORTRAIT_GEN_TIMEOUT_MS = 150_000;
+/** `spend_forge_coins` / `credit_forge_coins` RPC — must not leave Create spinning if the DB stalls. */
+const FORGE_RPC_TIMEOUT_MS = 60_000;
 const SESSION_LOAD_TIMEOUT_MS = 20_000;
 
 function buildForgeDesignLabSeedPrompt(o: {
@@ -1801,11 +1803,11 @@ User flavor notes: ${extraNotes || "none"}`;
       return;
     }
     if (!isAdmin) {
-      const { data: balRow } = await supabase
-        .from("profiles")
-        .select("tokens_balance")
-        .eq("user_id", userId)
-        .maybeSingle();
+      const { data: balRow } = await withAsyncTimeout(
+        supabase.from("profiles").select("tokens_balance").eq("user_id", userId).maybeSingle(),
+        SESSION_LOAD_TIMEOUT_MS,
+        "Loading forge balance",
+      );
       const bal = typeof balRow?.tokens_balance === "number" ? balRow.tokens_balance : 0;
       setTokens(bal);
       if (bal < finalTotalCost) {
@@ -1827,11 +1829,15 @@ User flavor notes: ${extraNotes || "none"}`;
     }
     try {
       if (!isAdmin) {
-        const spend = await spendForgeCoins(
-          finalTotalCost,
-          "companion_forge",
-          `Forge: create ${batchCount} companion(s)`,
-          { batch_count: batchCount },
+        const spend = await withAsyncTimeout(
+          spendForgeCoins(
+            finalTotalCost,
+            "companion_forge",
+            `Forge: create ${batchCount} companion(s)`,
+            { batch_count: batchCount },
+          ),
+          FORGE_RPC_TIMEOUT_MS,
+          "Forge coin spend (RPC)",
         );
         if (!spend.ok) {
           toast.error(spend.err || "Could not spend Forge Coins.");
@@ -1857,6 +1863,9 @@ User flavor notes: ${extraNotes || "none"}`;
 
       if (effectiveChronicle.length < MIN_CHRONICLE_CHARS) {
         toast.info("Your chronicle is short — expanding prose from your seeds…");
+        toast.message("Expanding chronicle with AI…", {
+          description: "Usually under two minutes. You can keep this tab in the background.",
+        });
         if (isAdmin) pushForgeOp("Chronicle short — design lab expanding prose & starters…", "info");
         const themeSnapForDesignLab = buildForgeThemeSnapshotV1({
           activeForgeTab,
@@ -1987,6 +1996,14 @@ User flavor notes: ${extraNotes || "none"}`;
       } else {
         portraitUrl = stablePortraitDisplayUrl(portraitUrl) ?? portraitUrl;
         if (isAdmin) pushForgeOp("Using existing Live preview portrait for the row.", "info");
+      }
+
+      if (!portraitUrl?.trim()) {
+        throw new Error(
+          isAdmin
+            ? "No portrait image. Run Generate portrait in Live preview (or fix the image pipeline), then Create again."
+            : "No portrait yet. Tap Generate portrait in Live preview and wait for it to finish, then try Create companion again.",
+        );
       }
 
       if (isAdmin) pushForgeOp("Inserting custom_characters row(s)…", "info");
@@ -2158,11 +2175,15 @@ User flavor notes: ${extraNotes || "none"}`;
       const { data: insertedRows, error } = insertRes;
       if (error) {
         if (!isAdmin && userCharged && !userRefunded) {
-          const ref = await creditForgeCoins(
-            finalTotalCost,
-            "refund",
-            "Forge: insert failed — refund",
-            { reason: "insert_error" },
+          const ref = await withAsyncTimeout(
+            creditForgeCoins(
+              finalTotalCost,
+              "refund",
+              "Forge: insert failed — refund",
+              { reason: "insert_error" },
+            ),
+            FORGE_RPC_TIMEOUT_MS,
+            "Forge coin refund (RPC)",
           );
           if (ref.ok) setTokens(ref.newBalance);
           userRefunded = true;
@@ -2220,11 +2241,15 @@ User flavor notes: ${extraNotes || "none"}`;
     } catch (e: unknown) {
       if (!isAdmin && userCharged && !userRefunded) {
         try {
-          const ref = await creditForgeCoins(
-            finalTotalCost,
-            "refund",
-            "Forge: error after charge — refund",
-            { reason: "forge_error" },
+          const ref = await withAsyncTimeout(
+            creditForgeCoins(
+              finalTotalCost,
+              "refund",
+              "Forge: error after charge — refund",
+              { reason: "forge_error" },
+            ),
+            FORGE_RPC_TIMEOUT_MS,
+            "Forge coin refund (RPC)",
           );
           if (ref.ok) {
             setTokens(ref.newBalance);
@@ -3839,6 +3864,7 @@ User flavor notes: ${extraNotes || "none"}`;
                     gradientFrom="#7B2D8E"
                     gradientTo={NEON}
                     rarityFrameBleed
+                    neonEdgeBreathing
                     className="overflow-visible"
                   >
                     <AnimatePresence mode="wait">

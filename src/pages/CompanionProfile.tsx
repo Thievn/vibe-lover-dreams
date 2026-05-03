@@ -42,9 +42,9 @@ import {
 import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFromGallery";
 import { CompanionGalleryGrid } from "@/components/companion/CompanionGalleryGrid";
 import type { CompanionRarity } from "@/lib/companionRarity";
-import { RarityBorderOverlay } from "@/components/rarity/RarityBorderOverlay";
 import { RarityTierCaption } from "@/components/rarity/RarityTierCaption";
-import { ProfilePortraitTierHalo } from "@/components/rarity/ProfilePortraitTierHalo";
+import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
+import { profileTierHaloInnerRoundClass } from "@/lib/profilePortraitTierHalo";
 import { RarityBadgeIcon } from "@/components/rarity/RarityBadgeIcon";
 import { AbyssalProfileParticles } from "@/components/rarity/AbyssalProfileParticles";
 import { cn } from "@/lib/utils";
@@ -937,23 +937,30 @@ const CompanionProfile = () => {
             transition={{ type: "spring", stiffness: 280, damping: 26 }}
             className="mx-auto w-full max-w-[min(100%,460px)] lg:mx-0 lg:max-w-none"
           >
-            <ProfilePortraitTierHalo
+            <TierHaloPortraitFrame
+              variant="card"
+              frameStyle="clean"
               rarity={rarity}
-              isAbyssal={isAbyssal}
               gradientFrom={companion.gradientFrom}
               gradientTo={companion.gradientTo}
+              overlayUrl={dbComp?.rarity_border_overlay_url}
+              aspectClassName={cn(portraitAspectClass, "w-full")}
+              rarityFrameBleed
+              profilePolish={loopVideoActive}
+              overlayClassName={loopVideoActive ? "z-[4]" : undefined}
+              neonEdgeBreathing={!loopVideoActive}
             >
               <PortraitViewLightbox
                 alt={companion.name}
                 stillSrc={stillForProfile}
                 animatedSrc={lightboxAnimated}
-                triggerClassName="rounded-[1.35rem]"
+                triggerClassName={cn("w-full", profileTierHaloInnerRoundClass("card", "clean"))}
               >
                 <div
                   className={cn(
-                    "relative w-full overflow-hidden rounded-[1.35rem]",
+                    "relative h-full min-h-0 w-full overflow-hidden",
+                    profileTierHaloInnerRoundClass("card", "clean"),
                     loopVideoActive ? "bg-black" : "bg-black/15",
-                    portraitAspectClass,
                   )}
                 >
                   {isAbyssal && <AbyssalProfileParticles />}
@@ -1002,20 +1009,10 @@ const CompanionProfile = () => {
                       loopVideoActive ? "z-[3]" : "z-[1]",
                     )}
                   />
-                  <RarityBorderOverlay
-                    rarity={rarity}
-                    overlayUrl={dbComp?.rarity_border_overlay_url}
-                    abyssal={isAbyssal}
-                    profilePolish={loopVideoActive}
-                    gradientFrom={companion.gradientFrom}
-                    gradientTo={companion.gradientTo}
-                    frameBleed={loopVideoActive}
-                    className={loopVideoActive ? "z-[4]" : undefined}
-                  />
                   <RarityTierCaption rarity={rarity} />
                 </div>
               </PortraitViewLightbox>
-            </ProfilePortraitTierHalo>
+            </TierHaloPortraitFrame>
             {profileFeatureLocked ? (
               <div className="mt-4 rounded-2xl border border-primary/35 bg-gradient-to-br from-primary/15 via-black/40 to-fuchsia-950/25 px-4 py-3 space-y-2 shadow-[0_0_28px_rgba(255,45,123,0.12)]">
                 <p className="text-[11px] text-muted-foreground leading-relaxed">{lockedPreviewBannerText}</p>

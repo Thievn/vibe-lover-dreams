@@ -1,10 +1,10 @@
-import { ProfilePortraitTierHalo } from "@/components/rarity/ProfilePortraitTierHalo";
-import { RarityBorderOverlay } from "@/components/rarity/RarityBorderOverlay";
+import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { RarityTierCaption } from "@/components/rarity/RarityTierCaption";
 import { cn } from "@/lib/utils";
 import { isVideoPortraitUrl } from "@/lib/companionMedia";
 import type { CompanionRarity } from "@/lib/companionRarity";
 import { PORTRAIT_CARD_ASPECT_CLASS, PROFILE_LOOP_VIDEO_ASPECT_CLASS } from "@/lib/portraitAspect";
+import { profileTierHaloInnerRoundClass } from "@/lib/profilePortraitTierHalo";
 
 type Props = {
   name: string;
@@ -23,8 +23,7 @@ type Props = {
 };
 
 /**
- * WYSIWYG for Character management: same `ProfilePortraitTierHalo` + `RarityBorderOverlay` path as
- * `CompanionProfile`: 2:3 for stills; 9:16 when looping MP4 (matches typical I2V) + frame bleed.
+ * WYSIWYG for Character management: same `TierHaloPortraitFrame` (clean card) as forge live preview + public profile.
  */
 export function AdminCompanionPortraitPreview({
   name,
@@ -48,17 +47,24 @@ export function AdminCompanionPortraitPreview({
 
   return (
     <div className={cn("w-full", shellClassName, className)}>
-      <ProfilePortraitTierHalo
+      <TierHaloPortraitFrame
+        variant="card"
+        frameStyle="clean"
         rarity={rarity}
-        isAbyssal={isAbyssal}
         gradientFrom={gradientFrom}
         gradientTo={gradientTo}
+        overlayUrl={overlayUrl}
+        aspectClassName={cn(portraitAspectClass, "w-full")}
+        rarityFrameBleed
+        profilePolish={loopVideoActive}
+        overlayClassName={loopVideoActive ? "z-[4]" : undefined}
+        neonEdgeBreathing={!loopVideoActive}
       >
         <div
           className={cn(
-            "relative w-full overflow-hidden rounded-[1.35rem]",
+            "relative h-full min-h-0 w-full overflow-hidden",
+            profileTierHaloInnerRoundClass("card", "clean"),
             loopVideoActive ? "bg-black" : "bg-transparent",
-            portraitAspectClass,
           )}
         >
           <div
@@ -103,19 +109,9 @@ export function AdminCompanionPortraitPreview({
               loopVideoActive ? "z-[3]" : "z-[1]",
             )}
           />
-          <RarityBorderOverlay
-            rarity={rarity}
-            overlayUrl={overlayUrl}
-            abyssal={isAbyssal}
-            profilePolish={loopVideoActive}
-            gradientFrom={gradientFrom}
-            gradientTo={gradientTo}
-            frameBleed={loopVideoActive}
-            className={loopVideoActive ? "z-[4]" : undefined}
-          />
           <RarityTierCaption rarity={rarity} />
         </div>
-      </ProfilePortraitTierHalo>
+      </TierHaloPortraitFrame>
     </div>
   );
 }

@@ -23,6 +23,10 @@ type Props = {
   neonEdgeBreathing?: boolean;
   /** Slight scale on vector frame so the rim / glow meets the card edge (stills + portrait video). */
   rarityFrameBleed?: boolean;
+  /** Profile looping video — diagonal polish + stronger rim (same as `CompanionProfile` overlay pass). */
+  profilePolish?: boolean;
+  /** Merged onto `RarityBorderOverlay` (e.g. raise z-index when a video vignette sits above the default rim). */
+  overlayClassName?: string;
   className?: string;
   children: ReactNode;
 };
@@ -40,11 +44,13 @@ export function TierHaloPortraitFrame({
   aspectClassName = `${PORTRAIT_CARD_ASPECT_CLASS} w-full`,
   neonEdgeBreathing = false,
   rarityFrameBleed = false,
+  profilePolish = false,
   className,
   children,
 }: Props) {
   const isAbyssal = rarity === "abyssal";
   const innerRound = profileTierHaloInnerRoundClass(variant, frameStyle);
+  const overlayBleed = rarityFrameBleed || Boolean(profilePolish);
 
   return (
     <ProfilePortraitTierHalo
@@ -64,8 +70,11 @@ export function TierHaloPortraitFrame({
           overlayUrl={overlayUrl}
           abyssal={isAbyssal}
           frameStyle={frameStyle}
-          frameBleed={rarityFrameBleed}
-          className={innerRound}
+          frameBleed={overlayBleed}
+          profilePolish={profilePolish}
+          gradientFrom={gradientFrom}
+          gradientTo={gradientTo}
+          className={cn(innerRound, overlayClassName)}
         />
       </div>
     </ProfilePortraitTierHalo>
