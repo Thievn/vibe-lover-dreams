@@ -288,6 +288,32 @@ function previewStorageKey(userId: string, forgeMode: CompanionCreatorMode) {
   return `${PREVIEW_STORAGE_PREFIX}_${forgeMode}_${userId}`;
 }
 
+function saveForgePreviewHistoryDiskBackup(userId: string, forgeMode: CompanionCreatorMode, entries: ForgePreviewHistoryEntry[]) {
+  try {
+    localStorage.setItem(
+      previewStorageKey(userId, forgeMode),
+      JSON.stringify({ previewHistory: entries.slice(0, 10), savedAt: new Date().toISOString() }),
+    );
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+function loadForgePreviewHistoryDiskBackup(userId: string, forgeMode: CompanionCreatorMode): ForgePreviewHistoryEntry[] {
+  try {
+    const raw = localStorage.getItem(previewStorageKey(userId, forgeMode));
+    if (!raw) return [];
+    const j = JSON.parse(raw) as { previewHistory?: unknown };
+    if (!Array.isArray(j?.previewHistory)) return [];
+    return j.previewHistory
+      .map((e) => normalizeForgePreviewHistoryEntryLoose(e))
+      .filter((x): x is ForgePreviewHistoryEntry => x !== null)
+      .slice(0, 10);
+  } catch {
+    return [];
+  }
+}
+
 /** Samples a small bitmap for coarse dominant colors — steers generation without sending raw image bytes. */
 async function extractPaletteMoodFromImageFile(file: File): Promise<string> {
   const bmp = await createImageBitmap(file);
@@ -399,6 +425,8 @@ const PARSE_COMPANION_TIMEOUT_MS = 180_000;
 /** DB insert / portrait pipeline must not hang the UI indefinitely on stalled connections. */
 const FORGE_DB_INSERT_TIMEOUT_MS = 120_000;
 const FORGE_PORTRAIT_GEN_TIMEOUT_MS = 150_000;
+/** Hung PostgREST / tab backgrounding should not leave Create spinning forever. */
+const FORGE_NAME_LIST_TIMEOUT_MS = 45_000;
 /** `spend_forge_coins` / `credit_forge_coins` RPC — must not leave Create spinning if the DB stalls. */
 const FORGE_RPC_TIMEOUT_MS = 60_000;
 const SESSION_LOAD_TIMEOUT_MS = 20_000;
@@ -819,7 +847,6 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
 
   const appendPreviewHistory = useCallback(
     (display: string, canonical: string) => {
-      if (isAdmin) return;
       const d = display.trim();
       const c = canonical.trim();
       if (!d || !c) return;
@@ -842,7 +869,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         return [entry, ...hist.filter((e) => e.canonical !== c)].slice(0, 10);
       });
     },
-    [isAdmin, buildForgeSessionPayload],
+    [buildForgeSessionPayload],
   );
 
   const restorePreviewHistoryEntry = useCallback(
@@ -880,13 +907,17 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     if (draft) {
       hydrateForgeFromPayload(draft);
       const ph = (draft as { previewHistory?: unknown }).previewHistory;
-      if (Array.isArray(ph) && !isAdmin) {
-        const cleaned = ph
+      let cleanedFromDraft: ForgePreviewHistoryEntry[] = [];
+      if (Array.isArray(ph)) {
+        cleanedFromDraft = ph
           .map((e) => normalizeForgePreviewHistoryEntryLoose(e))
           .filter((x): x is ForgePreviewHistoryEntry => x !== null)
           .slice(0, 10);
-        if (cleaned.length) setPreviewHistory(cleaned);
       }
+      if (isAdmin && !cleanedFromDraft.length && userId) {
+        cleanedFromDraft = loadForgePreviewHistoryDiskBackup(userId, "admin");
+      }
+      if (cleanedFromDraft.length) setPreviewHistory(cleanedFromDraft);
       toast.message("Your forge is still here", {
         description: "We kept your last mix, story fields, and preview on this device.",
       });
@@ -912,6 +943,9 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       } catch {
         /* ignore corrupt storage */
       }
+    } else if (userId) {
+      const fromDisk = loadForgePreviewHistoryDiskBackup(userId, "admin");
+      if (fromDisk.length) setPreviewHistory(fromDisk);
     }
     setForgeSessionHydrated(true);
   }, [userId, isAdmin, loadingProfile, hydrateForgeFromPayload]);
@@ -925,9 +959,12 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       const base = buildForgeSessionPayload();
       const payload: ForgeStashPayload = {
         ...base,
-        ...(!isAdmin ? { previewHistory: [...previewHistory] } : {}),
+        previewHistory: [...previewHistory],
       };
       saveForgeSessionDraft(userId, mode, payload);
+      if (isAdmin && previewHistory.length) {
+        saveForgePreviewHistoryDiskBackup(userId, "admin", previewHistory);
+      }
     }, 750);
     return () => {
       if (sessionSaveTimerRef.current) clearTimeout(sessionSaveTimerRef.current);
@@ -970,7 +1007,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
 
   /** Keep the history row for the *current* portrait updated as the operator edits fields (same image URL). */
   useEffect(() => {
-    if (!userId || !forgeSessionHydrated || isAdmin) return;
+    if (!userId || !forgeSessionHydrated) return;
     const canon = previewCanonicalUrl?.trim();
     const disp = previewUrl?.trim();
     if (!canon || !disp) return;
@@ -1001,7 +1038,6 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   }, [
     userId,
     forgeSessionHydrated,
-    isAdmin,
     buildForgeSessionPayload,
     previewCanonicalUrl,
     previewUrl,
@@ -1036,7 +1072,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
 
   const clearForgePreview = useCallback(
     (opts?: { silent?: boolean }) => {
-      if (!opts?.silent && !isAdmin) {
+      if (!opts?.silent) {
         const d = previewUrl?.trim();
         const c = previewCanonicalUrl?.trim();
         if (d && c) appendPreviewHistory(d, c);
@@ -1646,34 +1682,32 @@ User flavor notes: ${extraNotes || "none"}`;
       if (!data.imageUrl) throw new Error("No image URL returned");
       const canonical = stablePortraitDisplayUrl(data.publicImageUrl ?? data.imageUrl) ?? data.imageUrl;
       const display = stablePortraitDisplayUrl(data.imageUrl) ?? data.imageUrl;
-      if (!isAdmin && previewUrl && previewCanonicalUrl) {
+      if (previewUrl && previewCanonicalUrl) {
         appendPreviewHistory(previewUrl, previewCanonicalUrl);
       }
       setPreviewUrl(display);
       setPreviewCanonicalUrl(canonical);
-      /** Record the new still too (including first-ever preview) so one FC run is never “only in RAM”. */
-      if (!isAdmin) {
-        window.setTimeout(() => {
-          const snapRaw = buildForgeSessionPayload();
-          const snapshot: Omit<ForgeStashPayload, "previewHistory"> = {
-            ...snapRaw,
-            previewUrl: display,
-            previewCanonicalUrl: canonical,
+      /** Record the new still too (including first-ever preview) so one run is never “only in RAM”. */
+      window.setTimeout(() => {
+        const snapRaw = buildForgeSessionPayload();
+        const snapshot: Omit<ForgeStashPayload, "previewHistory"> = {
+          ...snapRaw,
+          previewUrl: display,
+          previewCanonicalUrl: canonical,
+        };
+        const rid =
+          typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-cur`;
+        setPreviewHistory((hist) => {
+          const entry: ForgePreviewHistoryEntry = {
+            id: rid,
+            display,
+            canonical,
+            savedAt: new Date().toISOString(),
+            snapshot,
           };
-          const rid =
-            typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-cur`;
-          setPreviewHistory((hist) => {
-            const entry: ForgePreviewHistoryEntry = {
-              id: rid,
-              display,
-              canonical,
-              savedAt: new Date().toISOString(),
-              snapshot,
-            };
-            return [entry, ...hist.filter((e) => e.canonical !== canonical)].slice(0, 10);
-          });
-        }, 0);
-      }
+          return [entry, ...hist.filter((e) => e.canonical !== canonical)].slice(0, 10);
+        });
+      }, 0);
       if (isAdmin) pushForgeOp("Portrait render finished — check Live preview.", "ok");
       if (typeof data.newTokensBalance === "number") setTokens(data.newTokensBalance);
       else if (!isAdmin) {
@@ -1866,7 +1900,12 @@ User flavor notes: ${extraNotes || "none"}`;
         toast.message("Expanding chronicle with AI…", {
           description: "Usually under two minutes. You can keep this tab in the background.",
         });
-        if (isAdmin) pushForgeOp("Chronicle short — design lab expanding prose & starters…", "info");
+        if (isAdmin) {
+          pushForgeOp("Chronicle short — design lab expanding prose & starters…", "info");
+          toast.message("Chronicle is short — Grok design lab running", {
+            description: "Usually under 3 minutes. If it errors, check the forge log below and your XAI_API_KEY on parse-companion-prompt.",
+          });
+        }
         const themeSnapForDesignLab = buildForgeThemeSnapshotV1({
           activeForgeTab,
           forgeCardPose,
@@ -2008,7 +2047,11 @@ User flavor notes: ${extraNotes || "none"}`;
 
       if (isAdmin) pushForgeOp("Inserting custom_characters row(s)…", "info");
 
-      const nameReserve = await fetchForgeNameExclusions(supabase, userId);
+      const nameReserve = await withAsyncTimeout(
+        fetchForgeNameExclusions(supabase, userId),
+        FORGE_NAME_LIST_TIMEOUT_MS,
+        "Loading existing forge names",
+      );
       for (const k of nameGenSessionReserved.current) nameReserve.add(k);
       const batchFirstNames: string[] = [];
       if (batchCount === 1) {
@@ -2225,6 +2268,9 @@ User flavor notes: ${extraNotes || "none"}`;
             "ok",
           );
         }
+      }
+      if (isAdmin && userId) {
+        saveForgePreviewHistoryDiskBackup(userId, "admin", previewHistory);
       }
       clearForgeSessionDraft(userId, isAdmin ? "admin" : "user");
       if (!isAdmin) {
@@ -2509,6 +2555,71 @@ User flavor notes: ${extraNotes || "none"}`;
       </div>
     );
   }
+
+  const forgePreviewHistoryDropdown = useMemo(() => {
+    if (!previewHistory.length) return null;
+    return (
+      <div className="mt-3 space-y-1.5">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-2 rounded-xl border border-white/12 bg-black/50 px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:border-primary/35 hover:text-white"
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <History className="h-3.5 w-3.5 shrink-0 text-[hsl(170_100%_55%)]" aria-hidden />
+                <span className="truncate">Portrait history ({previewHistory.length})</span>
+              </span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="w-[min(100vw-2rem,20rem)] max-h-[min(70vh,22rem)] overflow-y-auto border border-white/12 bg-[#0c0a10] text-white"
+          >
+            <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+              {isAdmin ? "Renders on this device" : "Paid previews on this device"}
+            </DropdownMenuLabel>
+            <p className="px-2 pb-2 text-[10px] leading-relaxed text-muted-foreground/90">
+              {isAdmin
+                ? "Restore portrait + all forge fields from a past Generate portrait run (max 10). Also saved to disk so a failed Create does not wipe your stills."
+                : "Restore portrait + all forge fields from when that still was generated (or last edited). Max 10."}
+            </p>
+            <DropdownMenuSeparator className="bg-white/10" />
+            {previewHistory.map((e) => (
+              <DropdownMenuItem
+                key={e.id}
+                className="flex cursor-pointer gap-2.5 py-2.5 focus:bg-white/10"
+                onSelect={() => {
+                  restorePreviewHistoryEntry(e);
+                }}
+              >
+                <img
+                  src={e.display}
+                  alt=""
+                  className="h-14 w-10 shrink-0 rounded-md border border-white/10 object-cover"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <p className="text-[11px] font-medium text-white tabular-nums">
+                    {new Date(e.savedAt).toLocaleString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {e.snapshot ? "Full snapshot · narrative + tabs" : "Portrait only (legacy)"}
+                  </p>
+                </div>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    );
+  }, [previewHistory, isAdmin, restorePreviewHistoryEntry]);
 
   if (loadingProfile) {
     return (
@@ -3790,6 +3901,7 @@ User flavor notes: ${extraNotes || "none"}`;
             )}
 
             {forgePortraitCommitActions("primary")}
+            {forgePreviewHistoryDropdown}
             </div>
           </div>
 
@@ -3953,65 +4065,7 @@ User flavor notes: ${extraNotes || "none"}`;
 
                 {forgePortraitCommitActions("desktopUnderPreview")}
 
-                {!isAdmin && previewHistory.length > 0 ? (
-                  <div className="mt-3 space-y-1.5">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-white/12 bg-black/50 px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:border-primary/35 hover:text-white"
-                        >
-                          <span className="flex items-center gap-2 min-w-0">
-                            <History className="h-3.5 w-3.5 shrink-0 text-[hsl(170_100%_55%)]" aria-hidden />
-                            <span className="truncate">Preview history ({previewHistory.length})</span>
-                          </span>
-                          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="w-[min(100vw-2rem,20rem)] max-h-[min(70vh,22rem)] overflow-y-auto border border-white/12 bg-[#0c0a10] text-white"
-                      >
-                        <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-                          Paid previews on this device
-                        </DropdownMenuLabel>
-                        <p className="px-2 pb-2 text-[10px] leading-relaxed text-muted-foreground/90">
-                          Restore portrait + all forge fields from when that still was generated (or last edited). Max 10.
-                        </p>
-                        <DropdownMenuSeparator className="bg-white/10" />
-                        {previewHistory.map((e) => (
-                          <DropdownMenuItem
-                            key={e.id}
-                            className="flex cursor-pointer gap-2.5 py-2.5 focus:bg-white/10"
-                            onSelect={() => {
-                              restorePreviewHistoryEntry(e);
-                            }}
-                          >
-                            <img
-                              src={e.display}
-                              alt=""
-                              className="h-14 w-10 shrink-0 rounded-md border border-white/10 object-cover"
-                              referrerPolicy="no-referrer"
-                            />
-                            <div className="min-w-0 flex-1 space-y-0.5">
-                              <p className="text-[11px] font-medium text-white tabular-nums">
-                                {new Date(e.savedAt).toLocaleString(undefined, {
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground">
-                                {e.snapshot ? "Full snapshot · narrative + tabs" : "Portrait only (legacy)"}
-                              </p>
-                            </div>
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                ) : null}
+                {forgePreviewHistoryDropdown}
 
                 {/* Mobile “Preview” tab only — desktop actions are `desktopUnderPreview` above */}
                 {forgePortraitCommitActions("mobilePreview")}

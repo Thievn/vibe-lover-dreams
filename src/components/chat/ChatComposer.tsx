@@ -467,8 +467,8 @@ function StillStylePicker({
   const galleryRow = (
     <div
       className={cn(
-        "flex flex-wrap items-stretch gap-2",
-        photoDockLayout === "full" && "border-t border-white/[0.08] pt-2.5",
+        "flex flex-wrap items-stretch gap-1.5 sm:gap-2",
+        photoDockLayout === "full" && "border-t border-white/[0.08] pt-2",
       )}
     >
       <motion.button
@@ -477,13 +477,13 @@ function StillStylePicker({
         disabled={disabled}
         onClick={() => openGallery("selfies")}
         className={cn(
-          "inline-flex min-h-[2.5rem] flex-1 min-w-[10rem] items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-white/95 shadow-inner hover:border-primary/40 hover:bg-white/[0.09]",
-          photoDockLayout === "live_voice" && "min-h-[2.25rem] min-w-0 text-xs py-1.5",
+          "inline-flex min-h-[2.35rem] flex-1 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.06] px-2.5 py-1.5 text-xs font-semibold text-white/95 shadow-inner hover:border-primary/40 hover:bg-white/[0.09] sm:min-h-[2.5rem] sm:rounded-xl sm:px-3 sm:text-sm",
+          photoDockLayout === "live_voice" && "min-h-[2rem] py-1 text-[10px] gap-1",
           disabled && "pointer-events-none opacity-40",
         )}
       >
-        <Layers className="h-4 w-4 shrink-0 text-emerald-200/90" aria-hidden />
-        Selfie pose gallery
+        <Layers className={cn("shrink-0 text-emerald-200/90", photoDockLayout === "live_voice" ? "h-3 w-3" : "h-3.5 w-3.5 sm:h-4 sm:w-4")} aria-hidden />
+        {photoDockLayout === "live_voice" ? "Selfies" : "Selfie gallery"}
       </motion.button>
       <motion.button
         type="button"
@@ -491,13 +491,13 @@ function StillStylePicker({
         disabled={disabled}
         onClick={() => openGallery("lewd")}
         className={cn(
-          "inline-flex min-h-[2.5rem] flex-1 min-w-[10rem] items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-white/95 shadow-inner hover:border-primary/40 hover:bg-white/[0.09]",
-          photoDockLayout === "live_voice" && "min-h-[2.25rem] min-w-0 text-xs py-1.5",
+          "inline-flex min-h-[2.35rem] flex-1 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.06] px-2.5 py-1.5 text-xs font-semibold text-white/95 shadow-inner hover:border-primary/40 hover:bg-white/[0.09] sm:min-h-[2.5rem] sm:rounded-xl sm:px-3 sm:text-sm",
+          photoDockLayout === "live_voice" && "min-h-[2rem] py-1 text-[10px] gap-1",
           disabled && "pointer-events-none opacity-40",
         )}
       >
-        <Aperture className="h-4 w-4 shrink-0 text-rose-200/90" aria-hidden />
-        Lewd pose gallery
+        <Aperture className={cn("shrink-0 text-rose-200/90", photoDockLayout === "live_voice" ? "h-3 w-3" : "h-3.5 w-3.5 sm:h-4 sm:w-4")} aria-hidden />
+        {photoDockLayout === "live_voice" ? "Lewd" : "Lewd gallery"}
       </motion.button>
     </div>
   );
@@ -505,25 +505,25 @@ function StillStylePicker({
   return (
     <>
       {photoDockLayout === "live_voice" ? (
-        <div className="relative mb-2 overflow-hidden rounded-xl border border-white/[0.1] bg-black/45 px-2.5 py-2 sm:px-3">
-          <div className="relative flex flex-col gap-1.5">
-            <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-primary/90">Photos</p>
+        <div className="relative mb-1.5 overflow-hidden rounded-lg border border-white/[0.08] bg-black/40 px-2 py-1.5 sm:px-2.5">
+          <div className="relative flex flex-col gap-1">
+            <p className="text-[8px] font-bold uppercase tracking-[0.18em] text-primary/85">Photos</p>
             {galleryRow}
           </div>
         </div>
       ) : (
-        <div className="relative mb-3 overflow-hidden rounded-2xl border border-white/[0.12] bg-gradient-to-br from-fuchsia-950/40 via-black/60 to-cyan-950/25 px-3 py-3 shadow-[0_0_40px_rgba(255,45,123,0.14),inset_0_1px_0_rgba(255,255,255,0.07)] sm:px-4 sm:py-3.5">
+        <div className="relative mb-2 overflow-hidden rounded-xl border border-white/[0.1] bg-gradient-to-br from-fuchsia-950/35 via-black/60 to-cyan-950/22 px-3 py-2.5 shadow-[0_0_28px_rgba(255,45,123,0.1),inset_0_1px_0_rgba(255,255,255,0.06)] sm:px-3.5 sm:py-3">
           <div
-            className="pointer-events-none absolute inset-0 rounded-2xl opacity-[0.45] blur-2xl bg-gradient-to-tr from-primary/25 via-transparent to-[#00ffd4]/15"
+            className="pointer-events-none absolute inset-0 rounded-xl opacity-[0.4] blur-xl bg-gradient-to-tr from-primary/22 via-transparent to-[#00ffd4]/12"
             aria-hidden
           />
-          <div className="relative flex flex-col gap-3">
+          <div className="relative flex flex-col gap-2">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0 space-y-0.5">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary sm:text-[11px]">Photos</p>
-                <p className="text-xs font-medium text-white/95 sm:text-sm">Ask {companionName} for a still or pick a pose</p>
-                <p className="text-[11px] leading-snug text-muted-foreground/90 max-w-xl">
-                  One tap sends a themed line + still. Gallery has every sub-style for selfies, lewd, and clips.
+                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-primary sm:text-[10px]">Photos</p>
+                <p className="text-[11px] font-medium text-white/95 sm:text-xs">Stills or pose gallery for {companionName}</p>
+                <p className="text-[10px] leading-snug text-muted-foreground/88 max-w-xl line-clamp-2">
+                  One tap sends a themed line + still. Open a gallery for every sub-style.
                 </p>
               </div>
               {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? (
@@ -533,19 +533,19 @@ function StillStylePicker({
               ) : null}
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
               <motion.button
                 type="button"
                 whileTap={{ scale: 0.98 }}
                 disabled={disabled}
                 onClick={() => onRequest("selfie_picture")}
                 className={cn(
-                  "inline-flex min-h-[2.75rem] flex-1 min-w-[7.5rem] flex-col items-start justify-center gap-0.5 rounded-xl border border-emerald-400/35 bg-gradient-to-br from-emerald-950/50 via-black/50 to-teal-950/30 px-3 py-2 text-left shadow-[0_0_24px_rgba(52,211,153,0.12)] transition-[box-shadow,border-color,transform] hover:border-emerald-300/50 hover:shadow-[0_0_32px_rgba(52,211,153,0.2)] sm:min-w-[8.5rem] sm:px-3.5",
+                  "inline-flex min-h-[2.45rem] flex-1 min-w-[6.5rem] flex-col items-start justify-center gap-0.5 rounded-lg border border-emerald-400/35 bg-gradient-to-br from-emerald-950/50 via-black/50 to-teal-950/30 px-2.5 py-1.5 text-left shadow-[0_0_18px_rgba(52,211,153,0.1)] transition-[box-shadow,border-color,transform] hover:border-emerald-300/50 hover:shadow-[0_0_26px_rgba(52,211,153,0.16)] sm:min-h-[2.65rem] sm:min-w-[7.5rem] sm:rounded-xl sm:px-3 sm:py-2",
                   disabled && "pointer-events-none opacity-40",
                 )}
               >
-                <span className="inline-flex items-center gap-1.5 text-sm font-bold text-emerald-50">
-                  <Camera className="h-4 w-4 shrink-0 text-emerald-200" aria-hidden />
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-50 sm:text-sm">
+                  <Camera className="h-3.5 w-3.5 shrink-0 text-emerald-200 sm:h-4 sm:w-4" aria-hidden />
                   SFW selfie
                 </span>
                 <span className="text-[10px] font-medium uppercase tracking-wider text-emerald-200/80">{stillPrice}</span>
@@ -556,12 +556,12 @@ function StillStylePicker({
                 disabled={disabled}
                 onClick={() => onRequest("lewd_picture")}
                 className={cn(
-                  "inline-flex min-h-[2.75rem] flex-1 min-w-[7.5rem] flex-col items-start justify-center gap-0.5 rounded-xl border border-rose-400/40 bg-gradient-to-br from-rose-950/55 via-black/50 to-fuchsia-950/35 px-3 py-2 text-left shadow-[0_0_26px_rgba(244,63,94,0.14)] transition-[box-shadow,border-color,transform] hover:border-rose-300/55 hover:shadow-[0_0_34px_rgba(244,63,94,0.22)] sm:min-w-[8.5rem] sm:px-3.5",
+                  "inline-flex min-h-[2.45rem] flex-1 min-w-[6.5rem] flex-col items-start justify-center gap-0.5 rounded-lg border border-rose-400/40 bg-gradient-to-br from-rose-950/55 via-black/50 to-fuchsia-950/35 px-2.5 py-1.5 text-left shadow-[0_0_18px_rgba(244,63,94,0.12)] transition-[box-shadow,border-color,transform] hover:border-rose-300/55 hover:shadow-[0_0_28px_rgba(244,63,94,0.18)] sm:min-h-[2.65rem] sm:min-w-[7.5rem] sm:rounded-xl sm:px-3 sm:py-2",
                   disabled && "pointer-events-none opacity-40",
                 )}
               >
-                <span className="inline-flex items-center gap-1.5 text-sm font-bold text-rose-50">
-                  <Flame className="h-4 w-4 shrink-0 text-rose-200" aria-hidden />
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-50 sm:text-sm">
+                  <Flame className="h-3.5 w-3.5 shrink-0 text-rose-200 sm:h-4 sm:w-4" aria-hidden />
                   Lewd still
                 </span>
                 <span className="text-[10px] font-medium uppercase tracking-wider text-rose-200/85">{stillPrice}</span>
@@ -572,12 +572,12 @@ function StillStylePicker({
                 disabled={disabled}
                 onClick={() => onRequest("nude_picture")}
                 className={cn(
-                  "inline-flex min-h-[2.75rem] flex-1 min-w-[7.5rem] flex-col items-start justify-center gap-0.5 rounded-xl border border-violet-400/40 bg-gradient-to-br from-violet-950/55 via-black/50 to-indigo-950/35 px-3 py-2 text-left shadow-[0_0_26px_rgba(167,139,250,0.16)] transition-[box-shadow,border-color,transform] hover:border-violet-300/55 hover:shadow-[0_0_34px_rgba(167,139,250,0.24)] sm:min-w-[8.5rem] sm:px-3.5",
+                  "inline-flex min-h-[2.45rem] flex-1 min-w-[6.5rem] flex-col items-start justify-center gap-0.5 rounded-lg border border-violet-400/40 bg-gradient-to-br from-violet-950/55 via-black/50 to-indigo-950/35 px-2.5 py-1.5 text-left shadow-[0_0_18px_rgba(167,139,250,0.12)] transition-[box-shadow,border-color,transform] hover:border-violet-300/55 hover:shadow-[0_0_28px_rgba(167,139,250,0.2)] sm:min-h-[2.65rem] sm:min-w-[7.5rem] sm:rounded-xl sm:px-3 sm:py-2",
                   disabled && "pointer-events-none opacity-40",
                 )}
               >
-                <span className="inline-flex items-center gap-1.5 text-sm font-bold text-violet-50">
-                  <Sparkles className="h-4 w-4 shrink-0 text-violet-200" aria-hidden />
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-violet-50 sm:text-sm">
+                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-violet-200 sm:h-4 sm:w-4" aria-hidden />
                   Explicit still
                 </span>
                 <span className="text-[10px] font-medium uppercase tracking-wider text-violet-200/85">{nudePrice}</span>

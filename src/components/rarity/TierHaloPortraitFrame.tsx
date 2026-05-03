@@ -65,6 +65,8 @@ export function TierHaloPortraitFrame({
       className={className}
     >
       <div className={cn("relative min-h-0 overflow-hidden isolate", innerRound, aspectClassName)}>
+        {/* Portrait / labels first — vector frame sits above so the rim reads (hollow-center SVG). */}
+        <div className="relative z-0 min-h-0 h-full w-full">{children}</div>
         <RarityBorderOverlay
           rarity={rarity}
           overlayUrl={overlayUrl}
@@ -72,9 +74,8 @@ export function TierHaloPortraitFrame({
           frameStyle={frameStyle}
           frameBleed={overlayBleed}
           profilePolish={profilePolish}
-          className={cn("z-0", innerRound, overlayClassName)}
+          className={cn("z-[2]", innerRound, overlayClassName)}
         />
-        <div className="relative z-[40] min-h-0 h-full w-full">{children}</div>
       </div>
     </ProfilePortraitTierHalo>
   );

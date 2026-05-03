@@ -52,14 +52,13 @@ export function ProfilePortraitTierHalo({
 
   return (
     <div className={cn("relative isolate", r.outer, className)}>
-      {!isCleanCard ? (
-        <RarityNeonGlowLayers
-          rarity={rarity}
-          variant={variant}
-          profileBreathing={neonEdgeBreathing}
-          roundClass={r.outer}
-        />
-      ) : null}
+      {/* Edge-hugging tier glow — clean cards skipped this before, which hid rarity energy on grids. */}
+      <RarityNeonGlowLayers
+        rarity={rarity}
+        variant={variant}
+        profileBreathing={neonEdgeBreathing}
+        roundClass={r.outer}
+      />
       <div
         className={cn(
           "relative z-[1] overflow-hidden isolate",

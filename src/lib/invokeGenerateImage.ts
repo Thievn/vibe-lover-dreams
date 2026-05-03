@@ -67,7 +67,25 @@ export async function invokeGenerateImage(
       signal,
     });
 
-  await supabase.auth.refreshSession();
+  const SESSION_REFRESH_MS = 25_000;
+  try {
+    await Promise.race([
+      supabase.auth.refreshSession(),
+      new Promise<never>((_, reject) => {
+        globalThis.setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Session refresh timed out after ${SESSION_REFRESH_MS / 1000}s — sign out and back in, then retry image generation.`,
+              ),
+            ),
+          SESSION_REFRESH_MS,
+        );
+      }),
+    ]);
+  } catch (e: unknown) {
+    return { data: null, error: e instanceof Error ? e : new Error(String(e)) };
+  }
   const session = (await supabase.auth.getSession()).data.session;
   const bearer = session?.access_token;
   if (!bearer) {

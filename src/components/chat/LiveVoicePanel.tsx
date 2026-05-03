@@ -361,40 +361,33 @@ export function LiveVoicePanel({
     <div
       id="lf-live-voice-panel"
       className={cn(
-        "rounded-xl border border-[#00ffd4]/20 bg-gradient-to-br from-black/70 via-[hsl(280_30%_8%)]/95 to-black/80 p-2 space-y-1.5 shadow-[0_0_32px_rgba(0,255,212,0.06)]",
+        "rounded-lg border border-[#00ffd4]/18 bg-gradient-to-br from-black/75 via-[hsl(280_30%_8%)]/92 to-black/80 p-1.5 shadow-[0_0_20px_rgba(0,255,212,0.05)] space-y-1",
         className,
       )}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="flex items-baseline gap-2 flex-wrap">
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#00ffd4]/90">Live Voice</p>
-              {rate != null ? (
-                <span className="text-[9px] font-medium tabular-nums text-amber-200/90">
-                  {rate} FC/min · ~{runningFc} FC
-                </span>
-              ) : null}
-            </div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-[#00ffd4]/90">Live Voice</p>
+            {rate != null ? (
+              <span className="text-[8px] font-medium tabular-nums text-amber-200/90">
+                {rate} FC/min · ~{runningFc} FC
+              </span>
+            ) : null}
             {onVoiceSettingsClick ? (
               <button
                 type="button"
                 onClick={onVoiceSettingsClick}
-                className="text-[10px] text-primary/80 underline-offset-2 hover:underline"
+                className="text-[8px] text-primary/80 underline-offset-2 hover:underline"
               >
-                Voice &amp; TTS
+                Voice
               </button>
             ) : null}
           </div>
-          <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight line-clamp-2">
-            Coins accrue while the mic is open. <span className="text-[#00ffd4]/85">Tap the square</span> to send &amp;
-            transcribe; type anytime below.
-            {disabled && rate != null ? (
-              <span className="mt-0.5 block text-amber-200/85">Need {rate} FC+ for mic &amp; ramp.</span>
-            ) : null}
-            {voiceInteractiveLocked && !disabled ? (
-              <span className="mt-0.5 block text-[#00ffd4]/80">Open the mic for ramp &amp; quick lines.</span>
-            ) : null}
+          <p className="text-[8px] text-muted-foreground mt-0.5 leading-snug line-clamp-2">
+            <span className="text-[#00ffd4]/85">Square</span> = send · type below anytime.
+            {disabled && rate != null ? <span className="text-amber-200/85"> · Need {rate}+ FC</span> : null}
+            {voiceInteractiveLocked && !disabled ? <span className="text-[#00ffd4]/80"> · Open mic for ramp</span> : null}
           </p>
         </div>
         <div className="flex flex-col items-end gap-0.5 shrink-0">
@@ -405,7 +398,7 @@ export function LiveVoicePanel({
               disabled={off || transcribing}
               onClick={onMicClick}
               className={cn(
-                "relative flex h-11 w-11 select-none items-center justify-center rounded-xl border-2 transition-all touch-manipulation",
+                "relative flex h-9 w-9 select-none items-center justify-center rounded-lg border-2 transition-all touch-manipulation",
                 recording
                   ? "border-destructive bg-destructive/20 text-destructive hover:bg-destructive/30"
                   : "border-[#00ffd4]/50 bg-[#00ffd4]/10 text-[#00ffd4] hover:bg-[#00ffd4]/20",
@@ -415,27 +408,37 @@ export function LiveVoicePanel({
               aria-label={recording ? "Stop recording and send to chat" : "Start open microphone for live voice"}
             >
               {transcribing ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : recording ? (
-                <Square className="h-5 w-5 fill-current" />
+                <Square className="h-4 w-4 fill-current" />
               ) : (
-                <Mic className="h-5 w-5" />
+                <Mic className="h-4 w-4" />
               )}
             </button>
           </div>
-          <span className="text-[8px] text-muted-foreground text-right max-w-[6.5rem] leading-tight">
-            {transcribing ? "Transcribing…" : recording ? "Recording — tap square" : "Open mic"}
+          <span className="text-[7px] text-muted-foreground text-right max-w-[5.5rem] leading-tight">
+            {transcribing ? "Transcribing…" : recording ? "Tap square" : "Mic"}
           </span>
         </div>
       </div>
 
-      <div
-        id="lf-ramp-block"
-        className={cn(
-          "rounded-lg border border-white/[0.07] bg-black/25 px-2 py-1.5 space-y-1.5",
-          rampModeActive && "border-orange-500/25 bg-gradient-to-br from-orange-950/20 to-transparent",
-        )}
-      >
+      <details className="group/ramp rounded-md border border-white/[0.06] bg-black/20 open:border-orange-500/20">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1 text-left text-[9px] text-muted-foreground transition-colors hover:bg-white/[0.04] [&::-webkit-details-marker]:hidden">
+          <span>
+            <span className="font-semibold uppercase tracking-[0.16em] text-orange-200/85">Ramp</span>
+            <span className="text-white/35"> · </span>
+            <span className="text-white/55">presets & quick lines</span>
+            {rampModeActive ? <span className="ml-1.5 text-orange-200/90">· on</span> : null}
+          </span>
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-open/ramp:rotate-180" aria-hidden />
+        </summary>
+        <div
+          id="lf-ramp-block"
+          className={cn(
+            "border-t border-white/[0.06] px-2 py-1.5 space-y-1.5",
+            rampModeActive && "bg-gradient-to-br from-orange-950/15 to-transparent",
+          )}
+        >
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-baseline gap-2">
             <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-orange-200/90">Ramp</p>
@@ -545,7 +548,8 @@ export function LiveVoicePanel({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
+        </div>
+      </details>
     </div>
   );
 }
