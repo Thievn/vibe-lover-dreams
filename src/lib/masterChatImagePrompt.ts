@@ -112,13 +112,97 @@ export type MasterImagePromptArgs = {
   rawUserMessage: string;
   /** When set, the sceneRequest may be a menu base — still merged with theming. */
   menuImagePrompt: string | null;
+  /** Randomizes micro-variation lines (setting / lens / pose nudge) so consecutive stills diverge. */
+  variationSeed?: string;
 };
+
+function hashVariationSeed(s: string): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+
+function pickVariant<T>(arr: readonly T[], seed: number, salt: number): T {
+  const idx = (seed + salt * 2654435761) % arr.length;
+  return arr[idx]!;
+}
+
+function shotVariationBlock(mood: FabSelfieTier, seed: number): string {
+  const lens = [
+    "35mm storytelling lens, gentle distortion control",
+    "50mm portrait, creamy bokeh, natural perspective",
+    "24mm environmental selfie arm, slight wide character",
+    "85mm compression, flattering face flattening",
+  ] as const;
+  const sfwSets = [
+    "Balcony / window rim light with city or garden bokeh.",
+    "Cafe nook, book stack, or study corner — lived-in props.",
+    "Transit or street golden hour — motion-safe, candid energy.",
+    "Soft studio corner with fabric backdrop — editorial SFW.",
+  ] as const;
+  const sfwPose = [
+    "Slight hip shift + relaxed shoulders; eyes to lens.",
+    "Three-quarter turn with chin low — friendly confidence.",
+    "One hand in hair, phone slightly high — classic selfie geometry.",
+    "Seated lean-forward — engaged, conspiratorial smile.",
+  ] as const;
+  const lewdSets = [
+    "Velvet lounge or hotel lamp pool — warm pools of light.",
+    "Steam-soft bathroom glass or marble — tasteful silhouette beats.",
+    "Neon rim + deep shadow alley or private studio — cinematic tease.",
+    "Sunset balcony with sheer curtain — wind and fabric motion.",
+  ] as const;
+  const lewdPose = [
+    "Torso twist with weight on back foot — curve read without crude staging.",
+    "Over-shoulder glance — **tasteful backshot** framing, fabric implying form.",
+    "Seated edge-of-bed lean — knees angled, editorial lingerie grammar.",
+    "Mirror three-quarter — outfit story legible, face still hero.",
+  ] as const;
+  const nudeSets = [
+    "Fine-art boudoir: silk-draped chaise, single key light.",
+    "Moonlit balcony silhouette — body as shape language, not graphic.",
+    "Marble / steam atmosphere — highlights on collarbones and spine curve.",
+    "Studio fog + black seamless — sculptural nude, graceful contrapposto.",
+  ] as const;
+  const nudePose = [
+    "Arms loose, torso long — breath-in grace, no explicit spread.",
+    "Seated twist, one knee raised — modest triangle composition.",
+    "Standing profile or 3/4 — line of back and neck as focal curve.",
+    "Sheet-wrap or fabric drape — implied nude, editorial restraint.",
+  ] as const;
+
+  if (mood === "nude") {
+    return [
+      "— SHOT VARIATION (randomized per request) —",
+      `Set dressing bias: ${pickVariant(nudeSets, seed, 1)}`,
+      `Pose family: ${pickVariant(nudePose, seed, 2)}`,
+      `Lens / camera: ${pickVariant(lens, seed, 3)}.`,
+    ].join(" ");
+  }
+  if (mood === "lewd") {
+    return [
+      "— SHOT VARIATION (randomized per request) —",
+      `Set dressing bias: ${pickVariant(lewdSets, seed, 1)}`,
+      `Pose family: ${pickVariant(lewdPose, seed, 2)}`,
+      `Lens / camera: ${pickVariant(lens, seed, 3)}.`,
+    ].join(" ");
+  }
+  return [
+    "— SHOT VARIATION (randomized per request) —",
+    `Set dressing bias: ${pickVariant(sfwSets, seed, 1)}`,
+    `Pose family: ${pickVariant(sfwPose, seed, 2)}`,
+    `Lens / camera: ${pickVariant(lens, seed, 3)}.`,
+  ].join(" ");
+}
 
 /**
  * Produces the full `prompt` string and stronger `portraitConsistencyLock` for `invokeGenerateImage` / characterData.
  */
 export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { prompt: string; portraitConsistencyLock: string } {
-  const { companion, dbComp, sceneRequest, rawUserMessage, menuImagePrompt } = args;
+  const { companion, dbComp, sceneRequest, rawUserMessage, menuImagePrompt, variationSeed } = args;
   const profile = resolvePersonalityMatrix(companion);
   const seeds = forgePersonalitySeedsProse(profile).split("\n").map((l) => `  ${l}`).join("\n");
   const bodyType =
@@ -128,6 +212,11 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
   const art = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
   const pack = (dbComp.image_prompt || "").trim().slice(0, 900);
   const mood = classifyChatImageMood({ rawUserMessage, menuBasePrompt: menuImagePrompt });
+  const seedStr =
+    (variationSeed ?? "").trim() ||
+    `${companion.id}:${sceneRequest.length}:${rawUserMessage.length}:${menuImagePrompt?.length ?? 0}`;
+  const variationHash = hashVariationSeed(seedStr);
+  const shotVariation = shotVariationBlock(mood, variationHash);
   const explicit = isExplicitImageRequest(rawUserMessage) || isExplicitImageRequest(sceneRequest);
   const tierLine = explicit
     ? "Provider-safe adult tone: strong tease and artistic nude are fine — stay in **editorial / fine-art boudoir** language; avoid hardcore acts, graphic anatomy, or degrading angles. User crude phrasing will be rewritten server-side; your job is scene fidelity + identity lock."
@@ -159,6 +248,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
     "— USER SCENE (creative freedom inside identity lock) —",
     sceneRequest.trim() || "Flattering portrait-appropriate key art matching the matrix above.",
     "Honor specific user asks (shower, beach, bed, etc.) with accurate environment — still the same person.",
+    shotVariation,
     moodNsfwClauses(mood),
     tierLine,
   ]

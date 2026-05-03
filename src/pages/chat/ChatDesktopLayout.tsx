@@ -85,6 +85,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
     handleTts,
     ttsLoadingId,
     ttsPlayingId,
+    ttsWordHighlight,
     messagesEndRef,
     handleSaveImageBackup,
     savingBackupImageId,
@@ -289,6 +290,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
                 onTtsClick={handleTts}
                 ttsLoadingId={ttsLoadingId}
                 ttsPlayingId={ttsPlayingId}
+                ttsWordHighlight={ttsWordHighlight}
                 messagesEndRef={messagesEndRef}
                 onSaveImageBackup={user ? handleSaveImageBackup : undefined}
                 savingBackupImageId={savingBackupImageId}

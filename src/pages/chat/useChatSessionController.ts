@@ -162,13 +162,21 @@ export function useChatSessionController() {
   const prevLoadingRef = useRef(false);
   const [ttsLoadingId, setTtsLoadingId] = useState<string | null>(null);
   const [ttsPlayingId, setTtsPlayingId] = useState<string | null>(null);
+  /** Optional word index highlight while TTS plays (driven by audio `timeupdate`). */
+  const [ttsWordHighlight, setTtsWordHighlight] = useState<{ messageId: string; wordIndex: number } | null>(null);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsAudioListenerDetachRef = useRef<(() => void) | null>(null);
+  const ttsWordUpdateLastMsRef = useRef(0);
   const [sendingVibrationId, setSendingVibrationId] = useState<string | null>(null);
   const [livePatternId, setLivePatternId] = useState<string | null>(null);
   const sustainedToySessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
+  /** True when the active sustained Lovense session was started from TTS `playing` (stop when TTS ends or is replaced). */
+  const lovenseSustainedFromTtsRef = useRef(false);
   /** When TTS autoplay is on, queue here and run after playback starts in `handleTts` (avoids toy-before-voice). */
   const pendingLovenseForTtsRef = useRef<{ messageId: string; command: unknown } | null>(null);
-  const executeDeviceCommandRef = useRef<(command: unknown) => Promise<void>>(async () => {});
+  const executeDeviceCommandRef = useRef<(command: unknown, opts?: { fromTts?: boolean }) => Promise<void>>(
+    async () => {},
+  );
   const [toyDriveActive, setToyDriveActive] = useState(false);
   const [sessionMode, setSessionMode] = useState<ChatSessionMode>(() => getChatSessionMode());
   /** Live Voice — Ramp Mode (prompt + Lovense driver, see LiveVoicePanel). */
@@ -382,6 +390,7 @@ export function useChatSessionController() {
   const stopSustainedToy = useCallback(async () => {
     const s = sustainedToySessionRef.current;
     sustainedToySessionRef.current = null;
+    lovenseSustainedFromTtsRef.current = false;
     if (s) await s.stop();
     setLivePatternId(null);
     setToyDriveActive(false);
@@ -727,6 +736,7 @@ export function useChatSessionController() {
         sceneRequest: userRequest,
         rawUserMessage: genOpts.rawUserMessage,
         menuImagePrompt: genOpts.menuImagePrompt,
+        variationSeed: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`,
       });
       const prompt = masterPrompt;
 
@@ -814,6 +824,7 @@ export function useChatSessionController() {
         sceneRequest: tierPrompt,
         rawUserMessage: tierPrompt,
         menuImagePrompt: tierPrompt,
+        variationSeed: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`,
       });
 
       const resolvedBodyType =
@@ -1029,7 +1040,7 @@ export function useChatSessionController() {
     }
   };
 
-  /** Classic → `openrouter-chat`; Live Voice assistant text → `grok-chat` (xAI). */
+  /** Companion text (classic + Live Voice assistant line) → `grok-chat` (xAI). */
   const composeChatSystemPrompt = () => {
     if (!companion) return "";
     const toyBlock =
@@ -1077,7 +1088,7 @@ export function useChatSessionController() {
     openingFantasyStarterTitleRef.current = null;
   };
 
-  const executeDeviceCommand = async (command: any) => {
+  const executeDeviceCommand = async (command: any, opts?: { fromTts?: boolean }) => {
     if (!user || !hasDevice || !command) return;
 
     const baseCmdEarly = String(command.command || "vibrate").toLowerCase();
@@ -1119,6 +1130,7 @@ export function useChatSessionController() {
     try {
       const session = createSustainedLovenseSession(user.id, lovenseCommand);
       sustainedToySessionRef.current = session;
+      lovenseSustainedFromTtsRef.current = Boolean(opts?.fromTts);
       setToyDriveActive(true);
     } catch (err: unknown) {
       console.error("Device command error:", err);
@@ -1228,6 +1240,16 @@ export function useChatSessionController() {
     async (msg: ChatMessage) => {
       if (!user || msg.role !== "assistant" || !msg.content?.trim()) return;
 
+      const displayForTts = parseAssistantDisplayContent(msg.content).displayText;
+      const ttsWords = displayForTts.split(/\s+/).filter(Boolean);
+
+      const endTtsLovenseIfLinked = () => {
+        if (lovenseSustainedFromTtsRef.current) {
+          void stopSustainedToy();
+        }
+        setTtsWordHighlight(null);
+      };
+
       const clearPendingToyForThisMessage = () => {
         if (pendingLovenseForTtsRef.current?.messageId === msg.id) {
           pendingLovenseForTtsRef.current = null;
@@ -1246,49 +1268,85 @@ export function useChatSessionController() {
           const pending = pendingLovenseForTtsRef.current;
           if (pending?.messageId === msg.id) {
             pendingLovenseForTtsRef.current = null;
-            await executeDeviceCommandRef.current(pending.command);
+            await executeDeviceCommandRef.current(pending.command, { fromTts: true });
           }
           feedRampIfPending();
         })();
       };
 
-      const wireAudio = (a: HTMLAudioElement) => {
+      const bindAudioUi = (a: HTMLAudioElement) => {
         a.addEventListener("playing", onAudioPlaying, { once: true });
+        const onTime = () => {
+          if (ttsWords.length <= 1) return;
+          const d = a.duration;
+          if (!Number.isFinite(d) || d <= 0.05) return;
+          const nowTs = performance.now();
+          if (nowTs - ttsWordUpdateLastMsRef.current < 110) return;
+          ttsWordUpdateLastMsRef.current = nowTs;
+          const idx = Math.min(ttsWords.length - 1, Math.floor((a.currentTime / d) * ttsWords.length));
+          setTtsWordHighlight({ messageId: msg.id, wordIndex: idx });
+        };
+        let detach: () => void;
+        const onEnded = () => {
+          detach();
+          ttsAudioListenerDetachRef.current = null;
+          setTtsPlayingId(null);
+          endTtsLovenseIfLinked();
+        };
+        detach = () => {
+          a.removeEventListener("timeupdate", onTime);
+          a.removeEventListener("ended", onEnded);
+        };
+        a.addEventListener("timeupdate", onTime);
+        a.addEventListener("ended", onEnded);
+        ttsAudioListenerDetachRef.current = detach;
       };
 
+      ttsAudioListenerDetachRef.current?.();
+      ttsAudioListenerDetachRef.current = null;
       if (ttsAudioRef.current) {
         ttsAudioRef.current.pause();
+        if (lovenseSustainedFromTtsRef.current) {
+          void stopSustainedToy();
+        }
         ttsAudioRef.current = null;
       }
       if (ttsPlayingId === msg.id) {
+        ttsAudioListenerDetachRef.current?.();
+        ttsAudioListenerDetachRef.current = null;
+        ttsAudioRef.current?.pause();
+        ttsAudioRef.current = null;
         setTtsPlayingId(null);
+        setTtsWordHighlight(null);
+        endTtsLovenseIfLinked();
         return;
       }
       if (msg.tts_audio_url) {
         const a = new Audio(msg.tts_audio_url);
         ttsAudioRef.current = a;
         setTtsPlayingId(msg.id);
-        a.onended = () => setTtsPlayingId(null);
         a.onerror = () => {
           setTtsPlayingId(null);
           toast.error("Could not play audio");
           clearPendingToyForThisMessage();
           feedRampIfPending();
+          endTtsLovenseIfLinked();
         };
-        wireAudio(a);
+        bindAudioUi(a);
         try {
           await a.play();
         } catch {
           toast.error("Could not play audio");
           clearPendingToyForThisMessage();
           feedRampIfPending();
+          endTtsLovenseIfLinked();
         }
         return;
       }
       setTtsLoadingId(msg.id);
       try {
         const voiceId = uxVoiceToXaiVoice(effectiveUxVoice);
-        const ttsText = parseAssistantDisplayContent(msg.content).displayText;
+        const ttsText = displayForTts;
         const { data, error } = await supabase.functions.invoke("grok-tts", {
           body: {
             text: ttsText.slice(0, 3800),
@@ -1306,31 +1364,33 @@ export function useChatSessionController() {
         const a = new Audio(url);
         ttsAudioRef.current = a;
         setTtsPlayingId(msg.id);
-        a.onended = () => setTtsPlayingId(null);
         a.onerror = () => {
           setTtsPlayingId(null);
           toast.error("Could not play audio");
           clearPendingToyForThisMessage();
           feedRampIfPending();
+          endTtsLovenseIfLinked();
         };
-        wireAudio(a);
+        bindAudioUi(a);
         try {
           await a.play();
         } catch {
           toast.error("Could not play audio");
           clearPendingToyForThisMessage();
           feedRampIfPending();
+          endTtsLovenseIfLinked();
         }
       } catch (e: unknown) {
         const raw = e instanceof Error ? e.message : "TTS failed";
         toast.error(raw.length > 120 ? `${raw.slice(0, 117)}…` : raw);
         clearPendingToyForThisMessage();
         feedRampIfPending();
+        endTtsLovenseIfLinked();
       } finally {
         setTtsLoadingId(null);
       }
     },
-    [user, ttsPlayingId, effectiveUxVoice],
+    [user, ttsPlayingId, effectiveUxVoice, stopSustainedToy],
   );
 
   useEffect(() => {
@@ -1346,8 +1406,13 @@ export function useChatSessionController() {
         void (async () => {
           const thread = messagesRef.current.slice(-12).map((m) => ({ role: m.role, content: m.content }));
           try {
-            const { data, error } = await supabase.functions.invoke("chat-smart-replies", {
-              body: { companionId: companion.id, companionName: companion.name, messages: thread },
+            const { data, error } = await supabase.functions.invoke("grok-chat", {
+              body: {
+                intent: "smart_replies" as const,
+                companionId: companion.id,
+                companionName: companion.name,
+                messages: thread,
+              },
             });
             if (error) throw error;
             const sug = (data as { suggestions?: string[] })?.suggestions;
@@ -2056,10 +2121,9 @@ export function useChatSessionController() {
           clearOpeningStarterContext();
           await applyChatAffectionAfterExchange();
         } else {
-        const chatFn = sessionMode === "live_voice" ? "grok-chat" : "openrouter-chat";
-        const { data, error } = await supabase.functions.invoke(chatFn, {
+        const { data, error } = await supabase.functions.invoke("grok-chat", {
           body: {
-            ...(sessionMode === "live_voice" ? { intent: "live_voice" as const } : {}),
+            intent: sessionMode === "live_voice" ? ("live_voice" as const) : ("classic_chat" as const),
             companionId: companion.id,
             messages: threadForModel,
             systemPrompt: composeChatSystemPrompt(),
@@ -2355,6 +2419,7 @@ export function useChatSessionController() {
     messagesEndRef,
     ttsLoadingId,
     ttsPlayingId,
+    ttsWordHighlight,
     sendingVibrationId,
     livePatternId,
     toyDriveActive,

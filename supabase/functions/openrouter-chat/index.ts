@@ -7,7 +7,7 @@
 import { isLustforgeAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { resolveOpenRouterApiKey, openRouterChatModel, openRouterChatCompletion, extractOpenRouterAssistantText } from "../_shared/openRouter.ts";
 import { lustforgeNarrowUserScopeBlock } from "../_shared/lustforgeNarrowUserScope.ts";
-import { togetherChatServerSystemPrefix } from "../_shared/togetherRoleplaySystem.ts";
+import { lustforgeChatServerSystemPrefix } from "../_shared/togetherRoleplaySystem.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     }
 
     const scopeBlock = adminUnrestricted ? "" : `${lustforgeNarrowUserScopeBlock()}\n`;
-    const systemContent = `${togetherChatServerSystemPrefix()}\n${scopeBlock}${systemRaw}`.trim();
+    const systemContent = `${lustforgeChatServerSystemPrefix()}\n${scopeBlock}${systemRaw}`.trim();
 
     const threadRaw = Array.isArray(body?.messages) ? body!.messages! : [];
     const messages = [

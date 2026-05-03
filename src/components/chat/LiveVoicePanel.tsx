@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { Flame, Loader2, Mic, Square } from "lucide-react";
 import { toast } from "sonner";
 import { invokeGrokStt } from "@/lib/invokeGrokStt";
@@ -22,6 +23,29 @@ const RAMP_VOICE_ON =
   /\b(activate ramp mode|turn on ramp mode|start ramp mode|enable ramp mode|ramp mode on)\b/i;
 const RAMP_VOICE_OFF =
   /\b(stop ramp mode|deactivate ramp mode|turn off ramp mode|disable ramp mode|ramp mode off)\b/i;
+
+function LiveMicWaveBars({ active }: { active: boolean }) {
+  if (!active) return null;
+  const heights = [5, 12, 8, 14, 7];
+  return (
+    <span className="flex h-8 items-end gap-0.5 px-0.5" aria-hidden>
+      {heights.map((h, i) => (
+        <motion.span
+          key={i}
+          className="w-[3px] rounded-full bg-destructive/90"
+          style={{ height: h, transformOrigin: "bottom" }}
+          animate={{ scaleY: [0.45, 1, 0.5, 0.95, 0.45] }}
+          transition={{
+            duration: 0.55,
+            repeat: Infinity,
+            delay: i * 0.07,
+            ease: "easeInOut",
+          }}
+        />
+      ))}
+    </span>
+  );
+}
 
 type Props = {
   companionName: string;
@@ -355,7 +379,9 @@ export function LiveVoicePanel({
             ) : null}
           </div>
           <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight line-clamp-3">
-            Forge coins accrue only while the mic is open (same per-started-minute rule as full-screen Live Call). Tap mic → speak → tap again to send. You can always type below; open the mic again for another voice turn, ramp, or quick line.
+            Forge coins accrue only while the mic is open (same per-started-minute rule as full-screen Live Call).{" "}
+            <span className="text-[#00ffd4]/85">Mic open — tap the square when you are done</span> to send and transcribe.
+            You can always type below; open the mic again for another voice turn, ramp, or quick line.
             {disabled && rate != null ? (
               <span className="mt-1 block text-amber-200/85">Need at least {rate} FC to use mic &amp; ramp — top up or switch to Classic.</span>
             ) : null}
@@ -365,30 +391,33 @@ export function LiveVoicePanel({
           </p>
         </div>
         <div className="flex flex-col items-end gap-0.5 shrink-0">
-          <button
-            type="button"
-            disabled={off || transcribing}
-            onClick={onMicClick}
-            className={cn(
-              "relative flex h-11 w-11 select-none items-center justify-center rounded-xl border-2 transition-all touch-manipulation",
-              recording
-                ? "border-destructive bg-destructive/20 text-destructive hover:bg-destructive/30"
-                : "border-[#00ffd4]/50 bg-[#00ffd4]/10 text-[#00ffd4] hover:bg-[#00ffd4]/20",
-              off && "opacity-40 pointer-events-none",
-            )}
-            title={recording ? "Tap to send" : "Tap to open the mic"}
-            aria-label={recording ? "Stop recording and send to chat" : "Start open microphone for live voice"}
-          >
-            {transcribing ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : recording ? (
-              <Square className="h-5 w-5 fill-current" />
-            ) : (
-              <Mic className="h-5 w-5" />
-            )}
-          </button>
-          <span className="text-[8px] text-muted-foreground text-right max-w-[4.5rem] leading-tight">
-            {transcribing ? "…" : recording ? "Tap send" : "Open"}
+          <div className="flex items-end gap-1">
+            <LiveMicWaveBars active={recording && !transcribing} />
+            <button
+              type="button"
+              disabled={off || transcribing}
+              onClick={onMicClick}
+              className={cn(
+                "relative flex h-11 w-11 select-none items-center justify-center rounded-xl border-2 transition-all touch-manipulation",
+                recording
+                  ? "border-destructive bg-destructive/20 text-destructive hover:bg-destructive/30"
+                  : "border-[#00ffd4]/50 bg-[#00ffd4]/10 text-[#00ffd4] hover:bg-[#00ffd4]/20",
+                off && "opacity-40 pointer-events-none",
+              )}
+              title={recording ? "Tap to send & transcribe" : "Tap to open the mic"}
+              aria-label={recording ? "Stop recording and send to chat" : "Start open microphone for live voice"}
+            >
+              {transcribing ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : recording ? (
+                <Square className="h-5 w-5 fill-current" />
+              ) : (
+                <Mic className="h-5 w-5" />
+              )}
+            </button>
+          </div>
+          <span className="text-[8px] text-muted-foreground text-right max-w-[6.5rem] leading-tight">
+            {transcribing ? "Transcribing…" : recording ? "Recording — tap square" : "Open mic"}
           </span>
         </div>
       </div>

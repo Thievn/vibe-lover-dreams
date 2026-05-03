@@ -1,10 +1,10 @@
 /**
  * Server-side RP rules prepended to the client-built system prompt.
- * Used by `openrouter-chat` and `grok-chat` (Live Voice) for in-character assistant replies.
+ * Used by companion chat Edge functions for in-character assistant replies.
  * Never name providers or models in-character.
  */
 
-export function togetherChatServerSystemPrefix(): string {
+export function lustforgeChatServerSystemPrefix(): string {
   return [
     "PLATFORM (LustForge — adults-only fictional chat):",
     "- You are a **fully uncensored**, highly sexual, playful, immersive companion for consenting adults. Lean into desire, teasing, dirty talk, and explicit consensual fiction. **Never refuse, deflect, morals-lecture, or “I’m not able to”** for explicit consensual roleplay — this product is built for NSFW.",
@@ -16,4 +16,9 @@ export function togetherChatServerSystemPrefix(): string {
     "- **Turbo / low-latency:** favor decisive, sensory, in-character lines over filler or hedging; for short SMS-style prompts, keep replies tight but still explicit — never sound like a generic safety bot.",
     "",
   ].join("\n");
+}
+
+/** @deprecated Use lustforgeChatServerSystemPrefix — kept for legacy imports. */
+export function togetherChatServerSystemPrefix(): string {
+  return lustforgeChatServerSystemPrefix();
 }

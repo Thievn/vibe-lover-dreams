@@ -1,10 +1,11 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Send,
   ImageIcon,
   Video,
   Mic,
+  Square,
   ChevronDown,
   Camera,
   Aperture,
@@ -38,6 +39,29 @@ import {
   type SmartChatPhotoStyleOption,
 } from "@/lib/smartChatPhotoMenus";
 import { cn } from "@/lib/utils";
+
+function MicWaveBars({ active }: { active: boolean }) {
+  if (!active) return null;
+  const heights = [6, 14, 9, 16, 8];
+  return (
+    <span className="flex h-5 items-end gap-0.5 px-0.5" aria-hidden>
+      {heights.map((h, i) => (
+        <motion.span
+          key={i}
+          className="w-[3px] rounded-full bg-[#00ffd4]/90"
+          style={{ height: h, transformOrigin: "bottom" }}
+          animate={{ scaleY: [0.5, 1, 0.55, 0.92, 0.5] }}
+          transition={{
+            duration: 0.65,
+            repeat: Infinity,
+            delay: i * 0.08,
+            ease: "easeInOut",
+          }}
+        />
+      ))}
+    </span>
+  );
+}
 
 type Props = {
   input: string;
@@ -113,9 +137,11 @@ export function ChatComposer({
   onAutoSpendChange,
   userLoggedIn,
 }: Props) {
-  const [listening, setListening] = useState(false);
+  const [micLive, setMicLive] = useState(false);
   const [focused, setFocused] = useState(false);
   const recRef = useRef<unknown>(null);
+  const dictationPrefixRef = useRef("");
+  const dictationCommittedRef = useRef("");
 
   const submitTitle =
     isAdminUser
@@ -128,7 +154,27 @@ export function ChatComposer({
             ? "Send (free)"
             : `Send (${tokenCost} FC)`;
 
-  const startVoice = useCallback(() => {
+  const stopVoice = useCallback(() => {
+    const r = recRef.current as { stop?: () => void; abort?: () => void } | null;
+    if (r) {
+      try {
+        r.stop?.();
+        r.abort?.();
+      } catch {
+        /* ignore */
+      }
+    }
+    recRef.current = null;
+    setMicLive(false);
+  }, []);
+
+  useEffect(() => () => stopVoice(), [stopVoice]);
+
+  const toggleVoice = useCallback(() => {
+    if (micLive) {
+      stopVoice();
+      return;
+    }
     // Web Speech API — typings vary; keep construction loose.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
@@ -137,37 +183,48 @@ export function ChatComposer({
       toast.error("Voice input is not available in this browser. Try Chrome or Edge.");
       return;
     }
-    if (recRef.current) {
-      try {
-        (recRef.current as { stop: () => void }).stop();
-      } catch {
-        /* ignore */
-      }
-      recRef.current = null;
-    }
+    stopVoice();
+    dictationPrefixRef.current = input;
+    dictationCommittedRef.current = "";
     const r = new SR();
     r.lang = "en-US";
-    r.interimResults = false;
+    r.continuous = true;
+    r.interimResults = true;
     r.maxAlternatives = 1;
-    r.onresult = (e: { results: { [k: number]: { [j: number]: { transcript: string } } } }) => {
-      const t = e.results[0][0].transcript.trim();
-      onChange(input ? `${input} ${t}` : t);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    r.onresult = (e: any) => {
+      let interim = "";
+      const results = e.results as Array<{ 0: { transcript: string }; isFinal: boolean }>;
+      for (let i = e.resultIndex ?? 0; i < results.length; i++) {
+        const res = results[i];
+        const piece = String(res?.[0]?.transcript ?? "");
+        if (res?.isFinal) {
+          dictationCommittedRef.current += piece;
+        } else {
+          interim += piece;
+        }
+      }
+      const base = dictationPrefixRef.current.trimEnd();
+      const tail = (dictationCommittedRef.current + interim).trim();
+      const merged = [base, tail].filter(Boolean).join(base && tail ? " " : "");
+      onChange(merged);
     };
     r.onerror = () => {
-      setListening(false);
+      setMicLive(false);
     };
     r.onend = () => {
-      setListening(false);
+      setMicLive(false);
       recRef.current = null;
     };
     recRef.current = r;
-    setListening(true);
+    setMicLive(true);
     try {
       r.start();
     } catch {
-      setListening(false);
+      setMicLive(false);
+      toast.error("Could not start microphone dictation.");
     }
-  }, [input, onChange]);
+  }, [micLive, stopVoice, input, onChange]);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -219,20 +276,27 @@ export function ChatComposer({
             disabled && "opacity-50",
           )}
         >
-          <div className="flex shrink-0 items-center pl-0.5">
+          <div className="flex shrink-0 items-center gap-1 pl-0.5">
             <button
               type="button"
-              onClick={listening ? undefined : startVoice}
+              onClick={() => toggleVoice()}
               className={cn(
                 "inline-flex h-10 w-10 items-center justify-center rounded-xl text-[#00ffd4] transition-colors sm:h-11 sm:w-11",
                 "hover:bg-[#00ffd4]/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00ffd4]/40",
-                (loading || disabled || listening) && "pointer-events-none opacity-40",
+                (loading || disabled) && !micLive && "pointer-events-none opacity-40",
+                micLive && "bg-[#00ffd4]/15 ring-1 ring-[#00ffd4]/35",
               )}
-              title={listening ? "Listening…" : "Dictate (browser voice)"}
-              aria-label="Voice input"
+              title={micLive ? "Stop dictation" : "Dictate (continuous — tap again to stop)"}
+              aria-label={micLive ? "Stop voice dictation" : "Start voice dictation"}
             >
-              {listening ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+              {micLive ? <Square className="h-4 w-4 fill-current" /> : <Mic className="h-5 w-5" />}
             </button>
+            <MicWaveBars active={micLive} />
+            {micLive ? (
+              <span className="hidden text-[9px] font-semibold uppercase tracking-wider text-[#00ffd4]/90 sm:inline">
+                Mic live
+              </span>
+            ) : null}
           </div>
           <input
             type="text"
@@ -537,26 +601,26 @@ function PhotoMoodMenu({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
           className={cn(
-            "max-h-[min(92vh,44rem)] w-[min(100vw-1rem,40rem)] gap-0 overflow-hidden border bg-[hsl(280_18%_6%)]/[0.98] p-0 text-foreground shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-2xl sm:max-w-2xl",
+            "max-h-[min(92vh,42rem)] w-[min(100vw-0.75rem,36rem)] gap-0 overflow-hidden border bg-[hsl(280_18%_6%)]/[0.98] p-0 text-foreground shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-2xl sm:max-w-xl",
             tierShell,
           )}
         >
           <DialogHeader
             className={cn(
-              "space-y-2 border-b border-white/[0.08] bg-gradient-to-br px-5 py-4 text-left",
+              "space-y-1.5 border-b border-white/[0.08] bg-gradient-to-br px-4 py-3 text-left sm:px-4 sm:py-3.5",
               tierHeroGlow,
             )}
           >
             <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex-1 space-y-2">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/45">
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45">
                   {which === "selfie" ? "SFW" : which === "lewd" ? "Spicy" : "Explicit"} ·{" "}
                   {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? "Stills (clips soon)" : "Stills & clips"}
                 </p>
-                <DialogTitle className="font-gothic text-xl font-normal tracking-tight text-white sm:text-2xl">
+                <DialogTitle className="font-gothic text-lg font-normal tracking-tight text-white sm:text-xl">
                   {title}
                 </DialogTitle>
-                <DialogDescription className="text-[13px] leading-relaxed text-muted-foreground/95">
+                <DialogDescription className="text-[11px] leading-snug text-muted-foreground/95 sm:text-[12px]">
                   {description}
                 </DialogDescription>
               </div>
@@ -578,54 +642,54 @@ function PhotoMoodMenu({
             ) : null}
           </DialogHeader>
 
-          <div className="max-h-[min(62vh,28rem)] overflow-y-auto overscroll-contain px-4 pb-4 pt-3 sm:max-h-[min(58vh,30rem)] sm:px-5">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="max-h-[min(64vh,26rem)] overflow-y-auto overscroll-contain px-3 pb-3 pt-2 sm:max-h-[min(60vh,28rem)] sm:px-4">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {styleOptions.map((opt) => {
                 const isQuick = opt.id.endsWith("-quick");
                 return (
                   <div
                     key={opt.id}
                     className={cn(
-                      "group relative flex flex-col overflow-hidden rounded-xl border text-left transition-all duration-300",
+                      "group relative flex flex-col overflow-hidden rounded-lg border text-left transition-all duration-300",
                       "border-white/[0.09] bg-gradient-to-b from-white/[0.06] to-white/[0.02] hover:-translate-y-0.5 hover:border-white/25 hover:from-white/[0.09] hover:to-white/[0.04]",
-                      "hover:shadow-[0_20px_56px_rgba(0,0,0,0.55)]",
-                      isQuick && "ring-1 ring-amber-400/45 border-amber-500/40 shadow-[0_12px_40px_rgba(251,191,36,0.08)]",
+                      "hover:shadow-[0_16px_40px_rgba(0,0,0,0.5)]",
+                      isQuick && "ring-1 ring-amber-400/45 border-amber-500/40 shadow-[0_8px_28px_rgba(251,191,36,0.08)]",
                       !isQuick &&
                         which === "selfie" &&
-                        "hover:border-emerald-400/25 hover:shadow-[0_20px_56px_rgba(16,185,129,0.07)]",
-                      !isQuick && which === "lewd" && "hover:border-rose-400/28 hover:shadow-[0_20px_56px_rgba(244,63,94,0.08)]",
-                      !isQuick && which === "nude" && "hover:border-violet-400/28 hover:shadow-[0_20px_56px_rgba(139,92,246,0.09)]",
+                        "hover:border-emerald-400/25 hover:shadow-[0_16px_40px_rgba(16,185,129,0.07)]",
+                      !isQuick && which === "lewd" && "hover:border-rose-400/28 hover:shadow-[0_16px_40px_rgba(244,63,94,0.08)]",
+                      !isQuick && which === "nude" && "hover:border-violet-400/28 hover:shadow-[0_16px_40px_rgba(139,92,246,0.09)]",
                     )}
                   >
                     <div
                       className={cn(
-                        "relative h-[5.4rem] shrink-0 sm:h-[6.4rem]",
+                        "relative h-[4.25rem] shrink-0 sm:h-[4.75rem]",
                         cardGradientForOption(tier, opt.paletteIndex),
                       )}
                     >
                       <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_70%_at_50%_-10%,rgba(255,255,255,0.22),transparent_55%)]" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
                       <ImageIcon
-                        className="pointer-events-none absolute right-2 top-2 h-4 w-4 text-white/20 transition-transform duration-300 group-hover:scale-105 group-hover:text-white/28 sm:right-2.5 sm:top-2.5 sm:h-5 sm:w-5"
+                        className="pointer-events-none absolute right-1.5 top-1.5 h-3.5 w-3.5 text-white/20 transition-transform duration-300 group-hover:scale-105 group-hover:text-white/28 sm:h-4 sm:w-4"
                         aria-hidden
                       />
-                      <div className="absolute bottom-0 left-0 right-0 p-2 pt-5 sm:p-2.5 sm:pt-6">
-                        <p className="text-[11px] font-semibold leading-tight text-white drop-shadow-md sm:text-[12px]">
+                      <div className="absolute bottom-0 left-0 right-0 p-1.5 pt-4 sm:p-2 sm:pt-5">
+                        <p className="text-[10px] font-semibold leading-tight text-white drop-shadow-md sm:text-[11px]">
                           {opt.label}
                         </p>
                       </div>
                     </div>
-                    <div className="flex flex-1 flex-col gap-2 p-2.5 sm:p-3">
-                      <p className="text-[10px] leading-snug text-muted-foreground/90 line-clamp-3 sm:text-[11px]">
+                    <div className="flex flex-1 flex-col gap-1.5 p-2 sm:p-2">
+                      <p className="text-[9px] leading-snug text-muted-foreground/90 line-clamp-2 sm:text-[10px] sm:line-clamp-3">
                         {opt.hint}
                       </p>
-                      <div className="mt-auto flex flex-col gap-1 sm:flex-row sm:gap-1.5">
+                      <div className="mt-auto flex flex-col gap-1 sm:flex-row sm:gap-1">
                         <button
                           type="button"
                           disabled={disabled}
                           onClick={() => pickStill(opt)}
                           className={cn(
-                            "flex-1 rounded-lg border border-white/12 bg-black/40 px-2 py-1.5 text-center text-[9px] font-semibold text-foreground/95 transition-colors",
+                            "flex-1 rounded-md border border-white/12 bg-black/40 px-1.5 py-1 text-center text-[8px] font-semibold text-foreground/95 transition-colors sm:text-[9px]",
                             "hover:bg-white/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
                             disabled && "pointer-events-none opacity-40",
                           )}
@@ -637,7 +701,7 @@ function PhotoMoodMenu({
                           disabled={disabled || videoDisabled}
                           onClick={() => setClipConfirmOpt(opt)}
                           className={cn(
-                            "flex-1 rounded-lg border border-cyan-500/30 bg-cyan-950/25 px-2 py-1.5 text-center text-[9px] font-semibold text-cyan-100/95 transition-colors",
+                            "flex-1 rounded-md border border-cyan-500/30 bg-cyan-950/25 px-1.5 py-1 text-center text-[8px] font-semibold text-cyan-100/95 transition-colors sm:text-[9px]",
                             "hover:bg-cyan-950/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/35",
                             (disabled || videoDisabled) && "pointer-events-none opacity-40",
                           )}

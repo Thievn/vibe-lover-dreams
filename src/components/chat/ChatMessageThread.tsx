@@ -26,6 +26,8 @@ type Props = {
   onTtsClick?: (msg: ChatMessage) => void;
   ttsLoadingId?: string | null;
   ttsPlayingId?: string | null;
+  /** Word-level highlight while TTS plays (proportional to audio progress). */
+  ttsWordHighlight?: { messageId: string; wordIndex: number } | null;
   messagesEndRef: RefObject<HTMLDivElement | null>;
   onSaveImageBackup?: (generatedImageId: string) => void;
   savingBackupImageId?: string | null;
@@ -53,6 +55,7 @@ export function ChatMessageThread({
   onTtsClick,
   ttsLoadingId,
   ttsPlayingId,
+  ttsWordHighlight = null,
   messagesEndRef,
   onSaveImageBackup,
   savingBackupImageId,
@@ -87,6 +90,12 @@ export function ChatMessageThread({
             ? parseAssistantDisplayContent(msg.content)
             : { displayText: msg.content, signatureBeat: false };
         const bodyText = assistantDisplay.displayText;
+        const readAlong =
+          msg.role === "assistant" &&
+          ttsWordHighlight &&
+          ttsWordHighlight.messageId === msg.id &&
+          ttsPlayingId === msg.id;
+        const bodyWords = readAlong ? bodyText.split(/\s+/).filter(Boolean) : [];
 
         return (
         <motion.div
@@ -154,7 +163,25 @@ export function ChatMessageThread({
                       msg.role === "assistant" && "leading-[1.7] text-foreground/92",
                     )}
                   >
-                    {bodyText}
+                    {readAlong && bodyWords.length > 0 ? (
+                      <>
+                        {bodyWords.map((w, wi) => (
+                          <span key={`${msg.id}-w-${wi}`}>
+                            <span
+                              className={cn(
+                                "rounded-sm px-0.5 transition-colors duration-150",
+                                wi <= (ttsWordHighlight?.wordIndex ?? -1) && "bg-primary/25 text-primary-foreground",
+                              )}
+                            >
+                              {w}
+                            </span>
+                            {wi < bodyWords.length - 1 ? " " : null}
+                          </span>
+                        ))}
+                      </>
+                    ) : (
+                      bodyText
+                    )}
                   </p>
                   {msg.role === "assistant" && onTtsClick ? (
                     <button

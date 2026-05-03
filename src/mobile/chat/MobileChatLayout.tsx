@@ -88,6 +88,7 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
     handleTts,
     ttsLoadingId,
     ttsPlayingId,
+    ttsWordHighlight,
     messagesEndRef,
     handleSaveImageBackup,
     savingBackupImageId,
@@ -296,6 +297,7 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
             onTtsClick={handleTts}
             ttsLoadingId={ttsLoadingId}
             ttsPlayingId={ttsPlayingId}
+            ttsWordHighlight={ttsWordHighlight}
             messagesEndRef={messagesEndRef}
             onSaveImageBackup={user ? handleSaveImageBackup : undefined}
             savingBackupImageId={savingBackupImageId}

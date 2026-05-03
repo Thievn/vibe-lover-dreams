@@ -56,7 +56,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "SFW phone selfie: same face, hair, and body proportions as the character — **new outfit and backdrop** for this shot (do not paste their roster/catalog swimsuit or costume unless this scene is explicitly swim/beach). Fully clothed, flattering light, camera-aware pose — not nude or lingerie.",
+      "SFW phone selfie: same face, hair, and body proportions as the character — **new outfit and backdrop** for this shot (do not paste their roster/catalog swimsuit or costume unless this scene is explicitly swim/beach). Fully clothed, flattering light, camera-aware pose — not nude or lingerie. **Pose families:** front smile, three-quarter, tasteful over-shoulder (clothed), mirror fit-check — vary which you pick per generation.",
   },
 
   lewd: {
@@ -69,7 +69,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Tasteful lewd phone selfie: lock identity (face, hair, skin, body type) — lingerie, sheer or wet fabric, sensual silhouette, tasteful implied or partial nude; **editorial / perfume-ad** glamour only — no crude or pornographic staging. Do not default to roster swimsuit when the scene implies something else.",
+      "Tasteful lewd phone selfie: lock identity (face, hair, skin, body type) — lingerie, sheer or wet fabric, sensual silhouette, tasteful implied or partial nude; **editorial / perfume-ad** glamour only — no crude or pornographic staging. Do not default to roster swimsuit when the scene implies something else. **Pose families:** tasteful backshot with fabric-aware curves, mirror tease, seated lean, silhouette through steam/sheer — never hardcore staging.",
   },
 
   nude: {
@@ -82,7 +82,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Artistic nude phone selfie: fine-art boudoir framing — same person (face, hair, identity lock); believable photoreal body if reference is stylized. Soft cinematic light, graceful pose, elegant sensuality — **no** graphic anatomy, explicit acts, or obscene angles. Natural or studio light; editorial mood.",
+      "Artistic nude phone selfie: fine-art boudoir framing — same person (face, hair, identity lock); believable photoreal body if reference is stylized. Soft cinematic light, graceful pose, elegant sensuality — **no** graphic anatomy, explicit acts, or obscene angles. Natural or studio light; editorial mood. **Pose families:** draped sheet, profile line, seated twist, modest silhouette — vary set and lens each generation.",
   },
 } as const;
 
@@ -259,6 +259,17 @@ export function inferChatImageGenerationPrompt(text: string): string | undefined
     (/\b(cute|casual|sweet|pretty)\b/i.test(t) && /\b(selfie|pic|picture|photo)\b/i.test(t) && !/\b(nude|naked|lewd|nsfw|explicit|sexy|hot|erotic)\b/i.test(t));
 
   if (sfwIntent) return FAB_SELFIE.sfw.imagePrompt;
+
+  const beachSwim =
+    /\b(beach|shore|coast|ocean|seaside|sand|boardwalk|tropical|caribbean|mediterranean)\b/i.test(t) &&
+    /\b(bikini|swimsuit|swimwear|two-piece|one-piece|bathing\s*suit|swim\s*top)\b/i.test(t);
+  if (beachSwim) {
+    return [
+      "SFW swim editorial inferred from the user's words: honor **their** beach/coast geography and **their** swim silhouette (colors, cover-ups, rash guard, sarong, hat) — do **not** substitute the roster card bikini as the default wardrobe.",
+      "Same face, hair, skin, and body as the portrait reference; believable adult proportions; flattering sun + fill; candid vacation energy.",
+      FAB_SELFIE.sfw.imagePrompt,
+    ].join(" ");
+  }
 
   return undefined;
 }

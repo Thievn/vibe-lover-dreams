@@ -39,7 +39,7 @@ function themeAnchor(companion: Companion): string {
 
 /**
  * System instructions for Live Voice Mode — short spoken lines, Lovense-aware.
- * Live Voice assistant text uses `grok-chat` (xAI). Classic mode uses `openrouter-chat`.
+ * Live Voice assistant text uses `grok-chat` (xAI) with the voice stack prefix. Classic chat uses the same function with `classic_chat` intent.
  */
 export function buildLiveVoiceSystemPrompt(companion: Companion, opts: Opts): string {
   const bondTier = Math.min(5, Math.max(1, opts.chatAffectionTier));

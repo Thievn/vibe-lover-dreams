@@ -188,6 +188,15 @@ export const SMART_LEWD_STYLES: SmartChatPhotoStyleOption[] = [
     paletteIndex: 3,
   },
   {
+    id: "tasteful_backshot",
+    label: "Tasteful Backshot",
+    hint: "Fabric, curve, glance — editorial",
+    userLine: "Tasteful backshot — fabric and curve, still classy.",
+    sceneExtension:
+      "Lewd editorial backshot: subject turned three-quarter away; **wardrobe tells the story** (slip, open-back dress, robe gap, or athletic crop) — not nude hardcore rear exposure; glance over shoulder or hair sweep; **new interior or dusk balcony**; warm rim on shoulders; same identity as portrait; **negative:** no gratuitous spread, no catalog swimsuit clone unless swim scene.",
+    paletteIndex: 3,
+  },
+  {
     id: "ass_focus",
     label: "Ass Focus",
     hint: "Hips, fabric, arch — tasteful thirst",

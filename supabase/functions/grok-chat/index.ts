@@ -1,14 +1,14 @@
 /**
  * xAI Grok (`XAI_API_KEY` / `GROK_API_KEY`):
- * - **Live Voice** — in-session assistant text (uncensored voice stack).
- * - **image_teaser** — one short in-character line before a still is shown (not classic chat).
- *
- * Classic **text** chat uses `openrouter-chat` (OpenRouter + DeepSeek, etc.).
+ * - **classic_chat** — main in-app companion text chat.
+ * - **live_voice** — Live Voice assistant text (uncensored voice stack prefix).
+ * - **image_teaser** — one short in-character line before a still is shown.
+ * - **smart_replies** — three short suggested user replies (JSON).
  */
 import { isLustforgeAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { lustforgeNarrowUserScopeBlock } from "../_shared/lustforgeNarrowUserScope.ts";
-import { togetherChatServerSystemPrefix } from "../_shared/togetherRoleplaySystem.ts";
+import { lustforgeChatServerSystemPrefix } from "../_shared/togetherRoleplaySystem.ts";
 import { GROK_VOICE_UNCENSORED_SYSTEM_PREFIX } from "../_shared/grokVoiceUncensoredPrefix.ts";
 
 const corsHeaders = {
@@ -26,6 +26,26 @@ function json(obj: Record<string, unknown>, status = 200) {
 function defaultGrokChatModel(): string {
   return (Deno.env.get("GROK_CHAT_MODEL") ?? "grok-3").trim();
 }
+
+function extractJsonObject(text: string): unknown {
+  const t = text.trim();
+  const start = t.indexOf("{");
+  const end = t.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(t.slice(start, end + 1)) as unknown;
+    } catch {
+      /* fall through */
+    }
+  }
+  try {
+    return JSON.parse(t) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+const STATIC_SMART_FALLBACK = ["Tell me more…", "I love that.", "Keep going."];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -57,24 +77,27 @@ Deno.serve(async (req) => {
     } | null;
 
     const intent = String(body?.intent ?? "").trim();
-    if (intent !== "live_voice" && intent !== "image_teaser") {
+    const allowed = new Set(["live_voice", "image_teaser", "classic_chat", "smart_replies"]);
+    if (!allowed.has(intent)) {
       return json(
         {
           error:
-            "grok-chat: pass body.intent \"live_voice\" (Live Voice) or \"image_teaser\" (pre-still line). For Classic text chat use openrouter-chat.",
+            "grok-chat: pass body.intent one of: \"classic_chat\", \"live_voice\", \"image_teaser\", \"smart_replies\".",
         },
         400,
       );
     }
 
     const systemRaw = String(body?.systemPrompt ?? "").trim();
-    if (!systemRaw) {
+    if (intent !== "smart_replies" && !systemRaw) {
       return json({ error: "systemPrompt is required" }, 400);
     }
 
     const threadRaw = Array.isArray(body?.messages) ? body!.messages! : [];
 
     let messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+    let maxTokens = 1024;
+    let temperature = 0.8;
 
     if (intent === "image_teaser") {
       messages = [
@@ -84,10 +107,40 @@ Deno.serve(async (req) => {
           return { role, content: String(m.content ?? "").slice(0, 24_000) };
         }),
       ];
+      maxTokens = 512;
+      temperature = 0.85;
+    } else if (intent === "smart_replies") {
+      const name = String(body?.companionName ?? "Companion").slice(0, 80);
+      const scopeLine = adminUnrestricted
+        ? ""
+        : ` Suggestions must stay in fantasy/roleplay with the companion — no homework, technical, product/app, or general Q&A prompts.`;
+      const sys = `You suggest 3 very short optional replies the USER could send next in an adults-only chat with "${name}".
+Rules: Reply with **only** valid JSON, no markdown or code fences. Format: {"suggestions":["...","...","..."]}
+Each string max 72 characters. Match thread energy: flirty, playful, or explicitly sexual language is allowed when it fits; stay consensual-adults fiction.${scopeLine}`;
+      messages = [
+        { role: "system", content: sys },
+        ...threadRaw.slice(-14).map((m) => {
+          const role = m.role === "assistant" ? ("assistant" as const) : ("user" as const);
+          return { role, content: String(m.content ?? "").slice(0, 4000) };
+        }),
+      ];
+      maxTokens = 220;
+      temperature = 0.8;
+    } else if (intent === "classic_chat") {
+      const scopeBlock = adminUnrestricted ? "" : `${lustforgeNarrowUserScopeBlock()}\n`;
+      const systemContent = `${lustforgeChatServerSystemPrefix()}\n${scopeBlock}${systemRaw}`.trim();
+      messages = [
+        { role: "system", content: systemContent.slice(0, 120_000) },
+        ...threadRaw.slice(-40).map((m) => {
+          const role = m.role === "assistant" ? ("assistant" as const) : ("user" as const);
+          return { role, content: String(m.content ?? "").slice(0, 24_000) };
+        }),
+      ];
     } else {
+      /* live_voice */
       const scopeBlock = adminUnrestricted ? "" : `${lustforgeNarrowUserScopeBlock()}\n`;
       const systemContent =
-        `${GROK_VOICE_UNCENSORED_SYSTEM_PREFIX}${togetherChatServerSystemPrefix()}\n${scopeBlock}${systemRaw}`.trim();
+        `${GROK_VOICE_UNCENSORED_SYSTEM_PREFIX}${lustforgeChatServerSystemPrefix()}\n${scopeBlock}${systemRaw}`.trim();
       messages = [
         { role: "system", content: systemContent.slice(0, 120_000) },
         ...threadRaw.slice(-40).map((m) => {
@@ -108,8 +161,8 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model,
         messages,
-        max_tokens: intent === "image_teaser" ? 512 : 1024,
-        temperature: intent === "image_teaser" ? 0.85 : 0.8,
+        max_tokens: maxTokens,
+        temperature,
         top_p: 0.9,
       }),
     });
@@ -132,6 +185,21 @@ Deno.serve(async (req) => {
 
     const obj = raw as { choices?: Array<{ message?: { content?: string } }> };
     const content = obj.choices?.[0]?.message?.content?.trim() || "…";
+
+    if (intent === "smart_replies") {
+      const parsed = extractJsonObject(content);
+      let suggestions: string[] = [];
+      if (parsed && typeof parsed === "object" && parsed !== null && "suggestions" in parsed) {
+        const arr = (parsed as { suggestions: unknown }).suggestions;
+        if (Array.isArray(arr)) {
+          suggestions = arr.map((x) => String(x ?? "").trim()).filter(Boolean).slice(0, 3);
+        }
+      }
+      if (suggestions.length < 3) {
+        suggestions = [...suggestions, ...STATIC_SMART_FALLBACK].slice(0, 3);
+      }
+      return json({ suggestions, model, usage: (raw as { usage?: unknown })?.usage ?? null });
+    }
 
     return json({ response: content, model, usage: (raw as { usage?: unknown })?.usage ?? null });
   } catch (err) {
