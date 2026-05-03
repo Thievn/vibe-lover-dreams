@@ -17,6 +17,7 @@ import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
 import { matchesSafeWord } from "@/lib/matchesSafeWord";
 import { isPlatformAdmin } from "@/config/auth";
+import { hasUserPurchasedCompanionCard } from "@/lib/hasUserPurchasedCompanionCard";
 import { toast } from "sonner";
 import { useCompanionRelationship } from "@/hooks/useCompanionRelationship";
 import {
@@ -229,6 +230,28 @@ export function useChatSessionController() {
   const { data: galleryImages = [], isLoading: galleryImagesLoading } = useCompanionGeneratedImages(id, user?.id);
 
   const isAdminUser = useMemo(() => isPlatformAdmin(user), [user]);
+
+  const isOwnForgeChat = useMemo(
+    () => Boolean(user?.id && dbComp?.user_id === user.id && companion?.id?.startsWith("cc-")),
+    [user?.id, dbComp?.user_id, companion?.id],
+  );
+
+  useEffect(() => {
+    if (!user?.id || !companion || !id || companion.id !== id) return;
+    if (isOwnForgeChat || isAdminUser) return;
+    let cancelled = false;
+    void (async () => {
+      const ok = await hasUserPurchasedCompanionCard(user.id, id);
+      if (cancelled || ok) return;
+      toast.message("A card must be acquired first", {
+        description: "Acquire this companion in their profile to unlock chat and live sessions.",
+      });
+      navigate(`/companions/${id}?shared=1`, { replace: true, state: { from: `/chat/${id}` } });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, companion?.id, id, isOwnForgeChat, isAdminUser, navigate]);
 
   const lastAssistantText = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {

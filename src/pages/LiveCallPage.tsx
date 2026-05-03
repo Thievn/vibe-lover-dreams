@@ -25,6 +25,8 @@ import { LiveCallPhoneShell, type LiveCallUiPhase } from "@/components/liveCall/
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { isPlatformAdmin } from "@/config/auth";
+import { hasUserPurchasedCompanionCard } from "@/lib/hasUserPurchasedCompanionCard";
 import { notifyIncomingCallWithFallback } from "@/lib/companionCallNotifications";
 import {
   LIVE_CALL_QUICK_ACTIONS,
@@ -125,6 +127,27 @@ const LiveCallPage = () => {
       }
     });
   }, []);
+
+  useEffect(() => {
+    if (!userId || !id || !companion) return;
+    const isOwnForge = Boolean(companion.id.startsWith("cc-") && dbComp?.user_id === userId);
+    if (isOwnForge) return;
+    let cancelled = false;
+    void supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const u = session?.user;
+      if (!u || u.id !== userId || cancelled) return;
+      if (isPlatformAdmin(u)) return;
+      const ok = await hasUserPurchasedCompanionCard(userId, id);
+      if (cancelled || ok) return;
+      toast.message("A card must be acquired first", {
+        description: "Acquire this companion in their profile to unlock live voice.",
+      });
+      navigate(`/companions/${id}?shared=1`, { replace: true, state: { from: `/live-call/${id}` } });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, id, companion, dbComp?.user_id, navigate]);
 
   useEffect(() => {
     if (!userId) return;
