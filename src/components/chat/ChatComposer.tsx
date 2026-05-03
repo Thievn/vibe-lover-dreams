@@ -7,12 +7,9 @@ import {
   Mic,
   Square,
   Camera,
-  Aperture,
   Loader2,
   CircleHelp,
-  Sparkles,
   Flame,
-  Layers,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -86,7 +83,6 @@ type Props = {
   mediaMenuDisabled: boolean;
   videoMenuDisabled: boolean;
   chatImageLewdFc: number;
-  chatImageNudeFc: number;
   videoClipFc: number;
   /** Gallery “clip” with preset hint (motion steered per card). */
   onGalleryClipRequest?: (p: { mood: "sfw" | "lewd" | "nude"; motionHint: string }) => void;
@@ -133,7 +129,6 @@ export function ChatComposer({
   mediaMenuDisabled,
   videoMenuDisabled,
   chatImageLewdFc,
-  chatImageNudeFc,
   videoClipFc,
   onGalleryClipRequest,
   autoSpendEnabled,
@@ -273,7 +268,6 @@ export function ChatComposer({
           onGalleryClipRequest={onGalleryClipRequest}
           isAdminUser={isAdminUser}
           chatImageLewdFc={chatImageLewdFc}
-          chatImageNudeFc={chatImageNudeFc}
           videoClipFc={videoClipFc}
           photoDockLayout={photoDockLayout}
         />
@@ -402,7 +396,6 @@ function StillStylePicker({
   onGalleryClipRequest,
   isAdminUser,
   chatImageLewdFc,
-  chatImageNudeFc,
   videoClipFc,
   photoDockLayout = "full",
 }: {
@@ -414,7 +407,6 @@ function StillStylePicker({
   onGalleryClipRequest?: (p: { mood: "sfw" | "lewd" | "nude"; motionHint: string }) => void;
   isAdminUser: boolean;
   chatImageLewdFc: number;
-  chatImageNudeFc: number;
   videoClipFc: number;
   photoDockLayout?: "full" | "live_voice";
 }) {
@@ -425,7 +417,6 @@ function StillStylePicker({
 
   const fmtFc = (n: number) => (isAdminUser ? "Included" : `${n} FC`);
   const stillPrice = fmtFc(chatImageLewdFc);
-  const nudePrice = fmtFc(chatImageNudeFc);
   const clipPrice = fmtFc(videoClipFc);
 
   const categories = useMemo(
@@ -464,130 +455,59 @@ function StillStylePicker({
     setOpen(true);
   };
 
-  const galleryRow = (
+  const galleryTriggers = (
     <div
       className={cn(
-        "flex flex-wrap items-stretch gap-1.5 sm:gap-2",
-        photoDockLayout === "full" && "border-t border-white/[0.08] pt-2",
+        "flex shrink-0 items-center gap-1",
+        photoDockLayout === "full" && "sm:gap-1.5",
       )}
     >
       <motion.button
         type="button"
-        whileTap={{ scale: 0.99 }}
+        whileTap={{ scale: 0.97 }}
         disabled={disabled}
         onClick={() => openGallery("selfies")}
+        title="Selfie gallery"
+        aria-label="Open selfie still gallery"
         className={cn(
-          "inline-flex min-h-[2.35rem] flex-1 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.06] px-2.5 py-1.5 text-xs font-semibold text-white/95 shadow-inner hover:border-primary/40 hover:bg-white/[0.09] sm:min-h-[2.5rem] sm:rounded-xl sm:px-3 sm:text-sm",
-          photoDockLayout === "live_voice" && "min-h-[2rem] py-1 text-[10px] gap-1",
+          "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-400/30 bg-white/[0.05] text-emerald-200/95 shadow-inner transition-[border-color,background-color] hover:border-emerald-300/45 hover:bg-emerald-500/10 sm:h-9 sm:w-9",
           disabled && "pointer-events-none opacity-40",
         )}
       >
-        <Layers className={cn("shrink-0 text-emerald-200/90", photoDockLayout === "live_voice" ? "h-3 w-3" : "h-3.5 w-3.5 sm:h-4 sm:w-4")} aria-hidden />
-        {photoDockLayout === "live_voice" ? "Selfies" : "Selfie gallery"}
+        <Camera className="h-4 w-4 sm:h-[1.05rem] sm:w-[1.05rem]" aria-hidden />
       </motion.button>
       <motion.button
         type="button"
-        whileTap={{ scale: 0.99 }}
+        whileTap={{ scale: 0.97 }}
         disabled={disabled}
         onClick={() => openGallery("lewd")}
+        title="Lewd gallery"
+        aria-label="Open lewd still gallery"
         className={cn(
-          "inline-flex min-h-[2.35rem] flex-1 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.06] px-2.5 py-1.5 text-xs font-semibold text-white/95 shadow-inner hover:border-primary/40 hover:bg-white/[0.09] sm:min-h-[2.5rem] sm:rounded-xl sm:px-3 sm:text-sm",
-          photoDockLayout === "live_voice" && "min-h-[2rem] py-1 text-[10px] gap-1",
+          "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-400/35 bg-white/[0.05] text-rose-200/95 shadow-inner transition-[border-color,background-color] hover:border-rose-300/50 hover:bg-rose-500/10 sm:h-9 sm:w-9",
           disabled && "pointer-events-none opacity-40",
         )}
       >
-        <Aperture className={cn("shrink-0 text-rose-200/90", photoDockLayout === "live_voice" ? "h-3 w-3" : "h-3.5 w-3.5 sm:h-4 sm:w-4")} aria-hidden />
-        {photoDockLayout === "live_voice" ? "Lewd" : "Lewd gallery"}
+        <Flame className="h-4 w-4 sm:h-[1.05rem] sm:w-[1.05rem]" aria-hidden />
       </motion.button>
     </div>
   );
 
   return (
     <>
-      {photoDockLayout === "live_voice" ? (
-        <div className="relative mb-1.5 overflow-hidden rounded-lg border border-white/[0.08] bg-black/40 px-2 py-1.5 sm:px-2.5">
-          <div className="relative flex flex-col gap-1">
-            <p className="text-[8px] font-bold uppercase tracking-[0.18em] text-primary/85">Photos</p>
-            {galleryRow}
-          </div>
-        </div>
-      ) : (
-        <div className="relative mb-2 overflow-hidden rounded-xl border border-white/[0.1] bg-gradient-to-br from-fuchsia-950/35 via-black/60 to-cyan-950/22 px-3 py-2.5 shadow-[0_0_28px_rgba(255,45,123,0.1),inset_0_1px_0_rgba(255,255,255,0.06)] sm:px-3.5 sm:py-3">
-          <div
-            className="pointer-events-none absolute inset-0 rounded-xl opacity-[0.4] blur-xl bg-gradient-to-tr from-primary/22 via-transparent to-[#00ffd4]/12"
-            aria-hidden
-          />
-          <div className="relative flex flex-col gap-2">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0 space-y-0.5">
-                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-primary sm:text-[10px]">Photos</p>
-                <p className="text-[11px] font-medium text-white/95 sm:text-xs">Stills or pose gallery for {companionName}</p>
-                <p className="text-[10px] leading-snug text-muted-foreground/88 max-w-xl line-clamp-2">
-                  One tap sends a themed line + still. Open a gallery for every sub-style.
-                </p>
-              </div>
-              {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? (
-                <span className="shrink-0 rounded-full border border-cyan-400/30 bg-cyan-950/40 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-cyan-100/90">
-                  Clips soon
-                </span>
-              ) : null}
-            </div>
-
-            <div className="flex flex-wrap gap-1.5 sm:gap-2">
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.98 }}
-                disabled={disabled}
-                onClick={() => onRequest("selfie_picture")}
-                className={cn(
-                  "inline-flex min-h-[2.45rem] flex-1 min-w-[6.5rem] flex-col items-start justify-center gap-0.5 rounded-lg border border-emerald-400/35 bg-gradient-to-br from-emerald-950/50 via-black/50 to-teal-950/30 px-2.5 py-1.5 text-left shadow-[0_0_18px_rgba(52,211,153,0.1)] transition-[box-shadow,border-color,transform] hover:border-emerald-300/50 hover:shadow-[0_0_26px_rgba(52,211,153,0.16)] sm:min-h-[2.65rem] sm:min-w-[7.5rem] sm:rounded-xl sm:px-3 sm:py-2",
-                  disabled && "pointer-events-none opacity-40",
-                )}
-              >
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-50 sm:text-sm">
-                  <Camera className="h-3.5 w-3.5 shrink-0 text-emerald-200 sm:h-4 sm:w-4" aria-hidden />
-                  SFW selfie
-                </span>
-                <span className="text-[10px] font-medium uppercase tracking-wider text-emerald-200/80">{stillPrice}</span>
-              </motion.button>
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.98 }}
-                disabled={disabled}
-                onClick={() => onRequest("lewd_picture")}
-                className={cn(
-                  "inline-flex min-h-[2.45rem] flex-1 min-w-[6.5rem] flex-col items-start justify-center gap-0.5 rounded-lg border border-rose-400/40 bg-gradient-to-br from-rose-950/55 via-black/50 to-fuchsia-950/35 px-2.5 py-1.5 text-left shadow-[0_0_18px_rgba(244,63,94,0.12)] transition-[box-shadow,border-color,transform] hover:border-rose-300/55 hover:shadow-[0_0_28px_rgba(244,63,94,0.18)] sm:min-h-[2.65rem] sm:min-w-[7.5rem] sm:rounded-xl sm:px-3 sm:py-2",
-                  disabled && "pointer-events-none opacity-40",
-                )}
-              >
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-50 sm:text-sm">
-                  <Flame className="h-3.5 w-3.5 shrink-0 text-rose-200 sm:h-4 sm:w-4" aria-hidden />
-                  Lewd still
-                </span>
-                <span className="text-[10px] font-medium uppercase tracking-wider text-rose-200/85">{stillPrice}</span>
-              </motion.button>
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.98 }}
-                disabled={disabled}
-                onClick={() => onRequest("nude_picture")}
-                className={cn(
-                  "inline-flex min-h-[2.45rem] flex-1 min-w-[6.5rem] flex-col items-start justify-center gap-0.5 rounded-lg border border-violet-400/40 bg-gradient-to-br from-violet-950/55 via-black/50 to-indigo-950/35 px-2.5 py-1.5 text-left shadow-[0_0_18px_rgba(167,139,250,0.12)] transition-[box-shadow,border-color,transform] hover:border-violet-300/55 hover:shadow-[0_0_28px_rgba(167,139,250,0.2)] sm:min-h-[2.65rem] sm:min-w-[7.5rem] sm:rounded-xl sm:px-3 sm:py-2",
-                  disabled && "pointer-events-none opacity-40",
-                )}
-              >
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-violet-50 sm:text-sm">
-                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-violet-200 sm:h-4 sm:w-4" aria-hidden />
-                  Explicit still
-                </span>
-                <span className="text-[10px] font-medium uppercase tracking-wider text-violet-200/85">{nudePrice}</span>
-              </motion.button>
-            </div>
-
-            {galleryRow}
-          </div>
-        </div>
-      )}
+      <div
+        className={cn(
+          "flex flex-wrap items-center justify-end gap-2",
+          photoDockLayout === "full" ? "mb-2" : "mb-1.5",
+        )}
+      >
+        {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? (
+          <span className="order-first mr-auto rounded-full border border-cyan-400/25 bg-cyan-950/35 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-cyan-100/85 sm:text-[9px]">
+            Clips soon
+          </span>
+        ) : null}
+        {galleryTriggers}
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[min(92vh,44rem)] w-[min(100vw-0.75rem,26rem)] gap-0 overflow-hidden border border-white/[0.1] bg-[hsl(280_18%_6%)]/[0.98] p-0 text-foreground shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-2xl sm:max-w-md">
@@ -601,7 +521,7 @@ function StillStylePicker({
                   Selfies & Lewd
                 </DialogTitle>
                 <DialogDescription className="text-[11px] leading-snug text-muted-foreground/95">
-                  Tap a tile — she replies first, then the still lands. Identity follows her portrait.
+                  Tap a tile — she replies first, then the still lands. Each preset changes outfit, pose, and set; face and body type stay hers.
                 </DialogDescription>
               </div>
               <button
@@ -648,7 +568,7 @@ function StillStylePicker({
                   tab === "lewd" ? "text-white" : "text-muted-foreground hover:text-foreground/90",
                 )}
               >
-                <Aperture className="h-3 w-3 opacity-80" aria-hidden />
+                <Flame className="h-3 w-3 opacity-80" aria-hidden />
                 Lewd
                 {tab === "lewd" ? (
                   <motion.span

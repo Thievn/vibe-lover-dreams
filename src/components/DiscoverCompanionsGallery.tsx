@@ -28,8 +28,6 @@ export type CommunityGalleryRow = Companion & {
   imageUrl: string | null;
   galleryCredit: string | null;
   rarityBorderOverlayUrl: string | null;
-  /** `custom_characters.user_id` when this row is a forge card; null for stock catalog. */
-  forgeOwnerUserId: string | null;
 };
 
 function rowsFromDb(dbList: DbCompanion[]): CommunityGalleryRow[] {
@@ -43,7 +41,6 @@ function rowsFromDb(dbList: DbCompanion[]): CommunityGalleryRow[] {
       imageUrl,
       galleryCredit: db.gallery_credit_name ?? null,
       rarityBorderOverlayUrl: db.rarity_border_overlay_url ?? null,
-      forgeOwnerUserId: typeof db.user_id === "string" ? db.user_id : null,
     };
   });
 }
@@ -501,9 +498,8 @@ export default function DiscoverCompanionsGallery() {
                 const glow = tierGlowForDiscoverCard(c.rarity);
                 const buyBusy = purchasingId === c.id;
                 const discoverTraits = resolveDisplayTraitsForCompanion(c);
-                const acquired =
-                  Boolean(sessionUserId && purchasedCompanionIds?.has(c.id)) ||
-                  Boolean(sessionUserId && c.id.startsWith("cc-") && c.forgeOwnerUserId === sessionUserId);
+                /** Vault / collection only (paid or free unlock) — not “I forged this as admin.” */
+                const acquired = Boolean(sessionUserId && purchasedCompanionIds?.has(c.id));
                 const buyFc =
                   sessionUserId && !acquired && c.rarity === "common" && freeCommonClaimed === false ? 0 : listFc;
                 return (
@@ -596,18 +592,8 @@ export default function DiscoverCompanionsGallery() {
                                 <span className="truncate">by {c.galleryCredit}</span>
                               </p>
                             ) : null}
-                            <div className="pt-1">
-                              {acquired ? (
-                                <div
-                                  className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/50 px-2.5 py-1 shadow-[0_0_22px_rgba(52,211,153,0.28)] bg-gradient-to-r from-emerald-950/50 via-black/45 to-teal-950/35"
-                                  aria-label="Collected in your vault"
-                                >
-                                  <Sparkles className="h-3.5 w-3.5 text-amber-200/95 shrink-0" />
-                                  <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-emerald-100/95">
-                                    Collected
-                                  </span>
-                                </div>
-                              ) : (
+                            {!acquired ? (
+                              <div className="pt-1">
                                 <div
                                   className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-[0_0_24px_rgba(255,45,123,0.18)]"
                                   style={{
@@ -629,8 +615,8 @@ export default function DiscoverCompanionsGallery() {
                                     </>
                                   )}
                                 </div>
-                              )}
-                            </div>
+                              </div>
+                            ) : null}
                           </div>
                           <div className="absolute inset-0 z-[3] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/[0.07] to-primary/10 pointer-events-none" />
                         </TierHaloPortraitFrame>

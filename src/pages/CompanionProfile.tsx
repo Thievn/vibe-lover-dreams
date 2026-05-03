@@ -1101,9 +1101,9 @@ const CompanionProfile = () => {
                 </span>
               </div>
               <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground/80">
-                <span className="inline-flex items-center gap-1.5">
-                  <RarityBadgeIcon rarity={rarity} className="h-3.5 w-3.5 opacity-80 shrink-0" />
-                  <span className="text-foreground/75">{badge.label}</span>
+                <span className="inline-flex items-center gap-2">
+                  <RarityBadgeIcon rarity={rarity} className="shrink-0" />
+                  <span className="font-semibold tracking-wide text-foreground/88">{badge.label}</span>
                 </span>
                 {badge.sub ? (
                   <>
@@ -1116,9 +1116,34 @@ const CompanionProfile = () => {
                 <span className="text-muted-foreground/35" aria-hidden>
                   ·
                 </span>
-                <span className="text-muted-foreground/70">
-                  {companion.id.startsWith("cc-") ? "Forge creation" : "Catalog"}
-                  {companion.isNexusHybrid ? " · Nexus hybrid" : ""}
+                <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-muted-foreground/72">
+                  {companion.id.startsWith("cc-") ? (
+                    <>
+                      <span className="tracking-[0.12em] uppercase text-[10px] text-muted-foreground/88">
+                        Forge creation
+                      </span>
+                      {companion.galleryCredit ? (
+                        <>
+                          <span className="text-muted-foreground/40" aria-hidden>
+                            ·
+                          </span>
+                          <span className="text-foreground/78">
+                            created by <span className="font-medium text-foreground/90">{companion.galleryCredit}</span>
+                          </span>
+                        </>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span>Catalog</span>
+                  )}
+                  {companion.isNexusHybrid ? (
+                    <>
+                      <span className="text-muted-foreground/40" aria-hidden>
+                        ·
+                      </span>
+                      <span className="text-fuchsia-200/85">Nexus hybrid</span>
+                    </>
+                  ) : null}
                 </span>
               </p>
             </div>

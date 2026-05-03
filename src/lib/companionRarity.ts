@@ -63,6 +63,34 @@ export function rarityDisplayLabel(rarity: CompanionRarity): string {
   return map[rarity] ?? "Common";
 }
 
+/** Filled tier star on profiles — soft glow (drop-shadow stack). */
+export function rarityBadgeStarGlowFilter(rarity: CompanionRarity): string {
+  const { common, rare, epic, legendary, mythic, abyssal } = RARITY_NEON;
+  switch (rarity) {
+    case "common":
+      return `drop-shadow(0 0 2px ${common.outline}e8) drop-shadow(0 0 7px ${common.core}aa) drop-shadow(0 0 14px ${common.core}55)`;
+    case "rare":
+      return `drop-shadow(0 0 2px ${rare.to}) drop-shadow(0 0 9px ${rare.from}aa) drop-shadow(0 0 16px ${rare.to}55)`;
+    case "epic":
+      return `drop-shadow(0 0 2px ${epic.from}) drop-shadow(0 0 9px ${epic.to}9a) drop-shadow(0 0 16px ${epic.from}50)`;
+    case "legendary":
+      return `drop-shadow(0 0 2px ${legendary.from}) drop-shadow(0 0 10px ${legendary.to}9a) drop-shadow(0 0 1px rgba(255,255,255,0.38)) drop-shadow(0 0 18px ${legendary.from}44)`;
+    case "mythic":
+      return `drop-shadow(0 0 2px ${mythic.from}) drop-shadow(0 0 9px ${mythic.to}92) drop-shadow(0 0 15px ${mythic.from}50)`;
+    case "abyssal":
+      return `drop-shadow(0 0 2px ${abyssal.to}) drop-shadow(0 0 11px ${abyssal.from}a8) drop-shadow(0 0 20px ${abyssal.to}62)`;
+    default:
+      return `drop-shadow(0 0 6px ${common.core}70)`;
+  }
+}
+
+/** Solid star fill (common uses bright silver so it reads on dark UI). */
+export function rarityBadgeStarFill(rarity: CompanionRarity): string {
+  if (rarity === "common") return RARITY_NEON.common.outline;
+  if (rarity === "abyssal") return RARITY_NEON.abyssal.to;
+  return rarityTierCaptionColor(rarity);
+}
+
 /** Solid fill for tier caption; Abyssal uses `gradient-vice-text` in UI instead. */
 export function rarityTierCaptionColor(rarity: CompanionRarity): string {
   const { common, rare, epic, legendary, mythic, abyssal } = RARITY_NEON;

@@ -342,7 +342,7 @@ export function resolveChatImageGenerationPrompt(args: {
   if (menu) {
     if (styled) {
       const coherence =
-        "\n\nPersonality matrix and appearance text inform expression and era — **wardrobe and location come from this framing**, not from cloning the roster portrait's swimsuit/catalog costume. Same face, hair, and body as the roster image; **distinct outfit and background per preset.**";
+        "\n\n**Scene primacy:** The \"Requested framing (from menu)\" block sets **location, wardrobe, pose, props, lighting, and mood** for this render. Tier anchor lines are mood templates only — do **not** treat them as the literal shot to copy. **Do not** reproduce the roster/profile portrait as a near-duplicate (same pose, crop, backdrop, or outfit). Lock **only** face likeness + hair + body type from the character brief; everything else follows the framing text so each preset reads clearly different.";
       return `${menu}\n\n— Requested framing (from menu) —\n${styled}${coherence}`.trim();
     }
     return menu;

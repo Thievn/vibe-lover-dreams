@@ -224,12 +224,14 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
 
   const identity = [
     "— IDENTITY (ABSOLUTE, NON-NEGOTIABLE) —",
-    "This must be the SAME person as the roster portrait: same face geometry, same eyes, nose, lips, jaw, skin or fur, hairline and hair style/color, same recognizable identity as the main profile image and appearance text.",
+    "Same **individual** as this companion: face geometry, eyes, nose, lips, jaw, skin or fur, hairline and hair style/color must match the written Character line and the known roster likeness — but this is **not** an order to clone the roster JPEG.",
+    "— NO PORTRAIT CLONE —",
+    "Do **not** output a reshoot of the profile/roster image: change **camera distance, angle, pose, expression micro-details, background, wardrobe, and lighting** so the still is clearly a **new** photograph. If USER SCENE / menu framing describes gym, bikini, rain, bedroom, etc., that environment and outfit win — not whatever appeared on the card.",
     "— STYLIZED / CHIBI / EXAGGERATED CARD ART —",
-    "If the reference is chibi, super-deformed, caricature, giant-head/skinny-limbs, or otherwise non-photoreal: **do not** reproduce that broken anatomy. Translate into a **photoreal adult human** with believable head-to-body ratio and limbs while keeping the **same face character** (marks, eye shape, hair, vibe). The user wants them to look like a real person *resembling* the character, not a duplicate of warped card proportions unless they explicitly asked for stylized output.",
-    "Treat the reference image as a face+identity lock: the output is a new pose/outfit/setting, NOT a new model, NOT a 'similar' influencer, NOT a reskin.",
+    "If the roster art is chibi, super-deformed, caricature, giant-head/skinny-limbs, or otherwise non-photoreal: **do not** reproduce that broken anatomy. Translate into a **photoreal adult human** with believable head-to-body ratio and limbs while keeping the **same face character** (marks, eye shape, hair, vibe). The user wants them to look like a real person *resembling* the character, not a duplicate of warped card proportions unless they explicitly asked for stylized output.",
+    "Likeness lock = **face + hair + skin + body-type proportions** from Character Details; everything else follows USER SCENE. Not a new model, not a generic stock influencer, not a reskin.",
     "Forbidden: swapping ethnic appearance, face shape, or body type. Forbidden: de-aging, aging, or turning them into a different character.",
-    "If the user asks for a new outfit or location, only wardrobe, background, light, and pose may change; identity must remain identical.",
+    "When the user or menu asks for a new outfit or location, **wardrobe, background, light, and pose must change** to match; identity (face/body type) stays the same.",
     "— WARDROBE & SET INDEPENDENCE (critical for chat stills) —",
     "Do NOT copy the roster portrait's clothing, swimsuit, bikini, armor, or catalog costume onto every generation. That card art is one marketing frame — each still gets a **fresh outfit and environment** that fits the USER SCENE below and this companion's time period / personality.",
     "When the scene implies wet fabric, lingerie, gym wear, etc., **design wardrobe for that scene** — e.g. a wet-shirt beat means thin soaked cotton clinging to skin (no default sports bra under unless the scene explicitly calls for one); do not snap back to the profile swimsuit because it was visible on the card.",
@@ -280,14 +282,14 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
     .slice(0, 12_000);
 
   const portraitConsistencyLock = [
-    `ABSOLUTE IDENTITY: same individual as ${companion.name} — the reference still is the source of face and body. Do not invent a new person.`,
-    `Body-type lock: ${bodyType} — all limbs, torso scale, and species read must match; gender presentation follows profile; only pose/outfit/setting/lighting vary per user request.`,
+    `ABSOLUTE IDENTITY: same individual as ${companion.name} — lock **face, hair, skin, and ${bodyType}** from the character brief; do not invent a new person.`,
+    `Body-type lock: ${bodyType} — limbs, torso scale, and species read must match; gender presentation follows profile. **Pose, outfit, set, lens, and lighting follow USER SCENE / PRIMARY SCENE**, not the roster card's composition.`,
     `Art & era: ${art} · time/world: ${profile.timePeriod} — props, wardrobe, and set must plausibly belong in that world.`,
     pack
-      ? `Catalog card flavor (colors/mood only; do not clone catalog garment onto every shot): ${pack.slice(0, 500)}`
+      ? `Catalog card flavor (colors/mood only; do not clone catalog garment or backdrop onto every shot): ${pack.slice(0, 500)}`
       : "",
-    "Outfit lock OFF for chat stills: mirror face/hair/body from reference — invent scene-appropriate wardrobe; never default every image to the same swimsuit/clothes shown on the roster card.",
-    "Face lock: same eyes, nose, mouth, cheekbones, brows, and hair root as the reference. No race-swap, no 'similar model'. If the roster was stylized/chibi, photoreal output must still read as **this** face — normalize body to coherent human anatomy.",
+    "Outfit lock OFF for chat stills: invent wardrobe and environment from the scene request — never default every image to the same swimsuit/clothes or studio pose shown on the roster card.",
+    "Face lock: same eyes, nose, mouth, cheekbones, brows, and hair as this character. No race-swap, no 'similar model'. If the roster was stylized/chibi, photoreal output must still read as **this** face — normalize body to coherent human anatomy.",
   ]
     .filter(Boolean)
     .join(" ")

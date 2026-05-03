@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Flame, RefreshCw } from "lucide-react";
+import { Flame, Infinity, Lock, RefreshCw } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -191,28 +191,45 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
           </button>
         </motion.div>
 
-        <div className="mt-10 sm:mt-12 flex flex-wrap justify-center items-end gap-6 sm:gap-10 text-muted-foreground/85 text-[11px] sm:text-xs px-2">
-          <div className="text-center min-w-[5rem]">
-            <motion.div
-              key={forgedCompanionTotal}
-              initial={{ scale: 0.85, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="text-2xl sm:text-3xl font-bold text-primary font-gothic tabular-nums"
-            >
-              {forgedCompanionTotal}
-            </motion.div>
-            <div className="mt-0.5">Forged companions</div>
-            <div className="mt-1 max-w-[13rem] mx-auto text-[10px] text-muted-foreground/70 leading-snug">
-              Approved public forge cards (not the stock catalog size).
+        <div className="mt-10 sm:mt-12 w-full max-w-md mx-auto px-3 sm:px-4">
+          <div className="grid grid-cols-3 gap-2 sm:gap-6 text-center">
+            <div className="flex min-w-0 flex-col items-center">
+              <div className="flex min-h-[2.75rem] sm:min-h-[3.25rem] w-full items-center justify-center">
+                <motion.div
+                  key={forgedCompanionTotal}
+                  initial={{ scale: 0.85, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="font-gothic text-2xl sm:text-3xl font-bold tabular-nums leading-none text-primary"
+                >
+                  {forgedCompanionTotal}
+                </motion.div>
+              </div>
+              <p className="mt-2 text-[11px] sm:text-xs font-medium leading-snug text-muted-foreground/88">
+                Forged companions
+              </p>
             </div>
-          </div>
-          <div className="text-center min-w-[5rem]">
-            <div className="text-2xl sm:text-3xl font-bold text-electric-teal font-gothic">∞</div>
-            <div className="mt-0.5">Scenarios</div>
-          </div>
-          <div className="text-center min-w-[5rem]">
-            <div className="text-2xl sm:text-3xl font-bold text-velvet-purple font-gothic">🔒</div>
-            <div className="mt-0.5">Private &amp; safe</div>
+            <div className="flex min-w-0 flex-col items-center">
+              <div className="flex min-h-[2.75rem] sm:min-h-[3.25rem] w-full items-center justify-center">
+                <Infinity
+                  className="h-9 w-9 sm:h-11 sm:w-11 shrink-0 text-electric-teal drop-shadow-[0_0_14px_hsl(170_100%_50%_/_0.35)]"
+                  strokeWidth={2.35}
+                  aria-hidden
+                />
+              </div>
+              <p className="mt-2 text-[11px] sm:text-xs font-medium leading-snug text-muted-foreground/88">Scenarios</p>
+            </div>
+            <div className="flex min-w-0 flex-col items-center">
+              <div className="flex min-h-[2.75rem] sm:min-h-[3.25rem] w-full items-center justify-center">
+                <Lock
+                  className="h-9 w-9 sm:h-11 sm:w-11 shrink-0 text-amber-400 drop-shadow-[0_0_12px_rgba(251,191,36,0.35)]"
+                  strokeWidth={2.2}
+                  aria-hidden
+                />
+              </div>
+              <p className="mt-2 text-[11px] sm:text-xs font-medium leading-snug text-muted-foreground/88">
+                Private &amp; safe
+              </p>
+            </div>
           </div>
         </div>
 

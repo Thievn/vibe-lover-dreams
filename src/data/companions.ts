@@ -47,6 +47,8 @@ export interface Companion {
    * otherwise 4 traits are inferred (non-Nexus) from personality/tags.
    */
   displayTraits?: VibeDisplayTrait[] | null;
+  /** Public forge cards — creator display name when they opted in (`gallery_credit_name`). */
+  galleryCredit?: string | null;
 }
 
 export const companions: Companion[] = [

@@ -328,6 +328,7 @@ export const dbToCompanion = (db: DbCompanion): Companion => ({
     rarity: db.rarity,
     display_traits: db.display_traits,
   }),
+  galleryCredit: db.gallery_credit_name?.trim() || null,
 });
 
 export const useCompanions = () => {

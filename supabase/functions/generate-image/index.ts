@@ -383,6 +383,7 @@ Visual rules:
 - No legible logos, watermarks, UI chrome, fake app branding, or readable product/store signage in-frame.
 - **Tasteful adult:** sensual nude, lingerie, and strong tease are in-bounds; avoid hardcore pornographic depiction, graphic penetration, or obscene gynecological close-ups — premium boudoir / editorial tone.
 - **Roster reference vs outfit:** If continuity calls for the same individual as a profile portrait, match face, hair, and body from Character Details / portrait lock — but **do not** automatically reuse that portrait's swimsuit, bikini, or catalog garment when PRIMARY SCENE describes a different setting or wardrobe (lingerie, wet shirt, nude, gym, bed, etc.). Invent scene-accurate clothing or undress per PRIMARY SCENE.
+${isChatSessionStill ? "- **Chat still / gallery preset:** Treat PRIMARY SCENE as a **new** photograph — different angle, pose, lens feel, and environment from any roster card. Identity = face + body type + hair; **not** a remaster or reshoot of the profile JPEG.\n" : ""}
 ${
         isAnime
           ? "- **2D anime discipline:** Render as authentic flat/soft-cel **2D anime illustration** matching PRIMARY SCENE — preserve stylized proportions, line art, and anime eyes; do not convert to photoreal or 3D."

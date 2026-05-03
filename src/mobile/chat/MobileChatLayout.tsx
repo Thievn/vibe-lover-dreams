@@ -404,7 +404,6 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
               Boolean(user && !isAdminUser && tokensBalance < CHAT_VIDEO_TOKEN_COST)
             }
             chatImageLewdFc={CHAT_IMAGE_LEWD_FC}
-            chatImageNudeFc={CHAT_IMAGE_NUDE_FC}
             videoClipFc={CHAT_VIDEO_TOKEN_COST}
             autoSpendEnabled={autoSpendChatImages}
             onAutoSpendChange={(enabled) => {

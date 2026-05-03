@@ -761,13 +761,6 @@ export function useChatSessionController() {
         inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
         "Average Build";
       const artLabel = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
-      const referenceImageUrl =
-        (typeof (dbComp as Record<string, unknown>).static_image_url === "string" &&
-          ((dbComp as Record<string, unknown>).static_image_url as string)) ||
-        (typeof (dbComp as Record<string, unknown>).image_url === "string" &&
-          ((dbComp as Record<string, unknown>).image_url as string)) ||
-        null;
-
       const commonCharacterData = {
         companionId: companion.id,
         style: "chat-session" as const,
@@ -788,8 +781,6 @@ export function useChatSessionController() {
         isPortrait: false,
         tokenCost,
         contentTier: "full_adult_art",
-        ...(referenceImageUrl ? { referenceImageUrl } : {}),
-        ...(referenceImageUrl && explicit ? { denoisingStrength: 0.74 } : {}),
         characterData: commonCharacterData,
       });
 
@@ -830,7 +821,7 @@ export function useChatSessionController() {
   };
 
   /** Free reward image for affection level-up — no forge charge, does not consume free-NSFW slots. */
-  const generateAffectionRewardImage = async (kind: AffectionRewardKind) => {
+  const generateAffectionRewardImage = async (_kind: AffectionRewardKind) => {
     if (!companion || !dbComp || !user) return null;
     try {
       const preset = pickRandomAffectionStillPreset();
@@ -854,16 +845,6 @@ export function useChatSessionController() {
         inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
         "Average Build";
       const artLabel = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
-      const packSnap = (dbComp.image_prompt || "").trim().slice(0, 900);
-      const referenceImageUrl =
-        (typeof (dbComp as Record<string, unknown>).static_image_url === "string" &&
-          ((dbComp as Record<string, unknown>).static_image_url as string)) ||
-        (typeof (dbComp as Record<string, unknown>).image_url === "string" &&
-          ((dbComp as Record<string, unknown>).image_url as string)) ||
-        null;
-
-      const rewardExplicit =
-        kind === "nude" || isExplicitImageRequest(sceneFused) || isExplicitImageRequest(preset.imagePrompt);
       const cd = {
         companionId: companion.id,
         style: "chat-session" as const,
@@ -883,8 +864,6 @@ export function useChatSessionController() {
         isPortrait: false,
         tokenCost: 0,
         contentTier: "full_adult_art",
-        ...(referenceImageUrl ? { referenceImageUrl } : {}),
-        ...(referenceImageUrl && rewardExplicit ? { denoisingStrength: 0.74 } : {}),
         characterData: cd,
       });
 
