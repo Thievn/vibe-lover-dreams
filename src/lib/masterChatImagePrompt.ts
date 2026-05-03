@@ -113,6 +113,11 @@ export type MasterImagePromptArgs = {
   menuImagePrompt: string | null;
   /** Randomizes micro-variation lines (setting / lens / pose nudge) so consecutive stills diverge. */
   variationSeed?: string;
+  /**
+   * User picked a concrete selfie/lewd preset (styled scene). Do not add competing random set/pose lines
+   * or forge packshot anchors that read like the catalog portrait.
+   */
+  lockSceneToMenuPreset?: boolean;
 };
 
 function hashVariationSeed(s: string): number {
@@ -201,7 +206,8 @@ function shotVariationBlock(mood: FabSelfieTier, seed: number): string {
  * Produces the full `prompt` string and stronger `portraitConsistencyLock` for `invokeGenerateImage` / characterData.
  */
 export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { prompt: string; portraitConsistencyLock: string } {
-  const { companion, dbComp, sceneRequest, rawUserMessage, menuImagePrompt, variationSeed } = args;
+  const { companion, dbComp, sceneRequest, rawUserMessage, menuImagePrompt, variationSeed, lockSceneToMenuPreset } = args;
+  const menuSceneLock = lockSceneToMenuPreset === true;
   const profile = resolvePersonalityMatrix(companion);
   const seeds = forgePersonalitySeedsProse(profile).split("\n").map((l) => `  ${l}`).join("\n");
   const bodyType =
@@ -215,7 +221,9 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
     (variationSeed ?? "").trim() ||
     `${companion.id}:${sceneRequest.length}:${rawUserMessage.length}:${menuImagePrompt?.length ?? 0}`;
   const variationHash = hashVariationSeed(seedStr);
-  const shotVariation = shotVariationBlock(mood, variationHash);
+  const shotVariation = menuSceneLock
+    ? ""
+    : shotVariationBlock(mood, variationHash);
   const explicit = isExplicitImageRequest(rawUserMessage) || isExplicitImageRequest(sceneRequest);
   const tierLine = explicit
     ? "Provider-safe adult tone: strong tease and artistic nude are fine — stay in **editorial / fine-art boudoir** language; avoid hardcore acts, graphic anatomy, or degrading angles. User crude phrasing will be rewritten server-side; your job is scene fidelity + staying faithful to the **written** character."
@@ -224,24 +232,39 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
   const identity = [
     "— IDENTITY (TEXT BIBLE — NO REFERENCE PHOTO) —",
     "**No profile or roster image is supplied.** Do not try to duplicate, remaster, or “match pixels” to a card JPEG. Build **one** believable person who fits the **CHARACTER APPEARANCE** paragraph and forge metadata below — hair, skin, face shape, age read, species, and body type must read consistently with that prose.",
+    menuSceneLock
+      ? "— MENU PRESET LOCK — The **Requested framing (from menu)** section is the **sole** authority for **environment, wardrobe, pose, props, lighting, and camera**. Use the written profile **only** for **face, hair, skin, species, and body proportions** — not for background, outfit, or pose from any implied catalog/portrait shot."
+      : "",
     "— SCENE-FIRST —",
-    "USER SCENE / menu framing decides **location, outfit, pose, props, lighting, and camera**. The appearance text is **who** they are, not **which photograph** to recreate. Each still should feel like a **new** shoot, not a reskin of a catalog frame.",
+    menuSceneLock
+      ? "Ignore generic “vary the backdrop” or random alternate-set suggestions for this request — the menu preset already fixed the world. Tier/exposure lines are **tone band only**, not a second scene."
+      : "USER SCENE / menu framing decides **location, outfit, pose, props, lighting, and camera**. The appearance text is **who** they are, not **which photograph** to recreate. Each still should feel like a **new** shoot, not a reskin of a catalog frame.",
     "— STYLIZED / CHIBI LORE —",
     "If the written profile or tags imply chibi, caricature, or non-photoreal marketing art, translate into **coherent photoreal** anatomy for this render unless USER SCENE explicitly asks for stylized output. Keep distinctive marks, hair, and vibe from the **words**.",
     "Likeness = continuity of **described** traits (face, hair, skin, build, species). Not a new random model, not a generic influencer — but also **not** “copy the card photo.”",
     "Forbidden: swapping ethnic appearance, face shape, or body type away from the written profile. Forbidden: de-aging, aging, or turning them into a different character.",
-    "When the user or menu asks for a new outfit or location, **wardrobe, background, light, and pose must change** to match the scene; the **same** described person stars in each shot.",
+    menuSceneLock
+      ? "The **same** described person stars in the shot; **wardrobe, background, light, and pose** follow the menu preset text, not any catalog frame."
+      : "When the user or menu asks for a new outfit or location, **wardrobe, background, light, and pose must change** to match the scene; the **same** described person stars in each shot.",
     "— WARDROBE & SET —",
-    "Derive wardrobe only from USER SCENE + personality/time-period — not from guessing a swimsuit on an unseen card. When the scene implies wet fabric, lingerie, gym wear, etc., **design for that beat**.",
-    "Vary backgrounds across presets: different rooms, outdoor locations, weather, and props — avoid repeating the same beach/pool backdrop unless the user asked for it.",
+    menuSceneLock
+      ? "Wardrobe, set, and props **only** as required by **Requested framing (from menu)** and USER SCENE — flavored by personality/time-period where the preset leaves room; never import a swimsuit/catalog outfit unless the preset implies it."
+      : "Derive wardrobe only from USER SCENE + personality/time-period — not from guessing a swimsuit on an unseen card. When the scene implies wet fabric, lingerie, gym wear, etc., **design for that beat**.",
+    menuSceneLock
+      ? "Do not swap in a generic alternate backdrop (beach, pool, bedroom template) — stay faithful to the preset environment."
+      : "Vary backgrounds across presets: different rooms, outdoor locations, weather, and props — avoid repeating the same beach/pool backdrop unless the user asked for it.",
   ].join(" ");
 
   const theming = [
     "— PERSONALITY + WORLD (theme every prop, line, and vibe) —",
     `Time period & world: ${profile.timePeriod}. ${timePeriodAesthetic(profile.timePeriod)}`,
-    "Five-axis voice (all must flavor the image — wardrobe, micro-expression, and set):",
+    menuSceneLock
+      ? "Five-axis voice — flavor **micro-expression, attitude, accessory taste, and how they wear the outfit**; **do not** replace the preset’s location or premise with a different set."
+      : "Five-axis voice (all must flavor the image — wardrobe, micro-expression, and set):",
     seeds,
-    "Translate these into: fabric choices, set dressing, what they'd plausibly wear in-scene, how they hold the phone/camera, how bold or shy the expression is, and the emotional temperature of the light.",
+    menuSceneLock
+      ? "Where the preset is silent on a detail, infer one tasteful fill-in that still matches that exact scene (not a genre switch)."
+      : "Translate these into: fabric choices, set dressing, what they'd plausibly wear in-scene, how they hold the phone/camera, how bold or shy the expression is, and the emotional temperature of the light.",
   ].join("\n");
 
   const scene = [
@@ -257,7 +280,9 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
 
   const tech = [
     "— CAPTURE / FRAMING —",
-    "Single-subject, vertical 2:3 card-style phone / mirror / tripod selfie or POV, matching the time period; premium lens, coherent depth of field.",
+    menuSceneLock
+      ? "Single-subject, vertical 2:3; match camera grammar implied by **Requested framing (from menu)** (phone selfie, mirror, tripod, environmental shot, etc.) and the time period; premium lens, coherent depth of field."
+      : "Single-subject, vertical 2:3 card-style phone / mirror / tripod selfie or POV, matching the time period; premium lens, coherent depth of field.",
     "Photographic realism; match art direction:" + ` ${art}. Body-type anchor: ${bodyType}.`,
     "No duplicate faces, no collage, no watermark, no app UI, no on-image text, no disembodied parts unless the user explicitly asked.",
   ].join(" ");
@@ -270,7 +295,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
     theming,
     scene,
     tech,
-    pack
+    !menuSceneLock && pack
       ? `— FORGE ORIGINAL IMAGE PROMPT (anchors: palette, vibe, era — NOT a shot to copy; wardrobe still follows USER SCENE): ${pack} Do not treat swimsuit/bikini/outfit wording here as the outfit lock unless USER SCENE explicitly matches swim/beach.`
       : "",
     charBlock,
@@ -281,9 +306,11 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
 
   const portraitConsistencyLock = [
     `TEXT-ONLY CHARACTER LOCK for ${companion.name}: keep **face, hair, skin, species markers, and ${bodyType}** consistent with the written CHARACTER APPEARANCE block — do not invent a different person.`,
-    `Body-type lock: ${bodyType} — limbs, torso scale, and species read must match the prose. **Pose, outfit, location, lens, and lighting** follow USER SCENE / PRIMARY SCENE.`,
+    menuSceneLock
+      ? `Menu preset lock: **pose, outfit, background, props, and lighting** come only from PRIMARY SCENE / the **Requested framing (from menu)** block — not from forge packshots or roster portraits.`
+      : `Body-type lock: ${bodyType} — limbs, torso scale, and species read must match the prose. **Pose, outfit, location, lens, and lighting** follow USER SCENE / PRIMARY SCENE.`,
     `Art & era: ${art} · time/world: ${profile.timePeriod} — props and set must plausibly belong in that world.`,
-    pack
+    !menuSceneLock && pack
       ? `Forge prompt anchors (mood/color/style hints only — not a framing mandate): ${pack.slice(0, 500)}`
       : "",
     "Wardrobe is invented per scene from USER SCENE — never assume a bikini/catalog outfit unless the scene calls for it.",

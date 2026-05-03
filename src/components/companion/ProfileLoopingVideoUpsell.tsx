@@ -23,8 +23,11 @@ type Props = {
   isAdminUser: boolean;
   onSuccess?: () => void;
   onBalanceMaybeChanged?: () => void;
-  /** Switches profile to the Gallery tab (still portraits + saved media). */
-  onViewGallery?: () => void;
+  /** Opens / closes the inline gallery panel under this card. */
+  onToggleGallery?: () => void;
+  /** When set, I2V uses this `generated_images` row (still) instead of the DB portrait URL. */
+  sourceGeneratedImageId?: string | null;
+  onClearLoopSource?: () => void;
 };
 
 /** Paid profile looping MP4 from the current portrait still (Grok Imagine I2V). */
@@ -37,7 +40,9 @@ export function ProfileLoopingVideoUpsell({
   isAdminUser,
   onSuccess,
   onBalanceMaybeChanged,
-  onViewGallery,
+  onToggleGallery,
+  sourceGeneratedImageId = null,
+  onClearLoopSource,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [motionNotes, setMotionNotes] = useState("");
@@ -62,6 +67,8 @@ export function ProfileLoopingVideoUpsell({
         companionId: companionId.trim(),
         motionNotes: trimmed || undefined,
       };
+      const srcId = sourceGeneratedImageId?.trim();
+      if (srcId) body.sourceGeneratedImageId = srcId;
       if (!isAdminUser) {
         body.tokenCost = PROFILE_LOOP_VIDEO_FC;
       }
@@ -121,7 +128,7 @@ export function ProfileLoopingVideoUpsell({
                   ) : null}
                 </div>
                 <p className="mt-0.5 truncate text-[11px] text-muted-foreground/90">
-                  {open ? "Hide" : "Open"} options · portrait-based · ~8–10s
+                  {open ? "Hide" : "Open"} options · {sourceGeneratedImageId ? "gallery still" : "portrait"} · ~8–10s
                 </p>
               </div>
               <ChevronDown
@@ -133,12 +140,12 @@ export function ProfileLoopingVideoUpsell({
               />
             </button>
           </CollapsibleTrigger>
-          {onViewGallery ? (
+          {onToggleGallery ? (
             <button
               type="button"
               onClick={(e) => {
                 e.preventDefault();
-                onViewGallery();
+                onToggleGallery();
               }}
               className="inline-flex shrink-0 items-center justify-center gap-1.5 border-t border-white/[0.07] px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-fuchsia-100/90 transition-colors hover:bg-fuchsia-500/10 sm:border-l sm:border-t-0"
             >
@@ -150,9 +157,26 @@ export function ProfileLoopingVideoUpsell({
 
         <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0">
           <div className="space-y-3 px-4 pb-4 pt-3">
+            {sourceGeneratedImageId ? (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-400/35 bg-violet-950/35 px-3 py-2 text-[11px] text-violet-100/95">
+                <span>Loop will use your selected gallery still (not the profile portrait).</span>
+                {onClearLoopSource ? (
+                  <button
+                    type="button"
+                    onClick={onClearLoopSource}
+                    className="shrink-0 rounded-lg border border-white/15 bg-black/40 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide hover:bg-white/10"
+                  >
+                    Clear
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             <p className="text-[11px] leading-relaxed text-muted-foreground/90">
-              Uses your <span className="font-medium text-foreground/85">current portrait</span> as the reference.
-              Optional notes: outfit, pose, mood, setting — keep it{" "}
+              Uses your{" "}
+              <span className="font-medium text-foreground/85">
+                {sourceGeneratedImageId ? "selected gallery still" : "current portrait"}
+              </span>{" "}
+              as the I2V reference. Optional notes: outfit, pose, mood, setting — keep it{" "}
               <span className="text-foreground/85">tasteful and suggestive</span> (hard NSFW wording is blocked).
             </p>
             <div className="space-y-1.5">

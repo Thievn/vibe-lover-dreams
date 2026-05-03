@@ -72,6 +72,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { useLovensePairing } from "@/hooks/useLovensePairing";
 import { useWindowVisibleRefresh } from "@/hooks/useWindowVisibleRefresh";
 import { LovensePairingQrBlock } from "@/components/toy/LovensePairingQrBlock";
@@ -169,7 +170,9 @@ const CompanionProfile = () => {
   const [sendingVibrationId, setSendingVibrationId] = useState<string | null>(null);
   const [livePatternId, setLivePatternId] = useState<string | null>(null);
   const sustainedToySessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
-  const [profileTab, setProfileTab] = useState<"profile" | "gallery" | "live">("profile");
+  const [profileTab, setProfileTab] = useState<"profile" | "live">("profile");
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [loopFromGeneratedImageId, setLoopFromGeneratedImageId] = useState<string | null>(null);
   const [bioExpanded, setBioExpanded] = useState(false);
   const [autoSpendChatImages, setAutoSpendChatImagesState] = useState(false);
   const [dropClickTracked, setDropClickTracked] = useState(false);
@@ -235,11 +238,16 @@ const CompanionProfile = () => {
     };
   }, [user?.id, id, isOwnForge]);
 
-  /** e.g. Chat “Live call” can deep-link here with `state: { profileTab: "live" }`. */
+  /** e.g. Chat “Live call” can deep-link here with `state: { profileTab: "live" }`. Legacy `gallery` opens the inline gallery. */
   useEffect(() => {
     const st = location.state as { profileTab?: "profile" | "gallery" | "live"; discoverPreview?: boolean } | null;
     const tab = st?.profileTab;
-    if (tab !== "profile" && tab !== "gallery" && tab !== "live") return;
+    if (tab === "gallery") {
+      if (!profileFeatureLocked) setGalleryOpen(true);
+      setProfileTab("profile");
+      return;
+    }
+    if (tab !== "profile" && tab !== "live") return;
     if (profileFeatureLocked && tab !== "profile") return;
     setProfileTab(tab);
   }, [location.state, location.search, profileFeatureLocked]);
@@ -734,8 +742,10 @@ const CompanionProfile = () => {
       imageUrl,
     });
     await queryClient.invalidateQueries({ queryKey: ["companions"] });
+    await queryClient.refetchQueries({ queryKey: ["companions"] });
     await queryClient.invalidateQueries({ queryKey: ["portrait-override", user.id, id] });
     await queryClient.invalidateQueries({ queryKey: ["companion-generated-images", user.id, id] });
+    await queryClient.refetchQueries({ queryKey: ["companion-generated-images", user.id, id] });
   };
 
   const handleDiscoverPurchase = async () => {
@@ -860,7 +870,7 @@ const CompanionProfile = () => {
           ) : null}
         </div>
         {user && companion && !profileFeatureLocked && !isDropLanding && id ? (
-          <div className="mt-3 w-full min-w-0 border-t border-white/[0.06] pt-3">
+          <div className="mt-3 w-full min-w-0 border-t border-white/[0.06] pt-3 space-y-2">
             <ProfileLoopingVideoUpsell
               companionId={companion.id}
               hasExistingLoopVideo={Boolean(
@@ -870,7 +880,9 @@ const CompanionProfile = () => {
               disabled={false}
               tokensBalance={fcBalanceProfile}
               isAdminUser={isAdminUser}
-              onViewGallery={() => setProfileTab("gallery")}
+              onToggleGallery={() => setGalleryOpen((o) => !o)}
+              sourceGeneratedImageId={loopFromGeneratedImageId}
+              onClearLoopSource={() => setLoopFromGeneratedImageId(null)}
               onSuccess={() => {
                 void queryClient.invalidateQueries({ queryKey: ["companions"] });
                 void queryClient.invalidateQueries({ queryKey: ["portrait-override", user?.id, id] });
@@ -879,6 +891,7 @@ const CompanionProfile = () => {
                     queryKey: ["companion-generated-images", user.id, companion.id],
                   });
                 }
+                setLoopFromGeneratedImageId(null);
               }}
               onBalanceMaybeChanged={() => {
                 if (!user?.id) return;
@@ -892,6 +905,31 @@ const CompanionProfile = () => {
                   });
               }}
             />
+            <Collapsible open={galleryOpen} onOpenChange={setGalleryOpen}>
+              <CollapsibleContent className="mt-1 data-[state=closed]:hidden">
+                <section className="rounded-2xl border border-white/[0.1] bg-black/50 p-4 shadow-inner">
+                  <h3 className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary/90 mb-1">
+                    Saved from chat
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground/90 mb-3 leading-relaxed">
+                    Stills and loop clips you&apos;ve generated. Set a still as the portrait, or pick{" "}
+                    <span className="text-foreground/85 font-medium">Use for loop video</span> then open{" "}
+                    <span className="text-foreground/85 font-medium">Looping portrait video</span> above to generate (FC
+                    applies).
+                  </p>
+                  <CompanionGalleryGrid
+                    companionName={companion.name}
+                    images={galleryImages}
+                    loading={galleryImagesLoading}
+                    currentPortraitUrl={stillForProfile}
+                    onSetAsPortrait={handlePortraitFromGallery}
+                    selectedLoopSourceId={loopFromGeneratedImageId}
+                    onSelectForLoop={(row) => setLoopFromGeneratedImageId(row?.id ?? null)}
+                    compact
+                  />
+                </section>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         ) : null}
       </div>
@@ -1171,7 +1209,7 @@ const CompanionProfile = () => {
                 onClick={() => setProfileTab("profile")}
                 className={cn(
                   "flex-1 min-w-0 rounded-xl py-2.5 text-xs sm:text-sm font-semibold transition-colors touch-manipulation",
-                  "max-md:min-h-[48px] max-md:min-w-[33%] max-md:snap-start max-md:shrink-0 max-md:px-1",
+                  "max-md:min-h-[48px] max-md:min-w-[50%] max-md:snap-start max-md:shrink-0 max-md:px-1",
                   isDropLanding && "cursor-not-allowed opacity-60",
                   profileTab === "profile"
                     ? "bg-primary/20 text-primary border border-primary/30"
@@ -1179,32 +1217,6 @@ const CompanionProfile = () => {
                 )}
               >
                 Profile
-              </button>
-              <button
-                type="button"
-                disabled={isDropLanding}
-                title={profileFeatureLocked ? "Acquire this card to use your gallery" : undefined}
-                onClick={() => {
-                  if (isDropLanding) return;
-                  if (profileFeatureLocked) {
-                    toast.message("A card must be acquired first", {
-                      description: "Acquire this card to open your gallery and chat saves.",
-                    });
-                    return;
-                  }
-                  setProfileTab("gallery");
-                }}
-                className={cn(
-                  "flex-1 min-w-0 inline-flex items-center justify-center gap-1 sm:gap-2 rounded-xl py-2.5 text-xs sm:text-sm font-semibold transition-colors touch-manipulation",
-                  "max-md:min-h-[48px] max-md:min-w-[33%] max-md:snap-start max-md:shrink-0 max-md:px-1",
-                  isDropLanding && "cursor-not-allowed opacity-60",
-                  profileTab === "gallery"
-                    ? "bg-primary/20 text-primary border border-primary/30"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Images className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
-                <span className="truncate">Gallery</span>
               </button>
               <button
                 type="button"
@@ -1226,7 +1238,7 @@ const CompanionProfile = () => {
                 }}
                 className={cn(
                   "flex-1 min-w-0 inline-flex items-center justify-center gap-1 sm:gap-2 rounded-xl py-2.5 text-xs sm:text-sm font-semibold transition-colors touch-manipulation",
-                  "max-md:min-h-[48px] max-md:min-w-[33%] max-md:snap-start max-md:shrink-0 max-md:px-1",
+                  "max-md:min-h-[48px] max-md:min-w-[50%] max-md:snap-start max-md:shrink-0 max-md:px-1",
                   isDropLanding && "cursor-not-allowed opacity-60",
                   profileTab === "live"
                     ? "bg-primary/20 text-primary border border-primary/30"
@@ -1401,34 +1413,6 @@ const CompanionProfile = () => {
                       Sign in
                     </Link>{" "}
                     for voice sessions with {companion.name}.
-                  </p>
-                )}
-              </section>
-            ) : null}
-
-            {profileTab === "gallery" ? (
-              <section className="rounded-2xl border border-white/[0.08] bg-black/40 backdrop-blur-xl p-5 sm:p-6">
-                <h2 className="text-xs font-bold uppercase tracking-[0.25em] text-primary mb-1">Saved from chat</h2>
-                <p className="text-sm text-muted-foreground mb-6 max-w-xl">
-                  Chat selfies and scenes live here, plus looping portrait videos after you generate them. Tap any{" "}
-                  <span className="text-foreground/90 font-medium">still</span> and use{" "}
-                  <span className="text-foreground/90 font-medium">Set as portrait</span> to make it {companion.name}
-                  &apos;s main profile image (videos are for viewing only).
-                </p>
-                {user ? (
-                  <CompanionGalleryGrid
-                    companionName={companion.name}
-                    images={galleryImages}
-                    loading={galleryImagesLoading}
-                    currentPortraitUrl={stillForProfile}
-                    onSetAsPortrait={handlePortraitFromGallery}
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground py-8 text-center border border-dashed border-white/15 rounded-xl">
-                    <Link to="/auth" state={{ from: `/companions/${companion.id}` }} className="text-primary font-semibold hover:underline">
-                      Sign in
-                    </Link>{" "}
-                    to view and manage your gallery.
                   </p>
                 )}
               </section>

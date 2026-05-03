@@ -205,6 +205,8 @@ export function useChatSessionController() {
     rawUserMessage: string;
     fromMenu: boolean;
     menuImagePrompt: string | null;
+    /** True when user picked a concrete selfie/lewd preset (styled scene) — scene must not follow portrait/packshot. */
+    lockSceneToMenuPreset?: boolean;
   } | null>(null);
   const [autoSpendChatImages, setAutoSpendChatImages] = useState(false);
   const starterSentRef = useRef(false);
@@ -728,7 +730,12 @@ export function useChatSessionController() {
   const generateImage = async (
     userRequest: string,
     userId: string,
-    genOpts: { fromMenu: boolean; rawUserMessage: string; menuImagePrompt: string | null },
+    genOpts: {
+      fromMenu: boolean;
+      rawUserMessage: string;
+      menuImagePrompt: string | null;
+      lockSceneToMenuPreset?: boolean;
+    },
   ): Promise<any> => {
     if (!companion || !dbComp) return null;
 
@@ -746,6 +753,7 @@ export function useChatSessionController() {
       const lewdOrNudeFc = nudeTier ? CHAT_IMAGE_NUDE_FC : CHAT_IMAGE_LEWD_FC;
       const tokenCost = isAdminUser || useFreeNsfwSlot ? 0 : lewdOrNudeFc;
 
+      const menuSceneLock = genOpts.lockSceneToMenuPreset === true;
       const { prompt: masterPrompt, portraitConsistencyLock } = buildMasterChatImagePrompt({
         companion,
         dbComp,
@@ -753,6 +761,7 @@ export function useChatSessionController() {
         rawUserMessage: genOpts.rawUserMessage,
         menuImagePrompt: genOpts.menuImagePrompt,
         variationSeed: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`,
+        lockSceneToMenuPreset: menuSceneLock,
       });
       const prompt = masterPrompt;
 
@@ -763,9 +772,12 @@ export function useChatSessionController() {
       const artLabel = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
       const forgeAnchors = (dbComp.image_prompt || "").trim();
       const forgeTail =
-        forgeAnchors.length > 0
+        !menuSceneLock && forgeAnchors.length > 0
           ? ` Forge image anchors (text, optional palette/vibe — not a shot list): ${forgeAnchors.slice(0, 720)}${forgeAnchors.length > 720 ? "…" : ""}`
           : "";
+      const baseDescription = menuSceneLock
+        ? `Single subject — ${companion.name} (${companion.gender}). **Likeness only (text, no reference photo):** ${(companion.appearance || "").trim().slice(0, 1800)} — face, hair, skin, species, and ${resolvedBodyType}; **not** pose, wardrobe, or background from any roster/portrait card.`
+        : `Single subject — ${companion.name} (${companion.gender}). Written appearance: ${companion.appearance}.${forgeTail}`;
       const commonCharacterData = {
         companionId: companion.id,
         style: "chat-session" as const,
@@ -774,10 +786,11 @@ export function useChatSessionController() {
         silhouetteCategory: forgeBodyCategoryIdForType(resolvedBodyType),
         portraitConsistencyLock,
         tags: dbComp.tags ?? [],
-        baseDescription: `Single subject — ${companion.name} (${companion.gender}). Written appearance: ${companion.appearance}.${forgeTail}`,
+        baseDescription,
         vibe: companion.personality,
-        clothing:
-          "Wardrobe and undress follow PRIMARY SCENE and USER SCENE only. Do not infer outfit from any unstated catalog image — use the written profile + scene text.",
+        clothing: menuSceneLock
+          ? "Wardrobe, undress, pose, and set come **only** from USER SCENE / **Requested framing (from menu)** — not from forge packshots or profile art."
+          : "Wardrobe and undress follow PRIMARY SCENE and USER SCENE only. Do not infer outfit from any unstated catalog image — use the written profile + scene text.",
       };
 
       const { data, error } = await invokeGenerateImage({
@@ -843,6 +856,7 @@ export function useChatSessionController() {
         rawUserMessage: preset.label,
         menuImagePrompt: menuBase,
         variationSeed: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`,
+        lockSceneToMenuPreset: true,
       });
 
       const resolvedBodyType =
@@ -850,11 +864,7 @@ export function useChatSessionController() {
         inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
         "Average Build";
       const artLabel = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
-      const rewardForge = (dbComp.image_prompt || "").trim();
-      const rewardForgeTail =
-        rewardForge.length > 0
-          ? ` Forge image anchors (text): ${rewardForge.slice(0, 720)}${rewardForge.length > 720 ? "…" : ""}`
-          : "";
+      const rewardBaseDescription = `Single subject — ${companion.name} (${companion.gender}). **Likeness only (text, no reference photo):** ${(companion.appearance || "").trim().slice(0, 1800)} — face, hair, skin, species, and ${resolvedBodyType}; **not** pose, wardrobe, or background from any roster/portrait card.`;
       const cd = {
         companionId: companion.id,
         style: "chat-session" as const,
@@ -863,10 +873,10 @@ export function useChatSessionController() {
         silhouetteCategory: forgeBodyCategoryIdForType(resolvedBodyType),
         portraitConsistencyLock,
         tags: dbComp.tags ?? [],
-        baseDescription: `Single subject — ${companion.name} (${companion.gender}). Written appearance: ${companion.appearance}.${rewardForgeTail}`,
+        baseDescription: rewardBaseDescription,
         vibe: companion.personality,
         clothing:
-          "Wardrobe and undress follow PRIMARY SCENE only. Likeness from written profile + forge anchors — no reference photograph.",
+          "Wardrobe, undress, pose, and set come **only** from USER SCENE / **Requested framing (from menu)** — not from forge packshots or profile art.",
       };
       const { data, error } = await invokeGenerateImage({
         prompt,
@@ -1843,7 +1853,7 @@ export function useChatSessionController() {
 
   const confirmPendingImageGeneration = async () => {
     if (!imageGenPending || !user || !companion) return;
-    const { prompt, rawUserMessage, fromMenu, menuImagePrompt } = imageGenPending;
+    const { prompt, rawUserMessage, fromMenu, menuImagePrompt, lockSceneToMenuPreset } = imageGenPending;
     const explicit = isExplicitImageRequest(prompt) || isExplicitImageRequest(rawUserMessage);
     const freeUsed = getFreeNsfwImagesUsed(user.id, companion.id);
     const menuP = imageGenPending.menuImagePrompt;
@@ -1870,6 +1880,7 @@ export function useChatSessionController() {
         fromMenu,
         rawUserMessage,
         menuImagePrompt,
+        lockSceneToMenuPreset: lockSceneToMenuPreset === true,
       });
       if (imageResult) {
         const rowId = await insertAssistantImageMessage({
@@ -1941,6 +1952,7 @@ export function useChatSessionController() {
       menuImagePrompt: options?.imageGenerationPrompt ?? null,
       styledSceneExtension: options?.styledSceneExtension ?? null,
     });
+    const styledExt = options?.styledSceneExtension?.trim();
     const requestingImage = mediaRoute === "image";
     const requestingVideo = mediaRoute === "video" && !CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON;
     const typedVideoButComingSoon = mediaRoute === "video" && CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON;
@@ -2055,13 +2067,13 @@ export function useChatSessionController() {
           rawUserMessage: messageText,
           fromMenu: imageRequestFromMenu,
           menuImagePrompt: options?.imageGenerationPrompt ?? null,
+          lockSceneToMenuPreset: Boolean(styledExt),
         });
         return;
       }
 
       if (requestingImage) {
         const menuImagePrompt = options?.imageGenerationPrompt ?? null;
-        const styledExt = options?.styledSceneExtension?.trim();
         const teaserUserRequest = imageRequestFromMenu
           ? [
               `They chose a chat still preset: "${messageText}".`,
@@ -2089,6 +2101,7 @@ export function useChatSessionController() {
           fromMenu: imageRequestFromMenu,
           rawUserMessage: messageText,
           menuImagePrompt,
+          lockSceneToMenuPreset: Boolean(styledExt),
         });
 
         if (imageResult) {

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ImageIcon, Loader2, Sparkles, X } from "lucide-react";
+import { ImageIcon, Loader2, Sparkles, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import type { CompanionGalleryRow } from "@/hooks/useCompanionGeneratedImages";
-import { stablePortraitDisplayUrl } from "@/lib/companionMedia";
+import { portraitUrlsEquivalent, stablePortraitDisplayUrl } from "@/lib/companionMedia";
 import { ZoomableImageViewport } from "@/components/ZoomableImageViewport";
 import { loadImageNaturalSize } from "@/lib/chatImageSettings";
 import { isAcceptableChatPortraitUpload } from "@/lib/portraitAspect";
@@ -15,6 +15,9 @@ type Props = {
   loading?: boolean;
   currentPortraitUrl: string | null | undefined;
   onSetAsPortrait: (imageUrl: string) => Promise<void>;
+  /** When set, this gallery row is the I2V source for “loop video” (optional). */
+  selectedLoopSourceId?: string | null;
+  onSelectForLoop?: (row: CompanionGalleryRow | null) => void;
   compact?: boolean;
 };
 
@@ -24,6 +27,8 @@ export function CompanionGalleryGrid({
   loading,
   currentPortraitUrl,
   onSetAsPortrait,
+  selectedLoopSourceId = null,
+  onSelectForLoop,
   compact,
 }: Props) {
   const [settingId, setSettingId] = useState<string | null>(null);
@@ -92,9 +97,8 @@ export function CompanionGalleryGrid({
           const isVideo = Boolean(row.is_video);
           const isActive =
             !isVideo &&
-            normalizedCurrent &&
-            (stablePortraitDisplayUrl(row.image_url) === normalizedCurrent ||
-              row.image_url.split("?")[0] === normalizedCurrent.split("?")[0]);
+            Boolean(normalizedCurrent) &&
+            portraitUrlsEquivalent(row.image_url, normalizedCurrent ?? undefined);
           return (
             <motion.div
               key={row.id}
@@ -135,7 +139,30 @@ export function CompanionGalleryGrid({
                   Video
                 </span>
               ) : null}
+              {!isVideo && selectedLoopSourceId === row.id ? (
+                <span className="absolute top-2 right-2 z-[2] rounded-full border border-violet-400/45 bg-violet-950/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-violet-100/95">
+                  Loop source
+                </span>
+              ) : null}
               <div className="absolute bottom-0 left-0 right-0 z-[2] p-2 flex flex-col gap-1.5">
+                {onSelectForLoop && !isVideo ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectForLoop(selectedLoopSourceId === row.id ? null : row);
+                    }}
+                    className={cn(
+                      "w-full flex items-center justify-center gap-1.5 rounded-xl border text-xs font-semibold py-2 px-2 shadow-lg touch-manipulation transition-colors",
+                      selectedLoopSourceId === row.id
+                        ? "border-violet-400/55 bg-violet-600/35 text-violet-50 hover:bg-violet-600/45"
+                        : "border-violet-500/35 bg-black/55 text-violet-100/95 hover:bg-violet-950/40",
+                    )}
+                  >
+                    <Video className="h-3.5 w-3.5 shrink-0" />
+                    {selectedLoopSourceId === row.id ? "Clear loop source" : "Use for loop video"}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   disabled={settingId === row.id || isVideo}

@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  let body: { companionId?: string; motionNotes?: string; tokenCost?: number };
+  let body: { companionId?: string; motionNotes?: string; tokenCost?: number; sourceGeneratedImageId?: string };
   try {
     body = await req.json();
   } catch {
@@ -130,6 +130,38 @@ Deno.serve(async (req) => {
 
   const svc = createClient(supabaseUrl, serviceKey);
 
+  const sourceGenId =
+    typeof (body as { sourceGeneratedImageId?: unknown }).sourceGeneratedImageId === "string"
+      ? String((body as { sourceGeneratedImageId: string }).sourceGeneratedImageId).trim()
+      : "";
+
+  let sourceOverrideUrl: string | null = null;
+  if (sourceGenId) {
+    const { data: genRow, error: genErr } = await svc
+      .from("generated_images")
+      .select("id, image_url, is_video, companion_id, user_id")
+      .eq("id", sourceGenId)
+      .maybeSingle();
+    if (genErr) return jsonResponse({ error: genErr.message }, 500);
+    if (!genRow) return jsonResponse({ error: "Source image not found" }, 404);
+    if (genRow.is_video === true) {
+      return jsonResponse({ error: "Pick a still image (not a video) for loop generation." }, 400);
+    }
+    const genCid = String(genRow.companion_id ?? "").trim();
+    if (genCid !== companionId) {
+      return jsonResponse({ error: "That image does not belong to this companion." }, 403);
+    }
+    const genUid = String(genRow.user_id ?? "").trim();
+    if (genUid !== sessionUser.id) {
+      return jsonResponse({ error: "Forbidden" }, 403);
+    }
+    const rawGen = typeof genRow.image_url === "string" ? genRow.image_url.trim() : "";
+    sourceOverrideUrl = rawGen ? publicHttpsImageUrlForGrok(rawGen) : null;
+    if (!sourceOverrideUrl) {
+      return jsonResponse({ error: "Could not resolve that gallery image URL." }, 400);
+    }
+  }
+
   let table: "companions" | "custom_characters";
   let rowPk: string;
   let imageUrl: string | null = null;
@@ -147,12 +179,16 @@ Deno.serve(async (req) => {
     if (!isOwner && !adminUser) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
-    const raw =
-      (typeof row.static_image_url === "string" && row.static_image_url) ||
-      (typeof row.image_url === "string" && row.image_url) ||
-      (typeof row.avatar_url === "string" && row.avatar_url) ||
-      null;
-    imageUrl = publicHttpsImageUrlForGrok(raw);
+    if (sourceOverrideUrl) {
+      imageUrl = sourceOverrideUrl;
+    } else {
+      const raw =
+        (typeof row.static_image_url === "string" && row.static_image_url) ||
+        (typeof row.image_url === "string" && row.image_url) ||
+        (typeof row.avatar_url === "string" && row.avatar_url) ||
+        null;
+      imageUrl = publicHttpsImageUrlForGrok(raw);
+    }
   } else {
     table = "companions";
     rowPk = companionId;
@@ -185,11 +221,15 @@ Deno.serve(async (req) => {
         if ("response" in adminGate) return adminGate.response;
       }
     }
-    const raw =
-      (typeof row.static_image_url === "string" && row.static_image_url) ||
-      (typeof row.image_url === "string" && row.image_url) ||
-      null;
-    imageUrl = publicHttpsImageUrlForGrok(raw);
+    if (sourceOverrideUrl) {
+      imageUrl = sourceOverrideUrl;
+    } else {
+      const raw =
+        (typeof row.static_image_url === "string" && row.static_image_url) ||
+        (typeof row.image_url === "string" && row.image_url) ||
+        null;
+      imageUrl = publicHttpsImageUrlForGrok(raw);
+    }
   }
 
   if (!imageUrl) {

@@ -342,8 +342,10 @@ export function resolveChatImageGenerationPrompt(args: {
   if (menu) {
     if (styled) {
       const coherence =
-        "\n\n**Scene primacy:** The \"Requested framing (from menu)\" block sets **location, wardrobe, pose, props, lighting, and mood** for this render. Tier anchor lines are mood templates only — do **not** treat them as the literal shot to copy. **No reference image** is provided — build the subject from the **written appearance + forge prompt** in the master brief only. Each preset must read as a **different** shot (new pose, set, outfit); do not try to match a catalog or profile JPEG.";
-      return `${menu}\n\n— Requested framing (from menu) —\n${styled}${coherence}`.trim();
+        "\n\n**Scene primacy:** The block under **Requested framing (from menu)** is the **only** authority for **location, background, wardrobe, pose, props, lighting, and camera**. The **Exposure / tone context** section sets SFW vs lewd vs artistic-nude **band** only — not literal outfit, pose, or backdrop. **No reference photograph** — likeness = written appearance + body type + species only; **do not** copy pose, environment, or wardrobe from any roster/portrait card. Each preset must read as that **specific** scene, not a remaster of the profile image.";
+      return (
+        `— Requested framing (from menu) —\n${styled}\n\n**Exposure / tone context (not the shot layout):**\n${menu}${coherence}`
+      ).trim();
     }
     return menu;
   }

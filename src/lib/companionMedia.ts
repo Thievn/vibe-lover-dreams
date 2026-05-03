@@ -23,6 +23,21 @@ export function stablePortraitDisplayUrl(url: string | null | undefined): string
   return u.split("?")[0];
 }
 
+/** Same stored object may appear as signed vs public URL — compare normalized storage paths. */
+export function portraitUrlsEquivalent(a: string | null | undefined, b: string | null | undefined): boolean {
+  const na = stablePortraitDisplayUrl(a ?? undefined);
+  const nb = stablePortraitDisplayUrl(b ?? undefined);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  try {
+    const pa = new URL(na).pathname.replace(/\/+$/, "");
+    const pb = new URL(nb).pathname.replace(/\/+$/, "");
+    return pa === pb;
+  } catch {
+    return na.split("?")[0] === nb.split("?")[0];
+  }
+}
+
 /** Gallery + chat avatar: still image only. */
 export function galleryStaticPortraitUrl(db: PortraitDbFields | undefined, id: string | undefined): string | undefined {
   if (!db && id) {
