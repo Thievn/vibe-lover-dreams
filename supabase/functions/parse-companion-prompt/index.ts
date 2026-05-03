@@ -254,9 +254,25 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
     );
 
     if (!trRes.ok || trRes.json === null) {
-      console.error("parse-companion-prompt Grok error:", trRes.rawText);
-      return new Response(JSON.stringify({ error: "AI service error" }), {
-        status: 502,
+      console.error("parse-companion-prompt Grok error:", trRes.status, trRes.rawText);
+      let detail = trRes.rawText.trim().slice(0, 900);
+      try {
+        const j = JSON.parse(trRes.rawText) as {
+          error?: { message?: string; code?: string } | string;
+          message?: string;
+        };
+        if (typeof j.error === "object" && j.error?.message) detail = j.error.message;
+        else if (typeof j.error === "string") detail = j.error;
+        else if (j.message) detail = j.message;
+      } catch {
+        /* keep slice */
+      }
+      const msg =
+        trRes.status === 504
+          ? detail || "Grok request timed out — try again or shorten the forge seed."
+          : `Grok chat failed (HTTP ${trRes.status}): ${detail || "no body"}`;
+      return new Response(JSON.stringify({ error: msg }), {
+        status: trRes.status === 504 ? 504 : 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

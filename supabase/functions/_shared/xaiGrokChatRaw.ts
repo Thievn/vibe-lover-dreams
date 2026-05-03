@@ -7,6 +7,8 @@ export type GrokChatRawResult = {
   rawText: string;
 };
 
+const GROK_FETCH_TIMEOUT_MS = 115_000;
+
 /** Raw xAI `/v1/chat/completions` POST (tools, JSON mode, etc.). */
 export async function grokChatCompletionRaw(
   body: Record<string, unknown>,
@@ -18,14 +20,34 @@ export async function grokChatCompletionRaw(
   if (!apiKey) {
     return { ok: false, status: 503, json: null, rawText: "Missing XAI_API_KEY or GROK_API_KEY" };
   }
-  const res = await fetch("https://api.x.ai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), GROK_FETCH_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch("https://api.x.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    const name = e instanceof Error ? e.name : "";
+    if (name === "AbortError") {
+      return {
+        ok: false,
+        status: 504,
+        json: null,
+        rawText: `xAI Grok request timed out after ${GROK_FETCH_TIMEOUT_MS / 1000}s — model may be overloaded or the key lacks access.`,
+      };
+    }
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, status: 0, json: null, rawText: msg || "Grok fetch failed" };
+  } finally {
+    clearTimeout(tid);
+  }
   const rawText = await res.text();
   let json: unknown = null;
   try {

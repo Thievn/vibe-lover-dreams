@@ -45,7 +45,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
 import {
   clearForgeStash,
   loadForgeStash,
@@ -57,6 +56,7 @@ import {
 import { buildLocalSpinForgeFields } from "@/lib/forgeLocalSpinContent";
 import { clearForgeSessionDraft, loadForgeSessionDraft, saveForgeSessionDraft } from "@/lib/forgeSessionDraft";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
+import { invokeParseCompanionPrompt } from "@/lib/invokeParseCompanionPrompt";
 import { withAsyncTimeout } from "@/lib/withAsyncTimeout";
 import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
 import { formatSupabaseError } from "@/lib/supabaseError";
@@ -1740,13 +1740,11 @@ User flavor notes: ${extraNotes || "none"}`;
     }
     setParodyLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("parse-companion-prompt", {
-        body: {
-          mode: "parody_lab",
-          prompt: `Archetype / media vibe to caricature (fictional genres only): ${parodyArchetype.trim()}`,
-        },
+      const { data, error } = await invokeParseCompanionPrompt({
+        mode: "parody_lab",
+        prompt: `Archetype / media vibe to caricature (fictional genres only): ${parodyArchetype.trim()}`,
       });
-      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
+      if (error) throw error;
       if (data?.error) throw new Error(String(data.error));
       const fields = data?.fields as Record<string, unknown> | undefined;
       if (!fields) throw new Error("No profile returned");
@@ -1769,14 +1767,12 @@ User flavor notes: ${extraNotes || "none"}`;
       }
       pushForgeOp("Celebrity parody: Grok profile pass…", "info");
       try {
-        const { data, error } = await supabase.functions.invoke("parse-companion-prompt", {
-          body: {
-            mode: "celebrity_parody",
-            prompt: t,
-            grotesque_gpk: opts?.grotesqueGpk === true,
-          },
+        const { data, error } = await invokeParseCompanionPrompt({
+          mode: "celebrity_parody",
+          prompt: t,
+          grotesque_gpk: opts?.grotesqueGpk === true,
         });
-        if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
+        if (error) throw error;
         if (data?.error) throw new Error(String(data.error));
         const fields = data?.fields as Record<string, unknown> | undefined;
         if (!fields) throw new Error("No profile returned");
@@ -1906,6 +1902,9 @@ User flavor notes: ${extraNotes || "none"}`;
             description: "Usually under 3 minutes. If it errors, check the forge log below and your XAI_API_KEY on parse-companion-prompt.",
           });
         }
+        const designLabToastId = toast.loading("Grok is expanding your chronicle…", {
+          description: "xAI via Supabase (parse-companion-prompt). Usually 30–120s — keep this tab open.",
+        });
         const themeSnapForDesignLab = buildForgeThemeSnapshotV1({
           activeForgeTab,
           forgeCardPose,
@@ -1936,15 +1935,19 @@ User flavor notes: ${extraNotes || "none"}`;
           forgeThemeDigest: designLabThemeDigest,
           effectiveArtStyle: effectiveArtForGeneration,
         });
-        const { data: labData, error: labErr } = await withAsyncTimeout(
-          supabase.functions.invoke("parse-companion-prompt", {
-            body: { mode: "companion_design_lab", prompt: seedPrompt },
-          }),
-          PARSE_COMPANION_TIMEOUT_MS,
-          "Forge design lab (parse-companion-prompt / Grok)",
-        );
-        if (labErr) throw new Error(await getEdgeFunctionInvokeMessage(labErr, labData));
-        if (labData?.error) throw new Error(String(labData.error));
+        let labData: Record<string, unknown> | null = null;
+        try {
+          const labResult = await withAsyncTimeout(
+            invokeParseCompanionPrompt({ mode: "companion_design_lab", prompt: seedPrompt }),
+            PARSE_COMPANION_TIMEOUT_MS,
+            "Forge design lab (parse-companion-prompt / Grok)",
+          );
+          if (labResult.error) throw labResult.error;
+          labData = labResult.data;
+          if (labData?.error) throw new Error(String(labData.error));
+        } finally {
+          toast.dismiss(designLabToastId);
+        }
         const fields = labData?.fields as Record<string, unknown> | undefined;
         // Keep forgeName; design lab is instructed with mandatoryDisplayName and must not replace it in UI.
         const bs = typeof fields?.backstory === "string" ? fields.backstory.trim() : "";
