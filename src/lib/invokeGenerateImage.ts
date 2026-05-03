@@ -53,7 +53,7 @@ export async function invokeGenerateImage(
 
   const url = `${base}/functions/v1/generate-image`;
 
-  /** FLUX + rewriter can exceed 60s; cap wait so forge UI does not spin forever on hung gateways. */
+  /** Grok Imagine + rewriter can exceed 60s; cap wait so forge UI does not spin forever on hung gateways. */
   const IMAGE_GEN_TIMEOUT_MS = 240_000;
   const post = (bearer: string, signal?: AbortSignal) =>
     fetch(url, {
@@ -101,7 +101,7 @@ export async function invokeGenerateImage(
       if (e instanceof Error && e.name === "AbortError") {
         throw new Error(
           `Image generation timed out after ${IMAGE_GEN_TIMEOUT_MS / 1000}s (generate-image). ` +
-            `Check TOGETHER_API_KEY, Edge function logs, and network.`,
+            `Check XAI_API_KEY / GROK_API_KEY on the Edge function, deploy status, and network.`,
         );
       }
       throw e;

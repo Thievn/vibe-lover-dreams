@@ -1,4 +1,9 @@
-import { openRouterChatCompletion, openRouterChatModel, extractOpenRouterAssistantText, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
+import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import {
+  defaultGrokEdgeChatModel,
+  extractGrokAssistantText,
+  grokChatCompletionRaw,
+} from "../_shared/xaiGrokChatRaw.ts";
 import { buildForgeAssistantSystemPrompt } from "../_shared/forgeAssistantSystemPrompt.ts";
 import { requireAdminUser } from "../_shared/requireSessionUser.ts";
 
@@ -26,11 +31,11 @@ Deno.serve(async (req) => {
     }
 
     const getEnv = (n: string) => Deno.env.get(n);
-    if (!resolveOpenRouterApiKey(getEnv)) {
+    if (!resolveXaiApiKey(getEnv)) {
       return new Response(
         JSON.stringify({
           error:
-            "OpenRouter not configured. Set Edge Function secret OPENROUTER_API_KEY (https://openrouter.ai/keys).",
+            "Grok not configured. Set Edge Function secret XAI_API_KEY or GROK_API_KEY (https://console.x.ai/).",
         }),
         {
           status: 503,
@@ -62,9 +67,8 @@ Deno.serve(async (req) => {
 
     messages.push({ role: "user", content: message });
 
-    const model = openRouterChatModel(getEnv);
-    const orRes = await openRouterChatCompletion({
-      getEnv,
+    const model = defaultGrokEdgeChatModel(getEnv);
+    const orRes = await grokChatCompletionRaw({
       model,
       messages,
       temperature: 0.5,
@@ -118,7 +122,7 @@ Deno.serve(async (req) => {
 
     if (!orRes.ok || orRes.json === null) {
       const errText = orRes.rawText;
-      console.error("OpenRouter admin-companion-chat error:", errText);
+      console.error("Grok admin-companion-chat error:", errText);
       return new Response(JSON.stringify({ error: "AI service error" }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -156,7 +160,7 @@ Deno.serve(async (req) => {
     // Fallback: plain text response
     return new Response(JSON.stringify({
       type: "message",
-      message: extractOpenRouterAssistantText(orRes.json) || choice?.content || "I didn't understand that request.",
+      message: extractGrokAssistantText(orRes.json) || choice?.content || "I didn't understand that request.",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

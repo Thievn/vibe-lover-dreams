@@ -366,8 +366,17 @@ serve(async (req) => {
         ? menuScenePoseLine
         : String(characterData.pose ?? "").trim() || defaultPose;
 
+    const visualCapsuleRaw = String(
+      cd.visual_identity_capsule ?? cd.visualIdentityCapsule ?? "",
+    ).trim();
+    const visualCapsuleLine =
+      menuSceneLockEffective && visualCapsuleRaw
+        ? `- FORGE_VISUAL_IDENTITY (binding — looks + art style; echo of client capsule): ${visualCapsuleRaw.slice(0, 2200)}${visualCapsuleRaw.length > 2200 ? "…" : ""}`
+        : "";
+
     const characterDetailsBlock = [
       "Character Details:",
+      visualCapsuleLine,
       bodyTypeLine,
       bodyContract ? `- **Silhouette contract (verbatim priority):** ${bodyContract}` : "",
       statureEmphasisLine,

@@ -3,8 +3,8 @@
  *
  * Hybrid architecture:
  * - **OpenRouter** (this file): Classic companion chat only, Forge/admin text helpers, prompt rewriter (no FLUX / image modality here).
- * - **Together.ai** (`togetherImage.ts`, `togetherClient.ts`): All **FLUX.2** stills — default **black-forest-labs/FLUX.2-dev** on Together `/v1/images/generations` (profile `together_image_model` or `TOGETHER_IMAGE_MODEL` overrides).
- * - **xAI / Grok** (elsewhere): Live Voice `grok-chat`, The Nexus merge fusion (`nexus-merge` + `grokChatCompletionRaw`), portrait/still Imagine, Realtime, TTS/STT, Grok **video** (I2V).
+ * - **Together.ai** (`togetherImage.ts`, `togetherClient.ts`): **FLUX.2** helpers where still wired (decode/legacy); primary stills use **Grok Imagine** in `generate-image`.
+ * - **xAI / Grok** (elsewhere): Live Voice `grok-chat`, The Nexus merge fusion (`nexus-merge` + `grokChatCompletionRaw`), **generate-image** stills, admin chat tools, Realtime, TTS/STT, Grok **video** (I2V).
  *
  * Secrets (Supabase Edge): `OPENROUTER_API_KEY`, optional `OPENROUTER_CHAT_MODEL`, `OPENROUTER_REWRITE_MODEL`, etc.
  */

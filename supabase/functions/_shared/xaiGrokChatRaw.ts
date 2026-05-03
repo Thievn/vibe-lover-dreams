@@ -66,6 +66,40 @@ export function defaultGrokRewriteModel(getEnv: (name: string) => string | undef
   return getEnv("GROK_REWRITE_MODEL")?.trim() || getEnv("GROK_CHAT_MODEL")?.trim() || "grok-3";
 }
 
+/** Default text model for admin Edge functions (companion chat, marketing, live-call options). */
+export function defaultGrokEdgeChatModel(getEnv: (name: string) => string | undefined): string {
+  return (
+    getEnv("GROK_ADMIN_CHAT_MODEL")?.trim() ||
+    getEnv("GROK_CHAT_MODEL")?.trim() ||
+    defaultGrokForgeParseModel()
+  );
+}
+
+/** OpenAI-compatible `choices[0].message.content` extraction (Grok uses the same shape). */
+export function extractGrokAssistantText(json: unknown): string {
+  const choice = (json as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message;
+  const c = choice?.content;
+  if (typeof c === "string") return c.trim();
+  if (Array.isArray(c)) {
+    const parts = c as Array<{ type?: string; text?: string }>;
+    const textParts = parts
+      .filter((p) => p && typeof p.text === "string")
+      .filter((p) => {
+        const t = (p.type ?? "text").toLowerCase();
+        return t === "text" || t === "output_text";
+      })
+      .map((p) => p.text!.trim())
+      .filter(Boolean);
+    if (textParts.length) return textParts.join("\n").trim();
+    const any = parts
+      .filter((p) => p && typeof p.text === "string")
+      .map((p) => p.text!.trim())
+      .filter(Boolean);
+    return any.join("\n").trim();
+  }
+  return "";
+}
+
 /** One-shot assistant string from Grok chat completions (image prompt rewriter, etc.). */
 export async function grokSingleChatAssistantText(args: {
   model: string;

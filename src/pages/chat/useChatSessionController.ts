@@ -755,7 +755,7 @@ export function useChatSessionController() {
       const tokenCost = isAdminUser || useFreeNsfwSlot ? 0 : lewdOrNudeFc;
 
       const menuSceneLock = genOpts.lockSceneToMenuPreset === true;
-      const { prompt: masterPrompt, portraitConsistencyLock } = buildMasterChatImagePrompt({
+      const { prompt: masterPrompt, portraitConsistencyLock, visualIdentityCapsule } = buildMasterChatImagePrompt({
         companion,
         dbComp,
         sceneRequest: userRequest,
@@ -798,6 +798,9 @@ export function useChatSessionController() {
         clothing: menuSceneLock
           ? "Wardrobe, undress, pose, and set come **only** from USER SCENE / **Requested framing (from menu)** — not from forge packshots or profile art."
           : "Wardrobe and undress follow PRIMARY SCENE and USER SCENE only. Do not infer outfit from any unstated catalog image — use the written profile + scene text.",
+        ...(menuSceneLock && visualIdentityCapsule?.trim()
+          ? { visual_identity_capsule: visualIdentityCapsule.trim() }
+          : {}),
       };
 
       const { data, error } = await invokeGenerateImage({
@@ -857,7 +860,7 @@ export function useChatSessionController() {
         menuImagePrompt: menuBase,
         styledSceneExtension: preset.imagePrompt,
       });
-      const { prompt, portraitConsistencyLock } = buildMasterChatImagePrompt({
+      const { prompt, portraitConsistencyLock, visualIdentityCapsule } = buildMasterChatImagePrompt({
         companion,
         dbComp,
         sceneRequest: sceneFused,
@@ -889,6 +892,7 @@ export function useChatSessionController() {
         chatMenuSceneLock: true,
         clothing:
           "Wardrobe, undress, pose, and set come **only** from USER SCENE / **Requested framing (from menu)** — not from forge packshots or profile art.",
+        ...(visualIdentityCapsule?.trim() ? { visual_identity_capsule: visualIdentityCapsule.trim() } : {}),
       };
       const { data, error } = await invokeGenerateImage({
         prompt,

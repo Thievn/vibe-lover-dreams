@@ -54,6 +54,11 @@ import {
   type ForgeStashPayload,
 } from "@/lib/forgeDraftStash";
 import { buildLocalSpinForgeFields } from "@/lib/forgeLocalSpinContent";
+import {
+  fetchForgePortraitHistoryFromSupabase,
+  mergeForgePreviewHistory,
+  recordForgePortraitHistoryToSupabase,
+} from "@/lib/forgePortraitHistorySupabase";
 import { clearForgeSessionDraft, loadForgeSessionDraft, saveForgeSessionDraft } from "@/lib/forgeSessionDraft";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { invokeParseCompanionPrompt } from "@/lib/invokeParseCompanionPrompt";
@@ -858,18 +863,23 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       };
       const rid =
         typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-h`;
-      setPreviewHistory((hist) => {
-        const entry: ForgePreviewHistoryEntry = {
-          id: rid,
-          display: d,
-          canonical: c,
-          savedAt: new Date().toISOString(),
-          snapshot,
-        };
-        return [entry, ...hist.filter((e) => e.canonical !== c)].slice(0, 10);
-      });
+      const entry: ForgePreviewHistoryEntry = {
+        id: rid,
+        display: d,
+        canonical: c,
+        savedAt: new Date().toISOString(),
+        snapshot,
+      };
+      setPreviewHistory((hist) => [entry, ...hist.filter((e) => e.canonical !== c)].slice(0, 10));
+      if (userId) {
+        void recordForgePortraitHistoryToSupabase({
+          userId,
+          forgeMode: isAdmin ? "admin" : "user",
+          entry,
+        });
+      }
     },
-    [buildForgeSessionPayload],
+    [buildForgeSessionPayload, userId, isAdmin],
   );
 
   const restorePreviewHistoryEntry = useCallback(
@@ -903,51 +913,77 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     if (!userId || loadingProfile || forgeRestoreRanRef.current) return;
     forgeRestoreRanRef.current = true;
     const mode = isAdmin ? "admin" : "user";
-    const draft = loadForgeSessionDraft(userId, mode);
-    if (draft) {
-      hydrateForgeFromPayload(draft);
-      const ph = (draft as { previewHistory?: unknown }).previewHistory;
-      let cleanedFromDraft: ForgePreviewHistoryEntry[] = [];
-      if (Array.isArray(ph)) {
-        cleanedFromDraft = ph
-          .map((e) => normalizeForgePreviewHistoryEntryLoose(e))
-          .filter((x): x is ForgePreviewHistoryEntry => x !== null)
-          .slice(0, 10);
-      }
-      if (isAdmin && !cleanedFromDraft.length && userId) {
-        cleanedFromDraft = loadForgePreviewHistoryDiskBackup(userId, "admin");
-      }
-      if (cleanedFromDraft.length) setPreviewHistory(cleanedFromDraft);
-      toast.message("Your forge is still here", {
-        description: "We kept your last mix, story fields, and preview on this device.",
-      });
-      setForgeSessionHydrated(true);
-      return;
-    }
-    if (!isAdmin) {
+    let cancelled = false;
+
+    const mergeAndSetHistory = async (localHist: ForgePreviewHistoryEntry[]) => {
+      let merged = localHist;
       try {
-        const raw = localStorage.getItem(previewStorageKey(userId, "user"));
-        if (!raw) {
-          setForgeSessionHydrated(true);
-          return;
-        }
-        const j = JSON.parse(raw) as { previewUrl?: string; previewCanonicalUrl?: string };
-        if (j?.previewUrl && typeof j.previewUrl === "string") {
-          setPreviewUrl(stablePortraitDisplayUrl(j.previewUrl) ?? j.previewUrl);
-        }
-        if (j?.previewCanonicalUrl && typeof j.previewCanonicalUrl === "string") {
-          setPreviewCanonicalUrl(stablePortraitDisplayUrl(j.previewCanonicalUrl) ?? j.previewCanonicalUrl);
-        } else if (j?.previewUrl && typeof j.previewUrl === "string") {
-          setPreviewCanonicalUrl(stablePortraitDisplayUrl(j.previewUrl) ?? j.previewUrl);
-        }
+        const remote = await fetchForgePortraitHistoryFromSupabase(userId, mode);
+        merged = mergeForgePreviewHistory(localHist, remote);
       } catch {
-        /* ignore corrupt storage */
+        /* table missing pre-migration, offline, etc. */
       }
-    } else if (userId) {
-      const fromDisk = loadForgePreviewHistoryDiskBackup(userId, "admin");
-      if (fromDisk.length) setPreviewHistory(fromDisk);
-    }
-    setForgeSessionHydrated(true);
+      if (cancelled) return;
+      if (merged.length) setPreviewHistory(merged);
+    };
+
+    void (async () => {
+      const draft = loadForgeSessionDraft(userId, mode);
+      if (draft) {
+        hydrateForgeFromPayload(draft);
+        const ph = (draft as { previewHistory?: unknown }).previewHistory;
+        let cleanedFromDraft: ForgePreviewHistoryEntry[] = [];
+        if (Array.isArray(ph)) {
+          cleanedFromDraft = ph
+            .map((e) => normalizeForgePreviewHistoryEntryLoose(e))
+            .filter((x): x is ForgePreviewHistoryEntry => x !== null)
+            .slice(0, 10);
+        }
+        if (isAdmin && !cleanedFromDraft.length && userId) {
+          cleanedFromDraft = loadForgePreviewHistoryDiskBackup(userId, "admin");
+        }
+        await mergeAndSetHistory(cleanedFromDraft);
+        if (!cancelled) {
+          toast.message("Your forge is still here", {
+            description: "We kept your last mix, story fields, and preview on this device.",
+          });
+          setForgeSessionHydrated(true);
+        }
+        return;
+      }
+      if (!isAdmin) {
+        try {
+          const raw = localStorage.getItem(previewStorageKey(userId, "user"));
+          if (!raw) {
+            await mergeAndSetHistory([]);
+            if (!cancelled) setForgeSessionHydrated(true);
+            return;
+          }
+          const j = JSON.parse(raw) as { previewUrl?: string; previewCanonicalUrl?: string };
+          if (j?.previewUrl && typeof j.previewUrl === "string") {
+            setPreviewUrl(stablePortraitDisplayUrl(j.previewUrl) ?? j.previewUrl);
+          }
+          if (j?.previewCanonicalUrl && typeof j.previewCanonicalUrl === "string") {
+            setPreviewCanonicalUrl(stablePortraitDisplayUrl(j.previewCanonicalUrl) ?? j.previewCanonicalUrl);
+          } else if (j?.previewUrl && typeof j.previewUrl === "string") {
+            setPreviewCanonicalUrl(stablePortraitDisplayUrl(j.previewUrl) ?? j.previewUrl);
+          }
+        } catch {
+          /* ignore corrupt storage */
+        }
+        await mergeAndSetHistory([]);
+      } else if (userId) {
+        const fromDisk = loadForgePreviewHistoryDiskBackup(userId, "admin");
+        await mergeAndSetHistory(fromDisk);
+      } else {
+        await mergeAndSetHistory([]);
+      }
+      if (!cancelled) setForgeSessionHydrated(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [userId, isAdmin, loadingProfile, hydrateForgeFromPayload]);
 
   /** Auto-save full session (debounced) so a paid preview and copy survive navigation. */
@@ -1697,15 +1733,18 @@ User flavor notes: ${extraNotes || "none"}`;
         };
         const rid =
           typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-cur`;
-        setPreviewHistory((hist) => {
-          const entry: ForgePreviewHistoryEntry = {
-            id: rid,
-            display,
-            canonical,
-            savedAt: new Date().toISOString(),
-            snapshot,
-          };
-          return [entry, ...hist.filter((e) => e.canonical !== canonical)].slice(0, 10);
+        const entry: ForgePreviewHistoryEntry = {
+          id: rid,
+          display,
+          canonical,
+          savedAt: new Date().toISOString(),
+          snapshot,
+        };
+        setPreviewHistory((hist) => [entry, ...hist.filter((e) => e.canonical !== canonical)].slice(0, 10));
+        void recordForgePortraitHistoryToSupabase({
+          userId,
+          forgeMode: isAdmin ? "admin" : "user",
+          entry,
         });
       }, 0);
       if (isAdmin) pushForgeOp("Portrait render finished — check Live preview.", "ok");
@@ -2581,12 +2620,12 @@ User flavor notes: ${extraNotes || "none"}`;
             className="w-[min(100vw-2rem,20rem)] max-h-[min(70vh,22rem)] overflow-y-auto border border-white/12 bg-[#0c0a10] text-white"
           >
             <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-              {isAdmin ? "Renders on this device" : "Paid previews on this device"}
+              {isAdmin ? "Local + account backup" : "Device + account backup"}
             </DropdownMenuLabel>
             <p className="px-2 pb-2 text-[10px] leading-relaxed text-muted-foreground/90">
               {isAdmin
-                ? "Restore portrait + all forge fields from a past Generate portrait run (max 10). Also saved to disk so a failed Create does not wipe your stills."
-                : "Restore portrait + all forge fields from when that still was generated (or last edited). Max 10."}
+                ? "Restore portrait + all forge fields from a past Generate portrait run (max 10). Disk backup plus Supabase when signed in."
+                : "Restore portrait + all forge fields from when that still was generated (or last edited). Max 10 — synced to your account when online."}
             </p>
             <DropdownMenuSeparator className="bg-white/10" />
             {previewHistory.map((e) => (
@@ -4131,8 +4170,8 @@ User flavor notes: ${extraNotes || "none"}`;
                 ) : (
                   <>
                     Previews cost <strong style={{ color: NEON }}>{PREVIEW_COST} FC</strong> each — up to{" "}
-                    <strong className="text-white/90">10 history slots</strong> keep portrait + full forge fields on this device until you
-                    Create or Reset. Final creation locks{" "}
+                    <strong className="text-white/90">10 history slots</strong> keep portrait + full forge fields (local + account backup
+                    when signed in) until you Create or Reset. Final creation locks{" "}
                     <strong className="text-[hsl(170_100%_70%)]">{FINAL_COST_PER} FC</strong> per companion ({finalTotalCost} for this batch).
                     All generations follow SFW forge policy.
                   </>

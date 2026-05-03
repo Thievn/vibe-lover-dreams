@@ -613,6 +613,36 @@ export type Database = {
         }
         Relationships: []
       }
+      forge_portrait_history: {
+        Row: {
+          id: string
+          user_id: string
+          forge_mode: string
+          canonical_url: string
+          display_url: string
+          snapshot: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          forge_mode: string
+          canonical_url: string
+          display_url: string
+          snapshot?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          forge_mode?: string
+          canonical_url?: string
+          display_url?: string
+          snapshot?: Json
+          created_at?: string
+        }
+        Relationships: []
+      }
       user_companion_portrait_overrides: {
         Row: {
           animated_portrait_url: string | null

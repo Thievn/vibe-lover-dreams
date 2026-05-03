@@ -8,7 +8,7 @@ export async function withAsyncTimeout<T>(promise: Promise<T>, ms: number, label
       reject(
         new Error(
           `${label} timed out after ${Math.round(ms / 1000)}s. Check Supabase Edge function deploy, ` +
-            `network, and server secrets (XAI_API_KEY / GROK_API_KEY for parse-companion-prompt + design lab; TOGETHER_API_KEY for generate-image).`,
+            `network, and server secrets (XAI_API_KEY / GROK_API_KEY for generate-image, parse-companion-prompt, design lab, and related Grok routes).`,
         ),
       );
     }, ms);

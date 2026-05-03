@@ -22,6 +22,7 @@ import {
   type FabSelfieTier,
 } from "@/lib/chatImageSettings";
 import type { DbCompanion } from "@/hooks/useCompanions";
+import { buildCompanionVisualIdentityCapsule } from "@/lib/buildCompanionVisualIdentityCapsule";
 
 function resolvePersonalityMatrix(companion: Companion): ForgePersonalityProfile {
   if (companion.personalityForge) {
@@ -205,9 +206,15 @@ function shotVariationBlock(mood: FabSelfieTier, seed: number): string {
 /**
  * Produces the full `prompt` string and stronger `portraitConsistencyLock` for `invokeGenerateImage` / characterData.
  */
-export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { prompt: string; portraitConsistencyLock: string } {
+export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
+  prompt: string;
+  portraitConsistencyLock: string;
+  /** Passed to Edge `generate-image` for menu-lock echo in Character Details. */
+  visualIdentityCapsule?: string;
+} {
   const { companion, dbComp, sceneRequest, rawUserMessage, menuImagePrompt, variationSeed, lockSceneToMenuPreset } = args;
   const menuSceneLock = lockSceneToMenuPreset === true;
+  const visualIdentityCapsule = menuSceneLock ? buildCompanionVisualIdentityCapsule(companion, dbComp) : undefined;
   const profile = resolvePersonalityMatrix(companion);
   const seeds = forgePersonalitySeedsProse(profile).split("\n").map((l) => `  ${l}`).join("\n");
   const bodyType =
@@ -306,6 +313,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
           "LUSTFORGE MASTER BRIEF — in-session gallery-preset still (scene-first; likeness from text only)",
           antiProfileRemaster,
           scene,
+          visualIdentityCapsule ?? "",
           identity,
           theming,
           tech,
@@ -344,7 +352,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
     .join(" ")
     .slice(0, 8_000);
 
-  return { prompt, portraitConsistencyLock };
+  return { prompt, portraitConsistencyLock, visualIdentityCapsule };
 }
 
 /**

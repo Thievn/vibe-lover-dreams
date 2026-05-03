@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { openRouterChatCompletion, openRouterChatModel, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
+import { defaultGrokEdgeChatModel, grokChatCompletionRaw } from "../_shared/xaiGrokChatRaw.ts";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { requireAdminUser } from "../_shared/requireSessionUser.ts";
 import { renderPortraitToStorage } from "../_shared/renderCompanionPortrait.ts";
@@ -284,11 +284,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!resolveOpenRouterApiKey(getEnv)) {
-      return new Response(JSON.stringify({ error: "OPENROUTER_API_KEY not configured" }), {
-        status: 503,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!resolveXaiApiKey(getEnv)) {
+      return new Response(
+        JSON.stringify({
+          error: "Grok not configured. Set Edge Function secret XAI_API_KEY or GROK_API_KEY (https://console.x.ai/).",
+        }),
+        {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const tool = toolSchema(section);
@@ -312,9 +317,8 @@ ${summarizeRow(row)}
 
 Rewrite this section to premium catalog quality while staying consistent with the rest.`;
 
-    const orRes = await openRouterChatCompletion({
-      getEnv,
-      model: openRouterChatModel(getEnv),
+    const orRes = await grokChatCompletionRaw({
+      model: defaultGrokEdgeChatModel(getEnv),
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
@@ -326,7 +330,7 @@ Rewrite this section to premium catalog quality while staying consistent with th
     });
 
     if (!orRes.ok || orRes.json === null) {
-      return new Response(JSON.stringify({ error: "OpenRouter request failed", details: orRes.rawText.slice(0, 500) }), {
+      return new Response(JSON.stringify({ error: "Grok request failed", details: orRes.rawText.slice(0, 500) }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

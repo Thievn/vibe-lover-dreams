@@ -1,5 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { openRouterChatCompletion, openRouterChatModel, extractOpenRouterAssistantText, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
+import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import {
+  defaultGrokEdgeChatModel,
+  extractGrokAssistantText,
+  grokChatCompletionRaw,
+} from "../_shared/xaiGrokChatRaw.ts";
 import { requireAdminUser } from "../_shared/requireSessionUser.ts";
 
 const corsHeaders = {
@@ -370,11 +375,11 @@ Deno.serve(async (req) => {
     }
 
     const getEnv = (n: string) => Deno.env.get(n);
-    if (!resolveOpenRouterApiKey(getEnv)) {
+    if (!resolveXaiApiKey(getEnv)) {
       return new Response(
         JSON.stringify({
           error:
-            "OpenRouter not configured. Set OPENROUTER_API_KEY on the Edge Function.",
+            "Grok not configured. Set XAI_API_KEY or GROK_API_KEY on the Edge Function (https://console.x.ai/).",
         }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -390,7 +395,7 @@ Deno.serve(async (req) => {
       }
       const contextBlock = typeof body.contextBlock === "string" ? body.contextBlock.slice(0, 14_000) : "";
       const system =
-        `You are the LustForge AI **X Marketing Hub** assistant (OpenRouter) for an adult (18+) AI companion product.\n` +
+        `You are the LustForge AI **X Marketing Hub** assistant (Grok) for an adult (18+) AI companion product.\n` +
         `Help the operator refine tweets, threads, CTAs, hooks, tone shifts, and platform-safe innuendo.\n` +
         `Reply in **plain text** (no JSON) unless they explicitly ask for JSON.\n` +
         `Be concise but sharp. Never sexualize minors or non-consent. No slurs.\n` +
@@ -401,9 +406,8 @@ Deno.serve(async (req) => {
         ...history.map((m) => ({ role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant", content: m.content })),
       ];
 
-      const orRes = await openRouterChatCompletion({
-        getEnv,
-        model: openRouterChatModel(getEnv),
+      const orRes = await grokChatCompletionRaw({
+        model: defaultGrokEdgeChatModel(getEnv),
         messages: orMessages,
         temperature: 0.85,
         max_tokens: 2048,
@@ -417,7 +421,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      const reply = extractOpenRouterAssistantText(orRes.json);
+      const reply = extractGrokAssistantText(orRes.json);
       if (!reply || typeof reply !== "string") {
         return new Response(JSON.stringify({ error: "Empty AI reply" }), {
           status: 502,
@@ -526,9 +530,8 @@ Deno.serve(async (req) => {
       quickLine +
       `\nWrite 5 distinct angles (hook, CTA, question, lore tease, urgency) so the operator can pick one.`;
 
-    const genRes = await openRouterChatCompletion({
-      getEnv,
-      model: openRouterChatModel(getEnv),
+    const genRes = await grokChatCompletionRaw({
+      model: defaultGrokEdgeChatModel(getEnv),
       messages: [
         { role: "system", content: system },
         { role: "user", content: userBlock },
@@ -545,7 +548,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const content = extractOpenRouterAssistantText(genRes.json);
+    const content = extractGrokAssistantText(genRes.json);
     if (!content || typeof content !== "string") {
       return new Response(JSON.stringify({ error: "Empty AI response" }), {
         status: 502,

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { openRouterChatCompletion, openRouterChatModel, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
+import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { defaultGrokEdgeChatModel, grokChatCompletionRaw } from "../_shared/xaiGrokChatRaw.ts";
 import { requireSessionUser } from "../_shared/requireSessionUser.ts";
 import {
   LIVE_CALL_OPTIONS_TOOL_NAME,
@@ -160,11 +161,11 @@ Deno.serve(async (req) => {
     }
 
     const getEnv = (n: string) => Deno.env.get(n);
-    if (!resolveOpenRouterApiKey(getEnv)) {
+    if (!resolveXaiApiKey(getEnv)) {
       return new Response(
         JSON.stringify({
           error:
-            "OpenRouter not configured. Set Edge Function secret OPENROUTER_API_KEY (https://openrouter.ai/keys).",
+            "Grok not configured. Set Edge Function secret XAI_API_KEY or GROK_API_KEY (https://console.x.ai/).",
         }),
         {
           status: 503,
@@ -177,9 +178,8 @@ Deno.serve(async (req) => {
     const nonce = crypto.randomUUID();
     const userMessage = buildLiveCallOptionsUserMessage(traits, nonce);
 
-    const orRes = await openRouterChatCompletion({
-      getEnv,
-      model: openRouterChatModel(getEnv),
+    const orRes = await grokChatCompletionRaw({
+      model: defaultGrokEdgeChatModel(getEnv),
       messages: [
         { role: "system", content: liveCallOptionsSystemPrompt() },
         { role: "user", content: userMessage },
@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
     });
 
     if (!orRes.ok || orRes.json === null) {
-      console.error("live-call-options OpenRouter error:", orRes.rawText);
+      console.error("live-call-options Grok error:", orRes.rawText);
       return new Response(JSON.stringify({ error: "AI service error", details: orRes.rawText.slice(0, 400) }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
