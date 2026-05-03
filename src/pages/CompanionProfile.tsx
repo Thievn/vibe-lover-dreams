@@ -81,6 +81,11 @@ import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptio
 import { stashAndNavigateToLiveCall } from "@/lib/navigateToLiveCall";
 import { ensureCompanionCallNotifications } from "@/lib/companionCallNotifications";
 import { hasUserPurchasedCompanionCard } from "@/lib/hasUserPurchasedCompanionCard";
+import {
+  getPublicCompanionProfileShareUrl,
+  getPublicSiteOrigin,
+  absoluteUrlWithPublicSite,
+} from "@/lib/publicCompanionShareUrl";
 
 function PremiumDisabledButton({
   label,
@@ -194,13 +199,12 @@ const CompanionProfile = () => {
   );
   /**
    * Chat, live call, gallery, Lovense, and FC spend toggles require owning this card
-   * (Forge creator, platform admin, or a `card_purchase` ledger row for this companion).
+   * (Forge creator or a `card_purchase` ledger row). Admins use the same rules here as everyone else.
    */
   const profileFeatureLocked = Boolean(
     companion &&
       !isDropLanding &&
       !isOwnForge &&
-      !isAdminUser &&
       (!paidCardQueryDone || !hasPaidForThisCard),
   );
 
@@ -210,7 +214,7 @@ const CompanionProfile = () => {
       setHasPaidForThisCard(false);
       return;
     }
-    if (isOwnForge || isAdminUser) {
+    if (isOwnForge) {
       setPaidCardQueryDone(true);
       setHasPaidForThisCard(false);
       return;
@@ -227,7 +231,7 @@ const CompanionProfile = () => {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, id, isOwnForge, isAdminUser]);
+  }, [user?.id, id, isOwnForge]);
 
   /** e.g. Chat “Live call” can deep-link here with `state: { profileTab: "live" }`. */
   useEffect(() => {
@@ -279,14 +283,8 @@ const CompanionProfile = () => {
   useEffect(() => {
     if (typeof document === "undefined" || !companion?.id) return;
     const prevTitle = document.title;
-    const shareCanonical = `${window.location.origin}/companions/${companion.id}?shared=1`;
-    const absoluteImage = (() => {
-      const u = stillForProfile?.trim();
-      if (!u) return null;
-      if (u.startsWith("http://") || u.startsWith("https://")) return u;
-      if (u.startsWith("//")) return `${window.location.protocol}${u}`;
-      return `${window.location.origin}${u.startsWith("/") ? u : `/${u}`}`;
-    })();
+    const shareCanonical = getPublicCompanionProfileShareUrl(companion.id);
+    const absoluteImage = absoluteUrlWithPublicSite(stillForProfile);
     const title = `${companion.name} · LustForge`;
     const desc = isSharedProfileLink
       ? `Your friend linked you to ${companion.name} on LustForge — preview the card, then forge your fantasies. (18+)`
@@ -620,10 +618,9 @@ const CompanionProfile = () => {
 
   const copyCompanionShareLink = useCallback(async () => {
     if (!id) return;
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const url = `${origin}/companions/${id}?shared=1`;
+    const url = getPublicCompanionProfileShareUrl(id);
     const name = companion?.name ?? "this companion";
-    const shareText = `Your friend shared ${name} on LustForge — preview the card and see if you vibe. (18+)`;
+    const shareText = `Open ${name}'s card on LustForge — preview the profile, then forge your fantasies. (18+)`;
     try {
       if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
         await navigator.share({
@@ -1039,23 +1036,6 @@ const CompanionProfile = () => {
                 </motion.button>
               </div>
             ) : null}
-            <div className="mt-4 rounded-2xl border border-white/[0.08] bg-black/35 px-4 py-3 backdrop-blur-md space-y-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Share</p>
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => void copyCompanionShareLink()}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-primary/35 bg-card/70 px-4 py-3 text-sm font-semibold text-primary backdrop-blur-md hover:border-primary/55 touch-manipulation"
-              >
-                <Share2 className="h-4 w-4 shrink-0" />
-                Invite someone to try LustForge
-              </motion.button>
-              <p className="text-[10px] text-muted-foreground leading-relaxed">
-                Copies a preview link with <span className="text-foreground/80 font-mono">?shared=1</span>. Recipients
-                browse the full card; chat, live, gallery, and toys stay locked until they acquire it.
-              </p>
-            </div>
             {vibeTraits.length > 0 ? (
               <div className="mt-4 flex justify-center px-1 pointer-events-auto">
                 <CompanionVibeTraitStrip traits={vibeTraits} size="md" max={8} />
@@ -1078,6 +1058,23 @@ const CompanionProfile = () => {
                 <span className="gradient-vice-text">{companion.name}</span>
               </h1>
               <p className="mt-2 text-lg sm:text-xl text-primary/95 italic">{companion.tagline}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => void copyCompanionShareLink()}
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/12 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-foreground/90 hover:border-primary/40 hover:text-primary touch-manipulation"
+                >
+                  <Share2 className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+                  Share {companion.name}&apos;s profile
+                </motion.button>
+                <span className="text-[10px] text-muted-foreground leading-snug max-w-[14rem] sm:max-w-md">
+                  Uses your public site URL ({getPublicSiteOrigin().replace(/^https?:\/\//, "")}), not this browser
+                  tab&apos;s host — friends land on this companion&apos;s profile; chat and live stay locked until they
+                  acquire the card.
+                </span>
+              </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <span className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1 text-xs text-foreground/90">
                   {companion.gender}

@@ -238,7 +238,7 @@ export function useChatSessionController() {
 
   useEffect(() => {
     if (!user?.id || !companion || !id || companion.id !== id) return;
-    if (isOwnForgeChat || isAdminUser) return;
+    if (isOwnForgeChat) return;
     let cancelled = false;
     void (async () => {
       const ok = await hasUserPurchasedCompanionCard(user.id, id);
@@ -251,7 +251,7 @@ export function useChatSessionController() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, companion?.id, id, isOwnForgeChat, isAdminUser, navigate]);
+  }, [user?.id, companion?.id, id, isOwnForgeChat, navigate]);
 
   const lastAssistantText = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {

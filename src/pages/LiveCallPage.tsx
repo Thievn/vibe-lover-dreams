@@ -25,7 +25,6 @@ import { LiveCallPhoneShell, type LiveCallUiPhase } from "@/components/liveCall/
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { isPlatformAdmin } from "@/config/auth";
 import { hasUserPurchasedCompanionCard } from "@/lib/hasUserPurchasedCompanionCard";
 import { notifyIncomingCallWithFallback } from "@/lib/companionCallNotifications";
 import {
@@ -136,7 +135,6 @@ const LiveCallPage = () => {
     void supabase.auth.getSession().then(async ({ data: { session } }) => {
       const u = session?.user;
       if (!u || u.id !== userId || cancelled) return;
-      if (isPlatformAdmin(u)) return;
       const ok = await hasUserPurchasedCompanionCard(userId, id);
       if (cancelled || ok) return;
       toast.message("A card must be acquired first", {
