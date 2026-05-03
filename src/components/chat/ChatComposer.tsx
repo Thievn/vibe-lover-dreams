@@ -412,10 +412,10 @@ type Which = "selfie" | "lewd" | "nude";
 
 function buildQuickSceneExtension(tier: FabSelfieTier): string {
   if (tier === "nude") {
-    return "Explicit nude still: creative pose, lighting, and **fresh environment** for this roll — match the roster portrait **exactly** for face shape, hair, skin tone, age read, and silhouette; same personality matrix; uncensored adult framing; **no pasted-on swimsuit from the card.**";
+    return "Artistic nude still: fine-art boudoir pose, soft cinematic light, **fresh environment** — match the roster portrait **exactly** for face, hair, skin tone, age read, and silhouette; same personality matrix; **editorial / tasteful** adult framing only; **no pasted-on swimsuit from the card.**";
   }
   if (tier === "lewd") {
-    return "Lewd still: creative teasing heat — lingerie, sheer, wet clingy fabric, silhouette, or undressing that fits personality and era; **new wardrobe + backdrop each time**, not a reshoot of their roster swimsuit unless swim is the vibe; **same face and body** as the roster portrait — no look-alike drift.";
+    return "Lewd still: editorial teasing heat — lingerie, sheer, wet fabric, silhouette, tasteful undressing that fits personality and era; **new wardrobe + backdrop each time**, not a reshoot of their roster swimsuit unless swim is the vibe; **same face and body** as the roster portrait — no look-alike drift.";
   }
   return "SFW still: creative flattering selfie — **distinct outfit and location** from their catalog portrait when possible; era-appropriate clothes; fully clothed; **same face, hair, and body** as the roster portrait (no substitute model).";
 }

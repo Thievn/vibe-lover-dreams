@@ -781,7 +781,14 @@ function AdminShell() {
           </div>
         </div>
 
-        <div className="mx-auto max-w-[1400px] p-4 pb-24 md:p-8">
+        <div
+          className={cn(
+            "mx-auto p-4 pb-24 md:p-8",
+            section === "characters"
+              ? "max-w-[min(1920px,calc(100vw-1.5rem))] 2xl:max-w-[min(2200px,calc(100vw-2rem))]"
+              : "max-w-[1400px]",
+          )}
+        >
           {section === "overview" && (
             <OverviewSection
               stats={stats}

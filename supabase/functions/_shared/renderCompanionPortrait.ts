@@ -56,7 +56,7 @@ async function buildFullAdultArtPortraitPrompt(
     raw: imagePrompt.trim(),
     context: rewriterContext,
     anatomyPolicy: anatomyDirective,
-    rewriteMode: "chat_session",
+    rewriteMode: "tasteful_adult_brief",
   });
 
   const baseDescription =

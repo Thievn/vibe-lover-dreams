@@ -12,8 +12,9 @@ import {
   runGrokImagineImageToVideo,
 } from "../_shared/xaiGrokVideo.ts";
 import {
-  buildMinimalProfileLoopVideoPrompt,
-  buildProfileLoopVideoPrompt,
+  buildMinimalProfilePageLoopVideoPrompt,
+  buildProfilePageLoopVideoPrompt,
+  profilePageLoopMotionNotesViolatePolicy,
   sanitizePromptForVideoApi,
 } from "../_shared/profileLoopVideoPrompt.ts";
 import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
@@ -105,6 +106,11 @@ Deno.serve(async (req) => {
   }
   const motionNotesRaw = typeof body.motionNotes === "string" ? body.motionNotes.trim() : "";
   const motionNotes = motionNotesRaw.slice(0, 800);
+
+  const policyErr = profilePageLoopMotionNotesViolatePolicy(motionNotes);
+  if (policyErr) {
+    return jsonResponse({ error: policyErr }, 400);
+  }
 
   const adminUser = await isLustforgeAdminUser(sessionUser);
   const tokenCostRaw = (body as { tokenCost?: unknown }).tokenCost;
@@ -228,17 +234,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const fullFromBuilder = buildProfileLoopVideoPrompt(row, motionNotes);
-    const combined = sanitizePromptForVideoApi(
-      `${fullFromBuilder}\n\nProfile page loop: seamless, identity-locked to the still.`,
-    );
+    const fullFromBuilder = buildProfilePageLoopVideoPrompt(row, motionNotes);
+    const combined = sanitizePromptForVideoApi(fullFromBuilder);
     const MAX_VIDEO_PROMPT = 3000;
     const prompt =
       combined.length <= MAX_VIDEO_PROMPT
         ? combined
-        : sanitizePromptForVideoApi(
-            `${buildMinimalProfileLoopVideoPrompt(row, motionNotes)} Profile page loop: seamless, identity-locked to the still.`,
-          );
+        : sanitizePromptForVideoApi(buildMinimalProfilePageLoopVideoPrompt(row, motionNotes));
 
     const durationSec = profileVideoDurationSeconds();
     const videoModel = (Deno.env.get("GROK_VIDEO_MODEL") ?? DEFAULT_GROK_VIDEO_MODEL).trim() ||
@@ -293,6 +295,29 @@ Deno.serve(async (req) => {
         await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "database update failed");
       }
       return jsonResponse({ error: upRow.message }, 500);
+    }
+
+    const galleryUserId = companionId.startsWith("cc-")
+      ? (String((row as { user_id?: unknown }).user_id ?? "").trim() || sessionUser.id)
+      : sessionUser.id;
+    const galleryPrompt = [
+      "Profile loop video (Grok I2V)",
+      motionNotes ? motionNotes.slice(0, 400) : "Portrait-driven motion",
+    ].join(" · ");
+
+    try {
+      const { error: gErr } = await svc.from("generated_images").insert({
+        user_id: galleryUserId,
+        companion_id: companionId,
+        image_url: publicUrl,
+        prompt: galleryPrompt.slice(0, 2000),
+        is_video: true,
+        saved_to_companion_gallery: true,
+        saved_to_personal_gallery: false,
+      });
+      if (gErr) console.error("profile_loop gallery insert:", gErr.message);
+    } catch (e) {
+      console.error("profile_loop gallery insert", e);
     }
 
     return jsonResponse({ success: true, publicUrl, source: "grok", durationSeconds: durationSec });

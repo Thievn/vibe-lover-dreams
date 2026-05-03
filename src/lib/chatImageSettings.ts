@@ -69,7 +69,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Tasteful lewd phone selfie: lock identity (face, hair, skin, body type) — wardrobe per scene from lingerie, sheer, wet clingy fabric, implied nude, tasteful topless; **premium editorial** heat, not hardcore porn staging. No graphic genital close-ups. Do not default to roster swimsuit when the scene implies something else.",
+      "Tasteful lewd phone selfie: lock identity (face, hair, skin, body type) — lingerie, sheer or wet fabric, sensual silhouette, tasteful implied or partial nude; **editorial / perfume-ad** glamour only — no crude or pornographic staging. Do not default to roster swimsuit when the scene implies something else.",
   },
 
   nude: {
@@ -82,7 +82,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Tasteful nude phone selfie: artistic intimate framing — same person as the character (face/hair/identity lock); believable photoreal human body (normalize chibi/exaggerated card refs toward real proportions). Sensual nude OK; avoid hardcore explicit acts or obscene close-ups; natural light; no modesty bar cop-out.",
+      "Artistic nude phone selfie: fine-art boudoir framing — same person (face, hair, identity lock); believable photoreal body if reference is stylized. Soft cinematic light, graceful pose, elegant sensuality — **no** graphic anatomy, explicit acts, or obscene angles. Natural or studio light; editorial mood.",
   },
 } as const;
 

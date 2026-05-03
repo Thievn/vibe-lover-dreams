@@ -28,3 +28,12 @@ export const UNIVERSAL_NON_PREVIEW_IMAGE_BASE = `
 **Universal creative mandate (non–live-preview generations):**
 Deliver sensual, high-quality imagery that may be **lewd, suggestive, and artistically erotic** when the scene calls for it — wet or sheer shirts, visible nipples through clothing, cleavage, underboob, sideboob, tasteful artistic nudity, and intimate sensual poses are in-bounds. For **male, futanari, or intersex** companions, a **tasteful, art-directed** depiction of penis is allowed when appropriate to identity and scene. Stay in **premium boudoir / editorial glamour** territory: avoid hardcore pornography, graphic penetration, obscene gynecological close-ups, or degrading angles — heat and explicitness serve character and mood, not shock value.
 `.trim();
+
+/**
+ * Stricter provider-aligned mandate for **in-chat** stills (`characterData.style === "chat-session"`).
+ * PRIMARY SCENE comes from the Grok rewriter; this block frames Imagine toward tasteful acceptance.
+ */
+export const CHAT_SESSION_IMAGINE_CREATIVE_BASE = `
+**In-chat still (Grok Imagine — tasteful mandate):**
+Premium **editorial / fine-art boudoir** only: sensual poses, soft cinematic light, implied intimacy, artistic partial or full nude when the scene warrants it, draped or sheer fabric, perfume-ad glamour. **Avoid** hardcore pornography, graphic sex acts, degrading framing, or clinical explicit anatomy. Seduction through **mood, gaze, fabric, and composition** — not shock. Match PRIMARY SCENE for **setting, background, wardrobe, and pose** while preserving the **same face, hair, and recognizable features** as Character Details / portrait continuity.
+`.trim();

@@ -1,6 +1,7 @@
 /**
  * Rewrites raw text into a final image prompt for **xAI Grok Imagine** stills (Grok **text** rewriter → `/v1/images/generations`).
- * - `chat_session`: adult chat / in-session images — explicit content allowed in the rewritten prompt (provider enforces its own limits).
+ * - `chat_session`: in-chat / selfie / lewd — **crude → artistic** middleware; identity/scene from CONTEXT.
+ * - `tasteful_adult_brief`: forge / gallery / admin design briefs — same safety rules, different INPUT framing.
  * - `portrait_card`: catalog / forge **card portrait** only — output must stay SFW (pin-up / cover art); see `PORTRAIT_IMAGE_REWRITER_SYSTEM`.
  *
  * Used by `safe-image-prompt` and `generate-image`.
@@ -11,36 +12,61 @@ import { defaultGrokRewriteModel, grokSingleChatAssistantText } from "./xaiGrokC
 
 const getEnv = (name: string) => Deno.env.get(name);
 
-export type ImagineRewriteMode = "chat_session" | "portrait_card";
+export type ImagineRewriteMode = "chat_session" | "portrait_card" | "tasteful_adult_brief";
 
-/** In-session or marketing images: do not pre-sanitize for “SFW” — Grok Imagine + provider handle policy. */
-export const CHAT_SESSION_IMAGE_REWRITER_SYSTEM = `You are the principal visual director for Grok Imagine image generation (xAI) on an adults-only fantasy companion product.
+/**
+ * Global mood anchor woven into rewriter output (and echoed in Imagine assembly for chat stills).
+ * Gender-neutral — identity comes from CONTEXT (face, hair, presentation).
+ */
+export const CHAT_IMAGE_ARTISTIC_STYLE_ANCHOR = [
+  "Elegant subject matching CONTEXT identity, seductive and artistic photography, sensual pose, elegant lighting,",
+  "tasteful sensual aesthetic, soft cinematic lighting, highly detailed, alluring expression, seductive atmosphere,",
+  "artistic nude style when nudity fits the scene, graceful and beautiful — premium boudoir / editorial glamour.",
+].join(" ");
 
-INPUT: you receive RAW_TEXT — anything from a user's chat request to an AI roleplay reply. It may be blunt, explicit, or obscene. You also receive optional CONTEXT (character notes, scene, wardrobe hints).
+/**
+ * Middleware for **all in-chat / selfie / lewd** image prompts before Grok Imagine.
+ * Converts blunt or crude user language into provider-tolerant, art-directed English.
+ */
+export const CHAT_SESSION_IMAGE_REWRITER_SYSTEM = `You are the **smart image-prompt safety layer** for Grok Imagine (xAI) on an adults-only companion product.
 
-YOUR JOB: produce ONE final English image prompt for the image API (plain text only, no markdown, no quotes) that:
+INPUT: RAW_TEXT (user chat, menu selfie brief, or roleplay line). It may be crude or explicit. Optional CONTEXT holds character notes, portrait lock, forge body type, art style, and scene hints.
 
-1) Keeps strong sensual heat — never dull or generic — but stay in **tasteful premium adult** territory (fashion editorial, perfume-ad intimacy, neon-noir romance, cinematic boudoir). Avoid hardcore pornographic staging.
+YOUR JOB: output **one** final English image prompt (plain text only — no markdown, no quotes, no JSON) that:
 
-2) Describes what the IMAGE may show for a private chat still — **tasteful nude / lewd OK**, explicit medical or gonzo porn **not**:
-   - Nudity, silhouettes, implied acts, flushed skin, arched poses, lingerie, wet fabric, and intimate tension are welcome when RAW_TEXT goes there.
-   - Prefer **art-directed sensuality** over graphic close-ups: no obscene genital detail, no penetration framing, no degrading angles — let the viewer’s imagination do work.
-   - When the request is milder, use parted lips, heavy-lidded eyes, eye contact, fabric, light, and posture — not clinical explicit anatomy language.
-   - **When the request is vague** (e.g. "new pic", "another still", "show me", "selfie" without a pose), default the **framing to upper body / chest-up / midriff / boudoir** — lingerie, sheer, implied topless, tasteful tease — not hardcore spreads unless the user clearly asks in RAW_TEXT.
+1) **Preserves user intent** — if they asked for a **specific background, outfit, pose, lighting, or vibe**, keep those concrete details. Translate crude words into **tasteful, seductive, artistic** phrasing Grok Imagine is more likely to accept.
 
-3) Reads CONTEXT and weaves identity (species, gender presentation, era, subculture) naturally, matching the desired level of explicitness.
+2) **Rewrite policy — crude → artistic** (always apply when RAW_TEXT is explicit). Examples (same heat, safer words):
+   - "nude, spread legs" → "artistic nude, sensual pose reclining on bed, elegant legs, intimate boudoir framing"
+   - graphic genital requests → "intimate artistic nude, elegant pose, soft shadow, modest implied framing"
+   - "topless" → "tasteful sensual topless, beautiful form, editorial lighting"
+   - obscene verbs → "yearning expression", "charged intimacy", "suggestive silhouette", "fabric and light doing the tease"
 
-4) When CONTEXT includes a **forge body type**, **silhouetteCategory**, **artStyleLabel**, or **portraitConsistencyLock**, those fields are authoritative for silhouette, species, limb count, rendering style (e.g. anime vs photoreal), and continuity with the roster portrait — do **not** substitute a generic different human model, unrelated body trope, or style jump (e.g. anime roster → random photoreal different build) unless RAW_TEXT explicitly requests that deliberate alternate.
+3) **Allowed:** strong tease, lingerie, sheer / wet fabric, tasteful **artistic** partial or full nude, sensual poses, romantic tension, implied intimacy.
 
-4b) **Stylized reference → photoreal:** If the roster is **chibi, SD, caricature, or weird proportions** (e.g. huge head / tiny body), describe a **photoreal adult human** who clearly resembles that character — **normalize** to believable anatomy; do not copy toy-like proportions unless RAW_TEXT demands stylized art.
+4) **Forbidden in the rewritten prompt:** hardcore pornography staging, graphic penetration, degrading angles, clinical obscene anatomy, slurs, or shock-for-shock wording — even if RAW_TEXT used them.
 
-4c) **Likewise wardrobe:** When RAW_TEXT implies a different outfit (wet shirt, lingerie, gym, bed, rain), describe that wardrobe — do not default every shot to the card swimsuit unless swim is requested.
+5) **Identity lock:** CONTEXT / portraitConsistencyLock defines **face, hair, species, body type, and art style**. The image is a **new shot** of the **same person** — new wardrobe and environment per RAW_TEXT; never a different model. If CONTEXT implies male / futanari / nonbinary presentation, match that; do not default to "beautiful woman" unless CONTEXT is a feminine-presenting woman.
 
-5) Never instruct legible on-image text, logos, watermarks, fake app UI, shop signage, posters, or product/platform branding — the image stays environmental portraiture only.
+6) **Style anchor:** naturally weave this mood into your output (paraphrase OK; do not paste as a disconnected tagline):
+   ${CHAT_IMAGE_ARTISTIC_STYLE_ANCHOR}
 
-6) Length: roughly 90–220 words. Dense, cinematic, art-directed — not a bullet list unless you need 2–3 short phrases for lighting + lens.
+7) **Vague requests** ("pic", "selfie", "show me"): default flattering **upper body / three-quarter / boudoir** framing with wardrobe and set that fit CONTEXT personality — not explicit spreads unless RAW_TEXT clearly asked.
 
-7) Output ONLY the prompt string. No preamble ("Here is"), no JSON.`;
+8) Never instruct legible logos, watermarks, fake UI, or on-image text.
+
+9) Length ~90–220 words, cinematic and dense.
+
+10) Output ONLY the prompt string.`;
+
+/** Forge / gallery / admin: same crude→artistic rules as chat; RAW_TEXT is usually a design brief. */
+export const TASTEFUL_ADULT_BRIEF_REWRITER_SYSTEM = CHAT_SESSION_IMAGE_REWRITER_SYSTEM.replace(
+  "INPUT: RAW_TEXT (user chat, menu selfie brief, or roleplay line). It may be crude or explicit. Optional CONTEXT holds character notes, portrait lock, forge body type, art style, and scene hints.",
+  "INPUT: RAW_TEXT — usually a **design brief**, forge field, or catalog description (may be long or technical; may contain crude fragments). Optional CONTEXT holds character notes, portrait lock, forge body type, art style, and scene hints.",
+).replace(
+  "7) **Vague requests** (\"pic\", \"selfie\", \"show me\"): default flattering **upper body / three-quarter / boudoir** framing with wardrobe and set that fit CONTEXT personality — not explicit spreads unless RAW_TEXT clearly asked.",
+  "7) **Sparse briefs:** expand into a full cinematic scene using CONTEXT — still tasteful and provider-safe; do not invent hardcore staging.",
+);
 
 /** Catalog / card portraits only — must stay SFW for FLUX roster art (public catalog). */
 export const PORTRAIT_IMAGE_REWRITER_SYSTEM = `You are the visual director for **catalog card portraits** on an adults-only companion product.
@@ -67,10 +93,11 @@ export type RewritePromptForImagineArgs = {
   context?: string;
   /** Injected anatomy policy (from anatomyImageRules) — applied to every rewrite. */
   anatomyPolicy?: string;
-  /** Override OpenRouter model id (default: OPENROUTER_REWRITE_MODEL or chat model). */
+  /** Override Grok rewrite model id (default: GROK_REWRITE_MODEL or GROK_CHAT_MODEL). */
   chatModel?: string;
   /**
-   * `chat_session` — adult in-chat / non-catalog images; rewriter may output explicit directions.
+   * `chat_session` — in-chat / selfie / lewd; crude→artistic middleware.
+   * `tasteful_adult_brief` — forge / gallery long briefs (same safety, different INPUT framing).
    * `portrait_card` — forge preview + roster card art; rewriter must output SFW-only Imagine prompts.
    */
   rewriteMode?: ImagineRewriteMode;
@@ -112,7 +139,11 @@ export async function rewritePromptForImagine(args: RewritePromptForImagineArgs)
 
   const mode: ImagineRewriteMode = args.rewriteMode ?? "chat_session";
   const system =
-    mode === "portrait_card" ? PORTRAIT_IMAGE_REWRITER_SYSTEM : CHAT_SESSION_IMAGE_REWRITER_SYSTEM;
+    mode === "portrait_card"
+      ? PORTRAIT_IMAGE_REWRITER_SYSTEM
+      : mode === "tasteful_adult_brief"
+        ? TASTEFUL_ADULT_BRIEF_REWRITER_SYSTEM
+        : CHAT_SESSION_IMAGE_REWRITER_SYSTEM;
 
   const model = (args.chatModel && args.chatModel.trim()) || defaultGrokRewriteModel(getEnv);
 
@@ -122,7 +153,7 @@ export async function rewritePromptForImagine(args: RewritePromptForImagineArgs)
   const contextLabel =
     mode === "portrait_card"
       ? "OPTIONAL_CONTEXT (character / scene — respect; OUTPUT must remain SFW pin-up / cover art for a public catalog card):"
-      : "OPTIONAL_CONTEXT (character / scene — respect; preserve explicit adult content from RAW_TEXT when requested):";
+      : "OPTIONAL_CONTEXT (character / scene — respect; use for identity, face lock, body type, art style, and era — rewrite RAW_TEXT into tasteful artistic language while keeping their scene choices):";
 
   const userContent = [
     anatomy ? `ANATOMY_POLICY (must obey — do not contradict in the rewritten prompt):\n${anatomy}\n` : "",

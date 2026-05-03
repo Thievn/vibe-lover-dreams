@@ -5,13 +5,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
-import { CHAT_VIDEO_TIMING_USER_NOTE, pickRandomVideoLoadingLine } from "@/lib/chatVisualRouting";
+import { pickRandomVideoLoadingLine } from "@/lib/chatVisualRouting";
+import { profileLoopMotionInvalidReason } from "@/lib/profileLoopVideoSafety";
 import { cn } from "@/lib/utils";
 
 type Props = {
   companionId: string;
   className?: string;
   onSuccess?: () => void;
+  /** True when companion already has an MP4/WebM loop URL on `animated_image_url`. */
+  hasExistingLoopVideo?: boolean;
   /**
    * Optional: extra motion / camera / mood text merged into the I2V prompt (server-capped).
    * Not persisted — use each time you generate.
@@ -25,12 +28,23 @@ type Props = {
  */
 const MOTION_MAX = 800;
 
-export function AdminLoopingVideoBlock({ companionId, className, onSuccess, showMotionNotes = true }: Props) {
+export function AdminLoopingVideoBlock({
+  companionId,
+  className,
+  onSuccess,
+  hasExistingLoopVideo = false,
+  showMotionNotes = true,
+}: Props) {
   const [busy, setBusy] = useState(false);
   const [motionNotes, setMotionNotes] = useState("");
 
   const run = async () => {
     if (!companionId.trim()) return;
+    const invalid = profileLoopMotionInvalidReason(motionNotes);
+    if (invalid) {
+      toast.error(invalid);
+      return;
+    }
     setBusy(true);
     const loadId = toast.loading(pickRandomVideoLoadingLine());
     try {
@@ -41,11 +55,11 @@ export function AdminLoopingVideoBlock({ companionId, className, onSuccess, show
       if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
       const errMsg = (data as { error?: string })?.error;
       if (errMsg) throw new Error(errMsg);
-      const url = (data as { publicUrl?: string })?.publicUrl;
-      toast.success("Looping profile video saved", {
+      toast.success(hasExistingLoopVideo ? "Loop video updated" : "Looping profile video saved", {
         id: loadId,
-        description: url ? String(url).slice(0, 120) : "Enable on profile if needed.",
-        duration: 8000,
+        description:
+          "Profile-page prompt + safety filter on custom notes. Forge clips are also inserted into the companion gallery.",
+        duration: 6000,
       });
       onSuccess?.();
     } catch (e: unknown) {
@@ -58,7 +72,7 @@ export function AdminLoopingVideoBlock({ companionId, className, onSuccess, show
   return (
     <div
       className={cn(
-        "rounded-xl border border-primary/25 bg-gradient-to-br from-black/60 via-primary/[0.06] to-black/50 p-4 space-y-2",
+        "space-y-2 rounded-xl border border-primary/25 bg-gradient-to-br from-black/60 via-primary/[0.06] to-black/50 p-4",
         className,
       )}
     >
@@ -66,38 +80,35 @@ export function AdminLoopingVideoBlock({ companionId, className, onSuccess, show
         <Video className="h-4 w-4" />
         Looping portrait video
       </div>
-      <p className="text-[11px] text-muted-foreground leading-relaxed">
-        Primary path after save: generate here or in Character management (forge no longer queues this automatically — faster saves).
-        Uses the current still as first frame — Grok Imagine I2V; motion follows profile fields. {CHAT_VIDEO_TIMING_USER_NOTE}{" "}
-        Use the row checkbox “Show looping MP4 on companion profile and chat” when the animated URL is the MP4.
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        Same engine as Discover: current still as reference, optional tasteful custom notes (blocked words rejected
+        client + server). Successful clips are written to the owner&apos;s companion gallery when applicable.
       </p>
       {showMotionNotes ? (
         <div className="space-y-1.5">
           <Label htmlFor={`loop-motion-${companionId}`} className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Motion & camera (optional)
+            Custom instructions (optional)
           </Label>
           <Textarea
             id={`loop-motion-${companionId}`}
             value={motionNotes}
             onChange={(e) => setMotionNotes(e.target.value.slice(0, MOTION_MAX))}
             rows={3}
-            placeholder="e.g. slow hair toss, smirk, subtle lean forward, soft idle sway — no dialogue."
-            className="resize-y min-h-[72px] text-xs bg-background/60 border-border/80"
+            placeholder="e.g. candlelight, silk sheets, slow hair sway — tasteful / suggestive only."
+            className="min-h-[72px] resize-y border-border/80 bg-background/60 text-xs"
             disabled={busy}
           />
-          <p className="text-[10px] text-muted-foreground/90">
-            When set, the model treats this as mandatory direction (highest priority in the prompt). Max {MOTION_MAX} chars. Leave blank for profile-driven defaults only.
-          </p>
+          <p className="text-[10px] text-muted-foreground/90">Max {MOTION_MAX} characters.</p>
         </div>
       ) : null}
       <button
         type="button"
         disabled={busy || !companionId.trim()}
         onClick={() => void run()}
-        className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/15 px-4 py-2.5 text-sm font-semibold text-primary hover:bg-primary/25 transition-colors disabled:opacity-50"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/15 px-4 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/25 disabled:opacity-50"
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
-        Generate looping video
+        {hasExistingLoopVideo ? "Regenerate looping video" : "Generate looping video"}
       </button>
     </div>
   );

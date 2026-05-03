@@ -14,8 +14,8 @@ function parseErrorMessage(status: number, text: string): string {
 }
 
 /**
- * `generate-image-tensor` (Tensor.art TAMS, img2img + reference) — used for **nude** chat stills
- * so SFW/lewds can stay on the faster Grok `generate-image` path.
+ * `generate-image-tensor` (Tensor.art TAMS, img2img + reference). Chat stills use Grok `generate-image` only;
+ * this client remains for any future Tensor-only flows.
  */
 export async function invokeGenerateImageTensor(
   body: Record<string, unknown> & { nudeTensorGeneration?: boolean },

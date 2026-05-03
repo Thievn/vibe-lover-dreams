@@ -72,7 +72,8 @@ export function CompanionGalleryGrid({
       <div className="rounded-2xl border border-white/[0.08] bg-black/35 backdrop-blur-xl px-6 py-14 text-center">
         <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
         <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
-          No images yet. Generate selfies and scenes in chat — they&apos;ll appear here automatically.
+          Nothing here yet. Chat generations and profile loop clips show up automatically once they&apos;re saved to this
+          companion&apos;s gallery.
         </p>
       </div>
     );

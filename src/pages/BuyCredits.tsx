@@ -267,8 +267,9 @@ export default function BuyCredits() {
                     </li>
                     <li>
                       <span className="text-white/90 font-semibold">Selfie / lewd still</span> — {CHAT_IMAGE_LEWD_FC} FC
-                      each · <span className="text-white/90 font-semibold">HQ / nude still</span> — {CHAT_IMAGE_NUDE_FC}{" "}
-                      FC each
+                      each ·{" "}
+                      <span className="text-white/90 font-semibold">Artistic nude tier (chat)</span> —{" "}
+                      {CHAT_IMAGE_NUDE_FC} FC each (Grok Imagine, tasteful rewrite)
                     </li>
                     <li>
                       <span className="text-white/90 font-semibold">Forge portrait preview</span> — {FORGE_PREVIEW_FC} FC ·{" "}

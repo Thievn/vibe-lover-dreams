@@ -14,6 +14,8 @@ import {
   Loader2, X, ImageIcon, Palette, ArrowLeft, Sparkles, Trash2, Waves, Video, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { withAsyncTimeout } from "@/lib/withAsyncTimeout";
+import { formatSupabaseError } from "@/lib/supabaseError";
 import { AdminCompanionPortraitPreview } from "@/components/admin/AdminCompanionPortraitPreview";
 import { AdminLoopingVideoBlock } from "@/components/admin/AdminLoopingVideoBlock";
 import { galleryStaticPortraitUrl, isVideoPortraitUrl } from "@/lib/companionMedia";
@@ -972,38 +974,44 @@ const CompanionManager = () => {
     }
     setCreatingLoading(true);
     try {
-      const { error } = await supabase.from("companions").insert({
-        id: createData.id,
-        name: createData.name,
-        tagline: createData.tagline,
-        gender: createData.gender,
-        orientation: createData.orientation,
-        role: createData.role,
-        tags: createData.tags,
-        kinks: createData.kinks,
-        appearance: createData.appearance,
-        personality: createData.personality,
-        bio: createData.bio,
-        system_prompt: createData.system_prompt,
-        fantasy_starters: createData.fantasy_starters as any,
-        gradient_from: createData.gradient_from,
-        gradient_to: createData.gradient_to,
-        image_prompt: createData.image_prompt,
-        is_active: createData.is_active,
-        rarity: createData.rarity,
-        backstory: createData.backstory,
-        static_image_url: createData.static_image_url,
-        animated_image_url: createData.animated_image_url,
-        profile_loop_video_enabled: createData.profile_loop_video_enabled,
-        rarity_border_overlay_url: createData.rarity_border_overlay_url,
-        image_url: createData.image_url,
-        display_traits: createData.display_traits ?? [],
-      } as any);
+      const { error } = await withAsyncTimeout(
+        supabase
+          .from("companions")
+          .insert({
+            id: createData.id,
+            name: createData.name,
+            tagline: createData.tagline,
+            gender: createData.gender,
+            orientation: createData.orientation,
+            role: createData.role,
+            tags: createData.tags,
+            kinks: createData.kinks,
+            appearance: createData.appearance,
+            personality: createData.personality,
+            bio: createData.bio,
+            system_prompt: createData.system_prompt,
+            fantasy_starters: createData.fantasy_starters as any,
+            gradient_from: createData.gradient_from,
+            gradient_to: createData.gradient_to,
+            image_prompt: createData.image_prompt,
+            is_active: createData.is_active,
+            rarity: createData.rarity,
+            backstory: createData.backstory,
+            static_image_url: createData.static_image_url,
+            animated_image_url: createData.animated_image_url,
+            profile_loop_video_enabled: createData.profile_loop_video_enabled,
+            rarity_border_overlay_url: createData.rarity_border_overlay_url,
+            image_url: createData.image_url,
+            display_traits: createData.display_traits ?? [],
+          } as any),
+        60_000,
+        "Creating catalog companion (database)",
+      );
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
       backToList();
-    } catch (err: any) {
-      toast.error("Create failed: " + err.message);
+    } catch (err: unknown) {
+      toast.error(`Create failed: ${formatSupabaseError(err)}`);
     } finally {
       setCreatingLoading(false);
     }
@@ -1480,6 +1488,9 @@ const CompanionManager = () => {
 
               <AdminLoopingVideoBlock
                 companionId={companion.id}
+                hasExistingLoopVideo={hasProfileLoopMp4({
+                  animated_image_url: val("animated_image_url") as string | null,
+                })}
                 onSuccess={() => {
                   void queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
                   void queryClient.invalidateQueries({ queryKey: ["companions"] });
@@ -1790,7 +1801,10 @@ const CompanionManager = () => {
         </p>
       </div>
 
-      <div className="rounded-xl border border-accent/25 bg-accent/5 p-4 space-y-3">
+      {/* Widescreen: forge | stock side by side with tall scroll ports; mobile: stacked with capped forge height */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:grid-rows-1 lg:items-stretch lg:gap-6">
+      <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-accent/25 bg-accent/5 shadow-sm lg:h-[calc(100dvh-13.25rem)] lg:max-h-[calc(100dvh-13.25rem)]">
+        <div className="shrink-0 space-y-3 p-4 pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-sm font-semibold text-foreground">Community forge saves</h3>
@@ -1812,18 +1826,21 @@ const CompanionManager = () => {
           </div>
         </div>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          From <strong className="text-foreground/90">Companion Forge → Create</strong>. Catalog stock is in the section below.
+          From <strong className="text-foreground/90">Companion Forge → Create</strong>.
+          <span className="lg:hidden"> Catalog stock is below.</span>
+          <span className="hidden lg:inline"> Stock catalog is in the right column when the window is wide enough.</span>
         </p>
+        </div>
         {forgedLoading ? (
-          <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+          <div className="flex shrink-0 items-center gap-2 px-4 pb-4 text-xs text-muted-foreground">
             <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> Loading forged rows…
           </div>
         ) : forgedRows.length === 0 ? (
-          <p className="py-1 text-xs text-muted-foreground">No community forge rows yet.</p>
+          <p className="shrink-0 px-4 pb-4 text-xs text-muted-foreground">No community forge rows yet.</p>
         ) : forgedFiltered.length === 0 ? (
-          <p className="py-2 text-xs text-muted-foreground">No forge rows match your search or portrait filter.</p>
+          <p className="shrink-0 px-4 pb-4 text-xs text-muted-foreground">No forge rows match your search or portrait filter.</p>
         ) : (
-          <ul className="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
+          <ul className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 pb-4 pr-2 max-h-[min(52vh,26rem)] sm:max-h-[min(56vh,30rem)] lg:max-h-none">
             {forgedFiltered.map((row) => {
               const fr = row as Record<string, unknown>;
               const frRarity = normalizeCompanionRarity(typeof fr.rarity === "string" ? fr.rarity : undefined);
@@ -1979,16 +1996,14 @@ const CompanionManager = () => {
         )}
       </div>
 
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-end justify-between gap-2 border-b border-border/60 pb-2">
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Stock companions</h3>
-            <p className="text-[11px] text-muted-foreground">
-              Showing {stockSorted.length} of {companions?.length ?? 0} catalog rows (companions table)
-            </p>
-          </div>
+      <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-card/25 shadow-sm lg:h-[calc(100dvh-13.25rem)] lg:max-h-[calc(100dvh-13.25rem)]">
+        <div className="shrink-0 border-b border-border/60 px-4 py-3">
+          <h3 className="text-sm font-semibold text-foreground">Stock companions</h3>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Showing {stockSorted.length} of {companions?.length ?? 0} catalog rows (companions table)
+          </p>
         </div>
-
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-3 pr-2 max-h-[min(52vh,26rem)] sm:max-h-[min(58vh,32rem)] lg:max-h-none">
         {stockSorted.map((companion) => {
           const stockHasLoop = hasProfileLoopMp4(companion);
           return (
@@ -2092,6 +2107,8 @@ const CompanionManager = () => {
         {(companions?.length ?? 0) === 0 && (
           <p className="py-10 text-center text-sm text-muted-foreground">No catalog companions loaded.</p>
         )}
+        </div>
+      </div>
       </div>
     </div>
   );

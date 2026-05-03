@@ -711,12 +711,22 @@ const CompanionProfile = () => {
           <div className="mt-3 w-full min-w-0 border-t border-white/[0.06] pt-3">
             <ProfileLoopingVideoUpsell
               companionId={companion.id}
+              hasExistingLoopVideo={Boolean(
+                companion.animated_image_url?.trim() &&
+                  isVideoPortraitUrl(companion.animated_image_url),
+              )}
               disabled={false}
               tokensBalance={fcBalanceProfile}
               isAdminUser={isAdminUser}
+              onViewGallery={() => setProfileTab("gallery")}
               onSuccess={() => {
                 void queryClient.invalidateQueries({ queryKey: ["companions"] });
                 void queryClient.invalidateQueries({ queryKey: ["portrait-override", user?.id, id] });
+                if (user?.id && companion.id) {
+                  void queryClient.invalidateQueries({
+                    queryKey: ["companion-generated-images", user.id, companion.id],
+                  });
+                }
               }}
               onBalanceMaybeChanged={() => {
                 if (!user?.id) return;
@@ -1198,8 +1208,10 @@ const CompanionProfile = () => {
               <section className="rounded-2xl border border-white/[0.08] bg-black/40 backdrop-blur-xl p-5 sm:p-6">
                 <h2 className="text-xs font-bold uppercase tracking-[0.25em] text-primary mb-1">Saved from chat</h2>
                 <p className="text-sm text-muted-foreground mb-6 max-w-xl">
-                  Generated selfies and scenes are stored here. Pick one as {companion.name}&apos;s portrait — it updates
-                  chat and this profile.
+                  Chat selfies and scenes live here, plus looping portrait videos after you generate them. Tap any{" "}
+                  <span className="text-foreground/90 font-medium">still</span> and use{" "}
+                  <span className="text-foreground/90 font-medium">Set as portrait</span> to make it {companion.name}
+                  &apos;s main profile image (videos are for viewing only).
                 </p>
                 {user ? (
                   <CompanionGalleryGrid

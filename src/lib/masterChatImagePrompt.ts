@@ -57,10 +57,10 @@ export function classifyChatImageMood(input: { rawUserMessage: string; menuBaseP
 
 function moodNsfwClauses(m: FabSelfieTier): string {
   if (m === "nude") {
-    return "Tasteful adults-only nude: artistic boudoir, silhouette, or intimate portrait framing — nudity allowed but **not** hardcore pornography (no graphic penetration, no obscene close-up genital focus). Same real face identity as the reference — believable photoreal human anatomy. Wardrobe absent per scene — not the roster swimsuit pasted on.";
+    return "Artistic intimate nude (Grok Imagine): fine-art boudoir or editorial silhouette — sensual, graceful, soft light; **no** crude anatomy, graphic acts, or pornographic staging. Same face and identity as the reference; believable photoreal body. Wardrobe absent only when the scene calls for nude; never paste the roster catalog swimsuit onto a non-beach scene.";
   }
   if (m === "lewd") {
-    return "Tasteful lewd: lingerie, sheer, wet fabric, silhouette, teasing poses — premium editorial thirst-trap, **not** explicit porn staging. Same person as the reference. Match heat to personality and scene; vary sets — no profile bikini clone unless swim is the scene.";
+    return "Tasteful lewd: lingerie, sheer, wet fabric, silhouette, teasing poses — premium editorial / perfume-ad heat, **not** explicit porn staging or obscene wording. Same person as the reference. Match mood to personality and USER SCENE; vary sets — no profile bikini clone unless swim is the scene.";
   }
   return "SFW — flirty, romantic, or cute; fully clothed for public-safe framing. Same person as the reference, same face, same body proportions. Outfit must fit THIS preset (not automatically the roster swimsuit).";
 }
@@ -130,8 +130,8 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
   const mood = classifyChatImageMood({ rawUserMessage, menuBasePrompt: menuImagePrompt });
   const explicit = isExplicitImageRequest(rawUserMessage) || isExplicitImageRequest(sceneRequest);
   const tierLine = explicit
-    ? "Tasteful adult tone only: sensual nude or strong tease is fine — avoid hardcore pornographic acts, graphic penetration, or dehumanizing angles; stay in premium boudoir / editorial space."
-    : "Keep framing tasteful and story-led unless the user clearly asked for explicit nudity.";
+    ? "Provider-safe adult tone: strong tease and artistic nude are fine — stay in **editorial / fine-art boudoir** language; avoid hardcore acts, graphic anatomy, or degrading angles. User crude phrasing will be rewritten server-side; your job is scene fidelity + identity lock."
+    : "Keep framing tasteful and story-led; default flattering portrait or boudoir tease unless the user clearly escalated.";
 
   const identity = [
     "— IDENTITY (ABSOLUTE, NON-NEGOTIABLE) —",

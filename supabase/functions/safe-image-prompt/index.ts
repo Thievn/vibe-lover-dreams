@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
+import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { buildAnatomyRewriterDirective, resolveAnatomyVariant } from "../_shared/anatomyImageRules.ts";
 import { rewritePromptForImagine } from "../_shared/safeImagePromptRewriter.ts";
 
@@ -64,8 +64,8 @@ Deno.serve(async (req) => {
       context?: string;
       characterData?: Record<string, unknown>;
       userId?: string;
-      /** `portrait_card` = SFW catalog-style rewrite; default `chat_session` = adult session image. */
-      rewriteMode?: "chat_session" | "portrait_card";
+      /** `portrait_card` = SFW catalog rewrite; `tasteful_adult_brief` = forge/gallery brief; default `chat_session` = in-chat still. */
+      rewriteMode?: "chat_session" | "portrait_card" | "tasteful_adult_brief";
     };
     const raw = (body.raw ?? "").trim();
     if (!raw) {
@@ -82,11 +82,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const orKey = resolveOpenRouterApiKey((name) => Deno.env.get(name));
-    if (!orKey) {
+    if (!resolveXaiApiKey((name) => Deno.env.get(name))) {
       return new Response(
         JSON.stringify({
-          error: "Missing OPENROUTER_API_KEY for the image prompt rewriter.",
+          error: "Missing XAI_API_KEY or GROK_API_KEY for the Grok image prompt rewriter.",
         }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -106,7 +105,12 @@ Deno.serve(async (req) => {
       }
     }
     const anatomyVariant = resolveAnatomyVariant(characterData);
-    const rewriteMode = body.rewriteMode === "portrait_card" ? "portrait_card" : "chat_session";
+    const rewriteMode =
+      body.rewriteMode === "portrait_card"
+        ? "portrait_card"
+        : body.rewriteMode === "tasteful_adult_brief"
+          ? "tasteful_adult_brief"
+          : "chat_session";
 
     const safePrompt = await rewritePromptForImagine({
       raw,

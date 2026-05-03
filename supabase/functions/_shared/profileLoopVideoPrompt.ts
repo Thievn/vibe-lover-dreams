@@ -5,10 +5,13 @@ import {
 } from "./forgeAnimeStyleDna.ts";
 
 /**
- * Profile companion-page loop videos: image-to-video via Grok Imagine (`generate-profile-loop-video`).
- * Duration is mirrored in edge function API calls.
+ * Shared helpers for Grok Imagine image-to-video.
  *
- * No app-side content moderation — the provider enforces its own rules.
+ * - **Companion profile page loops** (`generate-profile-loop-video`): use
+ *   {@link buildProfilePageLoopVideoPrompt} + {@link profilePageLoopMotionNotesViolatePolicy}
+ *   (tasteful style lock + blocked-word filter on user notes only).
+ * - **Chat clip videos** (`generate-chat-companion-video`): use {@link buildProfileLoopVideoPrompt}
+ *   (richer character context; different policy envelope).
  */
 export const PROFILE_LOOP_VIDEO_DURATION_SECONDS = 10;
 
@@ -241,4 +244,91 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>, editor
   const rawOut = animePrefix + body;
   const capped = rawOut.length <= MAX_PROMPT_CHARS ? rawOut : `${rawOut.slice(0, MAX_PROMPT_CHARS).trimEnd()}…`;
   return sanitizePromptForVideoApi(capped);
+}
+
+// ─── Profile **page** loop only (`generate-profile-loop-video`) ─────────────────
+
+/** Style and safety envelope for profile looping video (I2V). */
+export const PROFILE_PAGE_LOOP_STYLE_DIRECTIVE =
+  "Generate a beautiful, highly seductive, and artistic video loop using the reference portrait. The style should be sensual, cinematic, and tasteful. You may include artistic nudity and suggestive scenes, but keep everything elegant and high-class. Focus on sensuality, graceful movement, seductive expressions, and artistic beauty.";
+
+/** Blocked in **user-supplied** motion / custom instructions for profile loops (substring match, case-insensitive). */
+export const PROFILE_PAGE_LOOP_BLOCKED_SUBSTRINGS = [
+  "pussy",
+  "vagina",
+  "cock",
+  "dick",
+  "penis",
+  "asshole",
+  "cum",
+  "creampie",
+  "ahegao",
+  "hardcore",
+  "explicit",
+  "porn",
+] as const;
+
+/** Returns an error message for the client/API if notes violate the profile-loop word list. */
+export function profilePageLoopMotionNotesViolatePolicy(notes: string): string | null {
+  const t = notes.trim();
+  if (!t) return null;
+  const lower = t.toLowerCase();
+  for (const w of PROFILE_PAGE_LOOP_BLOCKED_SUBSTRINGS) {
+    if (lower.includes(w)) {
+      return `Instructions can't include disallowed wording (“${w}”). Keep requests tasteful and suggestive only.`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Profile Discover / companion page looping MP4 — single controlled style directive + optional user notes.
+ */
+export function buildProfilePageLoopVideoPrompt(
+  row: Record<string, unknown>,
+  editorMotionNotes?: string,
+): string {
+  const name = sliceStr(row.name, 80) || "Character";
+  const tagline = sliceStr(row.tagline, 140);
+  const notes = (editorMotionNotes ?? "").trim();
+  const notesBlock = notes
+    ? `ADDITIONAL CREATIVE DIRECTION (user request — stay tasteful, elegant, high-class; no graphic pornography):\n${
+        notes.length > 800 ? `${notes.slice(0, 800).trimEnd()}…` : notes
+      }`
+    : "No additional user direction — derive subtle motion from the reference portrait only.";
+  return sanitizePromptForVideoApi(
+    [
+      PROFILE_PAGE_LOOP_STYLE_DIRECTIVE,
+      "",
+      notesBlock,
+      "",
+      `IDENTITY LOCK: same person and scene as the reference still. Context: ${name}.` +
+        (tagline ? ` Hook: ${tagline}` : ""),
+      "",
+      `Format: vertical 2:3, about ${PROFILE_LOOP_VIDEO_DURATION_SECONDS}s, seamless loop (start and end frames align), same camera and environment as the still, cinematic lighting.`,
+      "",
+      I2V_MOUTH_STILL_DIRECTIVE,
+      "",
+      "No text overlays or watermarks. Do not add unrelated characters or objects.",
+    ].join("\n"),
+  );
+}
+
+/** Shorter fallback if the full profile-page prompt exceeds upstream limits. */
+export function buildMinimalProfilePageLoopVideoPrompt(
+  row: Record<string, unknown>,
+  editorMotionNotes?: string,
+): string {
+  const name = sliceStr(row.name, 60) || "Character";
+  const notes = (editorMotionNotes ?? "").trim();
+  const clipped = notes.length > 500 ? `${notes.slice(0, 500).trimEnd()}…` : notes;
+  return sanitizePromptForVideoApi(
+    [
+      PROFILE_PAGE_LOOP_STYLE_DIRECTIVE,
+      clipped ? `User notes: ${clipped}` : "",
+      `${name}. ${PROFILE_LOOP_VIDEO_DURATION_SECONDS}s vertical 2:3 seamless loop from the still. ${I2V_MOUTH_STILL_DIRECTIVE_SHORT}`,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
 }

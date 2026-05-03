@@ -21,6 +21,7 @@ import { buildForgeStyleDnaPrefix } from "../_shared/forgeTabStyleDna.ts";
 import { forgePortraitBodyTypeContract } from "../_shared/forgeBodyTypeContract.ts";
 import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
 import {
+  CHAT_SESSION_IMAGINE_CREATIVE_BASE,
   FORGE_PREVIEW_IMAGINE_HARD_SFW,
   resolveImageContentTier,
   UNIVERSAL_NON_PREVIEW_IMAGE_BASE,
@@ -242,7 +243,13 @@ serve(async (req) => {
     const animeRewriteLead = isAnime && !promptHasAnimeLock ? buildAnimeTemptationStyleLead(tierRewrite) : "";
     const rawForRewrite = [animeRewriteLead, dnaPrefix, sceneBlock].filter((s) => String(s).trim()).join("\n\n");
 
-    const rewriteMode = effectiveTier === "forge_preview_sfw" ? "portrait_card" : "chat_session";
+    const isChatSessionStill = String(characterData.style ?? "").trim() === "chat-session";
+    const rewriteMode =
+      effectiveTier === "forge_preview_sfw"
+        ? "portrait_card"
+        : isChatSessionStill
+          ? "chat_session"
+          : "tasteful_adult_brief";
 
     let safeRewritten: string;
     try {
@@ -337,6 +344,11 @@ serve(async (req) => {
     const needsFinalAnimeLead = isAnime && !FORGE_ANIME_STYLE_LOCK_REGEX.test(safeRewritten);
     const animeFinalLead = needsFinalAnimeLead ? `${buildAnimeTemptationStyleLead(tierRewrite)}\n\n` : "";
 
+    const adultUniversalBase =
+      effectiveTier === "full_adult_art" && isChatSessionStill
+        ? CHAT_SESSION_IMAGINE_CREATIVE_BASE
+        : UNIVERSAL_NON_PREVIEW_IMAGE_BASE;
+
     const finalPromptRaw = effectiveTier === "forge_preview_sfw"
       ? `${animeFinalLead}
 ${PORTRAIT_IMAGE_DESIGN_BRIEF}
@@ -361,7 +373,7 @@ ${safeRewritten}
       : `${animeFinalLead}
 Adults-only companion product. This render is for a private chat / gallery session (not a public catalog card). Follow the image provider's content policies; do not depict minors.
 
-${UNIVERSAL_NON_PREVIEW_IMAGE_BASE}
+${adultUniversalBase}
 
 Create a highly detailed, cinematic, vertical 2:3 (trading-card) image of ${baseDescription}.
 

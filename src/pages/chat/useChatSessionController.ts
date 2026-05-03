@@ -14,7 +14,6 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
-import { invokeGenerateImageTensor } from "@/lib/invokeGenerateImageTensor";
 import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
 import { matchesSafeWord } from "@/lib/matchesSafeWord";
 import { isPlatformAdmin } from "@/config/auth";
@@ -694,8 +693,9 @@ export function useChatSessionController() {
         rawUserMessage: genOpts.rawUserMessage,
         menuBasePrompt: genOpts.menuImagePrompt,
       });
-      const nudePath = imageMood === "nude";
-      const lewdOrNudeFc = nudePath ? CHAT_IMAGE_NUDE_FC : CHAT_IMAGE_LEWD_FC;
+      /** Nude tier still bills separately; all chat stills use Grok Imagine + artistic rewriter (Tensor nude path retired). */
+      const nudeTier = imageMood === "nude";
+      const lewdOrNudeFc = nudeTier ? CHAT_IMAGE_NUDE_FC : CHAT_IMAGE_LEWD_FC;
       const tokenCost = isAdminUser || useFreeNsfwSlot ? 0 : lewdOrNudeFc;
 
       const { prompt: masterPrompt, portraitConsistencyLock } = buildMasterChatImagePrompt({
@@ -719,11 +719,6 @@ export function useChatSessionController() {
           ((dbComp as Record<string, unknown>).image_url as string)) ||
         null;
 
-      if (nudePath && !referenceImageUrl) {
-        toast.error("Nude stills use Tensor with your profile as reference — add a main profile image first.");
-        return null;
-      }
-
       const commonCharacterData = {
         companionId: companion.id,
         style: "chat-session" as const,
@@ -738,26 +733,16 @@ export function useChatSessionController() {
           "Follow PRIMARY SCENE / rewriter wardrobe — do not copy or default to the roster portrait swimsuit/bikini/catalog outfit unless the scene explicitly matches swim/beach.",
       };
 
-      const { data, error } = nudePath
-        ? await invokeGenerateImageTensor({
-            prompt,
-            userId,
-            isPortrait: false,
-            tokenCost,
-            ...(referenceImageUrl ? { referenceImageUrl } : {}),
-            ...(referenceImageUrl && explicit ? { denoisingStrength: 0.74 } : {}),
-            characterData: commonCharacterData,
-            nudeTensorGeneration: true,
-          })
-        : await invokeGenerateImage({
-            prompt,
-            userId,
-            isPortrait: false,
-            tokenCost,
-            ...(referenceImageUrl ? { referenceImageUrl } : {}),
-            ...(referenceImageUrl && explicit ? { denoisingStrength: 0.74 } : {}),
-            characterData: commonCharacterData,
-          });
+      const { data, error } = await invokeGenerateImage({
+        prompt,
+        userId,
+        isPortrait: false,
+        tokenCost,
+        contentTier: "full_adult_art",
+        ...(referenceImageUrl ? { referenceImageUrl } : {}),
+        ...(referenceImageUrl && explicit ? { denoisingStrength: 0.74 } : {}),
+        characterData: commonCharacterData,
+      });
 
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Image generation failed");
@@ -822,8 +807,6 @@ export function useChatSessionController() {
         null;
 
       const rewardExplicit = kind === "nude" || (kind === "lewd" && isExplicitImageRequest(tierPrompt));
-      const nudeAffection = kind === "nude";
-      if (nudeAffection && !referenceImageUrl) return null;
       const cd = {
         companionId: companion.id,
         style: "chat-session" as const,
@@ -837,26 +820,16 @@ export function useChatSessionController() {
         clothing:
           "Follow PRIMARY SCENE / rewriter wardrobe — do not copy or default to the roster portrait swimsuit/bikini/catalog outfit unless the scene explicitly matches swim/beach.",
       };
-      const { data, error } = nudeAffection
-        ? await invokeGenerateImageTensor({
-            prompt,
-            userId: user.id,
-            isPortrait: false,
-            tokenCost: 0,
-            ...(referenceImageUrl ? { referenceImageUrl } : {}),
-            ...(referenceImageUrl && rewardExplicit ? { denoisingStrength: 0.74 } : {}),
-            characterData: cd,
-            nudeTensorGeneration: true,
-          })
-        : await invokeGenerateImage({
-            prompt,
-            userId: user.id,
-            isPortrait: false,
-            tokenCost: 0,
-            ...(referenceImageUrl ? { referenceImageUrl } : {}),
-            ...(referenceImageUrl && rewardExplicit ? { denoisingStrength: 0.74 } : {}),
-            characterData: cd,
-          });
+      const { data, error } = await invokeGenerateImage({
+        prompt,
+        userId: user.id,
+        isPortrait: false,
+        tokenCost: 0,
+        contentTier: "full_adult_art",
+        ...(referenceImageUrl ? { referenceImageUrl } : {}),
+        ...(referenceImageUrl && rewardExplicit ? { denoisingStrength: 0.74 } : {}),
+        characterData: cd,
+      });
 
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Image generation failed");

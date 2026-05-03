@@ -2,9 +2,9 @@
  * OpenRouter client for **text** LustForge traffic (chat, admin tools, prompt rewriter, vision classify).
  *
  * Hybrid architecture:
- * - **OpenRouter** (this file): Classic companion chat, Forge/admin text helpers, prompt rewriter (no FLUX / image modality here).
+ * - **OpenRouter** (this file): Classic companion chat only, Forge/admin text helpers, prompt rewriter (no FLUX / image modality here).
  * - **Together.ai** (`togetherImage.ts`, `togetherClient.ts`): All **FLUX.2** stills — default **black-forest-labs/FLUX.2-dev** on Together `/v1/images/generations` (profile `together_image_model` or `TOGETHER_IMAGE_MODEL` overrides).
- * - **xAI / Grok** (elsewhere): Live Voice `grok-chat`, Realtime client secret, TTS/STT, Grok **video** (I2V).
+ * - **xAI / Grok** (elsewhere): Live Voice `grok-chat`, The Nexus merge fusion (`nexus-merge` + `grokChatCompletionRaw`), portrait/still Imagine, Realtime, TTS/STT, Grok **video** (I2V).
  *
  * Secrets (Supabase Edge): `OPENROUTER_API_KEY`, optional `OPENROUTER_CHAT_MODEL`, `OPENROUTER_REWRITE_MODEL`, etc.
  */

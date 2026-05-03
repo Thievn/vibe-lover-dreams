@@ -21,12 +21,21 @@ import {
   Upload,
   Archive,
   RotateCcw,
+  History,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -40,6 +49,7 @@ import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
 import {
   clearForgeStash,
   loadForgeStash,
+  normalizeForgePreviewHistoryEntryLoose,
   saveForgeStash,
   type ForgePreviewHistoryEntry,
   type ForgeStashPayload,
@@ -132,7 +142,7 @@ import {
   randomForgeVisualTailoring,
   type ForgeVisualTailoring,
 } from "@/lib/forgeVisualTailoring";
-import { buildForgeThemeSnapshotV1 } from "@/lib/forgeThemeSnapshot";
+import { buildForgeThemeSnapshotV1, buildNexusForgeThemeDigestFromSnapshot } from "@/lib/forgeThemeSnapshot";
 import {
   randomizeAllTabSharedOverrides,
   randomizeAllTabsFeatureMaps,
@@ -386,6 +396,10 @@ function padFantasyStartersToFour(
 const MIN_CHRONICLE_CHARS = 500;
 /** Grok tool-call in `parse-companion-prompt` can be slow; cap wait so Create does not spin forever. */
 const PARSE_COMPANION_TIMEOUT_MS = 180_000;
+/** DB insert / portrait pipeline must not hang the UI indefinitely on stalled connections. */
+const FORGE_DB_INSERT_TIMEOUT_MS = 120_000;
+const FORGE_PORTRAIT_GEN_TIMEOUT_MS = 150_000;
+const SESSION_LOAD_TIMEOUT_MS = 20_000;
 
 function buildForgeDesignLabSeedPrompt(o: {
   gender: string;
@@ -534,6 +548,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches,
   );
   const sessionSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const historySnapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -553,6 +568,122 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   const [rosterTags, setRosterTags] = useState<string[]>([]);
   const [rosterKinks, setRosterKinks] = useState<string[]>([]);
   const [fantasyStartersVault, setFantasyStartersVault] = useState<{ title: string; description: string }[]>([]);
+
+  const hydrateForgeFromPayload = useCallback((d: ForgeStashPayload) => {
+    setName(d.name ?? "");
+    setNamePrefix(d.namePrefix?.trim() ?? "");
+    setTagline(d.tagline ?? "");
+    setGender(d.gender);
+    setIdentityAnatomyDetail(
+      normalizeIdentityAnatomyDetail(
+        typeof (d as { identityAnatomyDetail?: string }).identityAnatomyDetail === "string"
+          ? (d as { identityAnatomyDetail?: string }).identityAnatomyDetail
+          : undefined,
+      ),
+    );
+    setEthnicity(normalizeForgeEthnicity(typeof d.ethnicity === "string" ? d.ethnicity : FORGE_ETHNICITY_ANY_LABEL));
+    setForgePersonality(
+      d.forgePersonality ? normalizeForgePersonality(d.forgePersonality) : DEFAULT_FORGE_PERSONALITY,
+    );
+    setVisualTailoring(normalizeForgeVisualTailoring(d.visualTailoring));
+    setArtStyle(normalizeForgeArtStyle(d.artStyle));
+    setSceneAtmosphere(normalizeForgeScene(d.sceneAtmosphere));
+    setBodyType(normalizeForgeBodyType(d.bodyType));
+    setTraits(d.traits?.length ? d.traits : pickRandom(TRAITS, randomTraitCount()));
+    setOrientation(d.orientation);
+    setExtraNotes(d.extraNotes ?? "");
+    setReferenceNotes(d.referenceNotes?.trim() ?? "");
+    setNarrativeAppearance(d.narrativeAppearance ?? "");
+    setChronicleBackstory(d.chronicleBackstory ?? "");
+    setHookBio(d.hookBio ?? "");
+    setCharterSystemPrompt(d.charterSystemPrompt ?? "");
+    setPackshotPrompt(d.packshotPrompt ?? "");
+    setRosterTags(Array.isArray(d.rosterTags) ? d.rosterTags : []);
+    setRosterKinks(Array.isArray(d.rosterKinks) ? d.rosterKinks : []);
+    try {
+      const st = JSON.parse(d.fantasyStartersJson || "[]") as { title: string; description: string }[];
+      if (Array.isArray(st)) setFantasyStartersVault(st);
+    } catch {
+      /* ignore */
+    }
+    if (d.previewUrl) {
+      setPreviewUrl(stablePortraitDisplayUrl(d.previewUrl) ?? d.previewUrl);
+      setPreviewCanonicalUrl(
+        d.previewCanonicalUrl
+          ? (stablePortraitDisplayUrl(d.previewCanonicalUrl) ?? d.previewCanonicalUrl)
+          : (stablePortraitDisplayUrl(d.previewUrl) ?? d.previewUrl),
+      );
+    }
+    setActiveForgeTab(normalizeForgeThemeTabId(d.activeForgeTab));
+    setForgeTabFeatures(normalizeForgeTabFeatureMap(d.forgeTabFeatures));
+    setForgeTabSharedOverrides(normalizeForgeTabSharedOverrides(d.forgeTabSharedOverrides));
+    setForgeCardPose(normalizeForgeCardPoseId((d as { forgeCardPose?: string }).forgeCardPose));
+  }, []);
+
+  const buildForgeSessionPayload = useCallback((): ForgeStashPayload => {
+    return {
+      savedAt: new Date().toISOString(),
+      name,
+      namePrefix: namePrefix.trim() || undefined,
+      tagline,
+      gender,
+      identityAnatomyDetail: identityAnatomyDetail || undefined,
+      ethnicity: normalizeForgeEthnicity(ethnicity),
+      forgePersonality: { ...forgePersonality },
+      artStyle,
+      sceneAtmosphere,
+      bodyType,
+      traits: [...traits],
+      orientation,
+      extraNotes,
+      referenceNotes: referenceNotes.trim() || undefined,
+      narrativeAppearance,
+      chronicleBackstory,
+      hookBio,
+      charterSystemPrompt,
+      packshotPrompt,
+      rosterTags: [...rosterTags],
+      rosterKinks: [...rosterKinks],
+      fantasyStartersJson: JSON.stringify(fantasyStartersVault),
+      previewUrl,
+      previewCanonicalUrl,
+      visualTailoring: { ...visualTailoring },
+      activeForgeTab,
+      forgeTabFeatures,
+      forgeTabSharedOverrides,
+      forgeCardPose,
+    };
+  }, [
+    name,
+    namePrefix,
+    tagline,
+    gender,
+    identityAnatomyDetail,
+    ethnicity,
+    forgePersonality,
+    artStyle,
+    sceneAtmosphere,
+    bodyType,
+    traits,
+    orientation,
+    extraNotes,
+    referenceNotes,
+    narrativeAppearance,
+    chronicleBackstory,
+    hookBio,
+    charterSystemPrompt,
+    packshotPrompt,
+    rosterTags,
+    rosterKinks,
+    fantasyStartersVault,
+    previewUrl,
+    previewCanonicalUrl,
+    visualTailoring,
+    activeForgeTab,
+    forgeTabFeatures,
+    forgeTabSharedOverrides,
+    forgeCardPose,
+  ]);
 
   const batchCount = useMemo(() => {
     if (batchPreset === -1) {
@@ -637,28 +768,34 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   }, [forgeOpLines]);
 
   const loadProfile = useCallback(async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session?.user) {
-      navigate("/auth");
-      return;
-    }
-    setUserId(session.user.id);
-    if (isAdmin) {
-      setTokens(999999);
+    try {
+      const {
+        data: { session },
+      } = await withAsyncTimeout(supabase.auth.getSession(), SESSION_LOAD_TIMEOUT_MS, "Loading session");
+      if (!session?.user) {
+        navigate("/auth");
+        return;
+      }
+      setUserId(session.user.id);
+      if (isAdmin) {
+        setTokens(999999);
+        setLoadingProfile(false);
+        return;
+      }
+      const { data, error } = await withAsyncTimeout(
+        supabase.from("profiles").select("tokens_balance, display_name").eq("user_id", session.user.id).maybeSingle(),
+        SESSION_LOAD_TIMEOUT_MS,
+        "Loading profile",
+      );
+      if (error) console.error(error);
+      setTokens(typeof data?.tokens_balance === "number" ? data.tokens_balance : 0);
+      setProfileDisplayName(data?.display_name?.trim() || "");
+    } catch (e: unknown) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "Could not load your session — try refreshing.");
+    } finally {
       setLoadingProfile(false);
-      return;
     }
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("tokens_balance, display_name")
-      .eq("user_id", session.user.id)
-      .maybeSingle();
-    if (error) console.error(error);
-    setTokens(typeof data?.tokens_balance === "number" ? data.tokens_balance : 0);
-    setProfileDisplayName(data?.display_name?.trim() || "");
-    setLoadingProfile(false);
   }, [navigate, isAdmin]);
 
   useEffect(() => {
@@ -678,21 +815,59 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     return () => window.removeEventListener("focus", onFocus);
   }, [isAdmin, refreshForgeCoinsOnly]);
 
-  const appendPreviewHistory = useCallback((display: string, canonical: string) => {
-    if (isAdmin) return;
-    const d = display.trim();
-    const c = canonical.trim();
-    if (!d || !c) return;
-    setPreviewHistory((hist) => {
-      const entry: ForgePreviewHistoryEntry = {
-        display: d,
-        canonical: c,
-        savedAt: new Date().toISOString(),
+  const appendPreviewHistory = useCallback(
+    (display: string, canonical: string) => {
+      if (isAdmin) return;
+      const d = display.trim();
+      const c = canonical.trim();
+      if (!d || !c) return;
+      const snapRaw = buildForgeSessionPayload();
+      const snapshot: Omit<ForgeStashPayload, "previewHistory"> = {
+        ...snapRaw,
+        previewUrl: d,
+        previewCanonicalUrl: c,
       };
-      const deduped = hist.filter((e) => e.canonical !== c);
-      return [entry, ...deduped].slice(0, 8);
-    });
-  }, [isAdmin]);
+      const rid =
+        typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-h`;
+      setPreviewHistory((hist) => {
+        const entry: ForgePreviewHistoryEntry = {
+          id: rid,
+          display: d,
+          canonical: c,
+          savedAt: new Date().toISOString(),
+          snapshot,
+        };
+        return [entry, ...hist.filter((e) => e.canonical !== c)].slice(0, 10);
+      });
+    },
+    [isAdmin, buildForgeSessionPayload],
+  );
+
+  const restorePreviewHistoryEntry = useCallback(
+    (entry: ForgePreviewHistoryEntry) => {
+      const disp = stablePortraitDisplayUrl(entry.display) ?? entry.display;
+      const can = stablePortraitDisplayUrl(entry.canonical) ?? entry.canonical;
+      if (entry.snapshot) {
+        const merged: ForgeStashPayload = {
+          ...entry.snapshot,
+          savedAt: entry.snapshot.savedAt || new Date().toISOString(),
+          previewUrl: disp,
+          previewCanonicalUrl: can,
+        };
+        hydrateForgeFromPayload(merged);
+        toast.message("Forge restored from history", {
+          description: "Portrait + all fields below match this snapshot. Create when ready.",
+        });
+      } else {
+        setPreviewUrl(disp);
+        setPreviewCanonicalUrl(can);
+        toast.message("Portrait restored", {
+          description: "This save has no field snapshot — tweak narrative tabs if needed, then Create.",
+        });
+      }
+    },
+    [hydrateForgeFromPayload],
+  );
 
   /** Restore full forge session (or legacy preview-only) when returning to the page. */
   useEffect(() => {
@@ -701,65 +876,13 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     const mode = isAdmin ? "admin" : "user";
     const draft = loadForgeSessionDraft(userId, mode);
     if (draft) {
-      setName(draft.name ?? "");
-      setNamePrefix(draft.namePrefix?.trim() ?? "");
-      setTagline(draft.tagline ?? "");
-      setGender(draft.gender);
-      setIdentityAnatomyDetail(
-        normalizeIdentityAnatomyDetail(
-          typeof (draft as { identityAnatomyDetail?: string }).identityAnatomyDetail === "string"
-            ? (draft as { identityAnatomyDetail?: string }).identityAnatomyDetail
-            : undefined,
-        ),
-      );
-      setEthnicity(normalizeForgeEthnicity(typeof draft.ethnicity === "string" ? draft.ethnicity : FORGE_ETHNICITY_ANY_LABEL));
-      setForgePersonality(
-        draft.forgePersonality ? normalizeForgePersonality(draft.forgePersonality) : DEFAULT_FORGE_PERSONALITY,
-      );
-      setVisualTailoring(normalizeForgeVisualTailoring(draft.visualTailoring));
-      setArtStyle(normalizeForgeArtStyle(draft.artStyle));
-      setSceneAtmosphere(normalizeForgeScene(draft.sceneAtmosphere));
-      setBodyType(normalizeForgeBodyType(draft.bodyType));
-      setTraits(draft.traits?.length ? draft.traits : pickRandom(TRAITS, randomTraitCount()));
-      setOrientation(draft.orientation);
-      setExtraNotes(draft.extraNotes ?? "");
-      setReferenceNotes(draft.referenceNotes?.trim() ?? "");
-      setNarrativeAppearance(draft.narrativeAppearance ?? "");
-      setChronicleBackstory(draft.chronicleBackstory ?? "");
-      setHookBio(draft.hookBio ?? "");
-      setCharterSystemPrompt(draft.charterSystemPrompt ?? "");
-      setPackshotPrompt(draft.packshotPrompt ?? "");
-      setRosterTags(Array.isArray(draft.rosterTags) ? draft.rosterTags : []);
-      setRosterKinks(Array.isArray(draft.rosterKinks) ? draft.rosterKinks : []);
-      try {
-        const st = JSON.parse(draft.fantasyStartersJson || "[]") as { title: string; description: string }[];
-        if (Array.isArray(st)) setFantasyStartersVault(st);
-      } catch {
-        /* ignore */
-      }
-      if (draft.previewUrl) {
-        setPreviewUrl(stablePortraitDisplayUrl(draft.previewUrl) ?? draft.previewUrl);
-        setPreviewCanonicalUrl(
-          draft.previewCanonicalUrl
-            ? (stablePortraitDisplayUrl(draft.previewCanonicalUrl) ?? draft.previewCanonicalUrl)
-            : (stablePortraitDisplayUrl(draft.previewUrl) ?? draft.previewUrl),
-        );
-      }
-      setActiveForgeTab(normalizeForgeThemeTabId(draft.activeForgeTab));
-      setForgeTabFeatures(normalizeForgeTabFeatureMap(draft.forgeTabFeatures));
-      setForgeTabSharedOverrides(normalizeForgeTabSharedOverrides(draft.forgeTabSharedOverrides));
-      setForgeCardPose(normalizeForgeCardPoseId((draft as { forgeCardPose?: string }).forgeCardPose));
+      hydrateForgeFromPayload(draft);
       const ph = (draft as { previewHistory?: unknown }).previewHistory;
       if (Array.isArray(ph) && !isAdmin) {
         const cleaned = ph
-          .filter(
-            (e): e is ForgePreviewHistoryEntry =>
-              Boolean(e) &&
-              typeof e === "object" &&
-              typeof (e as ForgePreviewHistoryEntry).display === "string" &&
-              typeof (e as ForgePreviewHistoryEntry).canonical === "string",
-          )
-          .slice(0, 8);
+          .map((e) => normalizeForgePreviewHistoryEntryLoose(e))
+          .filter((x): x is ForgePreviewHistoryEntry => x !== null)
+          .slice(0, 10);
         if (cleaned.length) setPreviewHistory(cleaned);
       }
       toast.message("Your forge is still here", {
@@ -789,7 +912,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       }
     }
     setForgeSessionHydrated(true);
-  }, [userId, isAdmin, loadingProfile]);
+  }, [userId, isAdmin, loadingProfile, hydrateForgeFromPayload]);
 
   /** Auto-save full session (debounced) so a paid preview and copy survive navigation. */
   useEffect(() => {
@@ -797,37 +920,9 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     const mode = isAdmin ? "admin" : "user";
     if (sessionSaveTimerRef.current) clearTimeout(sessionSaveTimerRef.current);
     sessionSaveTimerRef.current = setTimeout(() => {
+      const base = buildForgeSessionPayload();
       const payload: ForgeStashPayload = {
-        savedAt: new Date().toISOString(),
-        name,
-        namePrefix: namePrefix.trim() || undefined,
-        tagline,
-        gender,
-        identityAnatomyDetail: identityAnatomyDetail || undefined,
-        ethnicity: normalizeForgeEthnicity(ethnicity),
-        forgePersonality: { ...forgePersonality },
-        artStyle,
-        sceneAtmosphere,
-        bodyType,
-        traits: [...traits],
-        orientation,
-        extraNotes,
-        referenceNotes: referenceNotes.trim() || undefined,
-        narrativeAppearance,
-        chronicleBackstory,
-        hookBio,
-        charterSystemPrompt,
-        packshotPrompt,
-        rosterTags: [...rosterTags],
-        rosterKinks: [...rosterKinks],
-        fantasyStartersJson: JSON.stringify(fantasyStartersVault),
-        previewUrl,
-        previewCanonicalUrl,
-        visualTailoring: { ...visualTailoring },
-        activeForgeTab,
-        forgeTabFeatures,
-        forgeTabSharedOverrides,
-        forgeCardPose,
+        ...base,
         ...(!isAdmin ? { previewHistory: [...previewHistory] } : {}),
       };
       saveForgeSessionDraft(userId, mode, payload);
@@ -868,6 +963,73 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     forgeTabSharedOverrides,
     forgeCardPose,
     previewHistory,
+    buildForgeSessionPayload,
+  ]);
+
+  /** Keep the history row for the *current* portrait updated as the operator edits fields (same image URL). */
+  useEffect(() => {
+    if (!userId || !forgeSessionHydrated || isAdmin) return;
+    const canon = previewCanonicalUrl?.trim();
+    const disp = previewUrl?.trim();
+    if (!canon || !disp) return;
+    if (historySnapshotTimerRef.current) clearTimeout(historySnapshotTimerRef.current);
+    historySnapshotTimerRef.current = setTimeout(() => {
+      historySnapshotTimerRef.current = null;
+      const snapRaw = buildForgeSessionPayload();
+      const snapshot: Omit<ForgeStashPayload, "previewHistory"> = {
+        ...snapRaw,
+        previewUrl: disp,
+        previewCanonicalUrl: canon,
+      };
+      const snapJson = JSON.stringify(snapshot);
+      setPreviewHistory((hist) => {
+        const idx = hist.findIndex((e) => e.canonical === canon);
+        if (idx === -1) return hist;
+        const prev = hist[idx];
+        if (!prev) return hist;
+        if (JSON.stringify(prev.snapshot ?? null) === snapJson) return hist;
+        const next = [...hist];
+        next[idx] = { ...prev, snapshot };
+        return next;
+      });
+    }, 900);
+    return () => {
+      if (historySnapshotTimerRef.current) clearTimeout(historySnapshotTimerRef.current);
+    };
+  }, [
+    userId,
+    forgeSessionHydrated,
+    isAdmin,
+    buildForgeSessionPayload,
+    previewCanonicalUrl,
+    previewUrl,
+    name,
+    namePrefix,
+    tagline,
+    gender,
+    identityAnatomyDetail,
+    ethnicity,
+    forgePersonality,
+    artStyle,
+    sceneAtmosphere,
+    bodyType,
+    traits,
+    orientation,
+    extraNotes,
+    referenceNotes,
+    narrativeAppearance,
+    chronicleBackstory,
+    hookBio,
+    charterSystemPrompt,
+    packshotPrompt,
+    rosterTags,
+    rosterKinks,
+    fantasyStartersVault,
+    visualTailoring,
+    activeForgeTab,
+    forgeTabFeatures,
+    forgeTabSharedOverrides,
+    forgeCardPose,
   ]);
 
   const clearForgePreview = useCallback(
@@ -1487,6 +1649,29 @@ User flavor notes: ${extraNotes || "none"}`;
       }
       setPreviewUrl(display);
       setPreviewCanonicalUrl(canonical);
+      /** Record the new still too (including first-ever preview) so one FC run is never “only in RAM”. */
+      if (!isAdmin) {
+        window.setTimeout(() => {
+          const snapRaw = buildForgeSessionPayload();
+          const snapshot: Omit<ForgeStashPayload, "previewHistory"> = {
+            ...snapRaw,
+            previewUrl: display,
+            previewCanonicalUrl: canonical,
+          };
+          const rid =
+            typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-cur`;
+          setPreviewHistory((hist) => {
+            const entry: ForgePreviewHistoryEntry = {
+              id: rid,
+              display,
+              canonical,
+              savedAt: new Date().toISOString(),
+              snapshot,
+            };
+            return [entry, ...hist.filter((e) => e.canonical !== canonical)].slice(0, 10);
+          });
+        }, 0);
+      }
       if (isAdmin) pushForgeOp("Portrait render finished — check Live preview.", "ok");
       if (typeof data.newTokensBalance === "number") setTokens(data.newTokensBalance);
       else if (!isAdmin) {
@@ -1572,7 +1757,10 @@ User flavor notes: ${extraNotes || "none"}`;
   );
 
   const runFinalCreate = async () => {
-    if (!userId) return;
+    if (!userId) {
+      toast.error("You are not signed in yet — wait a second or refresh the page, then try Create again.");
+      return;
+    }
     let forgeName = name.trim();
     if (!forgeName) {
       try {
@@ -1670,15 +1858,21 @@ User flavor notes: ${extraNotes || "none"}`;
       if (effectiveChronicle.length < MIN_CHRONICLE_CHARS) {
         toast.info("Your chronicle is short — expanding prose from your seeds…");
         if (isAdmin) pushForgeOp("Chronicle short — design lab expanding prose & starters…", "info");
-        const designLabThemeDigest = buildForgeTabPromptAddon({
-          tabId: activeForgeTab,
-          features: forgeTabFeatures[activeForgeTab],
-          effectiveBodyType,
-          sexualEnergy: activeTabSexualEnergy,
-          kinks: activeTabKinks,
-          cardPose: forgeCardPose,
-          styleDnaTier: "full",
+        const themeSnapForDesignLab = buildForgeThemeSnapshotV1({
+          activeForgeTab,
+          forgeCardPose,
+          artStyle,
+          sceneAtmosphere,
+          bodyType,
+          visualTailoring,
+          forgeTabFeatures,
+          forgeTabSharedOverrides,
         });
+        const designLabThemeDigest = buildNexusForgeThemeDigestFromSnapshot(
+          themeSnapForDesignLab,
+          activeTabKinks,
+          activeTabSexualEnergy,
+        ).slice(0, 8000);
         const seedPrompt = buildForgeDesignLabSeedPrompt({
           gender,
           ethnicity: normalizeForgeEthnicity(ethnicity),
@@ -1775,7 +1969,11 @@ User flavor notes: ${extraNotes || "none"}`;
             ...payload,
             prompt: effectivePackshot || rowImagePrompt,
           };
-          const { data: genData, error: genErr } = await invokeGenerateImage(portraitBody);
+          const { data: genData, error: genErr } = await withAsyncTimeout(
+            invokeGenerateImage(portraitBody),
+            FORGE_PORTRAIT_GEN_TIMEOUT_MS,
+            "Forge portrait (generate-image)",
+          );
           if (genErr) {
             toast.error(`Portrait: ${genErr.message}`);
           } else if (genData?.success && genData.imageUrl) {
@@ -1918,38 +2116,45 @@ User flavor notes: ${extraNotes || "none"}`;
       }
 
       // Omit gallery_credit_name on insert: older DBs without that column (PGRST204) still work.
-      let attemptRows = rows as Record<string, unknown>[];
-      let insertRes = await supabase.from("custom_characters").insert(attemptRows).select("id");
-      if (insertRes.error) {
-        const msg = formatSupabaseError(insertRes.error);
-        if (/personality_archetypes|vibe_theme_selections|personality_forge|PGRST204/i.test(msg)) {
-          attemptRows = attemptRows.map((r) => {
-            const { personality_archetypes: _a, vibe_theme_selections: _v, personality_forge: _p, ...rest } = r;
-            return rest;
-          });
-          insertRes = await supabase.from("custom_characters").insert(attemptRows).select("id");
-        }
-      }
-      if (insertRes.error) {
-        const msg = formatSupabaseError(insertRes.error);
-        if (/exclude_from_personal_vault|rarity|PGRST204/i.test(msg)) {
-          attemptRows = attemptRows.map((r) => {
-            const { exclude_from_personal_vault: _e, rarity: _r, ...rest } = r;
-            return rest;
-          });
-          insertRes = await supabase.from("custom_characters").insert(attemptRows).select("id");
-        }
-      }
-      if (insertRes.error) {
-        const msg = formatSupabaseError(insertRes.error);
-        if (/identity_anatomy_detail|PGRST204/i.test(msg)) {
-          attemptRows = attemptRows.map((r) => {
-            const { identity_anatomy_detail: _i, ...rest } = r;
-            return rest;
-          });
-          insertRes = await supabase.from("custom_characters").insert(attemptRows).select("id");
-        }
-      }
+      const insertRes = await withAsyncTimeout(
+        (async () => {
+          let attemptRows = rows as Record<string, unknown>[];
+          let res = await supabase.from("custom_characters").insert(attemptRows).select("id");
+          if (res.error) {
+            const msg = formatSupabaseError(res.error);
+            if (/personality_archetypes|vibe_theme_selections|personality_forge|PGRST204/i.test(msg)) {
+              attemptRows = attemptRows.map((r) => {
+                const { personality_archetypes: _a, vibe_theme_selections: _v, personality_forge: _p, ...rest } = r;
+                return rest;
+              });
+              res = await supabase.from("custom_characters").insert(attemptRows).select("id");
+            }
+          }
+          if (res.error) {
+            const msg = formatSupabaseError(res.error);
+            if (/exclude_from_personal_vault|rarity|PGRST204/i.test(msg)) {
+              attemptRows = attemptRows.map((r) => {
+                const { exclude_from_personal_vault: _e, rarity: _r, ...rest } = r;
+                return rest;
+              });
+              res = await supabase.from("custom_characters").insert(attemptRows).select("id");
+            }
+          }
+          if (res.error) {
+            const msg = formatSupabaseError(res.error);
+            if (/identity_anatomy_detail|PGRST204/i.test(msg)) {
+              attemptRows = attemptRows.map((r) => {
+                const { identity_anatomy_detail: _i, ...rest } = r;
+                return rest;
+              });
+              res = await supabase.from("custom_characters").insert(attemptRows).select("id");
+            }
+          }
+          return res;
+        })(),
+        FORGE_DB_INSERT_TIMEOUT_MS,
+        "Saving companion (database insert)",
+      );
       const { data: insertedRows, error } = insertRes;
       if (error) {
         if (!isAdmin && userCharged && !userRefunded) {
@@ -2002,6 +2207,7 @@ User flavor notes: ${extraNotes || "none"}`;
       }
       clearForgeSessionDraft(userId, isAdmin ? "admin" : "user");
       if (!isAdmin) {
+        setPreviewHistory([]);
         try {
           localStorage.removeItem(previewStorageKey(userId, "user"));
         } catch {
@@ -3723,27 +3929,62 @@ User flavor notes: ${extraNotes || "none"}`;
                 {forgePortraitCommitActions("desktopUnderPreview")}
 
                 {!isAdmin && previewHistory.length > 0 ? (
-                  <div className="mt-3 space-y-2">
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                      Recent portraits · tap to restore
-                    </p>
-                    <div className="flex max-w-full gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
-                      {previewHistory.map((e) => (
+                  <div className="mt-3 space-y-1.5">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
                         <button
-                          key={`${e.canonical}-${e.savedAt}`}
                           type="button"
-                          title="Use this portrait for Create"
-                          onClick={() => {
-                            setPreviewUrl(stablePortraitDisplayUrl(e.display) ?? e.display);
-                            setPreviewCanonicalUrl(stablePortraitDisplayUrl(e.canonical) ?? e.canonical);
-                            toast.message("Portrait restored", { description: "Create companion will use this image." });
-                          }}
-                          className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg border border-white/15 bg-black/50 outline-none ring-offset-2 ring-offset-[#050508] transition-colors hover:border-primary/45 focus-visible:ring-2 focus-visible:ring-primary/50"
+                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-white/12 bg-black/50 px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:border-primary/35 hover:text-white"
                         >
-                          <img src={e.display} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                          <span className="flex items-center gap-2 min-w-0">
+                            <History className="h-3.5 w-3.5 shrink-0 text-[hsl(170_100%_55%)]" aria-hidden />
+                            <span className="truncate">Preview history ({previewHistory.length})</span>
+                          </span>
+                          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
                         </button>
-                      ))}
-                    </div>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="end"
+                        className="w-[min(100vw-2rem,20rem)] max-h-[min(70vh,22rem)] overflow-y-auto border border-white/12 bg-[#0c0a10] text-white"
+                      >
+                        <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                          Paid previews on this device
+                        </DropdownMenuLabel>
+                        <p className="px-2 pb-2 text-[10px] leading-relaxed text-muted-foreground/90">
+                          Restore portrait + all forge fields from when that still was generated (or last edited). Max 10.
+                        </p>
+                        <DropdownMenuSeparator className="bg-white/10" />
+                        {previewHistory.map((e) => (
+                          <DropdownMenuItem
+                            key={e.id}
+                            className="flex cursor-pointer gap-2.5 py-2.5 focus:bg-white/10"
+                            onSelect={() => {
+                              restorePreviewHistoryEntry(e);
+                            }}
+                          >
+                            <img
+                              src={e.display}
+                              alt=""
+                              className="h-14 w-10 shrink-0 rounded-md border border-white/10 object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="min-w-0 flex-1 space-y-0.5">
+                              <p className="text-[11px] font-medium text-white tabular-nums">
+                                {new Date(e.savedAt).toLocaleString(undefined, {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {e.snapshot ? "Full snapshot · narrative + tabs" : "Portrait only (legacy)"}
+                              </p>
+                            </div>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 ) : null}
 
@@ -3798,8 +4039,9 @@ User flavor notes: ${extraNotes || "none"}`;
                   </>
                 ) : (
                   <>
-                    Previews cost <strong style={{ color: NEON }}>{PREVIEW_COST} FC</strong> so you can iterate cheaply. Your last preview
-                    image is remembered on this device until you forge or tap Reset. Final creation locks{" "}
+                    Previews cost <strong style={{ color: NEON }}>{PREVIEW_COST} FC</strong> each — up to{" "}
+                    <strong className="text-white/90">10 history slots</strong> keep portrait + full forge fields on this device until you
+                    Create or Reset. Final creation locks{" "}
                     <strong className="text-[hsl(170_100%_70%)]">{FINAL_COST_PER} FC</strong> per companion ({finalTotalCost} for this batch).
                     All generations follow SFW forge policy.
                   </>

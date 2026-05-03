@@ -26,21 +26,21 @@ export const LIVE_CHAT_FC_PER_MINUTE = 25;
 /** Selfie / lewd (non-nude) still from chat. */
 export const CHAT_IMAGE_LEWD_FC = 20;
 
-/** HQ / nude still (Tensor path). */
+/** Artistic nude / explicit-tier chat still (Grok Imagine; same rewriter stack as lewd). */
 export const CHAT_IMAGE_NUDE_FC = 30;
 
 /** One companion finalized from Companion Forge. */
 export const FORGE_CREATE_COMPANION_FC = 150;
 
 /** Forge portrait preview (Grok packshot). */
-export const FORGE_PREVIEW_FC = 15;
+export const FORGE_PREVIEW_FC = 25;
 
 /** The Nexus: standard merge. Optional infusion add-on. */
 export const NEXUS_MERGE_FC = 350;
 export const NEXUS_INFUSE_ADDON_FC = 50;
 
-/** Short video clip in chat (when enabled). User-paid profile-card looping MP4 from Discover — FC TBD. */
-export const CHAT_SHORT_VIDEO_FC = 100;
+/** Short in-chat video clip (when enabled) — Grok Imagine video; billed when the feature ships. */
+export const CHAT_SHORT_VIDEO_FC = 75;
 
 /** User-initiated looping profile portrait video (Grok I2V) from companion profile. */
 export const PROFILE_LOOP_VIDEO_FC = 75;
