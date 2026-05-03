@@ -68,50 +68,60 @@ export function ProfilePortraitTierHalo({
           !isProfile && !isCleanCard && "shadow-[0_12px_32px_rgba(0,0,0,0.38)]",
         )}
       >
-        {/* Rotating conic sheen — skip on profile hero: on tall 2:3 cards the rotated square reads as a “floating” corner inside the portrait. */}
-        {!isProfile ? (
+        {/*
+          Stack sheen → tint → ring → portrait inside one shell with explicit z-index.
+          Previously the conic sheen sat as a sibling *before* the portrait wrapper; with
+          mix-blend-screen some engines composite it above the photo. Keep decoration behind art.
+        */}
+        <div className={cn("relative z-[2] min-h-0 overflow-hidden", r.gutter, r.inner)}>
+          {!isProfile ? (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-[inherit]"
+            >
+              <div
+                className={cn(
+                  "pointer-events-none absolute left-1/2 top-1/2 aspect-square w-[165%] -translate-x-1/2 -translate-y-1/2 mix-blend-screen",
+                  "motion-reduce:opacity-40",
+                  rarity === "common" && "opacity-[0.38]",
+                  rarity === "rare" && "opacity-[0.52]",
+                  (rarity === "epic" || rarity === "legendary" || rarity === "mythic") && "opacity-[0.68]",
+                  rarity === "abyssal" && "opacity-[0.78]",
+                )}
+              >
+                <div className="h-full w-full" style={{ background: sheen, transform: "rotate(42deg)" }} />
+              </div>
+            </div>
+          ) : null}
           <div
             aria-hidden
             className={cn(
-              "pointer-events-none absolute left-1/2 top-1/2 aspect-square w-[165%] -translate-x-1/2 -translate-y-1/2 mix-blend-screen",
-              "motion-reduce:opacity-40",
-              rarity === "common" && "opacity-[0.38]",
-              rarity === "rare" && "opacity-[0.52]",
-              (rarity === "epic" || rarity === "legendary" || rarity === "mythic") && "opacity-[0.68]",
-              rarity === "abyssal" && "opacity-[0.78]",
+              "pointer-events-none absolute inset-0 z-[1]",
+              gradientOpacity,
+              isAbyssal
+                ? "bg-gradient-to-br from-[#ff2d7b]/45 via-fuchsia-600/35 to-[#00ffd4]/28"
+                : "",
             )}
-          >
-            <div className="h-full w-full" style={{ background: sheen, transform: "rotate(42deg)" }} />
-          </div>
-        ) : null}
-        <div
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute inset-0 z-[0]",
-            gradientOpacity,
-            isAbyssal
-              ? "bg-gradient-to-br from-[#ff2d7b]/45 via-fuchsia-600/35 to-[#00ffd4]/28"
-              : "",
-          )}
-          style={
-            isAbyssal
-              ? undefined
-              : {
-                  background: `linear-gradient(135deg, ${gradientFrom}55, ${gradientTo}44)`,
-                }
-          }
-        />
-        {!isCleanCard && r.ring ? (
-          <div
-            className={cn(
-              "pointer-events-none absolute inset-0 z-[1] border-black/35",
-              r.mask,
-              r.ring,
-            )}
-            aria-hidden
+            style={
+              isAbyssal
+                ? undefined
+                : {
+                    background: `linear-gradient(135deg, ${gradientFrom}55, ${gradientTo}44)`,
+                  }
+            }
           />
-        ) : null}
-        <div className={cn("relative z-[2] min-h-0 overflow-hidden", r.gutter, r.inner)}>{children}</div>
+          {!isCleanCard && r.ring ? (
+            <div
+              className={cn(
+                "pointer-events-none absolute inset-0 z-[2] border-black/35",
+                r.mask,
+                r.ring,
+              )}
+              aria-hidden
+            />
+          ) : null}
+          <div className="relative z-[3] min-h-0 h-full min-w-0">{children}</div>
+        </div>
       </div>
     </div>
   );
