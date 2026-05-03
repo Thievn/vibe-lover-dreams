@@ -204,6 +204,26 @@ export async function fetchForgeNameExclusions(supabase: SupabaseClient, userId:
 }
 
 /**
+ * Picks a unique forge name from an already-merged exclusion set (normalized keys).
+ * Call after `fetchForgeNameExclusions` (optionally wrapped in `withAsyncTimeout`) so Create never depends on an extra unbounded DB round-trip inside name picking.
+ */
+export function generateUniqueForgeNameFromMergedExclusions(
+  input: Omit<ForgeNameInput, "exclude">,
+  mergedNormalizedKeys: ReadonlySet<string>,
+): string {
+  const reserved = new Set(mergedNormalizedKeys);
+  for (let round = 0; round < 5; round++) {
+    const name = generateForgeName({ ...input, exclude: reserved, seed: Date.now() + round * 977 });
+    const k = normalizeNameKey(name);
+    if (!reserved.has(k)) {
+      return name;
+    }
+  }
+  const extra = ` ${Math.floor(1000 + Math.random() * 8999)}`;
+  return generateForgeName({ ...input, exclude: reserved, seed: Date.now() + 13 }) + extra;
+}
+
+/**
  * Tries to generate a name not in `reserved` (merged with fresh DB read when userId is set).
  */
 export async function generateUniqueForgeName(
@@ -213,18 +233,8 @@ export async function generateUniqueForgeName(
   localReserved?: ReadonlySet<string>,
 ): Promise<string> {
   const db = await fetchForgeNameExclusions(supabase, userId);
-  const reserved = new Set([...db, ...(localReserved ? [...localReserved] : [])].map((x) => normalizeNameKey(x)));
-  for (let round = 0; round < 5; round++) {
-    const name = generateForgeName({ ...input, exclude: reserved, seed: Date.now() + round * 977 });
-    const k = normalizeNameKey(name);
-    if (!reserved.has(k)) {
-      return name;
-    }
-  }
-  const extra = ` ${Math.floor(1000 + Math.random() * 8999)}`;
-  const n = generateForgeName({ ...input, exclude: reserved, seed: Date.now() + 13 }) + extra;
-  reserved.add(normalizeNameKey(n));
-  return n;
+  const merged = new Set([...db, ...(localReserved ? [...localReserved] : [])].map((x) => normalizeNameKey(x)));
+  return generateUniqueForgeNameFromMergedExclusions(input, merged);
 }
 
 /**

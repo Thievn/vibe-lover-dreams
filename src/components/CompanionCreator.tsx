@@ -67,7 +67,13 @@ import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptio
 import { formatSupabaseError } from "@/lib/supabaseError";
 import { fallbackForgeDisplayName } from "@/lib/forgeRandomName";
 import { pickOne, pickRandom, randomTraitCount } from "@/lib/forgeRandomSeeds";
-import { fetchForgeNameExclusions, generateForgeName, generateUniqueForgeName, normalizeNameKey } from "@/lib/forgeNameEngine";
+import {
+  fetchForgeNameExclusions,
+  generateForgeName,
+  generateUniqueForgeName,
+  generateUniqueForgeNameFromMergedExclusions,
+  normalizeNameKey,
+} from "@/lib/forgeNameEngine";
 import {
   DEFAULT_FORGE_PERSONALITY,
   type ForgePersonalityKey,
@@ -494,12 +500,12 @@ ${forgePersonalitySeedsProse(o.forgePersonality)
 
 Hard requirements:
 ${forgeCompactStatureInstruction(o.bodyType)}${nameRule1}
-2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps. **Open with the ACTIVE FORGE THEME identity** (costume language, species fantasy, 2D anime discipline, creature read, etc. — exactly as implied by that block). Fold **Shared look lab** hair/skin/palette into the portrait. Then ground physique from body type "${o.bodyType}" with unmistakable proportions. If the theme and body type conflict, **theme wins the genre/costume/rendering read** while body type still controls limb count, scale, and species silhouette.
+2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps. **First sentence must lock a readable face and hair** (eyes, brows, mouth, skin tone, species marks), **then** weave the ACTIVE FORGE THEME identity (costume language, species fantasy, 2D anime discipline, creature read, etc.). **Do not** spend whole sentences on smoke, fog, or lens effects unless they define the body (e.g. smoke-formed elemental). Fold **Shared look lab** hair/skin/palette into the portrait. Then ground physique from body type "${o.bodyType}" with unmistakable proportions. If the theme and body type conflict, **theme wins the genre/costume/rendering read** while body type still controls limb count, scale, and species silhouette.
 3) backstory: 3–4 paragraphs of premium dark-romance storytelling that weaves every Personalities line into one coherent history — not a bullet recap of tags.
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
 5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences). Bold NSFW when persona fits; never end with meta questions ("Are you ready?", "Want to start?") — close on dialogue or action.
 6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.
-7) image_prompt: one dense SFW paragraph for a vertical 2:3 portrait card. **First** echo the ACTIVE FORGE THEME block (same visual lane — if it demands 2D anime, monster glam, latex noir, etc., that wins over a generic photoreal catalog human). **Then** use \`A character, …\` plus one explicit physique line locking "${o.bodyType}" for silhouette/species/scale/material — never vague. For non-human or hybrid labels, describe visible anatomy prominently. Gender must not override body shape. Then art "${artLane}" and scene "${o.sceneAtmosphere}". If the theme is Anime Temptation or the digest specifies 2D anime, **forbid** photoreal skin, 3D game-engine shading, or runway-model defaults. If the scene is transparent / empty-set ("No Background", "No Background / Transparent"), use cyclorama, flat color, or clearly cut-out portrait only — no busy environment unless the body type requires scale props.
+7) image_prompt: one dense SFW paragraph for a vertical 2:3 portrait card. **Lead with the same face/hair/skin/species anchors as appearance** (one tight opening clause the packshot can reuse later), **then** echo the ACTIVE FORGE THEME block (same visual lane — if it demands 2D anime, monster glam, latex noir, etc., that wins over a generic photoreal catalog human). **Then** use \`A character, …\` plus one explicit physique line locking "${o.bodyType}" for silhouette/species/scale/material — never vague. For non-human or hybrid labels, describe visible anatomy prominently. Gender must not override body shape. **Atmosphere** (smoke, fog, neon haze) = **short** seasoning only unless the theme is literally built from it — the card must read as the **same individual** chat stills will use. Then art "${artLane}" and scene "${o.sceneAtmosphere}". If the theme is Anime Temptation or the digest specifies 2D anime, **forbid** photoreal skin, 3D game-engine shading, or runway-model defaults. If the scene is transparent / empty-set ("No Background", "No Background / Transparent"), use cyclorama, flat color, or clearly cut-out portrait only — no busy environment unless the body type requires scale props.
 8) system_prompt: full chat charter for this persona.`;
 }
 
@@ -1462,11 +1468,10 @@ User flavor notes: ${extraNotes || "none"}`;
     setNameGenBusy(true);
     try {
       if (userId) {
-        const n = await generateUniqueForgeName(
-          supabase,
-          userId,
-          { gender, forgePersonality },
-          nameGenSessionReserved.current,
+        const n = await withAsyncTimeout(
+          generateUniqueForgeName(supabase, userId, { gender, forgePersonality }, nameGenSessionReserved.current),
+          FORGE_NAME_LIST_TIMEOUT_MS,
+          "Reserve forge display name",
         );
         nameGenSessionReserved.current.add(normalizeNameKey(n));
         setName(n);
@@ -1531,9 +1536,13 @@ User flavor notes: ${extraNotes || "none"}`;
     let lockedName = "";
     if (userId) {
       try {
-        const ex = await fetchForgeNameExclusions(supabase, userId);
+        const ex = await withAsyncTimeout(
+          fetchForgeNameExclusions(supabase, userId),
+          FORGE_NAME_LIST_TIMEOUT_MS,
+          "Loading existing forge names",
+        );
         for (const k of nameGenSessionReserved.current) ex.add(k);
-        lockedName = await generateUniqueForgeName(supabase, userId, { gender: g, forgePersonality: fp }, ex);
+        lockedName = generateUniqueForgeNameFromMergedExclusions({ gender: g, forgePersonality: fp }, ex);
         nameGenSessionReserved.current.add(normalizeNameKey(lockedName));
         setName(lockedName);
       } catch {
@@ -1832,72 +1841,86 @@ User flavor notes: ${extraNotes || "none"}`;
       toast.error("You are not signed in yet — wait a second or refresh the page, then try Create again.");
       return;
     }
-    let forgeName = name.trim();
-    if (!forgeName) {
-      try {
-        const ex = await fetchForgeNameExclusions(supabase, userId);
-        for (const k of nameGenSessionReserved.current) ex.add(k);
-        const invented = await generateUniqueForgeName(
-          supabase,
-          userId,
-          { gender, forgePersonality },
-          ex,
-        );
-        nameGenSessionReserved.current.add(normalizeNameKey(invented));
-        forgeName = invented;
-        setName(invented);
-        toast.info("Named from your Personalities + collection — edit anytime.");
-      } catch {
-        const fb = generateForgeName({
-          gender,
-          forgePersonality,
-          exclude: nameGenSessionReserved.current,
-        });
-        nameGenSessionReserved.current.add(normalizeNameKey(fb));
-        forgeName = fb;
-        setName(fb);
-        toast.warning(
-          isAdmin
-            ? "Used local name — check Character management for duplicates."
-            : "Used a local name — you can rename after saving.",
-        );
-      }
-    }
-    if (!forgeName) {
-      toast.error("Could not assign a name — try Spin the forge or enter a name, then try again.");
-      return;
-    }
-    if (!isAdmin && saveVisibility === "public" && creditUsername && !profileDisplayName.trim()) {
-      toast.error("Add a display username in Account settings to credit yourself on the public gallery.");
-      return;
-    }
+    let createToastId: string | number | undefined;
     if (!isAdmin) {
-      const { data: balRow } = await withAsyncTimeout(
-        supabase.from("profiles").select("tokens_balance").eq("user_id", userId).maybeSingle(),
-        SESSION_LOAD_TIMEOUT_MS,
-        "Loading forge balance",
-      );
-      const bal = typeof balRow?.tokens_balance === "number" ? balRow.tokens_balance : 0;
-      setTokens(bal);
-      if (bal < finalTotalCost) {
-        toast.error(`Need ${finalTotalCost} FC to create — you have ${bal}. Buy Forge Coins or reduce batch size.`);
-        return;
-      }
+      createToastId = toast.loading("Creating companion…", {
+        description: "Preparing name, balance, and vault save…",
+      });
     }
-    setFinalLoading(true);
+    const bumpCreate = (description: string) => {
+      if (createToastId != null) {
+        toast.loading("Creating companion…", { id: createToastId, description });
+      }
+    };
     let userCharged = false;
     let userRefunded = false;
+    setFinalLoading(true);
     setProfileLoopJob("idle");
     setForgeRunStartedAt(Date.now());
     setForgeElapsedTick(0);
-    if (isAdmin) {
-      pushForgeOp(
-        "Create companion started — the browser will warn if you try to leave before this finishes. You can still switch apps; just don’t close the tab.",
-        "info",
-      );
-    }
     try {
+      if (isAdmin) {
+        pushForgeOp(
+          "Create companion started — the browser will warn if you try to leave before this finishes. You can still switch apps; just don’t close the tab.",
+          "info",
+        );
+      }
+      let forgeName = name.trim();
+      if (!forgeName) {
+        try {
+          bumpCreate("Loading your existing forge names…");
+          const ex = await withAsyncTimeout(
+            fetchForgeNameExclusions(supabase, userId),
+            FORGE_NAME_LIST_TIMEOUT_MS,
+            "Loading existing forge names",
+          );
+          for (const k of nameGenSessionReserved.current) ex.add(k);
+          bumpCreate("Picking a unique display name…");
+          const invented = generateUniqueForgeNameFromMergedExclusions({ gender, forgePersonality }, ex);
+          nameGenSessionReserved.current.add(normalizeNameKey(invented));
+          forgeName = invented;
+          setName(invented);
+          toast.info("Named from your Personalities + collection — edit anytime.");
+        } catch {
+          const fb = generateForgeName({
+            gender,
+            forgePersonality,
+            exclude: nameGenSessionReserved.current,
+          });
+          nameGenSessionReserved.current.add(normalizeNameKey(fb));
+          forgeName = fb;
+          setName(fb);
+          toast.warning(
+            isAdmin
+              ? "Used local name — check Character management for duplicates."
+              : "Used a local name — you can rename after saving.",
+          );
+        }
+      }
+      if (!forgeName) {
+        toast.error("Could not assign a name — try Spin the forge or enter a name, then try again.");
+        return;
+      }
+      if (!isAdmin && saveVisibility === "public" && creditUsername && !profileDisplayName.trim()) {
+        toast.error("Add a display username in Account settings to credit yourself on the public gallery.");
+        return;
+      }
       if (!isAdmin) {
+        bumpCreate("Checking your Forge Coin balance…");
+        const { data: balRow } = await withAsyncTimeout(
+          supabase.from("profiles").select("tokens_balance").eq("user_id", userId).maybeSingle(),
+          SESSION_LOAD_TIMEOUT_MS,
+          "Loading forge balance",
+        );
+        const bal = typeof balRow?.tokens_balance === "number" ? balRow.tokens_balance : 0;
+        setTokens(bal);
+        if (bal < finalTotalCost) {
+          toast.error(`Need ${finalTotalCost} FC to create — you have ${bal}. Buy Forge Coins or reduce batch size.`);
+          return;
+        }
+      }
+      if (!isAdmin) {
+        bumpCreate(`Spending ${finalTotalCost} FC…`);
         const spend = await withAsyncTimeout(
           spendForgeCoins(
             finalTotalCost,
@@ -1910,11 +1933,11 @@ User flavor notes: ${extraNotes || "none"}`;
         );
         if (!spend.ok) {
           toast.error(spend.err || "Could not spend Forge Coins.");
-          endFinalForgeLoading();
           return;
         }
         userCharged = true;
         setTokens(spend.newBalance);
+        bumpCreate("Weaving your companion into the vault…");
         toast.message("Weaving your companion into the vault…", {
           description: "This can take a little while — keep the tab open until we finish.",
         });
@@ -1931,6 +1954,7 @@ User flavor notes: ${extraNotes || "none"}`;
       let effectiveRosterTags = rosterTags;
 
       if (effectiveChronicle.length < MIN_CHRONICLE_CHARS) {
+        bumpCreate("Expanding chronicle with Grok (design lab)…");
         toast.info("Your chronicle is short — expanding prose from your seeds…");
         toast.message("Expanding chronicle with AI…", {
           description: "Usually under two minutes. You can keep this tab in the background.",
@@ -2089,6 +2113,7 @@ User flavor notes: ${extraNotes || "none"}`;
 
       if (isAdmin) pushForgeOp("Inserting custom_characters row(s)…", "info");
 
+      bumpCreate(batchCount > 1 ? "Reserving names for batch create…" : "Saving companion to database…");
       const nameReserve = await withAsyncTimeout(
         fetchForgeNameExclusions(supabase, userId),
         FORGE_NAME_LIST_TIMEOUT_MS,
@@ -2100,12 +2125,7 @@ User flavor notes: ${extraNotes || "none"}`;
         batchFirstNames.push(forgeName);
       } else {
         for (let j = 0; j < batchCount; j++) {
-          const nm = await generateUniqueForgeName(
-            supabase,
-            userId,
-            { gender, forgePersonality },
-            nameReserve,
-          );
+          const nm = generateUniqueForgeNameFromMergedExclusions({ gender, forgePersonality }, nameReserve);
           const nk = normalizeNameKey(nm);
           nameReserve.add(nk);
           nameGenSessionReserved.current.add(nk);
@@ -2352,6 +2372,7 @@ User flavor notes: ${extraNotes || "none"}`;
       if (isAdmin) pushForgeOp(formatSupabaseError(e), "err");
       toast.error(formatSupabaseError(e));
     } finally {
+      if (createToastId != null) toast.dismiss(createToastId);
       endFinalForgeLoading();
     }
   };
