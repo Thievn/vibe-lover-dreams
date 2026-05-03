@@ -2716,7 +2716,13 @@ User flavor notes: ${extraNotes || "none"}`;
     <div
       className={cn(
         "relative font-sans text-foreground",
-        embedded ? "min-h-0 flex flex-1 flex-col bg-transparent" : "min-h-screen bg-[#050508]",
+        embedded
+          ? "min-h-0 flex flex-1 flex-col bg-transparent"
+          : cn(
+              "min-h-screen bg-[#050508]",
+              !lgBreakpointUp &&
+                "max-lg:flex max-lg:h-[100dvh] max-lg:min-h-0 max-lg:flex-col max-lg:overflow-hidden",
+            ),
       )}
     >
       {!embedded && <ParticleBackground />}
@@ -2736,7 +2742,8 @@ User flavor notes: ${extraNotes || "none"}`;
             ? "flex min-h-0 flex-1 flex-col px-4 md:px-8 lg:px-10 py-5 md:py-6"
             : cn(
                 "px-4 md:px-8 lg:px-10 py-5 md:py-7 pb-mobile-nav",
-                !lgBreakpointUp && "max-lg:pb-[max(7.75rem,calc(5.75rem+env(safe-area-inset-bottom,0px)+2rem))]",
+                !lgBreakpointUp &&
+                  "max-lg:flex max-lg:min-h-0 max-lg:flex-1 max-lg:flex-col max-lg:overflow-hidden max-lg:pb-[max(5.5rem,calc(4.25rem+env(safe-area-inset-bottom,0px)))]",
               ),
         )}
       >
@@ -2756,7 +2763,7 @@ User flavor notes: ${extraNotes || "none"}`;
             "mx-auto flex w-full max-w-[1700px] flex-col gap-5 lg:gap-7 lg:flex-row lg:items-start",
             // Desktop: natural height — one outer scroll (page or admin main), no nested viewport traps.
             embedded ? "min-h-0 flex-1" : "min-h-0",
-            !lgBreakpointUp && "max-lg:min-h-0 max-lg:flex-1",
+            !lgBreakpointUp && "max-lg:min-h-0 max-lg:flex-1 max-lg:flex-col max-lg:overflow-hidden",
           )}
         >
           {/* Controls — full width stack; mobile keeps its own scroll when split with preview */}
@@ -2764,12 +2771,13 @@ User flavor notes: ${extraNotes || "none"}`;
             className={cn(
               "order-2 flex w-full min-w-0 flex-col lg:order-1 lg:min-w-0 lg:flex-1",
               !lgBreakpointUp && forgeMobileView !== "controls" && "max-lg:hidden",
+              !lgBreakpointUp && "max-lg:min-h-0 max-lg:flex-1",
             )}
           >
             <div
               className={cn(
                 "motion-reduce:scroll-auto space-y-4 overscroll-y-contain lg:overflow-visible lg:pb-8 lg:pr-2",
-                "max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto",
+                "max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto max-lg:[-webkit-overflow-scrolling:touch]",
                 "[scrollbar-gutter:stable]",
                 "[scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin]",
                 "[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/25 [&::-webkit-scrollbar-thumb]:hover:bg-white/35 [&::-webkit-scrollbar-track]:bg-transparent",
@@ -2892,7 +2900,7 @@ User flavor notes: ${extraNotes || "none"}`;
                 </div>
               </div>
 
-              <div className="max-lg:max-h-[min(52vh,28rem)] max-lg:overflow-y-auto max-lg:overflow-x-hidden max-lg:pr-1 max-lg:-mr-1 lg:overflow-visible">
+              <div className="max-lg:overflow-x-hidden lg:max-h-[min(52vh,28rem)] lg:overflow-y-auto lg:pr-1 lg:-mr-1">
                 <div className="flex flex-wrap gap-2 lg:grid lg:grid-cols-4 xl:grid-cols-5 lg:flex-none">
                   {FORGE_THEME_TABS.map((tab) => (
                     <button
@@ -3045,7 +3053,7 @@ User flavor notes: ${extraNotes || "none"}`;
                   ) : null}
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-2 max-lg:max-h-[min(52dvh,400px)] max-lg:overflow-y-auto max-lg:pr-1 lg:overflow-visible self-start w-full min-w-0">
+                <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-2 self-start w-full min-w-0 lg:max-h-[min(52dvh,400px)] lg:overflow-y-auto lg:pr-1">
                   <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground max-lg:sticky max-lg:top-0 max-lg:bg-black/30 max-lg:pb-2 max-lg:z-[1]">
                     {FORGE_THEME_TABS.find((t) => t.id === activeForgeTab)?.label} controls
                   </p>
@@ -3910,12 +3918,13 @@ User flavor notes: ${extraNotes || "none"}`;
             className={cn(
               "order-1 flex w-full shrink-0 flex-col lg:order-2 lg:top-6 lg:w-[min(100%,380px)] lg:self-start lg:sticky xl:w-[400px]",
               !lgBreakpointUp && forgeMobileView !== "preview" && "max-lg:hidden",
+              !lgBreakpointUp && "max-lg:min-h-0 max-lg:flex-1",
             )}
           >
             <div
               className={cn(
                 "motion-reduce:scroll-auto space-y-3 overscroll-y-contain lg:overflow-visible lg:pl-0.5 lg:pr-1",
-                "max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto",
+                "max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto max-lg:[-webkit-overflow-scrolling:touch]",
                 "[scrollbar-gutter:stable]",
                 "[scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin]",
                 "[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/25 [&::-webkit-scrollbar-thumb]:hover:bg-white/35 [&::-webkit-scrollbar-track]:bg-transparent",
@@ -4221,7 +4230,7 @@ User flavor notes: ${extraNotes || "none"}`;
 
         {!lgBreakpointUp ? (
           <nav
-            className="lg:hidden pointer-events-none fixed inset-x-0 bottom-0 z-[60] border-t border-white/[0.08] bg-[#050508]/95 px-3 pt-2 pb-[max(5.75rem,calc(4.75rem+env(safe-area-inset-bottom,0px)))] backdrop-blur-xl"
+            className="lg:hidden pointer-events-none fixed inset-x-0 bottom-0 z-[60] border-t border-white/[0.08] bg-[#050508]/95 px-3 pt-2 pb-[max(0.35rem,env(safe-area-inset-bottom,0px))] backdrop-blur-xl"
             aria-label="Forge view"
           >
             <div className="pointer-events-auto mx-auto flex max-w-lg gap-2">
