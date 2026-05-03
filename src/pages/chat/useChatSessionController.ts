@@ -3,7 +3,8 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { useForgeCompanionOverlay } from "@/hooks/useForgeCompanionOverlay";
-import { usePortraitOverrideUrl } from "@/hooks/usePortraitOverride";
+import { useCompanionDisplayOverride } from "@/hooks/useCompanionDisplayOverride";
+import { mergeCompanionDisplayWithUserOverride } from "@/lib/mergeCompanionDisplayOverride";
 import { useCompanionGeneratedImages } from "@/hooks/useCompanionGeneratedImages";
 import {
   galleryStaticPortraitUrl,
@@ -127,21 +128,26 @@ const SMART_FALLBACK = ["Tell me more…", "I want you closer.", "Surprise me."]
 export function useChatSessionController() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [user, setUser] = useState<any>(null);
   const { data: dbCompanions, isLoading: companionsLoading } = useCompanions();
   const { dbComp, forgeLookupBusy } = useForgeCompanionOverlay(id, dbCompanions, companionsLoading);
-  const companion = dbComp ? dbToCompanion(dbComp) : null;
-  const basePortraitUrl = useMemo(() => galleryStaticPortraitUrl(dbComp, id), [dbComp, id]);
+  const { data: displayOverride } = useCompanionDisplayOverride(id, user?.id);
+  const dbCompDisplay = useMemo(
+    () => mergeCompanionDisplayWithUserOverride(dbComp, displayOverride ?? undefined) ?? dbComp,
+    [dbComp, displayOverride],
+  );
+  const companion = dbCompDisplay ? dbToCompanion(dbCompDisplay) : null;
+  const basePortraitUrl = useMemo(() => galleryStaticPortraitUrl(dbCompDisplay, id), [dbCompDisplay, id]);
   const headerAnimated = useMemo(() => {
-    const raw = profileAnimatedPortraitUrl(dbComp);
-    if (shouldShowProfileLoopVideo(dbComp, dbComp?.profile_loop_video_enabled)) return raw ?? null;
+    const raw = profileAnimatedPortraitUrl(dbCompDisplay);
+    if (shouldShowProfileLoopVideo(dbCompDisplay, dbCompDisplay?.profile_loop_video_enabled)) return raw ?? null;
     if (raw && !isVideoPortraitUrl(raw)) return raw;
     return null;
-  }, [dbComp]);
+  }, [dbCompDisplay]);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<any>(null);
   const [tokensBalance, setTokensBalance] = useState<number>(0);
   /** False until first `fetchTokens` completes — avoids treating initial 0 as broke. */
   const [forgeBalanceReady, setForgeBalanceReady] = useState(false);
@@ -236,12 +242,7 @@ export function useChatSessionController() {
   const location = useLocation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
-  const { data: portraitOverrideUrl } = usePortraitOverrideUrl(id, user?.id);
-  const portraitStillUrl = useMemo(() => {
-    if (!id) return basePortraitUrl ?? null;
-    if (id.startsWith("cc-")) return basePortraitUrl ?? null;
-    return portraitOverrideUrl ?? basePortraitUrl ?? null;
-  }, [id, portraitOverrideUrl, basePortraitUrl]);
+  const portraitStillUrl = id ? basePortraitUrl ?? null : null;
   const { data: galleryImages = [], isLoading: galleryImagesLoading } = useCompanionGeneratedImages(id, user?.id);
 
   const isAdminUser = useMemo(() => isPlatformAdmin(user), [user]);
@@ -788,6 +789,9 @@ export function useChatSessionController() {
         tags: dbComp.tags ?? [],
         baseDescription,
         vibe: companion.personality,
+        /** Edge fn: skip tab DNA + forge scene append so menu gallery scenes are not drowned by “portrait card” bias. */
+        suppressForgeStyleDnaForChatMenuPreset: menuSceneLock,
+        chatMenuSceneLock: menuSceneLock,
         clothing: menuSceneLock
           ? "Wardrobe, undress, pose, and set come **only** from USER SCENE / **Requested framing (from menu)** — not from forge packshots or profile art."
           : "Wardrobe and undress follow PRIMARY SCENE and USER SCENE only. Do not infer outfit from any unstated catalog image — use the written profile + scene text.",
@@ -875,6 +879,8 @@ export function useChatSessionController() {
         tags: dbComp.tags ?? [],
         baseDescription: rewardBaseDescription,
         vibe: companion.personality,
+        suppressForgeStyleDnaForChatMenuPreset: true,
+        chatMenuSceneLock: true,
         clothing:
           "Wardrobe, undress, pose, and set come **only** from USER SCENE / **Requested framing (from menu)** — not from forge packshots or profile art.",
       };
@@ -981,7 +987,7 @@ export function useChatSessionController() {
       imageUrl,
     });
     await queryClient.invalidateQueries({ queryKey: ["companions"] });
-    await queryClient.invalidateQueries({ queryKey: ["portrait-override", user.id, id] });
+    await queryClient.invalidateQueries({ queryKey: ["companion-display-override", user.id, id] });
     await queryClient.invalidateQueries({ queryKey: ["companion-generated-images", user.id, id] });
   };
 

@@ -615,20 +615,26 @@ export type Database = {
       }
       user_companion_portrait_overrides: {
         Row: {
+          animated_portrait_url: string | null
           companion_id: string
-          portrait_url: string
+          portrait_url: string | null
+          profile_loop_video_enabled: boolean
           updated_at: string
           user_id: string
         }
         Insert: {
+          animated_portrait_url?: string | null
           companion_id: string
-          portrait_url: string
+          portrait_url?: string | null
+          profile_loop_video_enabled?: boolean
           updated_at?: string
           user_id: string
         }
         Update: {
+          animated_portrait_url?: string | null
           companion_id?: string
-          portrait_url?: string
+          portrait_url?: string | null
+          profile_loop_video_enabled?: boolean
           updated_at?: string
           user_id?: string
         }

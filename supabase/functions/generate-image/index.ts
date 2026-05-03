@@ -230,10 +230,16 @@ serve(async (req) => {
     const anatomyKeyRules = buildAnatomyImagineKeyRules(anatomyVariant);
 
     const cd = characterData as Record<string, unknown>;
+    const isChatSessionStill = String(characterData.style ?? "").trim() === "chat-session";
+    const suppressForgeDna =
+      cd.suppressForgeStyleDnaForChatMenuPreset === true ||
+      cd.suppress_forge_style_dna_for_chat_menu_preset === true;
+    const chatMenuSceneLock =
+      cd.chatMenuSceneLock === true || cd.chat_menu_scene_lock === true;
     const tabForAnime = cd.selectedForgeTab ?? cd.selected_forge_tab ?? cd.activeForgeTab;
     const isAnime = isAnimeTemptationForgeTabId(tabForAnime);
     const tierRewrite = effectiveTier === "forge_preview_sfw" ? "preview" : "full";
-    const dnaPrefix = buildForgeStyleDnaPrefix(cd, tierRewrite);
+    const dnaPrefix = suppressForgeDna && isChatSessionStill ? "" : buildForgeStyleDnaPrefix(cd, tierRewrite);
     const cdScene = { ...cd };
     const artRaw = String(cdScene.artStyleLabel ?? cdScene.art_style_label ?? "").trim();
     cdScene.artStyleLabel = effectiveForgeArtStyleLabelForCharacterData(artRaw, cdScene);
@@ -243,7 +249,6 @@ serve(async (req) => {
     const animeRewriteLead = isAnime && !promptHasAnimeLock ? buildAnimeTemptationStyleLead(tierRewrite) : "";
     const rawForRewrite = [animeRewriteLead, dnaPrefix, sceneBlock].filter((s) => String(s).trim()).join("\n\n");
 
-    const isChatSessionStill = String(characterData.style ?? "").trim() === "chat-session";
     const rewriteMode =
       effectiveTier === "forge_preview_sfw"
         ? "portrait_card"
@@ -313,6 +318,21 @@ serve(async (req) => {
       ? `Pose that clearly sells the forge body type — correct limbs, tail, wings, hybrid junction, or non-human mass as implied; same character identity from the text profile.`
       : "seductive and provocative pose";
 
+    const menuSceneLockEffective = chatMenuSceneLock && isChatSessionStill;
+    const menuSceneClothingLine =
+      "**PRIMARY SCENE + menu preset only:** every garment, fabric state, coverage, jewelry, and prop worn or held must match the user’s chosen gallery category — **not** the roster/profile card outfit, **not** a generic bikini/studio wrap unless the menu text explicitly calls for it.";
+    const menuScenePoseLine =
+      "**PRIMARY SCENE + menu preset only:** full-body stance, limb angles, weight shift, prop interaction, gaze direction, and camera geometry (selfie arm, mirror, tripod, environmental wide shot, etc.) must match the menu category — **forbidden:** repeating the catalog portrait pose, head-and-shoulders stock framing, or a neutral three-quarter “card photo” unless the menu asks for that exact framing.";
+
+    const effectiveClothing =
+      menuSceneLockEffective && !String(characterData.clothing ?? "").trim().startsWith("**PRIMARY SCENE")
+        ? menuSceneClothingLine
+        : String(characterData.clothing ?? "").trim() || defaultClothing;
+    const effectivePose =
+      menuSceneLockEffective && !String(characterData.pose ?? "").trim().startsWith("**PRIMARY SCENE")
+        ? menuScenePoseLine
+        : String(characterData.pose ?? "").trim() || defaultPose;
+
     const characterDetailsBlock = [
       "Character Details:",
       bodyTypeLine,
@@ -324,8 +344,8 @@ serve(async (req) => {
       `- Age range: ${characterData.ageRange || "young adult"}`,
       `- Hair: ${characterData.hair || "any style and color"}`,
       `- Eyes: ${characterData.eyes || "expressive and beautiful"}`,
-      `- Clothing / outfit: ${characterData.clothing || defaultClothing}`,
-      `- Pose: ${characterData.pose || defaultPose}`,
+      `- Clothing / outfit: ${effectiveClothing}`,
+      `- Pose: ${effectivePose}`,
       `- Expression / mood: ${characterData.expression || "seductive, confident, mysterious, or alluring"}`,
       `- Overall vibe: ${characterData.vibe || "extremely sexy and artistic"}`,
     ]
@@ -386,6 +406,7 @@ Visual rules:
 - **Tasteful adult:** sensual nude, lingerie, and strong tease are in-bounds; avoid hardcore pornographic depiction, graphic penetration, or obscene gynecological close-ups — premium boudoir / editorial tone.
 - **Likeness vs outfit (text-derived):** Keep **one consistent individual** per Character Details / character bible — face, hair, skin, and body type from the **written** profile — but **do not** invent wardrobe from an imaginary “card photo.” When PRIMARY SCENE describes lingerie, gym, rain, bed, nude, etc., **invent** scene-accurate clothing or undress per PRIMARY SCENE (no default bikini paste).
 ${isChatSessionStill ? "- **Chat still / gallery preset:** There is **no input reference image** — PRIMARY SCENE + the character’s **appearance paragraph and forge prompt** define look and styling. Each preset should read as a **new** shot (pose, lens, set, wardrobe), not a remaster of any stored portrait.\n" : ""}
+${chatMenuSceneLock && isChatSessionStill ? "- **Gallery menu lock:** PRIMARY SCENE must realize the **menu category’s** location and action — **not** a head-and-shoulders glam reskin. If PRIMARY SCENE names a bed, car, tub, desk, beach, shower, gym, etc., the **environment and body–world interaction** must clearly show that place.\n" : ""}
 ${
         isAnime
           ? "- **2D anime discipline:** Render as authentic flat/soft-cel **2D anime illustration** matching PRIMARY SCENE — preserve stylized proportions, line art, and anime eyes; do not convert to photoreal or 3D."

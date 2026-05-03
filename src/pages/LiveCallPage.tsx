@@ -22,7 +22,9 @@ import { fetchTtsSampleAudioUrl } from "@/lib/invokeGrokTtsSample";
 import { LIVE_CALL_CREDITS_PER_MINUTE } from "@/lib/liveCallBilling";
 import { spendForgeCoins } from "@/lib/forgeCoinsClient";
 import { LiveCallPhoneShell, type LiveCallUiPhase } from "@/components/liveCall/LiveCallPhoneShell";
+import { useCompanionDisplayOverride } from "@/hooks/useCompanionDisplayOverride";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
+import { mergeCompanionDisplayWithUserOverride } from "@/lib/mergeCompanionDisplayOverride";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { hasUserPurchasedCompanionCard } from "@/lib/hasUserPurchasedCompanionCard";
@@ -49,20 +51,27 @@ const LiveCallPage = () => {
   const callOptionFromState = (location.state as LocationState | null)?.callOption ?? null;
 
   const { data: dbRows = [], isLoading } = useCompanions();
-  const companion = useMemo(() => {
-    if (!id) return null;
-    const row = dbRows.find((r) => r.id === id);
-    return row ? dbToCompanion(row) : null;
-  }, [dbRows, id]);
+  const [userId, setUserId] = useState<string | null>(null);
+  const { data: displayOverride } = useCompanionDisplayOverride(id, userId ?? undefined);
 
   const dbComp: DbCompanion | null = useMemo(() => {
     if (!id) return null;
     return dbRows.find((r) => r.id === id) ?? null;
   }, [dbRows, id]);
 
+  const dbCompDisplay = useMemo(
+    () => mergeCompanionDisplayWithUserOverride(dbComp, displayOverride ?? undefined) ?? dbComp,
+    [dbComp, displayOverride],
+  );
+
+  const companion = useMemo(() => {
+    if (!dbCompDisplay) return null;
+    return dbToCompanion(dbCompDisplay);
+  }, [dbCompDisplay]);
+
   const callPortraitUrl = useMemo(
-    () => (dbComp && id ? galleryStaticPortraitUrl(dbComp, id) : null),
-    [dbComp, id],
+    () => (dbCompDisplay && id ? galleryStaticPortraitUrl(dbCompDisplay, id) : null),
+    [dbCompDisplay, id],
   );
 
   const activeCallOption = useMemo(() => {
@@ -83,7 +92,6 @@ const LiveCallPage = () => {
     companion?.id ?? "",
   );
 
-  const [userId, setUserId] = useState<string | null>(null);
   const [toyList, setToyList] = useState<LovenseToy[]>([]);
   const [profileTtsGlobal, setProfileTtsGlobal] = useState<string | null>(null);
   const [callVoice, setCallVoice] = useState<TtsUxVoiceId | null>(null);

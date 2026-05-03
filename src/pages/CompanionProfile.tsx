@@ -1,6 +1,7 @@
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePortraitOverrideUrl } from "@/hooks/usePortraitOverride";
+import { useCompanionDisplayOverride } from "@/hooks/useCompanionDisplayOverride";
+import { mergeCompanionDisplayWithUserOverride } from "@/lib/mergeCompanionDisplayOverride";
 import { useCompanionGeneratedImages } from "@/hooks/useCompanionGeneratedImages";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { useForgeCompanionOverlay } from "@/hooks/useForgeCompanionOverlay";
@@ -189,8 +190,13 @@ const CompanionProfile = () => {
   const { data: vibrationPatterns = [], isLoading: vibrationPatternsLoading } = useCompanionVibrationPatterns(id);
 
   const { dbComp, forgeLookupBusy: forgeRowFetching } = useForgeCompanionOverlay(id, dbCompanions, isLoading);
+  const { data: displayOverride } = useCompanionDisplayOverride(id, user?.id);
+  const dbCompDisplay = useMemo(
+    () => mergeCompanionDisplayWithUserOverride(dbComp, displayOverride ?? undefined) ?? dbComp,
+    [dbComp, displayOverride],
+  );
 
-  const companion = dbComp ? dbToCompanion(dbComp) : null;
+  const companion = dbCompDisplay ? dbToCompanion(dbCompDisplay) : null;
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const isDropLanding = searchParams.get("drop") === "1";
   const weeklyDropId = searchParams.get("wd");
@@ -262,21 +268,16 @@ const CompanionProfile = () => {
     if (discoverFreeCommonClaimed !== false) return discoverListFc;
     return 0;
   }, [user?.id, rarity, discoverListFc, discoverFreeCommonClaimed]);
-  const animatedPortrait = profileAnimatedPortraitUrl(dbComp);
-  const showLoopVideo = shouldShowProfileLoopVideo(dbComp, dbComp?.profile_loop_video_enabled);
+  const animatedPortrait = profileAnimatedPortraitUrl(dbCompDisplay);
+  const showLoopVideo = shouldShowProfileLoopVideo(dbCompDisplay, dbCompDisplay?.profile_loop_video_enabled);
   const lightboxAnimated =
     showLoopVideo && animatedPortrait && isVideoPortraitUrl(animatedPortrait)
       ? animatedPortrait
       : animatedPortrait && !isVideoPortraitUrl(animatedPortrait)
         ? animatedPortrait
         : undefined;
-  const { data: portraitOverrideUrl } = usePortraitOverrideUrl(id, user?.id);
   const { data: galleryImages = [], isLoading: galleryImagesLoading } = useCompanionGeneratedImages(id, user?.id);
-  const stillForProfile = useMemo(() => {
-    const base = profileStillPortraitUrl(dbComp, id);
-    if (id?.startsWith("cc-")) return base;
-    return portraitOverrideUrl ?? base;
-  }, [dbComp, id, portraitOverrideUrl]);
+  const stillForProfile = useMemo(() => profileStillPortraitUrl(dbCompDisplay, id), [dbCompDisplay, id]);
 
   const loopVideoActive = Boolean(
     showLoopVideo && animatedPortrait && isVideoPortraitUrl(animatedPortrait),
@@ -743,7 +744,7 @@ const CompanionProfile = () => {
     });
     await queryClient.invalidateQueries({ queryKey: ["companions"] });
     await queryClient.refetchQueries({ queryKey: ["companions"] });
-    await queryClient.invalidateQueries({ queryKey: ["portrait-override", user.id, id] });
+    await queryClient.invalidateQueries({ queryKey: ["companion-display-override", user.id, id] });
     await queryClient.invalidateQueries({ queryKey: ["companion-generated-images", user.id, id] });
     await queryClient.refetchQueries({ queryKey: ["companion-generated-images", user.id, id] });
   };
@@ -885,7 +886,7 @@ const CompanionProfile = () => {
               onClearLoopSource={() => setLoopFromGeneratedImageId(null)}
               onSuccess={() => {
                 void queryClient.invalidateQueries({ queryKey: ["companions"] });
-                void queryClient.invalidateQueries({ queryKey: ["portrait-override", user?.id, id] });
+                void queryClient.invalidateQueries({ queryKey: ["companion-display-override", user?.id, id] });
                 if (user?.id && companion.id) {
                   void queryClient.invalidateQueries({
                     queryKey: ["companion-generated-images", user.id, companion.id],

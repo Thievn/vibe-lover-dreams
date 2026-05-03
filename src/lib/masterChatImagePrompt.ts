@@ -268,15 +268,23 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
   ].join("\n");
 
   const scene = [
-    "— USER SCENE (creative freedom inside identity lock) —",
+    menuSceneLock
+      ? "— USER-CHOSEN SCENE (EXECUTION PRIORITY #1 — NOT A PORTRAIT REMASTER) —"
+      : "— USER SCENE (creative freedom inside identity lock) —",
     sceneRequest.trim() || "Flattering portrait-appropriate key art matching the matrix above.",
-    "Honor specific user asks (shower, beach, bed, etc.) with accurate environment — same described person.",
+    menuSceneLock
+      ? "Implement **Requested framing (from menu)** literally for **place, props, wardrobe, pose, camera distance, and light**. CHARACTER APPEARANCE (below) is **face, hair, skin, build, species only** — it must **not** pull pose, outfit, crop, or backdrop from any catalog/profile mental model."
+      : "Honor specific user asks (shower, beach, bed, etc.) with accurate environment — same described person.",
     shotVariation,
     moodNsfwClauses(mood),
     tierLine,
   ]
     .filter(Boolean)
     .join(" ");
+
+  const antiProfileRemaster = menuSceneLock
+    ? "— HARD: NEW PHOTOSHOOT — This is **not** an edit, reskin, or “same shot different filter” of the roster portrait. You must change **composition, subject-to-environment relationship, and silhouette** vs a default glam bust-up unless the menu text explicitly demands that framing."
+    : "";
 
   const tech = [
     "— CAPTURE / FRAMING —",
@@ -289,17 +297,29 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
 
   const charBlock = `CHARACTER APPEARANCE (primary likeness — text only): ${companion.name}, ${companion.gender}. ${(companion.appearance || "").trim().slice(0, 2000)}`;
 
-  const prompt = [
-    "LUSTFORGE MASTER BRIEF — in-session generative still (no reference image)",
-    identity,
-    theming,
-    scene,
-    tech,
-    !menuSceneLock && pack
-      ? `— FORGE ORIGINAL IMAGE PROMPT (anchors: palette, vibe, era — NOT a shot to copy; wardrobe still follows USER SCENE): ${pack} Do not treat swimsuit/bikini/outfit wording here as the outfit lock unless USER SCENE explicitly matches swim/beach.`
-      : "",
-    charBlock,
-  ]
+  const prompt = (
+    menuSceneLock
+      ? [
+          "LUSTFORGE MASTER BRIEF — in-session gallery-preset still (scene-first; likeness from text only)",
+          antiProfileRemaster,
+          scene,
+          identity,
+          theming,
+          tech,
+          charBlock,
+        ]
+      : [
+          "LUSTFORGE MASTER BRIEF — in-session generative still (no reference image)",
+          identity,
+          theming,
+          scene,
+          tech,
+          pack
+            ? `— FORGE ORIGINAL IMAGE PROMPT (anchors: palette, vibe, era — NOT a shot to copy; wardrobe still follows USER SCENE): ${pack} Do not treat swimsuit/bikini/outfit wording here as the outfit lock unless USER SCENE explicitly matches swim/beach.`
+            : "",
+          charBlock,
+        ]
+  )
     .filter(Boolean)
     .join("\n\n")
     .slice(0, 12_000);
@@ -307,7 +327,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
   const portraitConsistencyLock = [
     `TEXT-ONLY CHARACTER LOCK for ${companion.name}: keep **face, hair, skin, species markers, and ${bodyType}** consistent with the written CHARACTER APPEARANCE block — do not invent a different person.`,
     menuSceneLock
-      ? `Menu preset lock: **pose, outfit, background, props, and lighting** come only from PRIMARY SCENE / the **Requested framing (from menu)** block — not from forge packshots or roster portraits.`
+      ? `Menu preset lock: **pose, outfit, background, props, and lighting** come only from PRIMARY SCENE / the **Requested framing (from menu)** block — not from forge packshots, packshot prose, or roster/profile portraits. **Ignore** any mental image of the stored card photo.`
       : `Body-type lock: ${bodyType} — limbs, torso scale, and species read must match the prose. **Pose, outfit, location, lens, and lighting** follow USER SCENE / PRIMARY SCENE.`,
     `Art & era: ${art} · time/world: ${profile.timePeriod} — props and set must plausibly belong in that world.`,
     !menuSceneLock && pack

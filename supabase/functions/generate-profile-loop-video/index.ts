@@ -136,6 +136,8 @@ Deno.serve(async (req) => {
       : "";
 
   let sourceOverrideUrl: string | null = null;
+  /** Original gallery still URL (for per-user override row when not mutating public cards). */
+  let sourceGalleryStillUrl: string | null = null;
   if (sourceGenId) {
     const { data: genRow, error: genErr } = await svc
       .from("generated_images")
@@ -156,6 +158,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
     const rawGen = typeof genRow.image_url === "string" ? genRow.image_url.trim() : "";
+    sourceGalleryStillUrl = rawGen || null;
     sourceOverrideUrl = rawGen ? publicHttpsImageUrlForGrok(rawGen) : null;
     if (!sourceOverrideUrl) {
       return jsonResponse({ error: "Could not resolve that gallery image URL." }, 400);
@@ -229,6 +232,21 @@ Deno.serve(async (req) => {
         (typeof row.image_url === "string" && row.image_url) ||
         null;
       imageUrl = publicHttpsImageUrlForGrok(raw);
+    }
+  }
+
+  /** Paid / user paths: prefer this user’s private still override for I2V (does not change discover art). */
+  if (!sourceOverrideUrl && !adminUser) {
+    const { data: ov } = await svc
+      .from("user_companion_portrait_overrides")
+      .select("portrait_url")
+      .eq("user_id", sessionUser.id)
+      .eq("companion_id", companionId)
+      .maybeSingle();
+    const ovUrl = typeof ov?.portrait_url === "string" ? ov.portrait_url.trim() : "";
+    if (ovUrl) {
+      const ready = publicHttpsImageUrlForGrok(ovUrl);
+      if (ready) imageUrl = ready;
     }
   }
 
@@ -322,19 +340,65 @@ Deno.serve(async (req) => {
 
     const publicUrl = storage.storage.from("companion-images").getPublicUrl(fileName).data.publicUrl;
 
-    const { error: upRow } = await svc
-      .from(table)
-      .update({
-        animated_image_url: publicUrl,
-        profile_loop_video_enabled: true,
-      })
-      .eq("id", rowPk);
+    if (adminUser) {
+      const { error: upRow } = await svc
+        .from(table)
+        .update({
+          animated_image_url: publicUrl,
+          profile_loop_video_enabled: true,
+        })
+        .eq("id", rowPk);
 
-    if (upRow) {
-      if (tokensCharged) {
-        await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "database update failed");
+      if (upRow) {
+        if (tokensCharged) {
+          await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "database update failed");
+        }
+        return jsonResponse({ error: upRow.message }, 500);
       }
-      return jsonResponse({ error: upRow.message }, 500);
+    } else {
+      const { data: existingOv } = await svc
+        .from("user_companion_portrait_overrides")
+        .select("portrait_url")
+        .eq("user_id", sessionUser.id)
+        .eq("companion_id", companionId)
+        .maybeSingle();
+      let portraitStill =
+        (typeof existingOv?.portrait_url === "string" && existingOv.portrait_url.trim()) ||
+        (sourceGalleryStillUrl && sourceGalleryStillUrl.trim()) ||
+        "";
+      if (!portraitStill) {
+        const raw =
+          companionId.startsWith("cc-")
+            ? (typeof row.static_image_url === "string" && row.static_image_url) ||
+              (typeof row.image_url === "string" && row.image_url) ||
+              (typeof row.avatar_url === "string" && row.avatar_url)
+            : (typeof row.static_image_url === "string" && row.static_image_url) ||
+              (typeof row.image_url === "string" && row.image_url);
+        portraitStill = typeof raw === "string" ? raw.trim() : "";
+      }
+      if (!portraitStill) {
+        if (tokensCharged) {
+          await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "could not resolve portrait still for override");
+        }
+        return jsonResponse({ error: "Could not resolve a still portrait for your private profile." }, 500);
+      }
+      const { error: ovErr } = await svc.from("user_companion_portrait_overrides").upsert(
+        {
+          user_id: sessionUser.id,
+          companion_id: companionId,
+          portrait_url: portraitStill,
+          animated_portrait_url: publicUrl,
+          profile_loop_video_enabled: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,companion_id" },
+      );
+      if (ovErr) {
+        if (tokensCharged) {
+          await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "override save failed");
+        }
+        return jsonResponse({ error: ovErr.message }, 500);
+      }
     }
 
     const galleryUserId = companionId.startsWith("cc-")

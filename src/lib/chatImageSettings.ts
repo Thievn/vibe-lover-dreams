@@ -342,7 +342,7 @@ export function resolveChatImageGenerationPrompt(args: {
   if (menu) {
     if (styled) {
       const coherence =
-        "\n\n**Scene primacy:** The block under **Requested framing (from menu)** is the **only** authority for **location, background, wardrobe, pose, props, lighting, and camera**. The **Exposure / tone context** section sets SFW vs lewd vs artistic-nude **band** only — not literal outfit, pose, or backdrop. **No reference photograph** — likeness = written appearance + body type + species only; **do not** copy pose, environment, or wardrobe from any roster/portrait card. Each preset must read as that **specific** scene, not a remaster of the profile image.";
+        "\n\n**Scene primacy (non-negotiable):** The block under **Requested framing (from menu)** is the **sole** authority for **location, background, architecture, time of day, weather, furniture, wardrobe, pose, props, interaction with props, lens height, and camera distance**. The **Exposure / tone context** section sets SFW vs lewd vs artistic-nude **band only** — it must **never** replace the menu’s place/outfit/pose with a generic bedroom, bathroom mirror, studio bust, or catalog three-quarter. **No reference photograph is supplied** — likeness = written CHARACTER APPEARANCE + body type + species **only**; **forbidden:** copying pose, crop, lighting recipe, environment, or wardrobe from any roster/profile card. Each preset must read as a **different photoshoot** in that **exact** scenario, not a remaster of the profile image.";
       return (
         `— Requested framing (from menu) —\n${styled}\n\n**Exposure / tone context (not the shot layout):**\n${menu}${coherence}`
       ).trim();

@@ -2,8 +2,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { stablePortraitDisplayUrl } from "@/lib/companionMedia";
 
 /**
- * Sets the companion's still portrait used in chat header and profile.
- * For forged companions (`cc-*`), updates `custom_characters`. For catalog stock IDs, uses per-user override row.
+ * Sets the companion still portrait for **this user only** (profile + chat).
+ * Never mutates public `companions` / `custom_characters` art used on discover / landing.
+ * Clears any private looping portrait on the override row when changing the still.
  */
 export async function setCompanionPortraitFromGalleryUrl(args: {
   userId: string;
@@ -13,27 +14,13 @@ export async function setCompanionPortraitFromGalleryUrl(args: {
   const { userId, companionId, imageUrl } = args;
   const stable = stablePortraitDisplayUrl(imageUrl) ?? imageUrl.trim();
 
-  if (companionId.startsWith("cc-")) {
-    const uuid = companionId.slice(3);
-    const { error } = await supabase
-      .from("custom_characters")
-      .update({
-        static_image_url: stable,
-        image_url: stable,
-        avatar_url: stable,
-        animated_image_url: null,
-      })
-      .eq("id", uuid)
-      .eq("user_id", userId);
-    if (error) throw error;
-    return;
-  }
-
   const { error } = await supabase.from("user_companion_portrait_overrides").upsert(
     {
       user_id: userId,
       companion_id: companionId,
       portrait_url: stable,
+      animated_portrait_url: null,
+      profile_loop_video_enabled: false,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id,companion_id" },

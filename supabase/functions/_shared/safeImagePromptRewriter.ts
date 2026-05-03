@@ -57,7 +57,12 @@ YOUR JOB: output **one** final English image prompt (plain text only — no mark
 
 9) Length ~90–220 words, cinematic and dense.
 
-10) Output ONLY the prompt string.`;
+10) Output ONLY the prompt string.
+
+11) **Gallery / menu preset (RAW_TEXT contains "Requested framing (from menu)" or "Requested framing"):**
+Treat the prose under that heading as a **location + wardrobe + pose + camera shot list**.
+Every concrete place (car interior, beach, bathtub, desk, bed, shower, gym, balcony, etc.), prop, outfit beat, body attitude, and lens note must survive in meaning in your rewrite — **do not** collapse into a generic head-and-shoulders portrait, phone-mirror bathroom selfie, or catalog “card photo” unless RAW_TEXT explicitly demands that exact framing.
+The **Exposure / tone context** block (if present) sets SFW vs lewd vs artistic-nude **band only** — it is **not** a second scene; do not let it replace the menu’s background or outfit.`;
 
 /** Forge / gallery / admin: same crude→artistic rules as chat; RAW_TEXT is usually a design brief. */
 export const TASTEFUL_ADULT_BRIEF_REWRITER_SYSTEM = CHAT_SESSION_IMAGE_REWRITER_SYSTEM.replace(

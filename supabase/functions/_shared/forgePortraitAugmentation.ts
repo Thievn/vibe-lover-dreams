@@ -82,6 +82,10 @@ export function maybeAppendForgeStyleSceneBlock(
 ): string {
   const raw = String(rawPrompt ?? "").trim();
   if (!raw || raw.includes(MARKER)) return raw;
+  /** Chat gallery preset: never paste tab “primary environment” over the user’s chosen scene. */
+  if (characterData.chatMenuSceneLock === true || characterData.chat_menu_scene_lock === true) {
+    return raw;
+  }
 
   const art = effectiveForgeArtStyleLabelForCharacterData(
     String(characterData.artStyleLabel ?? characterData.art_style_label ?? ""),
