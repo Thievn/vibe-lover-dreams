@@ -660,8 +660,11 @@ export type Database = {
       }
       profiles: {
         Row: {
+          chat_daily_quota_date: string | null
+          chat_daily_quota_used: number
           created_at: string
           device_uid: string | null
+          discover_free_common_claimed: boolean
           display_name: string | null
           id: string
           stripe_customer_id: string | null
@@ -675,8 +678,11 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          chat_daily_quota_date?: string | null
+          chat_daily_quota_used?: number
           created_at?: string
           device_uid?: string | null
+          discover_free_common_claimed?: boolean
           display_name?: string | null
           id?: string
           stripe_customer_id?: string | null
@@ -690,8 +696,11 @@ export type Database = {
           user_id: string
         }
         Update: {
+          chat_daily_quota_date?: string | null
+          chat_daily_quota_used?: number
           created_at?: string
           device_uid?: string | null
+          discover_free_common_claimed?: boolean
           display_name?: string | null
           id?: string
           stripe_customer_id?: string | null

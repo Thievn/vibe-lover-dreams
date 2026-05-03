@@ -174,6 +174,7 @@ const CompanionProfile = () => {
   const [autoSpendChatImages, setAutoSpendChatImagesState] = useState(false);
   const [dropClickTracked, setDropClickTracked] = useState(false);
   const [fcBalanceProfile, setFcBalanceProfile] = useState<number | null>(null);
+  const [discoverFreeCommonClaimed, setDiscoverFreeCommonClaimed] = useState<boolean | null>(null);
   const [buyConfirmProfileOpen, setBuyConfirmProfileOpen] = useState(false);
   const [purchasingDiscoverProfile, setPurchasingDiscoverProfile] = useState(false);
   /** Paid Discover / catalog unlock (see `purchase_discover_companion` → `user_transactions.card_purchase`). */
@@ -247,6 +248,12 @@ const CompanionProfile = () => {
     [companion],
   );
   const rarity: CompanionRarity = companion?.rarity ?? "common";
+  const discoverListFc = discoverCardPriceFc(rarity);
+  const discoverEffectiveFc = useMemo(() => {
+    if (!user?.id || rarity !== "common") return discoverListFc;
+    if (discoverFreeCommonClaimed !== false) return discoverListFc;
+    return 0;
+  }, [user?.id, rarity, discoverListFc, discoverFreeCommonClaimed]);
   const animatedPortrait = profileAnimatedPortraitUrl(dbComp);
   const showLoopVideo = shouldShowProfileLoopVideo(dbComp, dbComp?.profile_loop_video_enabled);
   const lightboxAnimated =
@@ -523,17 +530,21 @@ const CompanionProfile = () => {
   useEffect(() => {
     if (!user?.id) {
       setFcBalanceProfile(null);
+      setDiscoverFreeCommonClaimed(null);
       return;
     }
     let cancelled = false;
     void (async () => {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("tokens_balance")
+        .select("tokens_balance, discover_free_common_claimed")
         .eq("user_id", user.id)
         .maybeSingle();
       if (!cancelled) {
         setFcBalanceProfile(typeof profile?.tokens_balance === "number" ? profile.tokens_balance : null);
+        setDiscoverFreeCommonClaimed(
+          typeof profile?.discover_free_common_claimed === "boolean" ? profile.discover_free_common_claimed : null,
+        );
       }
     })();
     return () => {
@@ -733,9 +744,10 @@ const CompanionProfile = () => {
       navigate("/auth", { state: { from: `/companions/${id}` } });
       return;
     }
-    const price = discoverCardPriceFc(rarity);
-    if (fcBalanceProfile !== null && fcBalanceProfile < price) {
-      toast.error(`Not enough Forge Coins. This card is ${price} FC — you have ${fcBalanceProfile} FC.`);
+    const listPrice = discoverCardPriceFc(rarity);
+    const effective = rarity === "common" && discoverFreeCommonClaimed === false ? 0 : listPrice;
+    if (fcBalanceProfile !== null && effective > 0 && fcBalanceProfile < effective) {
+      toast.error(`Not enough Forge Coins. This card is ${effective} FC — you have ${fcBalanceProfile} FC.`);
       return;
     }
     setPurchasingDiscoverProfile(true);
@@ -758,7 +770,11 @@ const CompanionProfile = () => {
       if (r.alreadyOwned) {
         toast.message("Already in your collection", { description: companion.name });
       } else {
-        toast.success(`Added to your vault — ${r.priceFc} FC`, { description: companion.name });
+        toast.success(
+          r.priceFc <= 0 ? "Added to your vault — free first Common" : `Added to your vault — ${r.priceFc} FC`,
+          { description: companion.name },
+        );
+        if (r.priceFc <= 0 && rarity === "common") setDiscoverFreeCommonClaimed(true);
       }
       const from = (location.state as { from?: string } | null)?.from;
       navigate({ pathname: `/companions/${id}`, search: "" }, { replace: true, state: from ? { from } : {} });
@@ -947,7 +963,6 @@ const CompanionProfile = () => {
               aspectClassName={cn(portraitAspectClass, "w-full")}
               rarityFrameBleed
               profilePolish={loopVideoActive}
-              overlayClassName={loopVideoActive ? "z-[4]" : undefined}
               neonEdgeBreathing={!loopVideoActive}
             >
               <PortraitViewLightbox
@@ -1030,7 +1045,7 @@ const CompanionProfile = () => {
                   className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-primary/50 bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25"
                 >
                   <Crown className="h-4 w-4 shrink-0" />
-                  Acquire card · {discoverCardPriceFc(rarity)} FC
+                  Acquire card · {discoverEffectiveFc <= 0 ? "FREE" : `${discoverListFc} FC`}
                   <Gem className="h-4 w-4 shrink-0 opacity-90" />
                 </motion.button>
               </div>
@@ -1668,6 +1683,7 @@ const CompanionProfile = () => {
         rarity={rarity}
         fcBalance={fcBalanceProfile}
         purchasing={purchasingDiscoverProfile}
+        priceOverrideFc={user && rarity === "common" && discoverFreeCommonClaimed === false ? 0 : undefined}
         onClose={() => {
           if (purchasingDiscoverProfile) return;
           setBuyConfirmProfileOpen(false);

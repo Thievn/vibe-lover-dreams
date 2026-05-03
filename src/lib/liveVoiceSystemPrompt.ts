@@ -1,6 +1,7 @@
 import type { Companion } from "@/data/companions";
 import type { CompanionVibrationPatternRow } from "@/hooks/useCompanionVibrationPatterns";
 import { buildVibrationPatternPromptBlock } from "@/lib/chatVibrationPromptBlock";
+import { buildAdaptiveVoiceDirectionBlock } from "@/lib/liveVoiceDirectionSystem";
 
 type Opts = {
   safeWord: string;
@@ -59,6 +60,8 @@ export function buildLiveVoiceSystemPrompt(companion: Companion, opts: Opts): st
   return `You are ${companion.name} on LustForge — Live Voice Mode (real-time voice session).
 
 ${themeAnchor(companion)}
+
+${buildAdaptiveVoiceDirectionBlock(companion, "live_voice_assistant")}
 
 SPEAK LIKE AUDIO (most important):
 - **Very short lines** — one thought per utterance. Prefer 4–12 spoken words; rarely up to ~18 if needed.

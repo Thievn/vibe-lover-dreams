@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DailyFreeMessagesBar } from "@/components/chat/DailyFreeMessagesBar";
+import { nextTextMessageFc, remainingFreeMessages } from "@/lib/chatDailyQuota";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -111,6 +113,8 @@ export default function Dashboard() {
   const [privateMode, setPrivateMode] = useState(true);
   const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
   const [tokensBalance, setTokensBalance] = useState(0);
+  const [chatDailyQuotaDate, setChatDailyQuotaDate] = useState<string | null>(null);
+  const [chatDailyQuotaUsed, setChatDailyQuotaUsed] = useState<number | null>(null);
 
   const { vaultCompanions, isLoading: vaultLoading } = useVaultCollection(user?.id ?? null, dbCompanions);
   const { data: insights, isLoading: insightsLoading } = useDashboardInsights(user?.id ?? null);
@@ -205,6 +209,14 @@ export default function Dashboard() {
 
   const isAdmin = isPlatformAdmin(user, { profileDisplayName });
 
+  const dashboardChatQuotaUi = useMemo(
+    () => ({
+      remainingFree: remainingFreeMessages(chatDailyQuotaDate, chatDailyQuotaUsed),
+      nextLineFc: nextTextMessageFc(chatDailyQuotaDate, chatDailyQuotaUsed),
+    }),
+    [chatDailyQuotaDate, chatDailyQuotaUsed],
+  );
+
   const refreshToy = useCallback(async (uid: string) => {
     try {
       const toys = await getToys(uid);
@@ -224,11 +236,24 @@ export default function Dashboard() {
     }
   }, []);
 
+  const refreshProfileCredits = useCallback(async () => {
+    if (!user?.id) return;
+    const { data } = await supabase
+      .from("profiles")
+      .select("tokens_balance, chat_daily_quota_date, chat_daily_quota_used")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    setTokensBalance(typeof data?.tokens_balance === "number" ? data.tokens_balance : 0);
+    setChatDailyQuotaDate(data?.chat_daily_quota_date ?? null);
+    setChatDailyQuotaUsed(typeof data?.chat_daily_quota_used === "number" ? data.chat_daily_quota_used : null);
+  }, [user?.id]);
+
   useWindowVisibleRefresh(
     () => {
       if (user?.id) {
         void refreshToy(user.id);
         void queryClient.invalidateQueries({ queryKey: DASHBOARD_INSIGHTS_QUERY_KEY });
+        void refreshProfileCredits();
       }
     },
     Boolean(user?.id),
@@ -246,14 +271,14 @@ export default function Dashboard() {
         setUser(session.user);
         let { data: prof } = await supabase
           .from("profiles")
-          .select("display_name, tokens_balance")
+          .select("display_name, tokens_balance, chat_daily_quota_date, chat_daily_quota_used")
           .eq("user_id", session.user.id)
           .maybeSingle();
         if (!prof) {
           await supabase.from("profiles").insert({ user_id: session.user.id });
           const again = await supabase
             .from("profiles")
-            .select("display_name, tokens_balance")
+            .select("display_name, tokens_balance, chat_daily_quota_date, chat_daily_quota_used")
             .eq("user_id", session.user.id)
             .maybeSingle();
           prof = again.data;
@@ -261,6 +286,8 @@ export default function Dashboard() {
         if (!cancelled) {
           setProfileDisplayName(prof?.display_name ?? null);
           setTokensBalance(typeof prof?.tokens_balance === "number" ? prof.tokens_balance : 0);
+          setChatDailyQuotaDate(prof?.chat_daily_quota_date ?? null);
+          setChatDailyQuotaUsed(typeof prof?.chat_daily_quota_used === "number" ? prof.chat_daily_quota_used : null);
         }
         await refreshToy(session.user.id);
       }
@@ -275,20 +302,22 @@ export default function Dashboard() {
       void (async () => {
         let { data: prof } = await supabase
           .from("profiles")
-          .select("display_name, tokens_balance")
+          .select("display_name, tokens_balance, chat_daily_quota_date, chat_daily_quota_used")
           .eq("user_id", session.user.id)
           .maybeSingle();
         if (!prof) {
           await supabase.from("profiles").insert({ user_id: session.user.id });
           const again = await supabase
             .from("profiles")
-            .select("display_name, tokens_balance")
+            .select("display_name, tokens_balance, chat_daily_quota_date, chat_daily_quota_used")
             .eq("user_id", session.user.id)
             .maybeSingle();
           prof = again.data;
         }
         setProfileDisplayName(prof?.display_name ?? null);
         setTokensBalance(typeof prof?.tokens_balance === "number" ? prof.tokens_balance : 0);
+        setChatDailyQuotaDate(prof?.chat_daily_quota_date ?? null);
+        setChatDailyQuotaUsed(typeof prof?.chat_daily_quota_used === "number" ? prof.chat_daily_quota_used : null);
       })();
       void refreshToy(session.user.id);
     });
@@ -369,16 +398,6 @@ export default function Dashboard() {
       { replace: true },
     );
   };
-
-  const refreshProfileCredits = useCallback(async () => {
-    if (!user?.id) return;
-    const { data } = await supabase
-      .from("profiles")
-      .select("tokens_balance")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    setTokensBalance(typeof data?.tokens_balance === "number" ? data.tokens_balance : 0);
-  }, [user?.id]);
 
   if (authLoading) {
     return (
@@ -690,6 +709,9 @@ export default function Dashboard() {
                 companionsLoading={companionsLoading || vaultLoading}
                 insightsLoading={insightsLoading}
                 profileLinkFrom={`${location.pathname}${location.search}`}
+                chatRemainingFree={dashboardChatQuotaUi.remainingFree}
+                chatNextLineFc={dashboardChatQuotaUi.nextLineFc}
+                isAdminUser={isAdmin}
               />
             )}
             {activeNav === "collection" && (
@@ -886,6 +908,9 @@ function DashboardHome({
   companionsLoading,
   insightsLoading,
   profileLinkFrom,
+  chatRemainingFree,
+  chatNextLineFc,
+  isAdminUser,
 }: {
   onCreate: () => void;
   onOpenNexus: () => void;
@@ -897,6 +922,9 @@ function DashboardHome({
   companionsLoading: boolean;
   insightsLoading: boolean;
   profileLinkFrom: string;
+  chatRemainingFree: number;
+  chatNextLineFc: number;
+  isAdminUser: boolean;
 }) {
   return (
     <div className="space-y-10 max-w-6xl mx-auto">
@@ -919,6 +947,30 @@ function DashboardHome({
           </motion.div>
         ))}
       </div>
+
+      <section className="rounded-2xl border border-white/[0.08] bg-gradient-to-br from-black/55 via-card/35 to-cyan-950/10 p-5 sm:p-6 shadow-[0_0_44px_rgba(255,45,123,0.1),inset_0_1px_0_rgba(255,255,255,0.05)]">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="font-gothic text-lg sm:text-xl text-white flex items-center gap-2 min-w-0">
+            <MessageSquare className="h-5 w-5 shrink-0 text-primary" style={{ color: NEON_PINK }} />
+            Companion chat — free lines today
+          </h3>
+        </div>
+        <p className="mt-1.5 text-[11px] sm:text-xs text-muted-foreground leading-relaxed max-w-2xl">
+          Classic text uses a shared daily pool (UTC). After it runs out, each line bills Forge Coins at the rate shown
+          below.
+        </p>
+        {isAdminUser ? (
+          <p className="mt-3 text-xs text-muted-foreground">Admin accounts skip message quota metering.</p>
+        ) : (
+          <DailyFreeMessagesBar
+            visible
+            className="mt-3 text-[11px] sm:text-xs px-3.5 py-2.5"
+            remainingFree={chatRemainingFree}
+            nextLineFc={chatNextLineFc}
+            isAdminUser={false}
+          />
+        )}
+      </section>
 
       {/* Quick actions — centered under the stat row */}
       <div className="flex w-full justify-center pt-1">

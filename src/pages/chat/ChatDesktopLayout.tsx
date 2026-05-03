@@ -22,7 +22,8 @@ import { ChatGallerySheet } from "@/components/chat/ChatGallerySheet";
 import { CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON, inferChatMediaRoute } from "@/lib/chatVisualRouting";
 import { LIVE_CALL_CREDITS_PER_MINUTE } from "@/lib/liveCallBilling";
 import { setChatSessionMode as persistChatSessionMode } from "@/lib/chatSessionMode";
-import { CHAT_IMAGE_LEWD_FC, CHAT_IMAGE_NUDE_FC, CHAT_MESSAGE_FC } from "@/lib/forgeEconomy";
+import { CHAT_IMAGE_LEWD_FC, CHAT_IMAGE_NUDE_FC } from "@/lib/forgeEconomy";
+import { DailyFreeMessagesBar } from "@/components/chat/DailyFreeMessagesBar";
 import { CHAT_VIDEO_TOKEN_COST, FAB_SELFIE, setChatAutoSpendImages } from "@/lib/chatImageSettings";
 import type { UseChatSessionControllerReturn } from "./useChatSessionController";
 
@@ -36,6 +37,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
     affectionProgress,
     affectionProgressMax,
     tokensBalance,
+    chatDailyQuotaUi,
     isAdminUser,
     safeWord,
     navigate,
@@ -180,7 +182,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
               onChange={(m) => {
                 if (m === "live_voice" && !isAdminUser && tokensBalanceRef.current < LIVE_CALL_CREDITS_PER_MINUTE) {
                   toast.error(
-                    `Live Voice bills ${LIVE_CALL_CREDITS_PER_MINUTE} FC per started minute (audio-first; same meter as full-screen Live Call). Classic text chat stays free — top up for live modes.`,
+                    `Live Voice bills ${LIVE_CALL_CREDITS_PER_MINUTE} FC per started minute (audio-first; same meter as full-screen Live Call). Classic includes 20 free text lines per UTC day — top up for live modes.`,
                     { action: { label: "Buy FC", onClick: () => navigate("/buy-credits") } },
                   );
                   return;
@@ -364,6 +366,14 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
                   : "z-20 shrink-0"
               }
             >
+              <div className="px-2 pb-1.5 sm:px-3">
+                <DailyFreeMessagesBar
+                  visible={Boolean(user)}
+                  remainingFree={chatDailyQuotaUi.remainingFree}
+                  nextLineFc={chatDailyQuotaUi.nextMessageFc}
+                  isAdminUser={isAdminUser}
+                />
+              </div>
               <ChatComposer
                 input={input}
                 onChange={setInput}
@@ -378,7 +388,8 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
                 mediaDraftKind={draftMediaRoute}
                 isAdminUser={isAdminUser}
                 tokensBalance={tokensBalance}
-                tokenCost={CHAT_MESSAGE_FC}
+                tokenCost={chatDailyQuotaUi.nextMessageFc}
+                textQuotaRemaining={user ? chatDailyQuotaUi.remainingFree : null}
                 imageTokenCost={CHAT_IMAGE_NUDE_FC}
                 videoTokenCost={CHAT_VIDEO_TOKEN_COST}
                 imageSubmitTitle={imageSubmitTitle}

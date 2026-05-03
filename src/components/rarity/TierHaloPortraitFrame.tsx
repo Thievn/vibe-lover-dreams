@@ -64,8 +64,7 @@ export function TierHaloPortraitFrame({
       neonEdgeBreathing={neonEdgeBreathing}
       className={className}
     >
-      <div className={cn("relative min-h-0 overflow-hidden", innerRound, aspectClassName)}>
-        {children}
+      <div className={cn("relative min-h-0 overflow-hidden isolate", innerRound, aspectClassName)}>
         <RarityBorderOverlay
           rarity={rarity}
           overlayUrl={overlayUrl}
@@ -75,8 +74,9 @@ export function TierHaloPortraitFrame({
           profilePolish={profilePolish}
           gradientFrom={gradientFrom}
           gradientTo={gradientTo}
-          className={cn(innerRound, overlayClassName)}
+          className={cn("z-0", innerRound, overlayClassName)}
         />
+        <div className="relative z-[5] min-h-0 h-full w-full">{children}</div>
       </div>
     </ProfilePortraitTierHalo>
   );

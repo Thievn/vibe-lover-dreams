@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { BadgeCheck, Crown, Filter, Gem, Loader2, Search, Sparkles, UserRound, Wand2, X } from "lucide-react";
+import { BadgeCheck, Crown, Filter, Gem, Gift, Loader2, Search, Sparkles, UserRound, Wand2, X } from "lucide-react";
 import { toast } from "sonner";
 import type { Companion } from "@/data/companions";
 import { useCompanions, dbToCompanion, type DbCompanion } from "@/hooks/useCompanions";
@@ -57,6 +57,7 @@ export default function DiscoverCompanionsGallery() {
 
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [fcBalance, setFcBalance] = useState<number | null>(null);
+  const [freeCommonClaimed, setFreeCommonClaimed] = useState<boolean | null>(null);
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const [buyConfirmFor, setBuyConfirmFor] = useState<CommunityGalleryRow | null>(null);
 
@@ -69,15 +70,19 @@ export default function DiscoverCompanionsGallery() {
     if (!session?.user) {
       setSessionUserId(null);
       setFcBalance(null);
+      setFreeCommonClaimed(null);
       return;
     }
     setSessionUserId(session.user.id);
     const { data: profile } = await supabase
       .from("profiles")
-      .select("tokens_balance")
+      .select("tokens_balance, discover_free_common_claimed")
       .eq("user_id", session.user.id)
       .maybeSingle();
     setFcBalance(typeof profile?.tokens_balance === "number" ? profile.tokens_balance : null);
+    setFreeCommonClaimed(
+      typeof profile?.discover_free_common_claimed === "boolean" ? profile.discover_free_common_claimed : null,
+    );
   }, []);
 
   useEffect(() => {
@@ -147,9 +152,11 @@ export default function DiscoverCompanionsGallery() {
       navigate("/auth", { state: { from: `${location.pathname}${location.search}` } });
       return;
     }
-    const price = discoverCardPriceFc(c.rarity);
-    if (fcBalance !== null && fcBalance < price) {
-      toast.error(`Not enough Forge Coins. This card is ${price} FC — you have ${fcBalance} FC.`);
+    const listPrice = discoverCardPriceFc(c.rarity);
+    const effective =
+      sessionUserId && c.rarity === "common" && freeCommonClaimed === false ? 0 : listPrice;
+    if (fcBalance !== null && effective > 0 && fcBalance < effective) {
+      toast.error(`Not enough Forge Coins. This card is ${effective} FC — you have ${fcBalance} FC.`);
       return;
     }
     setPurchasingId(c.id);
@@ -170,8 +177,13 @@ export default function DiscoverCompanionsGallery() {
       if (r.alreadyOwned) {
         toast.message("Already in your collection", { description: c.name });
       } else {
-        toast.success(`Added to your vault — ${r.priceFc} FC`, { description: c.name });
+        toast.success(
+          r.priceFc <= 0 ? "Added to your vault — free first Common" : `Added to your vault — ${r.priceFc} FC`,
+          { description: c.name },
+        );
+        if (r.priceFc <= 0 && c.rarity === "common") setFreeCommonClaimed(true);
       }
+      void refreshSessionWallet();
     } finally {
       setPurchasingId(null);
     }
@@ -205,6 +217,67 @@ export default function DiscoverCompanionsGallery() {
               {pool.length === 1 ? "persona" : "personas"} in the vault
             </p>
           )}
+        </div>
+      </div>
+
+      <div
+        id="discover-free-common-cta"
+        className="relative overflow-hidden rounded-[1.5rem] border border-white/[0.1] bg-gradient-to-br from-fuchsia-950/45 via-black/55 to-cyan-950/25 px-5 py-5 sm:px-7 sm:py-6 shadow-[0_0_48px_rgba(255,45,123,0.14),inset_0_1px_0_rgba(255,255,255,0.06)]"
+      >
+        <div
+          className="pointer-events-none absolute -right-16 -top-20 h-44 w-44 rounded-full blur-[90px] opacity-60"
+          style={{ background: `radial-gradient(circle, ${NEON_PINK}55, transparent 70%)` }}
+        />
+        <div className="pointer-events-none absolute bottom-0 left-0 h-32 w-48 rounded-full bg-cyan-400/10 blur-[70px]" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">Welcome gift</p>
+            <h3 className="font-gothic text-xl sm:text-2xl text-white leading-tight">Your first Common card is free</h3>
+            <p className="text-xs sm:text-sm text-muted-foreground max-w-xl leading-relaxed">
+              Choose any Common companion in the vault — unlock once per account at no FC cost. Higher tiers use Forge
+              Coins at the listed prices.
+            </p>
+          </div>
+          <div className="shrink-0 flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
+            {!sessionUserId ? (
+              <button
+                type="button"
+                onClick={() => navigate("/auth", { state: { from: `${location.pathname}${location.search}` } })}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-primary/50 bg-gradient-to-r from-primary via-fuchsia-600 to-primary px-5 py-3.5 text-sm font-bold text-primary-foreground shadow-[0_0_32px_rgba(255,45,123,0.35)] hover:brightness-110 transition-[filter] touch-manipulation"
+              >
+                <Gift className="h-4 w-4 shrink-0" aria-hidden />
+                Claim Free Common Card
+              </button>
+            ) : freeCommonClaimed === null ? (
+              <div className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/30 px-5 py-3.5 text-sm font-medium text-muted-foreground">
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                Syncing wallet…
+              </div>
+            ) : freeCommonClaimed ? (
+              <div className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-950/35 px-5 py-3.5 text-sm font-semibold text-emerald-100/95">
+                <BadgeCheck className="h-4 w-4 shrink-0 text-emerald-300" aria-hidden />
+                Claimed
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setRarity("common");
+                  setFiltersOpen(true);
+                  toast.message("Showing Common cards", {
+                    description: "Pick any card and tap Acquire — your first Common costs 0 FC.",
+                  });
+                  window.requestAnimationFrame(() => {
+                    document.getElementById("discover-card-grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  });
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-primary/50 bg-gradient-to-r from-primary via-fuchsia-600 to-primary px-5 py-3.5 text-sm font-bold text-primary-foreground shadow-[0_0_32px_rgba(255,45,123,0.35)] hover:brightness-110 transition-[filter] touch-manipulation"
+              >
+                <Gift className="h-4 w-4 shrink-0" aria-hidden />
+                Claim Free Common Card
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -420,10 +493,10 @@ export default function DiscoverCompanionsGallery() {
               exit={{ opacity: 0 }}
               className="space-y-4"
             >
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div id="discover-card-grid" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {filtered.slice(0, visibleCount).map((c, i) => {
                 const img = c.imageUrl;
-                const buyFc = discoverCardPriceFc(c.rarity);
+                const listFc = discoverCardPriceFc(c.rarity);
                 const rarityPriceStyle = { color: rarityTierCaptionColor(c.rarity) };
                 const glow = tierGlowForDiscoverCard(c.rarity);
                 const buyBusy = purchasingId === c.id;
@@ -431,6 +504,8 @@ export default function DiscoverCompanionsGallery() {
                 const acquired =
                   Boolean(sessionUserId && purchasedCompanionIds?.has(c.id)) ||
                   Boolean(sessionUserId && c.id.startsWith("cc-") && c.forgeOwnerUserId === sessionUserId);
+                const buyFc =
+                  sessionUserId && !acquired && c.rarity === "common" && freeCommonClaimed === false ? 0 : listFc;
                 return (
                   <motion.div
                     key={c.id}
@@ -540,11 +615,19 @@ export default function DiscoverCompanionsGallery() {
                                     borderColor: `${rarityTierCaptionColor(c.rarity)}55`,
                                     background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(0,0,0,0.28))",
                                   }}
-                                  aria-label={`${buyFc} Forge Coins`}
+                                  aria-label={buyFc <= 0 ? "Free first Common unlock" : `${buyFc} Forge Coins`}
                                 >
                                   <Gem className="h-3.5 w-3.5" />
-                                  <span className="font-gothic text-base tabular-nums leading-none">{buyFc}</span>
-                                  <span className="text-[10px] uppercase tracking-wider text-white/85">FC</span>
+                                  {buyFc <= 0 ? (
+                                    <span className="font-gothic text-sm font-bold uppercase tracking-[0.12em] text-emerald-200/95">
+                                      Free
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <span className="font-gothic text-base tabular-nums leading-none">{buyFc}</span>
+                                      <span className="text-[10px] uppercase tracking-wider text-white/85">FC</span>
+                                    </>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -632,6 +715,14 @@ export default function DiscoverCompanionsGallery() {
         rarity={buyConfirmFor?.rarity ?? "common"}
         fcBalance={fcBalance}
         purchasing={purchasingId !== null}
+        priceOverrideFc={
+          buyConfirmFor !== null &&
+          sessionUserId !== null &&
+          buyConfirmFor.rarity === "common" &&
+          freeCommonClaimed === false
+            ? 0
+            : undefined
+        }
         onClose={() => {
           if (!purchasingId) setBuyConfirmFor(null);
         }}

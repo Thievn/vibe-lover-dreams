@@ -31,6 +31,8 @@ type Props = {
   purchasing: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  /** When set (e.g. first Common unlock), overrides list price in the modal. */
+  priceOverrideFc?: number | null;
 };
 
 /**
@@ -45,9 +47,10 @@ export function DiscoverPurchaseConfirmDialog({
   purchasing,
   onClose,
   onConfirm,
+  priceOverrideFc,
 }: Props) {
   const glow = tierGlowForDiscoverCard(rarity);
-  const priceFc = discoverCardPriceFc(rarity);
+  const priceFc = typeof priceOverrideFc === "number" ? priceOverrideFc : discoverCardPriceFc(rarity);
 
   return (
     <AnimatePresence>
@@ -107,7 +110,7 @@ export function DiscoverPurchaseConfirmDialog({
                     style={{ borderColor: `${NEON_PINK}55` }}
                   >
                     <Gem className="h-4 w-4" />
-                    {priceFc} FC
+                    {priceFc <= 0 ? "FREE" : `${priceFc} FC`}
                   </span>
                 </div>
                 {fcBalance !== null ? (

@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { FabSelfieTier } from "@/lib/chatImageSettings";
+import { CHAT_MESSAGE_FC_AFTER_DAILY_FREE } from "@/lib/forgeEconomy";
 import type { ChatStillMenuCategory } from "@/lib/chatStillMenuCategories";
 import { CHAT_LEWD_STILL_CATEGORIES, CHAT_SELFIE_STILL_CATEGORIES } from "@/lib/chatStillMenuCategories";
 import { cn } from "@/lib/utils";
@@ -91,6 +92,8 @@ type Props = {
   onAutoSpendChange: (v: boolean) => void;
   /** Media controls + auto-still are only for signed-in users (same as legacy bar). */
   userLoggedIn: boolean;
+  /** Free text lines left today (UTC); footer copy when drafting plain text. */
+  textQuotaRemaining?: number | null;
 };
 
 const GALLERY_DND = "application/lustforge-gallery";
@@ -132,6 +135,7 @@ export function ChatComposer({
   autoSpendEnabled,
   onAutoSpendChange,
   userLoggedIn,
+  textQuotaRemaining = null,
 }: Props) {
   const [micLive, setMicLive] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -374,7 +378,21 @@ export function ChatComposer({
           "Admin session · "
         ) : (
           <>
-            {tokenCost <= 0 ? "Free msgs" : `${tokenCost} FC/msg`} / {imageTokenCost} still
+            {mediaDraftKind === "text" && textQuotaRemaining != null ? (
+              <span>
+                {textQuotaRemaining} free text left today (UTC) · next line{" "}
+                {tokenCost <= 0 ? "0 FC" : `${CHAT_MESSAGE_FC_AFTER_DAILY_FREE} FC`} ·{" "}
+              </span>
+            ) : mediaDraftKind === "text" && tokenCost > 0 ? (
+              <span>
+                {CHAT_MESSAGE_FC_AFTER_DAILY_FREE} FC/text line ·{" "}
+              </span>
+            ) : tokenCost <= 0 ? (
+              <span>Text line free · </span>
+            ) : (
+              <span>{tokenCost} FC/msg · </span>
+            )}
+            {imageTokenCost} still
             {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? "" : ` / ${videoTokenCost} clip`} ·{" "}
           </>
         )}

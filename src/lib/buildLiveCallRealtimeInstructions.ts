@@ -1,6 +1,7 @@
 import type { Companion } from "@/data/companions";
 import { GROK_VOICE_UNCENSORED_SYSTEM_PREFIX } from "@/lib/grokVoiceUncensoredPrefix";
 import { lustforgeNarrowUserScopeBlock } from "@/lib/lustforgeNarrowUserScope";
+import { buildAdaptiveVoiceDirectionBlock } from "@/lib/liveVoiceDirectionSystem";
 import type { LiveCallOption } from "@/lib/liveCallTypes";
 
 function trim(s: string, max: number): string {
@@ -94,6 +95,7 @@ export function buildLiveCallRealtimeInstructions(
       : "";
 
   const mood = moodBlock(extra?.callMood ?? null);
+  const voiceDirection = buildAdaptiveVoiceDirectionBlock(companion, "live_call_realtime");
 
-  return `${GROK_VOICE_UNCENSORED_SYSTEM_PREFIX}${core}\n\n--- Session rules ---\n${rules}${toyAppendix}${mood}`;
+  return `${GROK_VOICE_UNCENSORED_SYSTEM_PREFIX}${core}\n\n${voiceDirection}\n\n--- Session rules ---\n${rules}${toyAppendix}${mood}`;
 }

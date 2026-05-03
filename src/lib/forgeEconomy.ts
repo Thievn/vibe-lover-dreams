@@ -8,8 +8,17 @@ import type { CompanionRarity } from "@/lib/companionRarity";
 
 export const FC_USD = 0.01;
 
-/** Classic (non-live) text chat — 0 FC per message; Lovense patterns from compatible replies stay on. */
+/**
+ * Legacy constant — text chat uses a daily free pool + overage (see `DAILY_FREE_CHAT_MESSAGES`,
+ * `CHAT_MESSAGE_FC_AFTER_DAILY_FREE`, `nextTextMessageFc`). Kept 0 so older checks “free text” stay false-positive safe.
+ */
 export const CHAT_MESSAGE_FC = 0;
+
+/** User text lines (Classic + Live Voice) per UTC day before overage FC applies. */
+export const DAILY_FREE_CHAT_MESSAGES = 20;
+
+/** FC per text message after the daily free pool is exhausted (server: `chat_consume_message_quota`). */
+export const CHAT_MESSAGE_FC_AFTER_DAILY_FREE = 2;
 
 /**
  * Full-screen Live Call & in-chat “Live Voice” — billed per **started** minute (audio-primary).
@@ -47,16 +56,16 @@ export const PROFILE_LOOP_VIDEO_FC = 75;
 
 // --- Discover: unlock card to My Collection (must match discover_purchase_price_fc in SQL) ---
 const DISCOVER_FC: Record<CompanionRarity, number> = {
-  common: 12,
-  rare: 20,
-  epic: 32,
-  legendary: 45,
-  mythic: 68,
-  abyssal: 95,
+  common: 180,
+  rare: 350,
+  epic: 520,
+  legendary: 850,
+  mythic: 720,
+  abyssal: 950,
 };
 
 export function discoverCardPriceFc(rarity: CompanionRarity): number {
-  return DISCOVER_FC[rarity] ?? 20;
+  return DISCOVER_FC[rarity] ?? DISCOVER_FC.rare;
 }
 
 export const FORGE_ECONOMY = {

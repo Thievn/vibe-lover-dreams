@@ -201,25 +201,25 @@
     transform: translate3d(0, 0, 0);
   }
   8% {
-    transform: translate3d(10px, -6px, 0);
+    transform: translate3d(14px, -8px, 0);
   }
   20% {
-    transform: translate3d(-10px, 6px, 0);
+    transform: translate3d(-14px, 8px, 0);
   }
   32% {
-    transform: translate3d(6px, 0, 0);
+    transform: translate3d(8px, 0, 0);
   }
   44% {
-    transform: translate3d(-2px, -2px, 0);
+    transform: translate3d(-3px, -3px, 0);
   }
   56% {
     transform: translate3d(0, 0, 0);
   }
   68% {
-    transform: translate3d(4px, 2px, 0);
+    transform: translate3d(5px, 3px, 0);
   }
   78% {
-    transform: translate3d(-2px, 2px, 0);
+    transform: translate3d(-3px, 3px, 0);
   }
 }
 
@@ -230,22 +230,22 @@
     transform: translate3d(0, 0, 0);
   }
   12% {
-    transform: translate3d(-12px, 4px, 0);
+    transform: translate3d(-16px, 6px, 0);
   }
   26% {
-    transform: translate3d(8px, -8px, 0);
+    transform: translate3d(11px, -11px, 0);
   }
   40% {
-    transform: translate3d(-4px, -4px, 0);
+    transform: translate3d(-6px, -5px, 0);
   }
   54% {
-    transform: translate3d(6px, 6px, 0);
+    transform: translate3d(8px, 8px, 0);
   }
   68% {
-    transform: translate3d(-8px, 0, 0);
+    transform: translate3d(-10px, 0, 0);
   }
   78% {
-    transform: translate3d(4px, -6px, 0);
+    transform: translate3d(5px, -8px, 0);
   }
 }
 

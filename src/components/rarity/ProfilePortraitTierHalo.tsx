@@ -48,7 +48,8 @@ export function ProfilePortraitTierHalo({
   const r = profileTierHaloRadius(variant, frameStyle);
   const isProfile = variant === "profile";
   const isCleanCard = frameStyle === "clean" && !isProfile;
-  const gradientOpacity = isProfile ? "opacity-[0.52]" : isCleanCard ? "opacity-[0.48]" : "opacity-[0.62]";
+  /** Clean profile hero: keep tier tint subtle so the portrait (stacked above) stays the hero. */
+  const gradientOpacity = isProfile ? "opacity-[0.52]" : isCleanCard ? "opacity-[0.26]" : "opacity-[0.62]";
 
   return (
     <div className={cn("relative isolate", r.outer, className)}>

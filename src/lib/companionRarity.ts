@@ -99,20 +99,20 @@ export function defaultRarityBorderPath(rarity: CompanionRarity): string {
  */
 export function rarityProfileVectorGlowFilter(rarity: CompanionRarity): string {
   const { common, rare, epic, legendary, mythic, abyssal } = RARITY_NEON;
-  /** ~2× drop-shadow radii vs earlier profile rim — reads as a thicker neon border on the SVG frame. */
+  /** Rim glow for profile vector frame — slightly boosted vs cards so the edge reads with glitch underlay. */
   switch (rarity) {
     case "common":
-      return `brightness(1.06) contrast(1.02) drop-shadow(0 0 2px ${common.outline}cc) drop-shadow(0 0 24px ${common.core}99) drop-shadow(0 0 54px ${common.core}50) drop-shadow(0 0 96px ${common.core}40)`;
+      return `brightness(1.08) contrast(1.04) drop-shadow(0 0 3px ${common.outline}dd) drop-shadow(0 0 30px ${common.core}b8) drop-shadow(0 0 64px ${common.core}62) drop-shadow(0 0 108px ${common.core}4e)`;
     case "rare":
-      return `brightness(1.08) saturate(1.12) drop-shadow(0 0 3px ${rare.to}) drop-shadow(0 0 28px ${rare.from}d0) drop-shadow(0 0 64px ${rare.to}72) drop-shadow(0 0 110px ${rare.from}50)`;
+      return `brightness(1.1) saturate(1.14) drop-shadow(0 0 4px ${rare.to}) drop-shadow(0 0 34px ${rare.from}e0) drop-shadow(0 0 76px ${rare.to}82) drop-shadow(0 0 124px ${rare.from}5c)`;
     case "epic":
-      return `brightness(1.09) saturate(1.12) drop-shadow(0 0 3px ${epic.from}) drop-shadow(0 0 28px ${epic.to}b0) drop-shadow(0 0 60px ${epic.from}60) drop-shadow(0 0 118px ${epic.to}48)`;
+      return `brightness(1.11) saturate(1.14) drop-shadow(0 0 4px ${epic.from}) drop-shadow(0 0 34px ${epic.to}c4) drop-shadow(0 0 72px ${epic.from}72) drop-shadow(0 0 132px ${epic.to}56)`;
     case "legendary":
-      return `brightness(1.12) saturate(1.14) drop-shadow(0 0 3px ${legendary.from}) drop-shadow(0 0 32px ${legendary.to}d4) drop-shadow(0 0 72px ${legendary.from}62) drop-shadow(0 0 4px rgba(255,255,255,0.38)) drop-shadow(0 0 128px ${legendary.to}44)`;
+      return `brightness(1.14) saturate(1.16) drop-shadow(0 0 4px ${legendary.from}) drop-shadow(0 0 38px ${legendary.to}e8) drop-shadow(0 0 84px ${legendary.from}72) drop-shadow(0 0 5px rgba(255,255,255,0.42)) drop-shadow(0 0 142px ${legendary.to}52)`;
     case "mythic":
-      return `brightness(1.09) saturate(1.15) drop-shadow(0 0 3px ${mythic.from}) drop-shadow(0 0 28px ${mythic.to}c0) drop-shadow(0 0 64px ${mythic.from}72) drop-shadow(0 0 112px ${mythic.to}4e)`;
+      return `brightness(1.11) saturate(1.17) drop-shadow(0 0 4px ${mythic.from}) drop-shadow(0 0 34px ${mythic.to}d4) drop-shadow(0 0 76px ${mythic.from}7e) drop-shadow(0 0 126px ${mythic.to}5c)`;
     case "abyssal":
-      return `brightness(1.12) saturate(1.18) drop-shadow(0 0 4px ${abyssal.to}) drop-shadow(0 0 32px ${abyssal.from}e6) drop-shadow(0 0 64px ${abyssal.to}90) drop-shadow(0 0 92px ${abyssal.from}62) drop-shadow(0 0 140px ${abyssal.to}4e)`;
+      return `brightness(1.14) saturate(1.2) drop-shadow(0 0 5px ${abyssal.to}) drop-shadow(0 0 38px ${abyssal.from}f0) drop-shadow(0 0 74px ${abyssal.to}a2) drop-shadow(0 0 104px ${abyssal.from}72) drop-shadow(0 0 158px ${abyssal.to}5c)`;
     default:
       return `brightness(1.05) drop-shadow(0 0 18px ${common.core}72)`;
   }

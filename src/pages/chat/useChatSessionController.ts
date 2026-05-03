@@ -65,8 +65,9 @@ import {
   uxVoiceToXaiVoice,
   type TtsUxVoiceId,
 } from "@/lib/ttsVoicePresets";
-import { CHAT_IMAGE_LEWD_FC, CHAT_IMAGE_NUDE_FC, CHAT_MESSAGE_FC } from "@/lib/forgeEconomy";
-import { spendForgeCoins } from "@/lib/forgeCoinsClient";
+import { CHAT_IMAGE_LEWD_FC, CHAT_IMAGE_NUDE_FC, CHAT_MESSAGE_FC, CHAT_MESSAGE_FC_AFTER_DAILY_FREE } from "@/lib/forgeEconomy";
+import { consumeChatMessageQuota, spendForgeCoins } from "@/lib/forgeCoinsClient";
+import { nextTextMessageFc, remainingFreeMessages } from "@/lib/chatDailyQuota";
 import { LIVE_CALL_CREDITS_PER_MINUTE } from "@/lib/liveCallBilling";
 import { stashAndNavigateToLiveCall } from "@/lib/navigateToLiveCall";
 import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFromGallery";
@@ -144,6 +145,9 @@ export function useChatSessionController() {
   const [tokensBalance, setTokensBalance] = useState<number>(0);
   /** False until first `fetchTokens` completes — avoids treating initial 0 as broke. */
   const [forgeBalanceReady, setForgeBalanceReady] = useState(false);
+  /** UTC date key from `profiles.chat_daily_quota_date` + raw used count (DB resets in `chat_consume_message_quota`). */
+  const [chatDailyQuotaDate, setChatDailyQuotaDate] = useState<string | null>(null);
+  const [chatDailyQuotaUsed, setChatDailyQuotaUsed] = useState(0);
   const [safeWord] = useState(() => localStorage.getItem("lustforge-safeword") || "RED");
   const [connectedToys, setConnectedToys] = useState<LovenseToy[]>([]);
   const [primaryToyUid, setPrimaryToyUid] = useState<string | null>(null);
@@ -672,10 +676,10 @@ export function useChatSessionController() {
     }
   };
 
-  const fetchTokens = async (userId: string): Promise<number> => {
+  const fetchTokens = async (userId: string): Promise<{ balance: number; nextTextFc: number }> => {
     const { data } = await supabase
       .from("profiles")
-      .select("tokens_balance, tts_voice_global_override")
+      .select("tokens_balance, tts_voice_global_override, chat_daily_quota_date, chat_daily_quota_used")
       .eq("user_id", userId)
       .maybeSingle();
     const bal =
@@ -685,6 +689,11 @@ export function useChatSessionController() {
     setForgeBalanceReady(true);
     const g = data?.tts_voice_global_override;
     setProfileTtsGlobal(typeof g === "string" && g.trim() ? g.trim() : null);
+    const qd = typeof data?.chat_daily_quota_date === "string" ? data.chat_daily_quota_date : null;
+    const qu = typeof data?.chat_daily_quota_used === "number" && Number.isFinite(data.chat_daily_quota_used) ? data.chat_daily_quota_used : 0;
+    setChatDailyQuotaDate(qd);
+    setChatDailyQuotaUsed(qu);
+    const nextTextFc = isAdminUser ? 0 : nextTextMessageFc(qd, qu);
     if (!isAdminUser && bal < LIVE_CALL_CREDITS_PER_MINUTE) {
       setSessionMode((m) => {
         if (m !== "live_voice") return m;
@@ -693,21 +702,27 @@ export function useChatSessionController() {
         return "classic";
       });
     }
-    return bal;
+    return { balance: bal, nextTextFc };
   };
 
   const deductMessageForgeCoins = async (userId: string) => {
-    if (isAdminUser || CHAT_MESSAGE_FC <= 0) return;
-    const r = await spendForgeCoins(CHAT_MESSAGE_FC, "chat_message", "Chat message", {
-      companion_id: companion?.id ?? id ?? null,
-    });
-    if (r.ok === false) {
-      toast.error(r.err || "Could not record FC for this message.");
-      void fetchTokens(userId);
+    if (isAdminUser) return;
+    const r = await consumeChatMessageQuota();
+    if (!r.ok) {
+      if (r.err === "insufficient_funds") {
+        toast.error(
+          `You've used today's 20 free messages. Each line is ${CHAT_MESSAGE_FC_AFTER_DAILY_FREE} FC — you have ${r.newBalance} FC.`,
+          { action: { label: "Buy FC", onClick: () => navigate("/buy-credits") } },
+        );
+      } else {
+        toast.error(r.err || "Could not apply message quota.");
+      }
+      await fetchTokens(userId);
       return;
     }
     setTokensBalance(r.newBalance);
     tokensBalanceRef.current = r.newBalance;
+    await fetchTokens(userId);
   };
 
   const generateImage = async (
@@ -1959,13 +1974,14 @@ export function useChatSessionController() {
         ? 0
         : imagePerGenFc;
     const videoCharge = isAdminUser ? 0 : CHAT_VIDEO_TOKEN_COST;
+    const nextTextMsgFc = isAdminUser ? 0 : nextTextMessageFc(chatDailyQuotaDate, chatDailyQuotaUsed);
     const requiredTokens = holdForImageButton
       ? 0
       : requestingImage
         ? imageCharge
         : requestingVideo
           ? videoCharge
-          : CHAT_MESSAGE_FC;
+          : nextTextMsgFc;
 
     const balanceNow = tokensBalanceRef.current;
     if (!isAdminUser && balanceNow < requiredTokens) {
@@ -2328,11 +2344,11 @@ export function useChatSessionController() {
     starterSentRef.current = true;
 
     void (async () => {
-      const bal = await fetchTokens(user.id);
-      if (!isAdminUser && CHAT_MESSAGE_FC > 0 && bal < CHAT_MESSAGE_FC) {
+      const { balance: bal, nextTextFc } = await fetchTokens(user.id);
+      if (!isAdminUser && nextTextFc > 0 && bal < nextTextFc) {
         starterSentRef.current = false;
         toast.error(
-          `Not enough Forge Coins to begin this fantasy. You need ${CHAT_MESSAGE_FC} FC but have ${bal}.`,
+          `Not enough Forge Coins to begin this fantasy. You need ${nextTextFc} FC per line after your free daily messages — you have ${bal} FC.`,
           { action: { label: "Buy FC", onClick: () => navigate("/buy-credits") } },
         );
         return;
@@ -2398,6 +2414,13 @@ export function useChatSessionController() {
         ? `Generate image (free NSFW · ${freeNsfwRemaining} left)`
         : `Generate image (${pendingGenFc} FC)`;
 
+  const chatDailyQuotaUi = useMemo(
+    () => ({
+      remainingFree: remainingFreeMessages(chatDailyQuotaDate, chatDailyQuotaUsed),
+      nextMessageFc: isAdminUser ? 0 : nextTextMessageFc(chatDailyQuotaDate, chatDailyQuotaUsed),
+    }),
+    [isAdminUser, chatDailyQuotaDate, chatDailyQuotaUsed],
+  );
 
   return {
     id,
@@ -2415,6 +2438,7 @@ export function useChatSessionController() {
     loading,
     user,
     tokensBalance,
+    chatDailyQuotaUi,
     forgeBalanceReady,
     safeWord,
     connectedToys,

@@ -3,6 +3,7 @@ import type { CompanionRarity } from "@/lib/companionRarity";
 import {
   defaultRarityBorderPath,
   rarityCardOverlayGlowFilter,
+  rarityGlitchLayerFilters,
   rarityProfileVectorGlowFilter,
 } from "@/lib/companionRarity";
 import type { ProfilePortraitFrameStyle } from "@/lib/profilePortraitTierHalo";
@@ -50,6 +51,7 @@ export function RarityBorderOverlay({
 }: Props) {
   const src = (overlayUrl && overlayUrl.trim()) || defaultRarityBorderPath(rarity);
   const clean = frameStyle === "clean";
+  const glitchFilters = rarityGlitchLayerFilters(rarity);
   /** Keep rim aligned to the portrait box — extra scale was clipping the frame SVG and showed a “floating” corner. */
   const profileFrameScale = frameBleed ? "scale-[1.075]" : "scale-100";
 
@@ -62,7 +64,7 @@ export function RarityBorderOverlay({
   return (
     <div
       className={cn(
-        "pointer-events-none absolute inset-0 z-[2] rounded-[inherit]",
+        "pointer-events-none absolute inset-0 z-0 rounded-[inherit]",
         abyssal && !clean && !profilePolish && "animate-[abyssal-pulse_3.2s_ease-in-out_infinite]",
         className,
       )}
@@ -70,10 +72,30 @@ export function RarityBorderOverlay({
     >
       {profilePolish ? (
         <>
+          <img
+            src={src}
+            alt=""
+            className={cn(
+              "pointer-events-none absolute left-1/2 top-1/2 z-0 h-full w-full -translate-x-1/2 -translate-y-1/2 origin-center object-fill opacity-[0.32] mix-blend-screen motion-reduce:opacity-0",
+              profileFrameScale,
+              "motion-safe:animate-[rarity-border-glitch-a_5.4s_linear_infinite]",
+            )}
+            style={{ filter: glitchFilters[0] }}
+          />
+          <img
+            src={src}
+            alt=""
+            className={cn(
+              "pointer-events-none absolute left-1/2 top-1/2 z-0 h-full w-full -translate-x-1/2 -translate-y-1/2 origin-center object-fill opacity-[0.28] mix-blend-screen motion-reduce:opacity-0",
+              profileFrameScale,
+              "motion-safe:animate-[rarity-border-glitch-b_6.1s_linear_infinite]",
+            )}
+            style={{ filter: glitchFilters[1] }}
+          />
           {maskOk ? (
             <div
               className={cn(
-                "pointer-events-none absolute left-1/2 top-1/2 z-0 h-full w-full -translate-x-1/2 -translate-y-1/2 origin-center mix-blend-screen opacity-[0.92]",
+                "pointer-events-none absolute left-1/2 top-1/2 z-[1] h-full w-full -translate-x-1/2 -translate-y-1/2 origin-center mix-blend-screen opacity-[0.92]",
                 profileFrameScale,
               )}
               style={{
@@ -93,7 +115,7 @@ export function RarityBorderOverlay({
             src={src}
             alt=""
             className={cn(
-              "absolute left-1/2 top-1/2 z-[1] h-full w-full -translate-x-1/2 -translate-y-1/2 origin-center object-fill opacity-[0.98]",
+              "absolute left-1/2 top-1/2 z-[2] h-full w-full -translate-x-1/2 -translate-y-1/2 origin-center object-fill opacity-[0.98]",
               profileFrameScale,
             )}
             style={{ filter: rarityProfileVectorGlowFilter(rarity) }}
