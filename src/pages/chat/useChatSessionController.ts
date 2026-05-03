@@ -776,8 +776,9 @@ export function useChatSessionController() {
         !menuSceneLock && forgeAnchors.length > 0
           ? ` Forge image anchors (text, optional palette/vibe — not a shot list): ${forgeAnchors.slice(0, 720)}${forgeAnchors.length > 720 ? "…" : ""}`
           : "";
+      /** Do not paste full `appearance` here — it often describes the roster still (beach, swimsuit) and hijacks Imagine before PRIMARY SCENE. Full prose stays in `prompt` / CHARACTER APPEARANCE only. */
       const baseDescription = menuSceneLock
-        ? `Single subject — ${companion.name} (${companion.gender}). **Likeness only (text, no reference photo):** ${(companion.appearance || "").trim().slice(0, 1800)} — face, hair, skin, species, and ${resolvedBodyType}; **not** pose, wardrobe, or background from any roster/portrait card.`
+        ? `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Chat gallery preset:** identity caps = face, hair, skin, species, body scale from CHARACTER APPEARANCE in the prompt body — **not** outfit, pose, room, or palette copied from any static marketing still. Wardrobe, set, pose, light = PRIMARY SCENE / menu only.`
         : `Single subject — ${companion.name} (${companion.gender}). Written appearance: ${companion.appearance}.${forgeTail}`;
       const commonCharacterData = {
         companionId: companion.id,
@@ -788,6 +789,8 @@ export function useChatSessionController() {
         portraitConsistencyLock,
         tags: dbComp.tags ?? [],
         baseDescription,
+        subjectName: companion.name,
+        subjectGender: companion.gender,
         vibe: companion.personality,
         /** Edge fn: skip tab DNA + forge scene append so menu gallery scenes are not drowned by “portrait card” bias. */
         suppressForgeStyleDnaForChatMenuPreset: menuSceneLock,
@@ -800,6 +803,7 @@ export function useChatSessionController() {
       const { data, error } = await invokeGenerateImage({
         prompt,
         userId,
+        name: companion.name,
         isPortrait: false,
         tokenCost,
         contentTier: "full_adult_art",
@@ -868,7 +872,7 @@ export function useChatSessionController() {
         inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
         "Average Build";
       const artLabel = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
-      const rewardBaseDescription = `Single subject — ${companion.name} (${companion.gender}). **Likeness only (text, no reference photo):** ${(companion.appearance || "").trim().slice(0, 1800)} — face, hair, skin, species, and ${resolvedBodyType}; **not** pose, wardrobe, or background from any roster/portrait card.`;
+      const rewardBaseDescription = `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Chat gallery preset (reward):** identity from CHARACTER APPEARANCE text only (face/hair/skin/build); scene outfit pose set = PRIMARY SCENE only — not the companion’s static still.`;
       const cd = {
         companionId: companion.id,
         style: "chat-session" as const,
@@ -878,6 +882,8 @@ export function useChatSessionController() {
         portraitConsistencyLock,
         tags: dbComp.tags ?? [],
         baseDescription: rewardBaseDescription,
+        subjectName: companion.name,
+        subjectGender: companion.gender,
         vibe: companion.personality,
         suppressForgeStyleDnaForChatMenuPreset: true,
         chatMenuSceneLock: true,
@@ -887,6 +893,7 @@ export function useChatSessionController() {
       const { data, error } = await invokeGenerateImage({
         prompt,
         userId: user.id,
+        name: companion.name,
         isPortrait: false,
         tokenCost: 0,
         contentTier: "full_adult_art",

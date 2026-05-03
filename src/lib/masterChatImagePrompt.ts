@@ -338,7 +338,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
       ? `Forge prompt anchors (mood/color/style hints only — not a framing mandate): ${pack.slice(0, 500)}`
       : "",
     "Wardrobe is invented per scene from USER SCENE — never assume a bikini/catalog outfit unless the scene calls for it.",
-    "No reference photo: interpret likeness only from words; photoreal output should match the **described** eyes, nose, mouth, brows, and hair — no race-swap, no random substitute model.",
+    "No visual reference input: interpret likeness only from words; photoreal output should match the **described** eyes, nose, mouth, brows, and hair — no race-swap, no random substitute model, no continuity to a stored marketing still.",
   ]
     .filter(Boolean)
     .join(" ")

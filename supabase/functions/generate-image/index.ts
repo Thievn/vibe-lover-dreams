@@ -338,7 +338,9 @@ serve(async (req) => {
     const portraitLock = String(characterData.portraitConsistencyLock ?? characterData.portrait_consistency_lock ?? "").trim();
     const portraitLockLine = portraitLock
       ? isChatSessionStill
-        ? `- **Character bible (text profile — no reference image):** ${portraitLock}`
+        ? chatMenuSceneLock
+          ? `- **Character bible (written identity — no visual reference input):** ${portraitLock}`
+          : `- **Character bible (text profile — no reference image):** ${portraitLock}`
         : `- **Portrait / roster continuity:** ${portraitLock}`
       : null;
 
@@ -406,6 +408,16 @@ serve(async (req) => {
           : CHAT_SESSION_IMAGINE_CREATIVE_BASE
         : UNIVERSAL_NON_PREVIEW_IMAGE_BASE;
 
+    /** Never repeat long `baseDescription` from client for menu lock — it often pastes roster card prose first. */
+    const subName = String(name || cd.subjectName || cd.subject_name || "").trim();
+    const subGender = String(cd.subjectGender || cd.subject_gender || "").trim();
+    const subBody = String(characterData.bodyType ?? "").trim();
+    const subjectTag = [subName || "the companion", subGender || "adult presenting"].join(" · ");
+    const imagingSubjectDescription =
+      menuSceneLockEffective && effectiveTier === "full_adult_art" && isChatSessionStill
+        ? `Single subject — ${subjectTag}${subBody ? ` · body type: ${subBody}` : ""}. **Chat gallery menu still:** CHARACTER DETAILS = **face, hair, skin, species, body scale only** (read the bible; **ignore** card outfit/room/pose embedded in that prose). **Do not** match swimsuit, beach, marketing-still palette, or catalog framing unless PRIMARY SCENE demands it. **PRIMARY SCENE** = sole wardrobe, set, pose, props, lens.`
+        : baseDescription;
+
     const finalPromptRaw = effectiveTier === "forge_preview_sfw"
       ? `${animeFinalLead}
 ${PORTRAIT_IMAGE_DESIGN_BRIEF}
@@ -427,41 +439,58 @@ ${refLines ? `${refLines}\n` : ""}
 PRIMARY SCENE DIRECTION (follow this closely — premium, cinematic, maximum sensual tension through pose, gaze, fabric, and light; do not depict anything that violates SFW rules):
 ${safeRewritten}
     `.trim()
-      : `${animeFinalLead}
-Adults-only companion product. This render is for a private chat / gallery session (not a public catalog card). Follow the image provider's content policies; do not depict minors.
+      : (() => {
+        const adultHead = `${animeFinalLead}Adults-only companion product. This render is for a private chat / gallery session (not a public catalog card). Follow the image provider's content policies; do not depict minors.
 
 ${adultUniversalBase}
-
-Create a highly detailed, cinematic, vertical 2:3 (trading-card) image of ${baseDescription}.
-
-${characterDetailsBlock}
-
-Visual rules:
+`;
+        const adultVisualRules = `Visual rules:
 - No legible logos, watermarks, UI chrome, fake app branding, or readable product/store signage in-frame.
 - **Tasteful adult:** sensual nude, lingerie, and strong tease are in-bounds; avoid hardcore pornographic depiction, graphic penetration, or obscene gynecological close-ups — premium boudoir / editorial tone.
 - **Likeness vs outfit (text-derived):** Keep **one consistent individual** per Character Details / character bible — face, hair, skin, and body type from the **written** profile — but **do not** invent wardrobe from an imaginary “card photo.” When PRIMARY SCENE describes lingerie, gym, rain, bed, nude, etc., **invent** scene-accurate clothing or undress per PRIMARY SCENE (no default bikini paste).
 ${isChatSessionStill && !menuSceneLockEffective ? "- **Chat still / gallery preset:** There is **no input reference image** — PRIMARY SCENE + the character’s **appearance paragraph and forge prompt anchors** guide look and styling. Each generation should read as a **new** shot when the user asks for variety.\n" : ""}
-${isChatSessionStill && menuSceneLockEffective ? "- **Gallery menu still:** **No reference image.** Identity = **face, hair, skin, species, body type** from the character bible only. **Wardrobe, pose, room, props, light, and crop** = PRIMARY SCENE / menu only — **not** the roster/profile picture, **not** forge packshot prose as a shot list.\n" : ""}
+${isChatSessionStill && menuSceneLockEffective ? "- **Gallery menu still:** **No visual reference input.** Identity = **face, hair, skin, species, body type** from the character bible only. **Wardrobe, pose, room, props, light, and crop** = PRIMARY SCENE / menu only — **not** a static marketing still, **not** forge packshot prose as a shot list.\n" : ""}
 ${chatMenuSceneLock && isChatSessionStill ? "- **Gallery menu lock:** PRIMARY SCENE must realize the **menu category’s** location and action — **not** a head-and-shoulders glam reskin. If PRIMARY SCENE names a bed, car, tub, desk, beach, shower, gym, etc., the **environment and body–world interaction** must clearly show that place.\n" : ""}
 ${
-        isAnime
-          ? "- **2D anime discipline:** Render as authentic flat/soft-cel **2D anime illustration** matching PRIMARY SCENE — preserve stylized proportions, line art, and anime eyes; do not convert to photoreal or 3D."
-          : "- **Chibi / exaggerated card art:** If written lore implies super-deformed or stylized art, still render a **coherent photoreal adult human** who matches the **described** face, hair, and vibe — believable anatomy unless PRIMARY SCENE explicitly asks for stylized output."
-      }
+            isAnime
+              ? "- **2D anime discipline:** Render as authentic flat/soft-cel **2D anime illustration** matching PRIMARY SCENE — preserve stylized proportions, line art, and anime eyes; do not convert to photoreal or 3D."
+              : "- **Chibi / exaggerated card art:** If written lore implies super-deformed or stylized art, still render a **coherent photoreal adult human** who matches the **described** face, hair, and vibe — believable anatomy unless PRIMARY SCENE explicitly asks for stylized output."
+          }
 ${portraitLock && !isChatSessionStill ? `- **Portrait / roster continuity** (Character Details) wins over casual drift in PRIMARY SCENE — same character, same body-type label, same art style family unless RAW_TEXT explicitly requests a deliberate alternate.` : ""}
 ${portraitLock && isChatSessionStill ? `- **Character bible** (written profile) anchors identity; PRIMARY SCENE wins on pose, wardrobe, location, and lighting unless the user explicitly overrides.` : ""}
 ${forgeBody ? `- **Forge body type + silhouette contract** (Character Details) override conflicting silhouette, species, or build wording in the scene text below.` : ""}
 - ${anatomyKeyRules}
 ${
-        menuSceneLockEffective
-          ? "- Premium lighting and cinematic composition — **story / environment / pose** lead the frame (not a default glam bust-up or catalog three-quarter)."
-          : "- Premium lighting, cinematic composition, flattering portrait discipline."
-      }
-${refLines ? `${refLines}\n` : ""}
+            menuSceneLockEffective
+              ? "- Premium lighting and cinematic composition — **story / environment / pose** lead the frame (not a default glam bust-up or catalog three-quarter)."
+              : "- Premium lighting, cinematic composition, flattering portrait discipline."
+          }
+${refLines ? `${refLines}\n` : ""}`;
+        const menuFirst =
+          menuSceneLockEffective && effectiveTier === "full_adult_art" && isChatSessionStill;
+        if (menuFirst) {
+          return `${adultHead}
+
+PRIMARY SCENE (authoritative — execute literally; no roster-card remake):
+${safeRewritten}
+
+Create a highly detailed, cinematic, vertical 2:3 (trading-card) image of ${imagingSubjectDescription}.
+
+${characterDetailsBlock}
+
+${adultVisualRules}`.trim();
+        }
+        return `${adultHead}
+
+Create a highly detailed, cinematic, vertical 2:3 (trading-card) image of ${imagingSubjectDescription}.
+
+${characterDetailsBlock}
+
+${adultVisualRules}
 
 PRIMARY SCENE (follow closely — rewriter output is authoritative for mood and explicitness):
-${safeRewritten}
-    `.trim();
+${safeRewritten}`.trim();
+      })();
     const finalPrompt = clampPromptForImagine(finalPromptRaw, TOGETHER_IMAGE_PROMPT_SOFT_LIMIT);
 
     let imageDataUrl: string;
