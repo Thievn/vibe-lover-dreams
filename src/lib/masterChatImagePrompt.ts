@@ -1,7 +1,6 @@
 /**
- * "Master" chat image brief: locks face/body to the main portrait, themes scene to the
- * companion's Personalities matrix, and fuses the user's free-text (or menu) request.
- * Used for Selfie / Lewd / Nude and future video stills.
+ * Master chat image brief: **text-only** character bible (appearance + forge anchors) + scene.
+ * No reference image is sent — instruct the model not to “copy” a profile JPEG; render from prose.
  */
 import type { Companion } from "@/data/companions";
 import {
@@ -57,12 +56,12 @@ export function classifyChatImageMood(input: { rawUserMessage: string; menuBaseP
 
 function moodNsfwClauses(m: FabSelfieTier): string {
   if (m === "nude") {
-    return "Artistic intimate nude (Grok Imagine): fine-art boudoir or editorial silhouette — sensual, graceful, soft light; **no** crude anatomy, graphic acts, or pornographic staging. Same face and identity as the reference; believable photoreal body. Wardrobe absent only when the scene calls for nude; never paste the roster catalog swimsuit onto a non-beach scene.";
+    return "Artistic intimate nude (Grok Imagine): fine-art boudoir or editorial silhouette — sensual, graceful, soft light; **no** crude anatomy, graphic acts, or pornographic staging. **One** consistent individual per the written Character appearance; believable photoreal body. Wardrobe absent only when the scene calls for nude; do not default to swimwear unless USER SCENE is beach/pool.";
   }
   if (m === "lewd") {
-    return "Tasteful lewd: lingerie, sheer, wet fabric, silhouette, teasing poses — premium editorial / perfume-ad heat, **not** explicit porn staging or obscene wording. Same person as the reference. Match mood to personality and USER SCENE; vary sets — no profile bikini clone unless swim is the scene.";
+    return "Tasteful lewd: lingerie, sheer, wet fabric, silhouette, teasing poses — premium editorial / perfume-ad heat, **not** explicit porn staging or obscene wording. Same character as the **appearance paragraph** below. Match mood to personality and USER SCENE; vary sets — no generic bikini unless the scene calls for it.";
   }
-  return "SFW — flirty, romantic, or cute; fully clothed for public-safe framing. Same person as the reference, same face, same body proportions. Outfit must fit THIS preset (not automatically the roster swimsuit).";
+  return "SFW — flirty, romantic, or cute; fully clothed for public-safe framing. Same individual as the **written** character description (face + body type). Outfit must fit THIS preset and USER SCENE.";
 }
 
 function timePeriodAesthetic(period: string): string {
@@ -73,7 +72,7 @@ function timePeriodAesthetic(period: string): string {
     "Victorian Era": "Victorian / gaslight / high collars, corsetry where appropriate, period set dressing.",
     "Cyberpunk/Futuristic": "futuristic / neon / chrome / HUD reflections / synth atmosphere.",
     "Post-Apocalyptic": "wasteland grit, salvage, dust, hard sun, survival textures.",
-    "Dark Fantasy": "gothic, candlelit, occult undertones — still the same person as the reference, not a different model.",
+    "Dark Fantasy": "gothic, candlelit, occult undertones — still the same character from the written profile, not a different model.",
     "Ancient Egypt": "Egyptian fantasy — gold, linen, kohl, sandstone or temple light; avoid random unrelated pantheons.",
     "1980s Retro": "80s color, grain, and fashion signifiers — not modern minimal unless mixed intentionally.",
     "Feudal Japan": "wabi aesthetic, shoji, ink-wash or period-accurate costume for the request.",
@@ -219,22 +218,21 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
   const shotVariation = shotVariationBlock(mood, variationHash);
   const explicit = isExplicitImageRequest(rawUserMessage) || isExplicitImageRequest(sceneRequest);
   const tierLine = explicit
-    ? "Provider-safe adult tone: strong tease and artistic nude are fine — stay in **editorial / fine-art boudoir** language; avoid hardcore acts, graphic anatomy, or degrading angles. User crude phrasing will be rewritten server-side; your job is scene fidelity + identity lock."
+    ? "Provider-safe adult tone: strong tease and artistic nude are fine — stay in **editorial / fine-art boudoir** language; avoid hardcore acts, graphic anatomy, or degrading angles. User crude phrasing will be rewritten server-side; your job is scene fidelity + staying faithful to the **written** character."
     : "Keep framing tasteful and story-led; default flattering portrait or boudoir tease unless the user clearly escalated.";
 
   const identity = [
-    "— IDENTITY (ABSOLUTE, NON-NEGOTIABLE) —",
-    "Same **individual** as this companion: face geometry, eyes, nose, lips, jaw, skin or fur, hairline and hair style/color must match the written Character line and the known roster likeness — but this is **not** an order to clone the roster JPEG.",
-    "— NO PORTRAIT CLONE —",
-    "Do **not** output a reshoot of the profile/roster image: change **camera distance, angle, pose, expression micro-details, background, wardrobe, and lighting** so the still is clearly a **new** photograph. If USER SCENE / menu framing describes gym, bikini, rain, bedroom, etc., that environment and outfit win — not whatever appeared on the card.",
-    "— STYLIZED / CHIBI / EXAGGERATED CARD ART —",
-    "If the roster art is chibi, super-deformed, caricature, giant-head/skinny-limbs, or otherwise non-photoreal: **do not** reproduce that broken anatomy. Translate into a **photoreal adult human** with believable head-to-body ratio and limbs while keeping the **same face character** (marks, eye shape, hair, vibe). The user wants them to look like a real person *resembling* the character, not a duplicate of warped card proportions unless they explicitly asked for stylized output.",
-    "Likeness lock = **face + hair + skin + body-type proportions** from Character Details; everything else follows USER SCENE. Not a new model, not a generic stock influencer, not a reskin.",
-    "Forbidden: swapping ethnic appearance, face shape, or body type. Forbidden: de-aging, aging, or turning them into a different character.",
-    "When the user or menu asks for a new outfit or location, **wardrobe, background, light, and pose must change** to match; identity (face/body type) stays the same.",
-    "— WARDROBE & SET INDEPENDENCE (critical for chat stills) —",
-    "Do NOT copy the roster portrait's clothing, swimsuit, bikini, armor, or catalog costume onto every generation. That card art is one marketing frame — each still gets a **fresh outfit and environment** that fits the USER SCENE below and this companion's time period / personality.",
-    "When the scene implies wet fabric, lingerie, gym wear, etc., **design wardrobe for that scene** — e.g. a wet-shirt beat means thin soaked cotton clinging to skin (no default sports bra under unless the scene explicitly calls for one); do not snap back to the profile swimsuit because it was visible on the card.",
+    "— IDENTITY (TEXT BIBLE — NO REFERENCE PHOTO) —",
+    "**No profile or roster image is supplied.** Do not try to duplicate, remaster, or “match pixels” to a card JPEG. Build **one** believable person who fits the **CHARACTER APPEARANCE** paragraph and forge metadata below — hair, skin, face shape, age read, species, and body type must read consistently with that prose.",
+    "— SCENE-FIRST —",
+    "USER SCENE / menu framing decides **location, outfit, pose, props, lighting, and camera**. The appearance text is **who** they are, not **which photograph** to recreate. Each still should feel like a **new** shoot, not a reskin of a catalog frame.",
+    "— STYLIZED / CHIBI LORE —",
+    "If the written profile or tags imply chibi, caricature, or non-photoreal marketing art, translate into **coherent photoreal** anatomy for this render unless USER SCENE explicitly asks for stylized output. Keep distinctive marks, hair, and vibe from the **words**.",
+    "Likeness = continuity of **described** traits (face, hair, skin, build, species). Not a new random model, not a generic influencer — but also **not** “copy the card photo.”",
+    "Forbidden: swapping ethnic appearance, face shape, or body type away from the written profile. Forbidden: de-aging, aging, or turning them into a different character.",
+    "When the user or menu asks for a new outfit or location, **wardrobe, background, light, and pose must change** to match the scene; the **same** described person stars in each shot.",
+    "— WARDROBE & SET —",
+    "Derive wardrobe only from USER SCENE + personality/time-period — not from guessing a swimsuit on an unseen card. When the scene implies wet fabric, lingerie, gym wear, etc., **design for that beat**.",
     "Vary backgrounds across presets: different rooms, outdoor locations, weather, and props — avoid repeating the same beach/pool backdrop unless the user asked for it.",
   ].join(" ");
 
@@ -249,7 +247,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
   const scene = [
     "— USER SCENE (creative freedom inside identity lock) —",
     sceneRequest.trim() || "Flattering portrait-appropriate key art matching the matrix above.",
-    "Honor specific user asks (shower, beach, bed, etc.) with accurate environment — still the same person.",
+    "Honor specific user asks (shower, beach, bed, etc.) with accurate environment — same described person.",
     shotVariation,
     moodNsfwClauses(mood),
     tierLine,
@@ -264,16 +262,16 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
     "No duplicate faces, no collage, no watermark, no app UI, no on-image text, no disembodied parts unless the user explicitly asked.",
   ].join(" ");
 
-  const charBlock = `Character: ${companion.name}, ${companion.gender}. ${(companion.appearance || "").trim().slice(0, 2000)}`;
+  const charBlock = `CHARACTER APPEARANCE (primary likeness — text only): ${companion.name}, ${companion.gender}. ${(companion.appearance || "").trim().slice(0, 2000)}`;
 
   const prompt = [
-    "LUSTFORGE MASTER BRIEF — in-session generative still",
+    "LUSTFORGE MASTER BRIEF — in-session generative still (no reference image)",
     identity,
     theming,
     scene,
     tech,
     pack
-      ? `— CATALOG CARD METADATA (palette & vibe hints only — NOT mandatory wardrobe): ${pack} Do not treat swimsuit/bikini/outfit wording here as the outfit lock for this shot unless USER SCENE explicitly matches it.`
+      ? `— FORGE ORIGINAL IMAGE PROMPT (anchors: palette, vibe, era — NOT a shot to copy; wardrobe still follows USER SCENE): ${pack} Do not treat swimsuit/bikini/outfit wording here as the outfit lock unless USER SCENE explicitly matches swim/beach.`
       : "",
     charBlock,
   ]
@@ -282,14 +280,14 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): { promp
     .slice(0, 12_000);
 
   const portraitConsistencyLock = [
-    `ABSOLUTE IDENTITY: same individual as ${companion.name} — lock **face, hair, skin, and ${bodyType}** from the character brief; do not invent a new person.`,
-    `Body-type lock: ${bodyType} — limbs, torso scale, and species read must match; gender presentation follows profile. **Pose, outfit, set, lens, and lighting follow USER SCENE / PRIMARY SCENE**, not the roster card's composition.`,
-    `Art & era: ${art} · time/world: ${profile.timePeriod} — props, wardrobe, and set must plausibly belong in that world.`,
+    `TEXT-ONLY CHARACTER LOCK for ${companion.name}: keep **face, hair, skin, species markers, and ${bodyType}** consistent with the written CHARACTER APPEARANCE block — do not invent a different person.`,
+    `Body-type lock: ${bodyType} — limbs, torso scale, and species read must match the prose. **Pose, outfit, location, lens, and lighting** follow USER SCENE / PRIMARY SCENE.`,
+    `Art & era: ${art} · time/world: ${profile.timePeriod} — props and set must plausibly belong in that world.`,
     pack
-      ? `Catalog card flavor (colors/mood only; do not clone catalog garment or backdrop onto every shot): ${pack.slice(0, 500)}`
+      ? `Forge prompt anchors (mood/color/style hints only — not a framing mandate): ${pack.slice(0, 500)}`
       : "",
-    "Outfit lock OFF for chat stills: invent wardrobe and environment from the scene request — never default every image to the same swimsuit/clothes or studio pose shown on the roster card.",
-    "Face lock: same eyes, nose, mouth, cheekbones, brows, and hair as this character. No race-swap, no 'similar model'. If the roster was stylized/chibi, photoreal output must still read as **this** face — normalize body to coherent human anatomy.",
+    "Wardrobe is invented per scene from USER SCENE — never assume a bikini/catalog outfit unless the scene calls for it.",
+    "No reference photo: interpret likeness only from words; photoreal output should match the **described** eyes, nose, mouth, brows, and hair — no race-swap, no random substitute model.",
   ]
     .filter(Boolean)
     .join(" ")

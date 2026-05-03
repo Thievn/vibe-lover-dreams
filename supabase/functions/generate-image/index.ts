@@ -301,14 +301,16 @@ serve(async (req) => {
       : null;
     const portraitLock = String(characterData.portraitConsistencyLock ?? characterData.portrait_consistency_lock ?? "").trim();
     const portraitLockLine = portraitLock
-      ? `- **Portrait / roster continuity:** ${portraitLock}`
+      ? isChatSessionStill
+        ? `- **Character bible (text profile — no reference image):** ${portraitLock}`
+        : `- **Portrait / roster continuity:** ${portraitLock}`
       : null;
 
     const defaultClothing = stylizedSilhouette
       ? `Wardrobe and materials that fit this species/body and art style — not a generic unrelated human runway look unless the character is clearly humanoid glam.`
       : "elegant, sexy, provocative clothing with lace, leather, straps, sheer fabrics, corsets, harnesses, or any style the character would wear";
     const defaultPose = stylizedSilhouette
-      ? `Pose that clearly sells the forge body type — correct limbs, tail, wings, hybrid junction, or non-human mass as implied; same roster identity.`
+      ? `Pose that clearly sells the forge body type — correct limbs, tail, wings, hybrid junction, or non-human mass as implied; same character identity from the text profile.`
       : "seductive and provocative pose";
 
     const characterDetailsBlock = [
@@ -382,14 +384,15 @@ ${characterDetailsBlock}
 Visual rules:
 - No legible logos, watermarks, UI chrome, fake app branding, or readable product/store signage in-frame.
 - **Tasteful adult:** sensual nude, lingerie, and strong tease are in-bounds; avoid hardcore pornographic depiction, graphic penetration, or obscene gynecological close-ups — premium boudoir / editorial tone.
-- **Roster reference vs outfit:** If continuity calls for the same individual as a profile portrait, match face, hair, and body from Character Details / portrait lock — but **do not** automatically reuse that portrait's swimsuit, bikini, or catalog garment when PRIMARY SCENE describes a different setting or wardrobe (lingerie, wet shirt, nude, gym, bed, etc.). Invent scene-accurate clothing or undress per PRIMARY SCENE.
-${isChatSessionStill ? "- **Chat still / gallery preset:** Treat PRIMARY SCENE as a **new** photograph — different angle, pose, lens feel, and environment from any roster card. Identity = face + body type + hair; **not** a remaster or reshoot of the profile JPEG.\n" : ""}
+- **Likeness vs outfit (text-derived):** Keep **one consistent individual** per Character Details / character bible — face, hair, skin, and body type from the **written** profile — but **do not** invent wardrobe from an imaginary “card photo.” When PRIMARY SCENE describes lingerie, gym, rain, bed, nude, etc., **invent** scene-accurate clothing or undress per PRIMARY SCENE (no default bikini paste).
+${isChatSessionStill ? "- **Chat still / gallery preset:** There is **no input reference image** — PRIMARY SCENE + the character’s **appearance paragraph and forge prompt** define look and styling. Each preset should read as a **new** shot (pose, lens, set, wardrobe), not a remaster of any stored portrait.\n" : ""}
 ${
         isAnime
           ? "- **2D anime discipline:** Render as authentic flat/soft-cel **2D anime illustration** matching PRIMARY SCENE — preserve stylized proportions, line art, and anime eyes; do not convert to photoreal or 3D."
-          : "- **Chibi / exaggerated card art:** If the reference looks super-deformed or non-photoreal, render a **coherent photoreal adult human** who clearly resembles that character’s face and vibe — do not copy broken head-to-body proportions unless PRIMARY SCENE explicitly asks for stylized art."
+          : "- **Chibi / exaggerated card art:** If written lore implies super-deformed or stylized art, still render a **coherent photoreal adult human** who matches the **described** face, hair, and vibe — believable anatomy unless PRIMARY SCENE explicitly asks for stylized output."
       }
-${portraitLock ? `- **Portrait / roster continuity** (Character Details) wins over casual drift in PRIMARY SCENE — same character, same body-type label, same art style family unless RAW_TEXT explicitly requests a deliberate alternate.` : ""}
+${portraitLock && !isChatSessionStill ? `- **Portrait / roster continuity** (Character Details) wins over casual drift in PRIMARY SCENE — same character, same body-type label, same art style family unless RAW_TEXT explicitly requests a deliberate alternate.` : ""}
+${portraitLock && isChatSessionStill ? `- **Character bible** (written profile) anchors identity; PRIMARY SCENE wins on pose, wardrobe, location, and lighting unless the user explicitly overrides.` : ""}
 ${forgeBody ? `- **Forge body type + silhouette contract** (Character Details) override conflicting silhouette, species, or build wording in the scene text below.` : ""}
 - ${anatomyKeyRules}
 - Premium lighting, cinematic composition, flattering portrait discipline.

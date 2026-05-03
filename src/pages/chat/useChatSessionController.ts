@@ -761,6 +761,11 @@ export function useChatSessionController() {
         inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
         "Average Build";
       const artLabel = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
+      const forgeAnchors = (dbComp.image_prompt || "").trim();
+      const forgeTail =
+        forgeAnchors.length > 0
+          ? ` Forge image anchors (text, optional palette/vibe — not a shot list): ${forgeAnchors.slice(0, 720)}${forgeAnchors.length > 720 ? "…" : ""}`
+          : "";
       const commonCharacterData = {
         companionId: companion.id,
         style: "chat-session" as const,
@@ -769,10 +774,10 @@ export function useChatSessionController() {
         silhouetteCategory: forgeBodyCategoryIdForType(resolvedBodyType),
         portraitConsistencyLock,
         tags: dbComp.tags ?? [],
-        baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
+        baseDescription: `Single subject — ${companion.name} (${companion.gender}). Written appearance: ${companion.appearance}.${forgeTail}`,
         vibe: companion.personality,
         clothing:
-          "Follow PRIMARY SCENE / rewriter wardrobe — do not copy or default to the roster portrait swimsuit/bikini/catalog outfit unless the scene explicitly matches swim/beach.",
+          "Wardrobe and undress follow PRIMARY SCENE and USER SCENE only. Do not infer outfit from any unstated catalog image — use the written profile + scene text.",
       };
 
       const { data, error } = await invokeGenerateImage({
@@ -845,6 +850,11 @@ export function useChatSessionController() {
         inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
         "Average Build";
       const artLabel = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
+      const rewardForge = (dbComp.image_prompt || "").trim();
+      const rewardForgeTail =
+        rewardForge.length > 0
+          ? ` Forge image anchors (text): ${rewardForge.slice(0, 720)}${rewardForge.length > 720 ? "…" : ""}`
+          : "";
       const cd = {
         companionId: companion.id,
         style: "chat-session" as const,
@@ -853,10 +863,10 @@ export function useChatSessionController() {
         silhouetteCategory: forgeBodyCategoryIdForType(resolvedBodyType),
         portraitConsistencyLock,
         tags: dbComp.tags ?? [],
-        baseDescription: `portrait of ${companion.name}, ${companion.gender}; ${companion.appearance}`,
+        baseDescription: `Single subject — ${companion.name} (${companion.gender}). Written appearance: ${companion.appearance}.${rewardForgeTail}`,
         vibe: companion.personality,
         clothing:
-          "Follow PRIMARY SCENE / rewriter wardrobe — do not copy or default to the roster portrait swimsuit/bikini/catalog outfit unless the scene explicitly matches swim/beach.",
+          "Wardrobe and undress follow PRIMARY SCENE only. Likeness from written profile + forge anchors — no reference photograph.",
       };
       const { data, error } = await invokeGenerateImage({
         prompt,
