@@ -1954,7 +1954,14 @@ export function useChatSessionController() {
       return;
     }
 
-    if (loading) return;
+    if (loading) {
+      const menuForcesImageConcurrent = Boolean(options?.imageGenerationPrompt?.trim());
+      const routeConcurrent = inferChatMediaRoute(messageText, menuForcesImageConcurrent);
+      if (routeConcurrent === "image" || routeConcurrent === "video") {
+        toast.info("Still generating — wait for this one to finish, then start another still or clip.");
+        return;
+      }
+    }
 
     if (overrideText) {
       setInput("");

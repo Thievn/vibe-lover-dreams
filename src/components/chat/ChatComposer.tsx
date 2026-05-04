@@ -252,22 +252,6 @@ export function ChatComposer({
           : "px-3 pt-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] sm:px-4 sm:pt-3.5",
       )}
     >
-      <div className={cn("flex items-center justify-between gap-2 px-0.5", liveDock ? "mb-1" : "mb-2.5")}>
-        <p className="min-w-0 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground/90">Message</p>
-        {userLoggedIn ? (
-          <label className="inline-flex max-w-[55%] cursor-pointer select-none items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-1 text-[9px] font-medium text-foreground/90 sm:text-[10px]">
-            <input
-              type="checkbox"
-              checked={autoSpendEnabled}
-              onChange={(e) => onAutoSpendChange(e.target.checked)}
-              className="h-3 w-3 shrink-0 rounded border border-white/20 bg-black/50 accent-primary"
-              title="Skip the confirm when chat triggers a still"
-            />
-            <span>Auto-still on trigger</span>
-          </label>
-        ) : null}
-      </div>
-
       {userLoggedIn ? (
         <StillStylePicker
           companionName={companionName}
@@ -302,37 +286,32 @@ export function ChatComposer({
             disabled && "opacity-50",
           )}
         >
-          <div className="flex shrink-0 items-center gap-1 pl-0.5">
+          <div className="flex shrink-0 flex-col items-center gap-0.5 pl-0.5 pt-1">
             <button
               type="button"
               onClick={() => toggleVoice()}
               className={cn(
                 "inline-flex h-10 w-10 items-center justify-center rounded-xl text-[#00ffd4] transition-colors sm:h-11 sm:w-11",
                 "hover:bg-[#00ffd4]/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00ffd4]/40",
-                (loading || disabled) && !micLive && "pointer-events-none opacity-40",
+                disabled && !micLive && "pointer-events-none opacity-40",
                 micLive && "bg-[#00ffd4]/15 ring-1 ring-[#00ffd4]/35",
               )}
-              title={micLive ? "Stop dictation" : "Dictate (continuous — tap again to stop)"}
-              aria-label={micLive ? "Stop voice dictation" : "Start voice dictation"}
+              title={micLive ? "Stop speech-to-text" : "Speech to text — tap again to stop"}
+              aria-label={micLive ? "Stop speech-to-text" : "Start speech-to-text dictation"}
             >
               {micLive ? <Square className="h-4 w-4 fill-current" /> : <Mic className="h-5 w-5" />}
             </button>
             <MicWaveBars active={micLive} />
-            {micLive ? (
-              <span className="hidden text-[9px] font-semibold uppercase tracking-wider text-[#00ffd4]/90 sm:inline">
-                Mic live
-              </span>
-            ) : null}
           </div>
-          <input
-            type="text"
+          <textarea
             value={input}
             onChange={(e) => onChange(e.target.value)}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder={placeholder}
-            className="min-w-0 flex-1 border-0 bg-transparent py-3 pr-1 text-base text-foreground placeholder:text-muted-foreground/65 focus:outline-none focus:ring-0 sm:py-3.5 sm:text-[16px]"
-            disabled={loading || disabled}
+            rows={liveDock ? 2 : 3}
+            className="min-h-[5.25rem] min-w-0 flex-1 resize-y border-0 bg-transparent py-2.5 pr-1 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/65 focus:outline-none focus:ring-0 sm:min-h-[6rem] sm:py-3 sm:text-[16px]"
+            disabled={disabled}
             autoComplete="off"
             aria-label={`Message ${companionName}`}
           />
@@ -359,11 +338,24 @@ export function ChatComposer({
 
       <p
         className={cn(
-          "text-[9px] leading-relaxed text-muted-foreground/85 text-center px-0.5 sm:text-[10px]",
-          liveDock ? "mt-1.5" : "mt-2.5",
+          "flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[9px] leading-relaxed text-muted-foreground/85 text-center px-0.5 sm:text-[10px]",
+          liveDock ? "mt-1.5" : "mt-2",
         )}
       >
-        Safe: <span className="text-destructive font-bold">{safeWord}</span> ·{" "}
+        {userLoggedIn ? (
+          <label className="inline-flex cursor-pointer select-none items-center gap-1 rounded border border-white/[0.08] bg-white/[0.04] px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-wide text-foreground/85">
+            <input
+              type="checkbox"
+              checked={autoSpendEnabled}
+              onChange={(e) => onAutoSpendChange(e.target.checked)}
+              className="h-2.5 w-2.5 shrink-0 rounded border border-white/20 bg-black/50 accent-primary"
+              title="Skip confirm when chat triggers a still"
+            />
+            <span>Auto-still</span>
+          </label>
+        ) : null}
+        <span>
+          Safe: <span className="text-destructive font-bold">{safeWord}</span> ·{" "}
         {isAdminUser ? (
           "Admin session · "
         ) : (
@@ -396,6 +388,7 @@ export function ChatComposer({
             for stills & live voice · classic text stays free
           </>
         ) : null}
+        </span>
       </p>
     </div>
   );
@@ -475,7 +468,7 @@ function StillStylePicker({
       title="Selfies & lewd stills"
       aria-label="Open still gallery — selfies or lewd inside"
       className={cn(
-        "inline-flex h-8 w-8 items-center justify-center rounded-xl border border-fuchsia-400/35 bg-gradient-to-br from-fuchsia-500/25 via-[#FF2D7B]/20 to-cyan-500/20 text-white shadow-[0_0_20px_rgba(255,45,123,0.18)] transition-[border-color,box-shadow,transform] hover:border-primary/45 hover:shadow-[0_0_26px_rgba(255,45,123,0.28)] sm:h-9 sm:w-9",
+        "inline-flex h-7 w-7 items-center justify-center rounded-lg border border-fuchsia-400/35 bg-gradient-to-br from-fuchsia-500/25 via-[#FF2D7B]/20 to-cyan-500/20 text-white shadow-[0_0_16px_rgba(255,45,123,0.15)] transition-[border-color,box-shadow,transform] hover:border-primary/45 hover:shadow-[0_0_22px_rgba(255,45,123,0.24)] sm:h-8 sm:w-8",
         disabled && "pointer-events-none opacity-40",
       )}
     >
@@ -487,15 +480,10 @@ function StillStylePicker({
     <>
       <div
         className={cn(
-          "flex flex-wrap items-center justify-end gap-2",
-          photoDockLayout === "full" ? "mb-2" : "mb-1",
+          "flex flex-wrap items-center justify-end gap-1.5",
+          photoDockLayout === "full" ? "mb-1" : "mb-0.5",
         )}
       >
-        {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? (
-          <span className="order-first mr-auto rounded-full border border-cyan-400/25 bg-cyan-950/35 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-cyan-100/85 sm:text-[9px]">
-            Clips soon
-          </span>
-        ) : null}
         {galleryTrigger}
       </div>
 
@@ -505,7 +493,8 @@ function StillStylePicker({
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45">
-                  Grok stills · {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? "clips soon" : "clips below"}
+                  Grok stills
+                  {!CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? " · clips below" : ""}
                 </p>
                 <DialogTitle className="font-gothic text-lg font-normal tracking-tight text-white sm:text-xl">
                   Selfies & Lewd

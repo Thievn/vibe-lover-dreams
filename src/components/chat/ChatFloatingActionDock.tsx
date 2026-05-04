@@ -19,6 +19,8 @@ type Props = {
   hideRampButton?: boolean;
   /** Live Voice: smaller dock — more room for messages. */
   compact?: boolean;
+  /** Icon-only strip under header — minimal vertical footprint. */
+  micro?: boolean;
   onGallery: () => void;
   onVoiceOptions: () => void;
   safeWord: string;
@@ -35,10 +37,16 @@ const dockBtn =
 const dockBtnCompact =
   "group relative flex h-9 min-w-0 flex-1 flex-col items-center justify-center gap-0 rounded-xl border border-white/[0.08] bg-gradient-to-b from-white/[0.07] to-black/45 text-[8px] font-semibold uppercase tracking-wide text-foreground/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 hover:border-primary/35 hover:from-primary/12 hover:to-black/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 sm:h-10 sm:text-[9px] touch-manipulation";
 
+const dockBtnMicro =
+  "group relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/[0.1] bg-gradient-to-b from-white/[0.1] to-black/50 text-[#00ffd4] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 hover:border-primary/40 hover:from-primary/18 hover:to-black/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-40 sm:h-9 sm:w-9 touch-manipulation";
+
 const iconwrap = "flex h-7 w-7 items-center justify-center rounded-xl bg-white/[0.04] text-[#00ffd4] transition-colors group-hover:bg-primary/20 group-hover:text-primary sm:h-8 sm:w-8";
 
 const iconwrapCompact =
   "flex h-5 w-5 items-center justify-center rounded-lg bg-white/[0.05] text-[#00ffd4] transition-colors group-hover:bg-primary/20 group-hover:text-primary sm:h-6 sm:w-6";
+
+const iconwrapMicro =
+  "flex h-5 w-5 items-center justify-center rounded-md bg-white/[0.06] text-[#00ffd4] transition-colors group-hover:bg-primary/22 group-hover:text-primary sm:h-[1.35rem] sm:w-[1.35rem]";
 
 /**
  * Clean floating action strip above the composer — Call, Ramp, Gallery, Options.
@@ -49,6 +57,7 @@ export function ChatFloatingActionDock({
   onRamp,
   hideRampButton = false,
   compact = false,
+  micro = false,
   onGallery,
   onVoiceOptions,
   safeWord,
@@ -58,22 +67,33 @@ export function ChatFloatingActionDock({
   disabled,
   className,
 }: Props) {
-  const btn = compact ? dockBtnCompact : dockBtn;
-  const iw = compact ? iconwrapCompact : iconwrap;
-  const iconSz = compact ? "h-3.5 w-3.5 sm:h-4 sm:w-4" : "h-4 w-4 sm:h-[1.1rem] sm:w-[1.1rem]";
+  const btn = micro ? dockBtnMicro : compact ? dockBtnCompact : dockBtn;
+  const iw = micro ? iconwrapMicro : compact ? iconwrapCompact : iconwrap;
+  const iconSz = micro
+    ? "h-3.5 w-3.5 sm:h-4 sm:w-4"
+    : compact
+      ? "h-3.5 w-3.5 sm:h-4 sm:w-4"
+      : "h-4 w-4 sm:h-[1.1rem] sm:w-[1.1rem]";
+  const labelVis = micro || compact ? "sr-only" : "max-[380px]:sr-only";
+  const labelVisOpt = micro || compact ? "sr-only" : "max-[420px]:sr-only";
 
   return (
     <div
       className={cn(
-        "mx-auto w-full max-w-2xl px-2",
+        "mx-auto w-full max-w-2xl",
+        micro ? "px-1" : "px-2",
         className,
       )}
     >
       <motion.div
         layout
         className={cn(
-          "flex items-stretch justify-center rounded-[1.35rem] border border-white/[0.09] bg-[hsl(280_24%_6%)]/90 shadow-[0_8px_40px_-8px_rgba(0,0,0,0.75),inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl",
-          compact ? "gap-1 p-1 sm:gap-1.5 sm:p-1.5" : "gap-1.5 p-1.5 sm:gap-2 sm:p-2",
+          "flex items-stretch justify-center border border-white/[0.09] bg-[hsl(280_24%_6%)]/90 shadow-[0_8px_40px_-8px_rgba(0,0,0,0.75),inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl",
+          micro
+            ? "gap-0.5 rounded-full px-1 py-0.5"
+            : compact
+              ? "gap-1 rounded-[1.1rem] p-1 sm:gap-1.5 sm:p-1.5"
+              : "gap-1.5 rounded-[1.35rem] p-1.5 sm:gap-2 sm:p-2",
         )}
         style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 1px rgba(255,45,123,0.04)" }}
       >
@@ -82,13 +102,13 @@ export function ChatFloatingActionDock({
           whileTap={{ scale: 0.98 }}
           onClick={onLiveCall}
           disabled={disabled}
-          className={cn(btn, "text-primary/95")}
+          className={cn(btn, !micro && "text-primary/95")}
           title="Call"
         >
           <span className={iw}>
             <Phone className={iconSz} />
           </span>
-          <span className={compact ? "sr-only" : "max-[380px]:sr-only"}>Call</span>
+          <span className={labelVis}>Call</span>
         </motion.button>
         {!hideRampButton ? (
           <motion.button
@@ -106,7 +126,7 @@ export function ChatFloatingActionDock({
             <span className={cn(iw, rampActive && "bg-fuchsia-500/20 text-amber-200")}>
               <Zap className={iconSz} />
             </span>
-            <span className={compact ? "sr-only" : "max-[380px]:sr-only"}>Ramp</span>
+            <span className={labelVis}>Ramp</span>
           </motion.button>
         ) : null}
         <motion.button
@@ -120,20 +140,20 @@ export function ChatFloatingActionDock({
           <span className={iw}>
             <ImageIcon className={iconSz} />
           </span>
-          <span className={compact ? "sr-only" : "max-[380px]:sr-only"}>Gallery</span>
+          <span className={labelVis}>Gallery</span>
         </motion.button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <motion.button
               type="button"
               whileTap={{ scale: 0.98 }}
-              className={cn(btn, "shrink-0 px-0.5")}
+              className={cn(btn, !micro && "shrink-0 px-0.5")}
               title="Options"
             >
               <span className={iw}>
                 <MoreHorizontal className={iconSz} />
               </span>
-              <span className={compact ? "sr-only" : "max-[420px]:sr-only"}>Options</span>
+              <span className={labelVisOpt}>Options</span>
             </motion.button>
           </DropdownMenuTrigger>
           <DropdownMenuContent

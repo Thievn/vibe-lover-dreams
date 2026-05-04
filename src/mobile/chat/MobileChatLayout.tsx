@@ -9,6 +9,7 @@ import { ChatMessageThread } from "@/components/chat/ChatMessageThread";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatAmbientBackground } from "@/components/chat/ChatAmbientBackground";
 import { ChatMobilePortraitSpotlight } from "@/components/chat/ChatMobilePortraitSpotlight";
+import { ChatFloatingActionDock } from "@/components/chat/ChatFloatingActionDock";
 import { ChatSmartReplies } from "@/components/chat/ChatSmartReplies";
 import { ChatDevicesCollapsible } from "@/components/chat/ChatDevicesCollapsible";
 import { FloatingHeartsLayer } from "@/components/chat/FloatingHeartsLayer";
@@ -244,6 +245,22 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
           onVoiceClick={() => setVoiceSettingsOpen(true)}
           compact
         />
+        <div className="z-30 shrink-0 border-b border-white/[0.06] bg-black/35 py-0.5">
+          <ChatFloatingActionDock
+            companionId={companion.id}
+            onLiveCall={goLiveCallFromChat}
+            onRamp={handleRampPill}
+            hideRampButton={sessionMode === "live_voice"}
+            micro
+            onGallery={() => (user ? setGalleryOpen(true) : void navigate("/auth", { state: { from: location.pathname } }))}
+            onVoiceOptions={() => setVoiceSettingsOpen(true)}
+            safeWord={safeWord}
+            onEmergencyStop={() => void handleEmergencyStopFromUi()}
+            rampAvailable={Boolean(user)}
+            rampActive={sessionMode === "live_voice" && rampModeActive}
+            disabled={false}
+          />
+        </div>
         <ChatDevicesCollapsible
           companionName={companion.name}
           connectedCount={connectedToys.length}
@@ -323,7 +340,7 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
         >
           <ChatSmartReplies
             suggestions={smartSuggestions}
-            disabled={loading}
+            disabled={false}
             loading={loading}
             compact={sessionMode === "live_voice"}
             onPick={(s) => {

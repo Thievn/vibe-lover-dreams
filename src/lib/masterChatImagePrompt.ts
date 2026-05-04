@@ -305,7 +305,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
   const charBlock = `CHARACTER APPEARANCE (primary likeness — text only): ${companion.name}, ${companion.gender}. ${(companion.appearance || "").trim().slice(0, 2000)}`;
 
   const appearanceStripForMenu =
-    "**APPEARANCE-TEXT STRIP (gallery preset):** The CHARACTER APPEARANCE paragraph may repeat how she looks on a **roster / profile card**. For **this** render, mine it **only** for face shape, eyes, brows, nose, mouth, hair, skin, species markers, and body proportions. **Discard** any sentences about catalog outfit, cape, swimsuit, jewelry, throne room, studio backdrop, or “icon pose” if they disagree with **Requested framing (from menu)** — the menu wins 100% on clothes, location, pose, props, and camera.";
+    "**APPEARANCE-TEXT STRIP (gallery preset):** The CHARACTER APPEARANCE paragraph may repeat how she looks on a **roster / profile card**. For **this** render, mine it **only** for face shape, eyes, brows, nose, mouth, hair, skin, species markers, and body proportions. **Discard** any sentences about catalog outfit, cape, swimsuit, jewelry, throne room, studio backdrop, or “icon pose” if they disagree with **Requested framing (from menu)** — the menu wins 100% on clothes, location, pose, props, and camera. **Demote** mood-only lines (heavy smoke, fog, haze, lens-flare poetry, club strobes) unless the **menu** explicitly asks for that vibe — they must not steal detail budget from a **clear face and body**.";
 
   const prompt = (
     menuSceneLock
@@ -337,7 +337,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
     .slice(0, 12_000);
 
   const portraitConsistencyLock = [
-    `TEXT-ONLY CHARACTER LOCK for ${companion.name}: keep **face, hair, skin, species markers, and ${bodyType}** consistent with the written CHARACTER APPEARANCE block — do not invent a different person.`,
+    `TEXT-ONLY CHARACTER LOCK for ${companion.name}: keep **face, hair, skin, species markers, and ${bodyType}** consistent with the written CHARACTER APPEARANCE block — do not invent a different person. **Face-first:** atmosphere (smoke, fog, particles, dramatic backlight) stays **subordinate** to a readable face unless the menu scene text explicitly demands that effect.`,
     menuSceneLock
       ? `Menu preset lock: **pose, outfit, background, props, and lighting** come only from PRIMARY SCENE / the **Requested framing (from menu)** block — not from forge packshots, packshot prose, or roster/profile portraits. **Ignore** any mental image of the stored card photo.`
       : `Body-type lock: ${bodyType} — limbs, torso scale, and species read must match the prose. **Pose, outfit, location, lens, and lighting** follow USER SCENE / PRIMARY SCENE.`,

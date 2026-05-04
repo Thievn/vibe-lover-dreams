@@ -243,6 +243,22 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
               headerAnimated={headerAnimated}
               onVoiceClick={() => setVoiceSettingsOpen(true)}
             />
+            <div className="z-30 shrink-0 border-b border-white/[0.06] bg-black/35 py-0.5">
+              <ChatFloatingActionDock
+                companionId={companion.id}
+                onLiveCall={goLiveCallFromChat}
+                onRamp={handleRampPill}
+                hideRampButton={sessionMode === "live_voice"}
+                micro
+                onGallery={() => (user ? setGalleryOpen(true) : void navigate("/auth", { state: { from: location.pathname } }))}
+                onVoiceOptions={() => setVoiceSettingsOpen(true)}
+                safeWord={safeWord}
+                onEmergencyStop={() => void handleEmergencyStopFromUi()}
+                rampAvailable={Boolean(user)}
+                rampActive={sessionMode === "live_voice" && rampModeActive}
+                disabled={false}
+              />
+            </div>
             <ChatDevicesCollapsible
               companionName={companion.name}
               connectedCount={connectedToys.length}
@@ -314,7 +330,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
             >
               <ChatSmartReplies
                 suggestions={smartSuggestions}
-                disabled={loading}
+                disabled={false}
                 loading={loading}
                 compact={sessionMode === "live_voice"}
                 onPick={(s) => {
@@ -351,28 +367,6 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
                 />
               </div>
             ) : null}
-
-            <div
-              className={cn(
-                "z-20 shrink-0 border-t border-white/[0.06] bg-gradient-to-t from-black/85 via-black/50 to-transparent pb-1",
-                sessionMode === "live_voice" ? "space-y-1 pt-1" : "space-y-2 pt-2",
-              )}
-            >
-              <ChatFloatingActionDock
-                companionId={companion.id}
-                onLiveCall={goLiveCallFromChat}
-                onRamp={handleRampPill}
-                hideRampButton={sessionMode === "live_voice"}
-                compact={sessionMode === "live_voice"}
-                onGallery={() => (user ? setGalleryOpen(true) : void navigate("/auth", { state: { from: location.pathname } }))}
-                onVoiceOptions={() => setVoiceSettingsOpen(true)}
-                safeWord={safeWord}
-                onEmergencyStop={() => void handleEmergencyStopFromUi()}
-                rampAvailable={Boolean(user)}
-                rampActive={sessionMode === "live_voice" && rampModeActive}
-                disabled={false}
-              />
-            </div>
 
             <div
               className={
