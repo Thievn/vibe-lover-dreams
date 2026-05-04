@@ -913,10 +913,10 @@ const CompanionProfile = () => {
                     Saved from chat
                   </h3>
                   <p className="text-[11px] text-muted-foreground/90 mb-3 leading-relaxed">
-                    Stills and loop clips you&apos;ve generated. Set a still as the portrait, or pick{" "}
-                    <span className="text-foreground/85 font-medium">Use for loop video</span> then open{" "}
-                    <span className="text-foreground/85 font-medium">Looping portrait video</span> above to generate (FC
-                    applies).
+                    Stills &amp; loop clips (newest first). Large libraries scroll inside this panel — use{" "}
+                    <span className="text-foreground/85 font-medium">All / Stills / Clips</span> when shown.{" "}
+                    <span className="text-foreground/85 font-medium">Loop</span> picks a still for{" "}
+                    <span className="text-foreground/85 font-medium">Looping portrait video</span> above (FC applies).
                   </p>
                   <CompanionGalleryGrid
                     companionName={companion.name}
