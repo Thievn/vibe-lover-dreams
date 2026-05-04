@@ -431,6 +431,34 @@ function padFantasyStartersToFour(
 
 /** Minimum chronicle length before we auto-run design-lab to avoid saving one-line stubs. */
 const MIN_CHRONICLE_CHARS = 500;
+/** If cinematic appearance is shorter than this, Create still runs design-lab (long chronicle alone is not enough). */
+const MIN_CINEMATIC_APPEARANCE_CHARS = 200;
+const MIN_HOOK_BIO_CHARS = 40;
+const MIN_CHARTER_CHARS_SKIP_LAB = 180;
+const MIN_PACKSHOT_CHARS_SKIP_LAB = 80;
+
+function countSignificantFantasyStarters(starters: { title: string; description: string }[]): number {
+  return starters.filter((s) => s.title.trim() && s.description.trim()).length;
+}
+
+/** True when Create should run Grok design-lab so vault prose is not thin / empty. */
+function forgeNeedsDesignLabPass(o: {
+  chronicleLen: number;
+  narrativeLen: number;
+  hookLen: number;
+  charterLen: number;
+  packshotLen: number;
+  startersCount: number;
+}): boolean {
+  return (
+    o.chronicleLen < MIN_CHRONICLE_CHARS ||
+    o.narrativeLen < MIN_CINEMATIC_APPEARANCE_CHARS ||
+    o.hookLen < MIN_HOOK_BIO_CHARS ||
+    o.charterLen < MIN_CHARTER_CHARS_SKIP_LAB ||
+    o.packshotLen < MIN_PACKSHOT_CHARS_SKIP_LAB ||
+    o.startersCount < 2
+  );
+}
 /** Grok tool-call in `parse-companion-prompt` can be slow; cap wait so Create does not spin forever. */
 const PARSE_COMPANION_TIMEOUT_MS = 180_000;
 /** DB insert / portrait pipeline must not hang the UI indefinitely on stalled connections. */
@@ -1953,21 +1981,45 @@ User flavor notes: ${extraNotes || "none"}`;
       let effectiveStartersVault = fantasyStartersVault;
       let effectiveRosterTags = rosterTags;
 
-      if (effectiveChronicle.length < MIN_CHRONICLE_CHARS) {
+      const startersSignificant = countSignificantFantasyStarters(effectiveStartersVault);
+      const chronicleWasShort = effectiveChronicle.length < MIN_CHRONICLE_CHARS;
+      const needsDesignLab = forgeNeedsDesignLabPass({
+        chronicleLen: effectiveChronicle.length,
+        narrativeLen: effectiveNarrative.trim().length,
+        hookLen: effectiveHook.trim().length,
+        charterLen: effectiveCharter.trim().length,
+        packshotLen: effectivePackshot.trim().length,
+        startersCount: startersSignificant,
+      });
+
+      if (needsDesignLab) {
         bumpCreate("Expanding chronicle with Grok (design lab)…");
-        toast.info("Your chronicle is short — expanding prose from your seeds…");
-        toast.message("Expanding chronicle with AI…", {
+        toast.info(
+          chronicleWasShort
+            ? "Your chronicle is short — expanding prose from your seeds…"
+            : "Filling missing narrative & portrait brief from your seeds (Grok)…",
+        );
+        toast.message(chronicleWasShort ? "Expanding chronicle with AI…" : "Finishing literary draft with AI…", {
           description: "Usually under two minutes. You can keep this tab in the background.",
         });
         if (isAdmin) {
-          pushForgeOp("Chronicle short — design lab expanding prose & starters…", "info");
-          toast.message("Chronicle is short — Grok design lab running", {
-            description: "Usually under 3 minutes. If it errors, check the forge log below and your XAI_API_KEY on parse-companion-prompt.",
+          pushForgeOp(
+            chronicleWasShort
+              ? "Chronicle short — design lab expanding prose & starters…"
+              : "Narrative / portrait brief thin — design lab filling vault fields…",
+            "info",
+          );
+          toast.message("Grok design lab running", {
+            description:
+              "Usually under 3 minutes. If it errors, check the forge log below and your XAI_API_KEY on parse-companion-prompt.",
           });
         }
-        const designLabToastId = toast.loading("Grok is expanding your chronicle…", {
-          description: "xAI via Supabase (parse-companion-prompt). Usually 30–120s — keep this tab open.",
-        });
+        const designLabToastId = toast.loading(
+          chronicleWasShort ? "Grok is expanding your chronicle…" : "Grok is finishing your literary draft…",
+          {
+            description: "xAI via Supabase (parse-companion-prompt). Usually 30–120s — keep this tab open.",
+          },
+        );
         const themeSnapForDesignLab = buildForgeThemeSnapshotV1({
           activeForgeTab,
           forgeCardPose,
@@ -2014,26 +2066,35 @@ User flavor notes: ${extraNotes || "none"}`;
         const fields = labData?.fields as Record<string, unknown> | undefined;
         // Keep forgeName; design lab is instructed with mandatoryDisplayName and must not replace it in UI.
         const bs = typeof fields?.backstory === "string" ? fields.backstory.trim() : "";
-        if (!bs) {
-          throw new Error(
-            "Could not generate a full chronicle. Spin the forge to refill the profile, or paste a longer Chronicle, then try again.",
-          );
+        if (chronicleWasShort) {
+          if (!bs) {
+            throw new Error(
+              "Could not generate a full chronicle. Spin the forge to refill the profile, or paste a longer Chronicle, then try again.",
+            );
+          }
+          effectiveChronicle = bs.slice(0, 24000);
+          setChronicleBackstory(effectiveChronicle);
         }
-        effectiveChronicle = bs.slice(0, 24000);
-        setChronicleBackstory(effectiveChronicle);
-        if (typeof fields?.bio === "string" && fields.bio.trim() && (!effectiveHook || effectiveHook.length < 80)) {
-          effectiveHook = fields.bio.trim().slice(0, 12000);
-          setHookBio(effectiveHook);
-        }
-        if (typeof fields?.appearance === "string" && fields.appearance.trim() && !effectiveNarrative) {
+        const applyNarrative =
+          !effectiveNarrative.trim() || effectiveNarrative.trim().length < MIN_CINEMATIC_APPEARANCE_CHARS;
+        if (typeof fields?.appearance === "string" && fields.appearance.trim() && applyNarrative) {
           effectiveNarrative = fields.appearance.trim().slice(0, 12000);
           setNarrativeAppearance(effectiveNarrative);
         }
-        if (typeof fields?.system_prompt === "string" && fields.system_prompt.trim() && !effectiveCharter) {
+        const applyHook = !effectiveHook.trim() || effectiveHook.trim().length < MIN_HOOK_BIO_CHARS;
+        if (typeof fields?.bio === "string" && fields.bio.trim() && applyHook) {
+          effectiveHook = fields.bio.trim().slice(0, 12000);
+          setHookBio(effectiveHook);
+        }
+        const applyCharter =
+          !effectiveCharter.trim() || effectiveCharter.trim().length < MIN_CHARTER_CHARS_SKIP_LAB;
+        if (typeof fields?.system_prompt === "string" && fields.system_prompt.trim() && applyCharter) {
           effectiveCharter = fields.system_prompt.trim().slice(0, 32000);
           setCharterSystemPrompt(effectiveCharter);
         }
-        if (typeof fields?.image_prompt === "string" && fields.image_prompt.trim() && !effectivePackshot) {
+        const applyPackshot =
+          !effectivePackshot.trim() || effectivePackshot.trim().length < MIN_PACKSHOT_CHARS_SKIP_LAB;
+        if (typeof fields?.image_prompt === "string" && fields.image_prompt.trim() && applyPackshot) {
           effectivePackshot = fields.image_prompt.trim().slice(0, 3200);
           setPackshotPrompt(effectivePackshot);
         }
@@ -2043,12 +2104,19 @@ User flavor notes: ${extraNotes || "none"}`;
         }
         if (Array.isArray(fields?.fantasy_starters)) {
           const normalized = normalizeFantasyStartersFromFields(fields.fantasy_starters);
-          if (normalized.length && effectiveStartersVault.filter((s) => s.title.trim() && s.description.trim()).length < 2) {
+          if (normalized.length && countSignificantFantasyStarters(effectiveStartersVault) < 2) {
             effectiveStartersVault = padFantasyStartersToFour(normalized, forgeName);
             setFantasyStartersVault(effectiveStartersVault);
           }
         }
-        if (isAdmin) pushForgeOp("Design lab pass finished — chronicle / starters updated.", "ok");
+        if (isAdmin) {
+          pushForgeOp(
+            chronicleWasShort
+              ? "Design lab pass finished — chronicle / narrative updated."
+              : "Design lab pass finished — thin fields filled from Grok.",
+            "ok",
+          );
+        }
       }
 
       const portraitAppearanceForRow = effectiveNarrative || appearanceBlurb;
