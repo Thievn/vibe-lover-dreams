@@ -88,6 +88,13 @@ export const FAB_SELFIE = {
 
 export type FabSelfieTier = keyof typeof FAB_SELFIE;
 
+/** Appended for Grok Imagine when a chat still tile supplies `styledSceneExtension` (Selfies & Lewd gallery). */
+export const CHAT_STILL_MENU_QUALITY_AND_ANATOMY = `**Generation quality (binding):** masterpiece, best quality, highly detailed, sharp focus, beautiful lighting, intricate detail, clean composition.
+
+**Anti-artifact / anatomy (binding — humans and fantasy):** one coherent subject; **two arms and two legs** unless CHARACTER APPEARANCE explicitly describes a different limb count (insectoid extras, naga lower body, canon amputation, etc.); **human hands: exactly five fingers per hand** unless the written species explicitly calls for another digit count; no fused, duplicated, or melted fingers; no extra arms or legs, no phantom mirrored limbs; **at most one tail** unless appearance text explicitly describes multiple tails; no duplicate faces or stacked heads; avoid low-res blur, heavy JPEG wreckage, and warped perspective.
+
+**Likeness vs scene (binding):** strongly match the companion reference for **face, hair, skin, species marks, and body-type scale** — **outfit, pose, background, props, and lighting** only from this menu line plus the chat scenario; do not remaster the roster packshot layout or copy its wardrobe.`;
+
 /**
  * Resolves chat line for + menu selfies: random line from `display` when it is an array
  * (so `sendMessage` always receives a string — arrays have no `.trim()` and would noop).
@@ -343,12 +350,16 @@ export function resolveChatImageGenerationPrompt(args: {
     if (styled) {
       const subjectAnchor =
         "**SUBJECT (read first):** The companion’s **stored profile / roster picture is not an input.** Match CHARACTER APPEARANCE for **face, hair, skin, eyes, and body-type scale only**. If the appearance paragraph mentions clothes, sets, or poses from an old card photo, **ignore those for this render** — the lines below define outfit, room, and pose.\n\n";
+      const lewdLighting =
+        menu === FAB_SELFIE.lewd.imagePrompt
+          ? "\n\n**Lighting accent (lewd tier):** seductive editorial / key-art lighting — keep the **face sharp and readable**, not blown out by bloom."
+          : "";
       const coherence =
         "\n\n**FORGE_VISUAL_IDENTITY (in master prompt):** binding for **hair, eyes, skin, species, body type, musculature/curves, and art style (anime vs photoreal vs creature)** — **not** for outfit, room, or pose; those follow **Requested framing** only." +
         "\n\n**Scene primacy (non-negotiable):** The block under **Requested framing (from menu)** is the **sole** authority for **location, background, architecture, time of day, weather, furniture, wardrobe, pose, props, interaction with props, lens height, and camera distance**. The **Exposure / tone context** section sets SFW vs lewd vs artistic-nude **band only** — it must **never** replace the menu’s place/outfit/pose with a generic bedroom, bathroom mirror, studio bust, or catalog three-quarter. **No reference photograph is supplied** — likeness = written CHARACTER APPEARANCE + body type + species **only**; **forbidden:** copying pose, crop, lighting recipe, environment, or wardrobe from any roster/profile card. Each preset must read as a **different photoshoot** in that **exact** scenario, not a remaster of the profile image." +
         "\n\n**SHOT GEOMETRY (binding):** If the menu mentions lying, bent over, legs up, bathtub, beach, car, desk, bed, shower, silk sheets, lingerie, wall, workout, dress, kitchen, etc., the final image must **show that configuration and setting clearly** — not a substitute “same card, different angle” or “pretty subject standing at camera” shot.";
       return (
-        `— Requested framing (from menu) —\n${subjectAnchor}${styled}\n\n**Exposure / tone context (not the shot layout):**\n${menu}${coherence}`
+        `— Requested framing (from menu) —\n${subjectAnchor}${styled}\n\n${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}\n\n**Exposure / tone context (not the shot layout):**\n${menu}${coherence}`
       ).trim();
     }
     return menu;

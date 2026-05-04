@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Heart, Flame, Mic, Sparkles, Zap, Baby, Plus, X, Images } from "lucide-react";
+import { Heart, Flame, Mic, Sparkles, Zap, Baby, X, Images } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -37,7 +37,7 @@ export function ChatQuickActionFab({ onAction, isActionDisabled }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-[calc(14.5rem+env(safe-area-inset-bottom))] right-3 z-40 sm:bottom-[calc(12.5rem+env(safe-area-inset-bottom))] sm:right-5 md:right-8">
+    <div className="fixed bottom-[calc(14.5rem+env(safe-area-inset-bottom))] left-3 z-40 sm:bottom-[calc(12.5rem+env(safe-area-inset-bottom))] sm:left-5 md:left-8">
       <AnimatePresence>
         {open ? (
           <motion.div
@@ -100,10 +100,15 @@ export function ChatQuickActionFab({ onAction, isActionDisabled }: Props) {
           "hover:shadow-[0_0_28px_rgba(255,45,123,0.45)] transition-shadow",
         )}
         aria-expanded={open}
-        aria-label={open ? "Close quick actions" : "Open quick actions"}
+        aria-label={open ? "Close quick actions" : "Quick actions — toys, praise, gallery"}
       >
-        <motion.span animate={{ rotate: open ? 45 : 0 }} transition={{ duration: 0.2 }}>
-          {open ? <X className="h-7 w-7" /> : <Plus className="h-7 w-7" />}
+        <motion.span
+          key={open ? "x" : "spark"}
+          initial={{ scale: 0.88, opacity: 0.85 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.18 }}
+        >
+          {open ? <X className="h-6 w-6 sm:h-7 sm:w-7" /> : <Sparkles className="h-6 w-6 sm:h-7 sm:w-7" />}
         </motion.span>
       </motion.button>
     </div>

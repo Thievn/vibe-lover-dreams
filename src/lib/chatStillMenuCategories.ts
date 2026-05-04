@@ -10,132 +10,173 @@ export type ChatStillMenuCategory = {
   tier: ChatStillMenuTier;
 };
 
+/** Scene line only — global quality / anatomy / likeness rules are appended in `resolveChatImageGenerationPrompt` when a tile is chosen. */
+const selfie = (scene: string) =>
+  `Vertical phone selfie — same face, hair, skin, species marks, and body type as the roster reference; gender presentation from CHARACTER APPEARANCE. ${scene} Outfit, pose, background, and props belong **only** to this scene — do not copy catalog-card wardrobe or packshot pose.`;
+
+const lewd = (scene: string) =>
+  `Tasteful editorial-adult phone capture — same face, hair, skin, species marks, and body type as the roster reference; gender presentation from CHARACTER APPEARANCE. ${scene} Wardrobe, pose, and set follow this line only — not the profile marketing still.`;
+
 export const CHAT_SELFIE_STILL_CATEGORIES: readonly ChatStillMenuCategory[] = [
   {
-    id: "morning-bed-selfie",
-    label: "Morning Bed Selfie",
+    id: "sunset-pier-selfie",
+    label: "Sunset Pier Selfie",
     tier: "sfw",
-    imagePrompt:
-      "beautiful woman taking a cute morning selfie in bed, soft natural lighting, messy hair, wearing oversized t-shirt, sleepy seductive smile, highly detailed face",
+    imagePrompt: selfie(
+      "Golden hour on a wooden pier, ocean behind them, fresh elegant summer outfit, warm rim light, relaxed camera-aware smile.",
+    ),
   },
   {
-    id: "bathroom-mirror",
-    label: "Bathroom Mirror",
+    id: "cozy-coffee-shop",
+    label: "Cozy Coffee Shop",
     tier: "sfw",
-    imagePrompt: "seductive mirror selfie in bathroom, steamy mirror, wearing only a towel, playful expression",
+    imagePrompt: selfie(
+      "Inside a cozy coffee shop, warm practical lights, soft smile, casual chic outfit, shallow depth of field with steam and cups in the background.",
+    ),
   },
   {
-    id: "steamy-shower",
-    label: "Steamy Shower",
+    id: "luxury-hotel-balcony",
+    label: "Luxury Hotel Balcony",
     tier: "sfw",
-    imagePrompt:
-      "beautiful woman taking a selfie in the shower, water running down her body, wet hair, sensual expression",
+    imagePrompt: selfie(
+      "Night on a luxury hotel balcony, city bokeh behind them, evening dress or tailored look, cool breeze, cinematic city glow.",
+    ),
   },
   {
-    id: "golden-hour-park",
-    label: "Golden Hour Park",
+    id: "vintage-bookstore",
+    label: "Vintage Bookstore",
     tier: "sfw",
-    imagePrompt:
-      "stunning woman taking a selfie during golden hour in the park, warm sunlight, elegant summer dress",
+    imagePrompt: selfie(
+      "Aisle of a vintage bookstore, shelves of worn spines, reading glasses or tote, intellectual-cute styling, dust-mote window light.",
+    ),
   },
   {
-    id: "gaming-setup",
-    label: "Gaming Setup",
+    id: "snowy-cabin-window",
+    label: "Snowy Cabin Window",
     tier: "sfw",
-    imagePrompt:
-      "beautiful gamer girl taking a selfie at her gaming desk with RGB lights, wearing cute headphones",
+    imagePrompt: selfie(
+      "By a snowy cabin window, soft winter daylight on their face, knit sweater or layered look, pine and frost outside the glass.",
+    ),
   },
   {
-    id: "kitchen-counter",
-    label: "Kitchen Counter",
+    id: "neon-city-street",
+    label: "Neon City Street",
     tier: "sfw",
-    imagePrompt: "seductive selfie in the kitchen, sitting on counter wearing an apron, flirty expression",
+    imagePrompt: selfie(
+      "On a neon-lit city street at night, reflective wet pavement, urban streetwear or sleek coat, cyber-noir color accents.",
+    ),
   },
   {
-    id: "night-balcony",
-    label: "Night Balcony",
+    id: "wildflower-field",
+    label: "Wildflower Field",
     tier: "sfw",
-    imagePrompt:
-      "beautiful woman taking a selfie on a city balcony at night, city lights in background, elegant dress",
+    imagePrompt: selfie(
+      "In a wildflower meadow, golden sunlight, wind in hair, sun dress or light layers, open sky and soft hills.",
+    ),
   },
   {
-    id: "car-selfie",
-    label: "Car Selfie",
+    id: "private-jet-cabin",
+    label: "Private Jet Cabin",
     tier: "sfw",
-    imagePrompt: "seductive car selfie, sitting in luxury car, sunset lighting through windows",
+    imagePrompt: selfie(
+      "Inside a private jet cabin, cream leather seats, window strip of clouds, travel-luxe outfit, calm confident expression.",
+    ),
   },
   {
-    id: "cozy-reading",
-    label: "Cozy Reading",
+    id: "candlelit-dinner-table",
+    label: "Candlelit Dinner Table",
     tier: "sfw",
-    imagePrompt: "beautiful woman reading a book in bed, soft lighting, comfortable and alluring",
+    imagePrompt: selfie(
+      "At a romantic candlelit dinner table, warm tapers, wine glass, date-night outfit, intimate but fully clothed framing.",
+    ),
   },
   {
-    id: "window-light",
-    label: "Window Light",
+    id: "underwater-pool",
+    label: "Underwater Pool",
     tier: "sfw",
-    imagePrompt: "gorgeous woman standing in front of a bright window, backlit, soft silhouette",
+    imagePrompt: selfie(
+      "Underwater in a clear resort pool, caustic light ripples, tasteful swimwear, eyes open toward camera, bubbles and turquoise water.",
+    ),
   },
   {
-    id: "bubble-bath",
-    label: "Bubble Bath",
+    id: "artist-studio",
+    label: "Artist Studio",
     tier: "sfw",
-    imagePrompt: "beautiful woman taking a selfie in a luxurious bubble bath, relaxed and sensual",
+    imagePrompt: selfie(
+      "In an artist studio with canvases and easels, paint-splatter floor, creative casual outfit, north-light windows.",
+    ),
   },
   {
-    id: "rooftop-night",
-    label: "Rooftop Night",
+    id: "luxury-spa",
+    label: "Luxury Spa",
     tier: "sfw",
-    imagePrompt: "stunning rooftop night selfie with city skyline behind her",
+    imagePrompt: selfie(
+      "In a luxury spa lounge, white robes or spa wrap, orchids and stone textures, serene smile, soft diffused lighting.",
+    ),
   },
   {
-    id: "closet-mirror",
-    label: "Closet Mirror",
+    id: "train-window",
+    label: "Train Window",
     tier: "sfw",
-    imagePrompt: "trying on clothes mirror selfie, elegant and seductive",
+    imagePrompt: selfie(
+      "By a train window with scenery streaking past, cozy travel layers, contemplative look, cinematic motion blur outside.",
+    ),
   },
   {
-    id: "rainy-window",
-    label: "Rainy Window",
+    id: "mountain-overlook",
+    label: "Mountain Overlook",
     tier: "sfw",
-    imagePrompt: "beautiful woman taking a selfie by a rainy window, soft moody lighting",
+    imagePrompt: selfie(
+      "At a mountain overlook railing, crisp air, windbreaker or trail-chic look, sweeping valley vista, midday sun.",
+    ),
   },
   {
-    id: "vanity-desk",
-    label: "Vanity Desk",
+    id: "vintage-car",
+    label: "Vintage Car",
     tier: "sfw",
-    imagePrompt: "seductive vanity mirror selfie while doing makeup",
+    imagePrompt: selfie(
+      "Inside a vintage car bench seat, chrome and leather details, retro sunglasses optional, golden hour through glass.",
+    ),
   },
   {
-    id: "hotel-room",
-    label: "Hotel Room",
+    id: "rooftop-pool",
+    label: "Rooftop Pool",
     tier: "sfw",
-    imagePrompt: "luxury hotel room selfie, elegant and alluring",
+    imagePrompt: selfie(
+      "At a rooftop infinity pool deck, skyline behind, tasteful resort cover-up or swim look appropriate to SFW band, sunglasses.",
+    ),
   },
   {
-    id: "sunset-beach",
-    label: "Sunset Beach",
+    id: "library-balcony",
+    label: "Library Balcony",
     tier: "sfw",
-    imagePrompt: "beautiful sunset beach selfie, golden hour lighting",
+    imagePrompt: selfie(
+      "On a grand library balcony overlooking stacks below, academic-glam outfit, carved railings, soft window light.",
+    ),
   },
   {
-    id: "library-corner",
-    label: "Library Corner",
+    id: "greenhouse",
+    label: "Greenhouse",
     tier: "sfw",
-    imagePrompt: "seductive library selfie surrounded by books",
+    imagePrompt: selfie(
+      "Inside a lush greenhouse, humid glass panels, tropical plants, linen or light botanical styling, dappled green light.",
+    ),
   },
   {
-    id: "yoga-mat",
-    label: "Yoga Mat",
+    id: "yacht-deck",
+    label: "Yacht Deck",
     tier: "sfw",
-    imagePrompt:
-      "beautiful woman after yoga, taking a selfie on her mat, athletic and sensual",
+    imagePrompt: selfie(
+      "On a yacht deck at sea, teak and rigging, nautical breeze, resort-casual outfit, sun and salt sparkle.",
+    ),
   },
   {
-    id: "candlelit-room",
-    label: "Candlelit Room",
+    id: "festival-crowd",
+    label: "Festival Crowd",
     tier: "sfw",
-    imagePrompt: "sensual selfie in a dark room lit only by candles",
+    imagePrompt: selfie(
+      "In a vibrant festival crowd, colored flags and string lights, playful festival fashion, motion and confetti hints, dusk sky.",
+    ),
   },
 ] as const;
 
@@ -144,123 +185,245 @@ export const CHAT_LEWD_STILL_CATEGORIES: readonly ChatStillMenuCategory[] = [
     id: "wet-white-tshirt",
     label: "Wet White T-Shirt",
     tier: "lewd",
-    imagePrompt:
-      "beautiful woman in wet white t-shirt, water soaked through fabric, highly suggestive, artistic sensual lighting",
+    imagePrompt: lewd(
+      "Wet white tee clinging to curves, fabric texture readable, artistic sensual lighting, perfume-ad heat not explicit porn staging.",
+    ),
   },
   {
-    id: "silk-sheets",
-    label: "Silk Sheets",
+    id: "silk-sheets-seduction",
+    label: "Silk Sheets Seduction",
     tier: "lewd",
-    imagePrompt: "gorgeous woman lying seductively on black silk sheets, elegant sensual pose",
+    imagePrompt: lewd("Lying on black silk sheets, elegant sensual pose, moody bedroom key light."),
   },
   {
-    id: "lace-lingerie",
-    label: "Lace Lingerie",
+    id: "elegant-lace-lingerie",
+    label: "Elegant Lace Lingerie",
     tier: "lewd",
-    imagePrompt: "beautiful woman in elegant black lace lingerie, seductive pose on bed",
+    imagePrompt: lewd("Black lace lingerie set, confident bedroom pose, soft shadow sculpting."),
   },
   {
-    id: "bubble-bath-tease",
-    label: "Bubble Bath Tease",
+    id: "sensual-bubble-bath",
+    label: "Sensual Bubble Bath",
     tier: "lewd",
-    imagePrompt: "sensual woman in bubble bath, strategically covered, very suggestive",
+    imagePrompt: lewd("Luxurious bubble bath, strategically covered by foam and angles, steam, candle glow."),
   },
   {
     id: "bent-over-desk",
     label: "Bent Over Desk",
     tier: "lewd",
-    imagePrompt: "beautiful woman bent over a desk from behind, wearing tight dress, artistic lighting",
+    imagePrompt: lewd("Bent over a desk from behind, tight dress silhouette, office-noir lighting, tasteful tease."),
   },
   {
     id: "against-the-wall",
     label: "Against the Wall",
     tier: "lewd",
-    imagePrompt: "seductive woman pressed against a wall, intense eye contact, very alluring",
+    imagePrompt: lewd("Pressed against a wall, intense eye contact, lingerie or slip dress, dramatic side light."),
   },
   {
     id: "sheer-nightdress",
     label: "Sheer Nightdress",
     tier: "lewd",
-    imagePrompt: "beautiful woman in sheer black nightdress, elegant sensual lighting",
+    imagePrompt: lewd("Sheer black nightdress, silhouette and fabric transparency, elegant sensual lighting."),
   },
   {
     id: "beach-bikini",
     label: "Beach Bikini",
     tier: "lewd",
-    imagePrompt: "stunning woman in tiny bikini on the beach, wet skin, golden hour lighting",
+    imagePrompt: lewd("Tiny bikini on the beach, wet skin, golden hour, editorial swim glamour."),
   },
   {
     id: "sweaty-workout",
     label: "Sweaty Workout",
     tier: "lewd",
-    imagePrompt:
-      "beautiful woman after intense workout, sweaty glistening skin, sports bra and shorts",
+    imagePrompt: lewd("Post-workout glow, sports bra and shorts, glistening skin, gym mirror energy."),
   },
   {
     id: "legs-up",
     label: "Legs Up",
     tier: "lewd",
-    imagePrompt: "gorgeous woman lying on couch with legs up, very suggestive pose, artistic",
+    imagePrompt: lewd("On a couch with legs up, suggestive but composed pose, living-room lamp light."),
   },
   {
     id: "backless-dress",
     label: "Backless Dress",
     tier: "lewd",
-    imagePrompt: "beautiful woman in backless dress showing her entire back, elegant and seductive",
+    imagePrompt: lewd("Backless evening dress, full elegant back line, gala staircase or balcony hint."),
   },
   {
     id: "topless-back-view",
     label: "Topless Back View",
     tier: "lewd",
-    imagePrompt: "artistic topless back view of a beautiful woman, tasteful sensual lighting",
+    imagePrompt: lewd("Artistic topless back view, tasteful shadow and hair coverage, fine-art boudoir tone."),
   },
   {
     id: "sitting-in-lace",
     label: "Sitting in Lace",
     tier: "lewd",
-    imagePrompt: "beautiful woman sitting in elegant lace lingerie, seductive expression",
+    imagePrompt: lewd("Seated in lace lingerie, sultry expression, velvet chair or bed edge."),
   },
   {
     id: "open-shirt",
     label: "Open Shirt",
     tier: "lewd",
-    imagePrompt: "woman wearing an oversized unbuttoned shirt and nothing else, very suggestive",
+    imagePrompt: lewd("Oversized unbuttoned shirt, implied nude beneath, bedroom morning light."),
   },
   {
     id: "thigh-highs",
     label: "Thigh Highs",
     tier: "lewd",
-    imagePrompt: "beautiful woman wearing only thigh high stockings, tasteful sensual pose",
+    imagePrompt: lewd("Thigh-high stockings and minimal coverage, tasteful seated pose, moody lamp."),
   },
   {
     id: "bathtub-arch",
     label: "Bathtub Arch",
     tier: "lewd",
-    imagePrompt: "sensual woman arching her back in the bathtub, artistic nude style",
+    imagePrompt: lewd("Arching back in tub, artistic nude-adjacent framing, candles and steam."),
   },
   {
     id: "window-silhouette",
     label: "Window Silhouette",
     tier: "lewd",
-    imagePrompt: "beautiful nude silhouette against a large window, artistic and elegant",
+    imagePrompt: lewd("Nude silhouette against tall window, elegant curve read, city glow outside."),
   },
   {
     id: "red-lingerie",
     label: "Red Lingerie",
     tier: "lewd",
-    imagePrompt: "stunning woman in red lingerie, seductive bedroom lighting",
+    imagePrompt: lewd("Red lingerie set, bedroom practicals, warm seductive key light."),
   },
   {
     id: "on-all-fours",
     label: "On All Fours",
     tier: "lewd",
-    imagePrompt: "beautiful woman on all fours on the bed, artistic and sensual pose",
+    imagePrompt: lewd("On all fours on bed, artistic sensual pose, sheets and shadow, editorial not graphic."),
   },
   {
     id: "neck-bite-pose",
     label: "Neck Bite Pose",
     tier: "lewd",
-    imagePrompt: "seductive woman tilting her head showing her neck, very sensual expression",
+    imagePrompt: lewd("Head tilt exposing neck line, hungry-soft expression, intimate close portrait."),
+  },
+  {
+    id: "nipple-peek",
+    label: "Nipple Peek",
+    tier: "lewd",
+    imagePrompt: lewd(
+      "Teasingly adjusting top, barely-there peek, highly suggestive, controlled editorial framing — no explicit graphic close-up.",
+    ),
+  },
+  {
+    id: "barely-covered",
+    label: "Barely Covered",
+    tier: "lewd",
+    imagePrompt: lewd("Strategic hand placement and fabric, provocative but composed, soft studio light."),
+  },
+  {
+    id: "sideboob-tease",
+    label: "Sideboob Tease",
+    tier: "lewd",
+    imagePrompt: lewd("Extreme sideboob silhouette in a cutout top, seductive posture, moody contrast."),
+  },
+  {
+    id: "underboob",
+    label: "Underboob",
+    tier: "lewd",
+    imagePrompt: lewd("Tiny crop showing maximum underboob line, confident stance, urban night color."),
+  },
+  {
+    id: "sheer-wet-fabric",
+    label: "Sheer Wet Fabric",
+    tier: "lewd",
+    imagePrompt: lewd("Sheer fabric soaked clingy, body readable through material, artistic sensual lighting."),
+  },
+  {
+    id: "hands-between-thighs",
+    label: "Hands Between Thighs",
+    tier: "lewd",
+    imagePrompt: lewd("Seated with hands between thighs, aroused expression, shadowed implied framing."),
+  },
+  {
+    id: "arching-back-nude",
+    label: "Arching Back Nude",
+    tier: "lewd",
+    imagePrompt: lewd("Full arch nude pose, fine-art silhouette and rim light, graceful not pornographic."),
+  },
+  {
+    id: "kneeling-pose",
+    label: "Kneeling Pose",
+    tier: "lewd",
+    imagePrompt: lewd("On knees looking up toward camera, submissive-flirt energy, soft spotlight."),
+  },
+  {
+    id: "spread-legs-tease",
+    label: "Spread Legs Tease",
+    tier: "lewd",
+    imagePrompt: lewd("Lying back with legs slightly parted tease, sheet and shadow coverage, editorial heat."),
+  },
+  {
+    id: "ass-focus",
+    label: "Ass Focus",
+    tier: "lewd",
+    imagePrompt: lewd("From-behind emphasis on curves in lingerie or slip, tasteful bedroom set, no explicit spread."),
+  },
+  {
+    id: "mirror-nude",
+    label: "Mirror Nude",
+    tier: "lewd",
+    imagePrompt: lewd("Nude mirror selfie vibe, phone in frame optional, artistic sensual reflections."),
+  },
+  {
+    id: "bed-straddle",
+    label: "Bed Straddle",
+    tier: "lewd",
+    imagePrompt: lewd("Straddling pillow on bed, lewd-adjacent tease, sheets and warm lamp only."),
+  },
+  {
+    id: "collar-leash",
+    label: "Collar & Leash",
+    tier: "lewd",
+    imagePrompt: lewd("Collar and leash accessory, submissive bedroom pose, consenting fantasy tone."),
+  },
+  {
+    id: "body-oil",
+    label: "Body Oil",
+    tier: "lewd",
+    imagePrompt: lewd("Glistening body oil on skin, highlight rolls, dark backdrop, sensual not messy."),
+  },
+  {
+    id: "crotch-grab",
+    label: "Crotch Grab",
+    tier: "lewd",
+    imagePrompt: lewd("Teasing hand at inner thigh / over fabric, intense eye contact, chiaroscuro."),
+  },
+  {
+    id: "from-below",
+    label: "From Below",
+    tier: "lewd",
+    imagePrompt: lewd("Low angle looking up, powerful legs-and-torso read, dramatic ceiling light."),
+  },
+  {
+    id: "bite-lip-nude",
+    label: "Bite Lip Nude",
+    tier: "lewd",
+    imagePrompt: lewd("Lip bite while nude-framed, fine-art crop, aroused expression, soft fill."),
+  },
+  {
+    id: "shower-glass-press",
+    label: "Shower Glass Press",
+    tier: "lewd",
+    imagePrompt: lewd("Body pressed to wet shower glass, silhouette and steam, tasteful obscuring streaks."),
+  },
+  {
+    id: "thong-pull",
+    label: "Thong Pull",
+    tier: "lewd",
+    imagePrompt: lewd("Teasing thong strap adjustment, hip close-up with shadow, editorial lingerie ad."),
+  },
+  {
+    id: "breast-press",
+    label: "Breast Press",
+    tier: "lewd",
+    imagePrompt: lewd("Arms pressing curves together, cleavage-forward tasteful framing, warm key light."),
   },
 ] as const;
 
@@ -269,7 +432,7 @@ const ALL_AFFECTION_PRESETS: readonly ChatStillMenuCategory[] = [
   ...CHAT_LEWD_STILL_CATEGORIES,
 ];
 
-/** Bond reward: any of the 40 chat still presets, weighted uniformly. */
+/** Bond reward: any chat still preset, weighted uniformly. */
 export function pickRandomAffectionStillPreset(): ChatStillMenuCategory {
   const i = Math.floor(Math.random() * ALL_AFFECTION_PRESETS.length);
   return ALL_AFFECTION_PRESETS[i] ?? ALL_AFFECTION_PRESETS[0]!;

@@ -10,6 +10,7 @@ import {
   Loader2,
   CircleHelp,
   Flame,
+  Aperture,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -465,47 +466,21 @@ function StillStylePicker({
     setOpen(false);
   };
 
-  const openGallery = (next: StillTab) => {
-    setTab(next);
-    setOpen(true);
-  };
-
-  const galleryTriggers = (
-    <div
+  const galleryTrigger = (
+    <motion.button
+      type="button"
+      whileTap={{ scale: 0.97 }}
+      disabled={disabled}
+      onClick={() => setOpen(true)}
+      title="Selfies & lewd stills"
+      aria-label="Open still gallery — selfies or lewd inside"
       className={cn(
-        "flex shrink-0 items-center gap-1",
-        photoDockLayout === "full" && "sm:gap-1.5",
+        "inline-flex h-8 w-8 items-center justify-center rounded-xl border border-fuchsia-400/35 bg-gradient-to-br from-fuchsia-500/25 via-[#FF2D7B]/20 to-cyan-500/20 text-white shadow-[0_0_20px_rgba(255,45,123,0.18)] transition-[border-color,box-shadow,transform] hover:border-primary/45 hover:shadow-[0_0_26px_rgba(255,45,123,0.28)] sm:h-9 sm:w-9",
+        disabled && "pointer-events-none opacity-40",
       )}
     >
-      <motion.button
-        type="button"
-        whileTap={{ scale: 0.97 }}
-        disabled={disabled}
-        onClick={() => openGallery("selfies")}
-        title="Selfie gallery"
-        aria-label="Open selfie still gallery"
-        className={cn(
-          "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-400/30 bg-white/[0.05] text-emerald-200/95 shadow-inner transition-[border-color,background-color] hover:border-emerald-300/45 hover:bg-emerald-500/10 sm:h-9 sm:w-9",
-          disabled && "pointer-events-none opacity-40",
-        )}
-      >
-        <Camera className="h-4 w-4 sm:h-[1.05rem] sm:w-[1.05rem]" aria-hidden />
-      </motion.button>
-      <motion.button
-        type="button"
-        whileTap={{ scale: 0.97 }}
-        disabled={disabled}
-        onClick={() => openGallery("lewd")}
-        title="Lewd gallery"
-        aria-label="Open lewd still gallery"
-        className={cn(
-          "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-400/35 bg-white/[0.05] text-rose-200/95 shadow-inner transition-[border-color,background-color] hover:border-rose-300/50 hover:bg-rose-500/10 sm:h-9 sm:w-9",
-          disabled && "pointer-events-none opacity-40",
-        )}
-      >
-        <Flame className="h-4 w-4 sm:h-[1.05rem] sm:w-[1.05rem]" aria-hidden />
-      </motion.button>
-    </div>
+      <Aperture className="h-[1.05rem] w-[1.05rem] sm:h-[1.15rem] sm:w-[1.15rem]" strokeWidth={2.25} aria-hidden />
+    </motion.button>
   );
 
   return (
@@ -521,7 +496,7 @@ function StillStylePicker({
             Clips soon
           </span>
         ) : null}
-        {galleryTriggers}
+        {galleryTrigger}
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -536,7 +511,7 @@ function StillStylePicker({
                   Selfies & Lewd
                 </DialogTitle>
                 <DialogDescription className="text-[11px] leading-snug text-muted-foreground/95">
-                  Tap a tile — she replies first, then the still lands. Each preset changes outfit, pose, and set; face and body type stay hers.
+                  Tap a tile — she replies first, then the still lands. Dozens of scenes; each changes outfit, pose, and set while face, species marks, and body type stay locked to her.
                 </DialogDescription>
               </div>
               <button
@@ -596,7 +571,7 @@ function StillStylePicker({
             </div>
           </DialogHeader>
 
-          <div className="max-h-[min(58vh,24rem)] overflow-y-auto overscroll-contain px-2.5 pb-2.5 pt-2 sm:max-h-[min(56vh,26rem)] sm:px-3">
+          <div className="max-h-[min(62vh,28rem)] overflow-y-auto overscroll-contain px-2.5 pb-2.5 pt-2 sm:max-h-[min(60vh,30rem)] sm:px-3">
             <AnimatePresence mode="wait">
               <motion.div
                 key={tab}
@@ -604,7 +579,7 @@ function StillStylePicker({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: tab === "selfies" ? 10 : -10 }}
                 transition={{ duration: 0.2, ease: "easeOut" }}
-                className="grid grid-cols-2 gap-1.5 sm:grid-cols-3"
+                className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5"
               >
                 {categories.map((cat, i) => (
                   <motion.button
@@ -616,8 +591,8 @@ function StillStylePicker({
                     transition={{ delay: Math.min(i * 0.018, 0.22), duration: 0.2 }}
                     onClick={() => pickStill(cat)}
                     className={cn(
-                      "rounded-xl border border-white/[0.1] bg-gradient-to-b from-white/[0.09] to-white/[0.03] px-2.5 py-2.5 text-left text-xs font-semibold leading-snug text-foreground/95 shadow-sm transition-[transform,box-shadow,border-color] sm:py-3 sm:text-[13px]",
-                      "hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45)] active:translate-y-0",
+                      "min-h-[4.75rem] rounded-xl border border-white/[0.1] bg-gradient-to-b from-white/[0.09] to-white/[0.03] px-2.5 py-2.5 text-left text-xs font-semibold leading-snug text-foreground/95 shadow-sm transition-all duration-200 sm:min-h-[5rem] sm:py-3 sm:text-[13px]",
+                      "hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45)] active:translate-y-0 active:scale-[0.99]",
                       tab === "selfies" && "hover:border-emerald-400/30",
                       tab === "lewd" && "hover:border-rose-400/35",
                       disabled && "pointer-events-none opacity-40",
