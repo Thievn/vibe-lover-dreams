@@ -463,7 +463,8 @@ function forgeNeedsDesignLabPass(o: {
 const PARSE_COMPANION_TIMEOUT_MS = 180_000;
 /** DB insert / portrait pipeline must not hang the UI indefinitely on stalled connections. */
 const FORGE_DB_INSERT_TIMEOUT_MS = 120_000;
-const FORGE_PORTRAIT_GEN_TIMEOUT_MS = 150_000;
+/** Match `IMAGE_GEN_TIMEOUT_MS` in `invokeGenerateImage` so we do not abort Grok Imagine while the client fetch is still in flight. */
+const FORGE_PORTRAIT_GEN_TIMEOUT_MS = 240_000;
 /** Hung PostgREST / tab backgrounding should not leave Create spinning forever. */
 const FORGE_NAME_LIST_TIMEOUT_MS = 45_000;
 /** `spend_forge_coins` / `credit_forge_coins` RPC — must not leave Create spinning if the DB stalls. */
@@ -1879,25 +1880,24 @@ User flavor notes: ${extraNotes || "none"}`;
       toast.error("You are not signed in yet — wait a second or refresh the page, then try Create again.");
       return;
     }
-    /** Spinner + elapsed timer as soon as Create starts — before any network or toast work. */
+    /** Spinner + elapsed timer as soon as Create starts — entire flow in try/finally so any throw clears loading. */
     setFinalLoading(true);
-    setProfileLoopJob("idle");
-    setForgeRunStartedAt(Date.now());
-    setForgeElapsedTick(0);
     let createToastId: string | number | undefined;
-    if (!isAdmin) {
-      createToastId = toast.loading("Creating companion…", {
-        description: "Reserving name, balance, and vault save…",
-      });
-    }
-    const bumpCreate = (description: string) => {
-      if (createToastId != null) {
-        toast.loading("Creating companion…", { id: createToastId, description });
-      }
-    };
-    let userCharged = false;
-    let userRefunded = false;
     try {
+      setForgeRunStartedAt(Date.now());
+      setForgeElapsedTick(0);
+      if (!isAdmin) {
+        createToastId = toast.loading("Creating companion…", {
+          description: "Reserving name, balance, and vault save…",
+        });
+      }
+      const bumpCreate = (description: string) => {
+        if (createToastId != null) {
+          toast.loading("Creating companion…", { id: createToastId, description });
+        }
+      };
+      let userCharged = false;
+      let userRefunded = false;
       if (isAdmin) {
         pushForgeOp(
           "Create companion started — the browser will warn if you try to leave before this finishes. You can still switch apps; just don’t close the tab.",
@@ -2258,14 +2258,19 @@ User flavor notes: ${extraNotes || "none"}`;
             "Forge portrait (generate-image)",
           );
           if (genErr) {
-            toast.error(`Portrait: ${genErr.message}`);
-          } else if (genData?.success && genData.imageUrl) {
-            const canon = stablePortraitDisplayUrl(genData.publicImageUrl ?? genData.imageUrl) ?? genData.imageUrl;
-            portraitUrl = canon;
-            setPreviewUrl(stablePortraitDisplayUrl(genData.imageUrl) ?? genData.imageUrl);
-            setPreviewCanonicalUrl(canon);
-            if (isAdmin) pushForgeOp("Inline portrait generation finished.", "ok");
+            throw new Error(`Portrait (Grok Imagine / generate-image): ${genErr.message}`);
           }
+          if (!genData?.success || !genData.imageUrl) {
+            throw new Error(
+              genData?.error?.trim() ||
+                "Portrait generation did not return an image — check Forge Coins, session, and Edge `generate-image` logs.",
+            );
+          }
+          const canon = stablePortraitDisplayUrl(genData.publicImageUrl ?? genData.imageUrl) ?? genData.imageUrl;
+          portraitUrl = canon;
+          setPreviewUrl(stablePortraitDisplayUrl(genData.imageUrl) ?? genData.imageUrl);
+          setPreviewCanonicalUrl(canon);
+          if (isAdmin) pushForgeOp("Inline portrait generation finished.", "ok");
         }
       } else {
         portraitUrl = stablePortraitDisplayUrl(portraitUrl) ?? portraitUrl;
