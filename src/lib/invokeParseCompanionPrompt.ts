@@ -1,8 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/integrations/supabase/env";
 
-/** Slightly under typical Edge limits; Grok tool calls can be slow. */
-const PARSE_COMPANION_FETCH_TIMEOUT_MS = 170_000;
+/** Match `PARSE_COMPANION_TIMEOUT_MS` in CompanionCreator so client abort aligns with forge design-lab wait. */
+const PARSE_COMPANION_FETCH_TIMEOUT_MS = 180_000;
 
 export type ParseCompanionPromptResult = {
   data: Record<string, unknown> | null;
@@ -77,7 +77,7 @@ export async function invokeParseCompanionPrompt(
       return {
         data: null,
         error: new Error(
-          `parse-companion-prompt timed out after ${PARSE_COMPANION_FETCH_TIMEOUT_MS / 1000}s — check Supabase Edge logs, XAI_API_KEY, and deploy the latest function.`,
+          `parse-companion-prompt timed out after ${PARSE_COMPANION_FETCH_TIMEOUT_MS / 1000}s (forge design lab) — check Supabase Edge logs, XAI_API_KEY / GROK_API_KEY, and deploy the latest function.`,
         ),
       };
     }

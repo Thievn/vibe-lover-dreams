@@ -1497,7 +1497,17 @@ User flavor notes: ${extraNotes || "none"}`;
     try {
       if (userId) {
         const n = await withAsyncTimeout(
-          generateUniqueForgeName(supabase, userId, { gender, forgePersonality }, nameGenSessionReserved.current),
+          (async () => {
+            const ex = await fetchForgeNameExclusions(supabase, userId);
+            for (const k of nameGenSessionReserved.current) ex.add(k);
+            return generateUniqueForgeName(
+              supabase,
+              userId,
+              { gender, forgePersonality },
+              nameGenSessionReserved.current,
+              { preloadedExclusions: ex },
+            );
+          })(),
           FORGE_NAME_LIST_TIMEOUT_MS,
           "Reserve forge display name",
         );
@@ -1869,10 +1879,15 @@ User flavor notes: ${extraNotes || "none"}`;
       toast.error("You are not signed in yet — wait a second or refresh the page, then try Create again.");
       return;
     }
+    /** Spinner + elapsed timer as soon as Create starts — before any network or toast work. */
+    setFinalLoading(true);
+    setProfileLoopJob("idle");
+    setForgeRunStartedAt(Date.now());
+    setForgeElapsedTick(0);
     let createToastId: string | number | undefined;
     if (!isAdmin) {
       createToastId = toast.loading("Creating companion…", {
-        description: "Preparing name, balance, and vault save…",
+        description: "Reserving name, balance, and vault save…",
       });
     }
     const bumpCreate = (description: string) => {
@@ -1882,10 +1897,6 @@ User flavor notes: ${extraNotes || "none"}`;
     };
     let userCharged = false;
     let userRefunded = false;
-    setFinalLoading(true);
-    setProfileLoopJob("idle");
-    setForgeRunStartedAt(Date.now());
-    setForgeElapsedTick(0);
     try {
       if (isAdmin) {
         pushForgeOp(
@@ -1993,7 +2004,7 @@ User flavor notes: ${extraNotes || "none"}`;
       });
 
       if (needsDesignLab) {
-        bumpCreate("Expanding chronicle with Grok (design lab)…");
+        bumpCreate("Grok design lab (parse-companion-prompt) — expanding narrative / portrait brief…");
         toast.info(
           chronicleWasShort
             ? "Your chronicle is short — expanding prose from your seeds…"
@@ -2231,6 +2242,7 @@ User flavor notes: ${extraNotes || "none"}`;
       const previewRaw = previewCanonicalUrl || previewUrl;
       let portraitUrl: string | null = stablePortraitDisplayUrl(previewRaw) ?? previewRaw;
       if (!portraitUrl) {
+        bumpCreate("Rendering portrait (Grok Imagine) — usually under two minutes…");
         if (isAdmin) pushForgeOp("No preview still — generating portrait from prompts (same as user flow)…", "info");
         const payload = buildPortraitGeneratePayload(effectiveNarrative || undefined, {
           contentTier: "full_adult_art",

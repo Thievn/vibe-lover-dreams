@@ -11,5 +11,12 @@ export function formatSupabaseError(e: unknown): string {
     }
   }
   if (e instanceof Error) return e.message;
+  if (typeof e === "string" && e.trim()) return e.trim();
+  try {
+    const s = String(e).trim();
+    if (s && s !== "[object Object]") return s;
+  } catch {
+    /* ignore */
+  }
   return "Request failed";
 }

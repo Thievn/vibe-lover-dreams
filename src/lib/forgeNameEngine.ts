@@ -223,17 +223,35 @@ export function generateUniqueForgeNameFromMergedExclusions(
   return generateForgeName({ ...input, exclude: reserved, seed: Date.now() + 13 }) + extra;
 }
 
+export type GenerateUniqueForgeNameOptions = {
+  /**
+   * When provided, skips `fetchForgeNameExclusions` (caller already fetched, e.g. under `withAsyncTimeout`).
+   * Keys should already be normalized; values are normalized again for safety.
+   */
+  preloadedExclusions?: ReadonlySet<string>;
+};
+
 /**
- * Tries to generate a name not in `reserved` (merged with fresh DB read when userId is set).
+ * Tries to generate a name not in `reserved` (merged with fresh DB read when userId is set,
+ * unless `preloadedExclusions` is passed).
  */
 export async function generateUniqueForgeName(
   supabase: SupabaseClient,
   userId: string | null | undefined,
   input: Omit<ForgeNameInput, "exclude">,
   localReserved?: ReadonlySet<string>,
+  opts?: GenerateUniqueForgeNameOptions,
 ): Promise<string> {
-  const db = await fetchForgeNameExclusions(supabase, userId);
-  const merged = new Set([...db, ...(localReserved ? [...localReserved] : [])].map((x) => normalizeNameKey(x)));
+  const merged = new Set<string>();
+  if (opts?.preloadedExclusions) {
+    for (const x of opts.preloadedExclusions) merged.add(normalizeNameKey(String(x)));
+  } else {
+    const db = await fetchForgeNameExclusions(supabase, userId);
+    for (const x of db) merged.add(x);
+  }
+  if (localReserved) {
+    for (const x of localReserved) merged.add(normalizeNameKey(String(x)));
+  }
   return generateUniqueForgeNameFromMergedExclusions(input, merged);
 }
 
