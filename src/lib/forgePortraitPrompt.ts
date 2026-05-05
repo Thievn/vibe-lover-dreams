@@ -146,6 +146,8 @@ export type ForgePortraitPromptArgs = {
   wardrobeBrief?: string;
   /** Optional: pre_op / post_op / futa — combined with `gender` for SFW-consistent art. */
   identityAnatomy?: IdentityAnatomyDetail;
+  /** Optional dramatic pose line from Forge “Portrait pose” selector (combined with Card pose on client). */
+  portraitPoseBrief?: string;
 };
 
 function compactLine(s: string, maxChars: number): string {
@@ -186,6 +188,9 @@ export function composeForgePortraitPrompt(a: ForgePortraitPromptArgs): string {
     `Primary art direction — ${art}: ${artHint}`,
     `Primary environment — ${scene}: ${sceneHint}`,
     "Composition: vertical 2:3 card portrait, single clear focal plane, flattering portrait lens discipline, SFW pin-up / romance cover quality — no typographic footer, category slug, or printed type line on the artwork. Scene and wardrobe **frame** the forge body — they never replace or erase it.",
+    a.portraitPoseBrief?.trim()
+      ? `Portrait pose direction (dramatic beat — stay SFW; must match card gender, species, and theme): ${compactLine(a.portraitPoseBrief.trim(), 480)}`
+      : "",
     appearance
       ? `Character appearance prose (secondary — must conform to the BODY TYPE LOCK above; do not replace silhouette with a generic human that contradicts "${bt}"): Portrait of ${a.name || "an original companion"}: ${appearance}`
       : `Portrait of ${a.name || "an original companion"} — no extra appearance paragraph; infer wardrobe and texture only from the body-type opening, gender scope, and art/scene lines.`,

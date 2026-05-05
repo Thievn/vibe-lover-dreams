@@ -374,8 +374,10 @@ serve(async (req) => {
         ? `- FORGE_VISUAL_IDENTITY (binding — looks + art style; echo of client capsule): ${visualCapsuleRaw.slice(0, 2200)}${visualCapsuleRaw.length > 2200 ? "…" : ""}`
         : "";
 
+    const genderLine = String(cd.gender ?? cd.subjectGender ?? cd.subject_gender ?? "").trim();
     const characterDetailsBlock = [
       "Character Details:",
+      genderLine ? `- **Gender / presentation (from card — do not change):** ${genderLine}` : "",
       visualCapsuleLine,
       bodyTypeLine,
       bodyContract ? `- **Silhouette contract (verbatim priority):** ${bodyContract}` : "",
@@ -431,13 +433,12 @@ serve(async (req) => {
       ? `${animeFinalLead}
 ${PORTRAIT_IMAGE_DESIGN_BRIEF}
 
-Create a highly seductive, provocative, and artistic 2:3 (vertical card) portrait of ${baseDescription}.
+Character identity seed from the forged card (gender, species, silhouette, wardrobe tone — obey literally; this block is authoritative for who is in the frame):
+${baseDescription}
 
 ${characterDetailsBlock}
 
-Key Rules:
-- Strictly SFW — no nudity, no visible genitals, no explicit sex acts
-- Extremely sexy and provocative but tasteful and artistic
+Additional rules (must agree with the universal mandate above):
 ${FORGE_PREVIEW_IMAGINE_HARD_SFW}
 ${forgeBody ? `- **Forge body type** (Character Details) overrides any conflicting silhouette or species wording in the primary scene text below — match the physique spec (human builds, stature, mobility, anthro, hybrid, elemental, hyper-shape, etc.); never paint that spec as legible text on the image.` : ""}
 ${isAnime ? "- **2D anime discipline:** Authentic flat/soft-cel **2D anime illustration** — preserve stylized proportions, clean line art, and anime eyes; do not convert to photoreal or 3D.\n" : ""}
@@ -445,7 +446,7 @@ ${isAnime ? "- **2D anime discipline:** Authentic flat/soft-cel **2D anime illus
 - Highly detailed, cinematic lighting, premium quality, vertical portrait composition — collectible quality without any printed titles, category names, or typography on the canvas
 ${refLines ? `${refLines}\n` : ""}
 
-PRIMARY SCENE DIRECTION (follow this closely — premium, cinematic, maximum sensual tension through pose, gaze, fabric, and light; do not depict anything that violates SFW rules):
+PRIMARY SCENE (rewritten direction — stay strictly SFW; match the card identity and theme):
 ${safeRewritten}
     `.trim()
       : (() => {

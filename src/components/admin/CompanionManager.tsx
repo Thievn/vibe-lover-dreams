@@ -856,8 +856,18 @@ const CompanionManager = () => {
       const isForge = companion.id.startsWith("cc-");
       const { data, error } = await supabase.functions.invoke("generate-companion-image", {
         body: isForge
-          ? { target: "forge", forgeRowUuid: companion.id.replace(/^cc-/, ""), imagePrompt: String(imagePrompt).trim() }
-          : { target: "catalog", companionId: companion.id, imagePrompt: String(imagePrompt).trim() },
+          ? {
+              target: "forge",
+              forgeRowUuid: companion.id.replace(/^cc-/, ""),
+              imagePrompt: String(imagePrompt).trim(),
+              contentTier: "forge_preview_sfw",
+            }
+          : {
+              target: "catalog",
+              companionId: companion.id,
+              imagePrompt: String(imagePrompt).trim(),
+              contentTier: "forge_preview_sfw",
+            },
       });
       if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
       if (data?.error) throw new Error(data.error);

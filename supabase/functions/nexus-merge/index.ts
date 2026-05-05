@@ -838,6 +838,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
             imagePrompt: imagePromptForPortrait,
             characterData,
             target: { kind: "forge", uuid: fusionUuid },
+            contentTier: "forge_preview_sfw",
           });
           const { error: portraitUpdErr } = await supabase
             .from("custom_characters")

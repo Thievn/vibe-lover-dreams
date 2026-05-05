@@ -30,12 +30,9 @@ export function buildPortraitFinalPrompt(imagePrompt: string, characterData: Rec
   return `
 ${animeLead}${dna ? `${dna}\n\n` : ""}${PORTRAIT_IMAGE_DESIGN_BRIEF}
 
-Create a highly detailed, cinematic, seductive SFW portrait for a romance / AI companion catalog card.
-Strictly SFW: no nudity, no visible genitals, no explicit sex acts. Artistic pin-up or cover quality.
-
 ${anatomyKey}
 
-Character / scene request:
+Character / card scene (match gender, species, appearance, and theme from this text exactly):
 ${imagePrompt}
     `.trim();
 }
@@ -105,9 +102,10 @@ export async function renderPortraitToStorage(opts: {
   contentTier?: ImageContentTier | string;
 }): Promise<{ publicUrl: string; displayUrl: string; storagePath: string }> {
   const { adminClient, imagePrompt, characterData, target } = opts;
+  /** Card / admin portraits default to forge SFW stack unless callers pass full_adult_art explicitly. */
   const effectiveTier = resolveImageContentTier({
     contentTier: opts.contentTier,
-    isPortrait: false,
+    isPortrait: true,
   });
 
   const finalPrompt =

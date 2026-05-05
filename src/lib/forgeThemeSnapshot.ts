@@ -112,10 +112,14 @@ export function buildNexusForgeThemeDigestFromSnapshot(
   snap: ForgeThemeSnapshotV1,
   fallbackKinks: string[],
   fallbackSexualEnergy: string,
+  opts?: { portraitPoseLabel?: string },
 ): string {
   const lines: string[] = [];
+  const poseExtra = opts?.portraitPoseLabel?.trim()
+    ? ` Portrait pose (dramatic beat): ${opts.portraitPoseLabel.trim()}.`
+    : "";
   lines.push(
-    `Primary active tab at forge time: "${snap.activeForgeTab}". Card pose lock: ${snap.forgeCardPose}. Art: ${snap.artStyle}. Scene: ${snap.sceneAtmosphere}. Base body label: ${snap.bodyType}.`,
+    `Primary active tab at forge time: "${snap.activeForgeTab}". Card pose lock: ${snap.forgeCardPose}.${poseExtra} Art: ${snap.artStyle}. Scene: ${snap.sceneAtmosphere}. Base body label: ${snap.bodyType}.`,
   );
   const vt = snap.visualTailoring;
   lines.push(

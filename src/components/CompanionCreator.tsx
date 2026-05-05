@@ -22,6 +22,7 @@ import {
   Archive,
   RotateCcw,
   History,
+  ChevronsUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,6 +46,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   clearForgeStash,
   loadForgeStash,
@@ -182,6 +193,15 @@ import {
   randomForgeCardPose,
   FORGE_EXTENDED_THEME_TAB_IDS,
 } from "@/lib/forgeThemeTabs";
+import {
+  FORGE_PORTRAIT_POSE_CATALOG,
+  FORGE_PORTRAIT_POSE_DEFAULT_ID,
+  FORGE_PORTRAIT_POSE_GROUP_ORDER,
+  getForgePortraitPoseLabel,
+  getForgePortraitPosePrompt,
+  normalizeForgePortraitPoseId,
+  randomForgePortraitPoseId,
+} from "@/lib/forgePortraitPoseCatalog";
 import { ForgeThemeControls } from "@/components/forge/ForgeThemeControls";
 import { pickRandomBodyTypeForForgeTab } from "@/lib/forgeTabBodyAffinity";
 
@@ -570,6 +590,9 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
   const [activeForgeTab, setActiveForgeTab] = useState<ForgeThemeTabId>("anime_temptation");
   const [forgeTabFeatures, setForgeTabFeatures] = useState<ForgeTabFeatureMap>(() => makeDefaultTabFeatures());
   const [forgeCardPose, setForgeCardPose] = useState<ForgeCardPoseId>(() => normalizeForgeCardPoseId(undefined));
+  /** Dramatic portrait beat (40 options) — combined with seated “card pose” lens discipline for Grok. */
+  const [forgePortraitPoseId, setForgePortraitPoseId] = useState<string>(() => FORGE_PORTRAIT_POSE_DEFAULT_ID);
+  const [portraitPosePickerOpen, setPortraitPosePickerOpen] = useState(false);
   const [forgeTabSharedOverrides, setForgeTabSharedOverrides] = useState<Record<ForgeThemeTabId, ForgeTabSharedOverride>>(
     () => makeDefaultTabSharedOverrides(),
   );
@@ -688,6 +711,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     setForgeTabFeatures(normalizeForgeTabFeatureMap(d.forgeTabFeatures));
     setForgeTabSharedOverrides(normalizeForgeTabSharedOverrides(d.forgeTabSharedOverrides));
     setForgeCardPose(normalizeForgeCardPoseId((d as { forgeCardPose?: string }).forgeCardPose));
+    setForgePortraitPoseId(normalizeForgePortraitPoseId((d as { forgePortraitPoseId?: string }).forgePortraitPoseId));
   }, []);
 
   const buildForgeSessionPayload = useCallback((): ForgeStashPayload => {
@@ -722,6 +746,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       forgeTabFeatures,
       forgeTabSharedOverrides,
       forgeCardPose,
+      forgePortraitPoseId,
     };
   }, [
     name,
@@ -753,6 +778,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     forgeTabFeatures,
     forgeTabSharedOverrides,
     forgeCardPose,
+    forgePortraitPoseId,
   ]);
 
   const batchCount = useMemo(() => {
@@ -1072,6 +1098,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     forgeTabFeatures,
     forgeTabSharedOverrides,
     forgeCardPose,
+    forgePortraitPoseId,
     previewHistory,
     buildForgeSessionPayload,
   ]);
@@ -1139,6 +1166,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     forgeTabFeatures,
     forgeTabSharedOverrides,
     forgeCardPose,
+    forgePortraitPoseId,
   ]);
 
   const clearForgePreview = useCallback(
@@ -1216,6 +1244,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         setVisualTailoring(roll.visual);
         setBodyType(normalizeForgeBodyType(pick([...FORGE_BODY_TYPES])));
         setForgeCardPose(randomForgeCardPose());
+        setForgePortraitPoseId(randomForgePortraitPoseId());
         toast.message("Wild roll", { description: "Every theme tab, overrides, look lab, body, and pose — maximum entropy." });
         return;
       }
@@ -1235,6 +1264,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       setSceneAtmosphere(renderRoll.sceneAtmosphere);
       setVisualTailoring(renderRoll.visual);
       setForgeCardPose(randomForgeCardPose());
+      setForgePortraitPoseId(randomForgePortraitPoseId());
       setBodyType(pickRandomBodyTypeForForgeTab(tab));
       toast.message("Tab shuffle", {
         description: "Theme DNA + tab-affinity silhouette + rendering / wardrobe lab + a fresh seated pose.",
@@ -1308,6 +1338,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         extraNotes: mergedExtraNotes,
         referenceNotes,
         wardrobeBrief: forgeVisualPortraitAddon(visualTailoring, forgePersonality),
+        portraitPoseBrief: getForgePortraitPosePrompt(forgePortraitPoseId),
       }),
     [
       name,
@@ -1324,6 +1355,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       referenceNotes,
       visualTailoring,
       forgePersonality,
+      forgePortraitPoseId,
     ],
   );
 
@@ -1617,6 +1649,8 @@ User flavor notes: ${extraNotes || "none"}`;
     setRosterTags(local.rosterTags);
     setRosterKinks(local.rosterKinks);
     setFantasyStartersVault(local.fantasyStarters);
+    setForgeCardPose(randomForgeCardPose());
+    setForgePortraitPoseId(randomForgePortraitPoseId());
 
     if (isAdmin) {
       pushForgeOp(
@@ -1678,7 +1712,8 @@ User flavor notes: ${extraNotes || "none"}`;
     const clothingLine = nonHumanVisual
       ? `Wardrobe and materials appropriate for ${bodyType} and ${effectiveArtForGeneration} — species- and silhouette-first; avoid unrelated generic human runway looks unless clearly humanoid glam.`
       : `Fashion and textures echoing ${sceneAtmosphere} and ${effectiveArtForGeneration} — personality flavor: ${personalityLabel}`;
-    const poseHuman = forgeCardPoseProse(forgeCardPose);
+    const portraitPoseLine = getForgePortraitPosePrompt(forgePortraitPoseId);
+    const poseHuman = `${portraitPoseLine} **Camera / lens discipline:** ${forgeCardPoseProse(forgeCardPose)}`;
     const poseLine = nonHumanVisual
       ? `Pose that clearly sells "${bodyType}" — show correct limbs, tail, wings, hybrid junction, or non-human mass as implied; same forged identity, not a stock human substitute. Still **eyes toward camera** like: ${poseHuman}`
       : `${poseHuman} Vertical card portrait — avoid a generic standing runway default unless body type demands it.`;
@@ -1692,6 +1727,9 @@ User flavor notes: ${extraNotes || "none"}`;
       subtitle: tagline || "LustForge forged",
       ...(referenceImageUrl ? { referenceImageUrl } : {}),
       characterData: {
+        gender,
+        subjectGender: gender,
+        subjectName: (name || "Custom Companion").trim() || "Custom Companion",
         style: effectiveArtForGeneration.toLowerCase().replace(/\s+/g, "-"),
         artStyleLabel: effectiveArtForGeneration,
         randomize: false,
@@ -1713,6 +1751,7 @@ User flavor notes: ${extraNotes || "none"}`;
         forgeTabFeaturesAll: forgeTabFeatures,
         forgeCardPose,
         selectedForgeTabSharedKinks: activeTabKinks,
+        forgePortraitPoseId,
         ...(referencePalette ? { referencePalette } : {}),
         ...(referenceNotes.trim() ? { referenceNotes: referenceNotes.trim() } : {}),
       },
@@ -1736,6 +1775,7 @@ User flavor notes: ${extraNotes || "none"}`;
     activeTabFeatures,
     forgeTabFeatures,
     forgeCardPose,
+    forgePortraitPoseId,
     activeTabKinks,
     referencePalette,
     referenceNotes,
@@ -2045,6 +2085,7 @@ User flavor notes: ${extraNotes || "none"}`;
           themeSnapForDesignLab,
           activeTabKinks,
           activeTabSexualEnergy,
+          { portraitPoseLabel: getForgePortraitPoseLabel(forgePortraitPoseId) },
         ).slice(0, 8000);
         const seedPrompt = buildForgeDesignLabSeedPrompt({
           gender,
@@ -2236,6 +2277,7 @@ User flavor notes: ${extraNotes || "none"}`;
         extraNotes,
         referenceNotes,
         wardrobeBrief: forgeVisualPortraitAddon(visualTailoring, forgePersonality),
+        portraitPoseBrief: getForgePortraitPosePrompt(forgePortraitPoseId),
       });
       const rowImagePrompt = rowGrokPrompt;
 
@@ -2245,7 +2287,7 @@ User flavor notes: ${extraNotes || "none"}`;
         bumpCreate("Rendering portrait (Grok Imagine) — usually under two minutes…");
         if (isAdmin) pushForgeOp("No preview still — generating portrait from prompts (same as user flow)…", "info");
         const payload = buildPortraitGeneratePayload(effectiveNarrative || undefined, {
-          contentTier: "full_adult_art",
+          contentTier: "forge_preview_sfw",
         });
         if (payload) {
           const portraitBody = {
@@ -2750,6 +2792,7 @@ User flavor notes: ${extraNotes || "none"}`;
     setForgeTabFeatures(normalizeForgeTabFeatureMap(p.forgeTabFeatures));
     setForgeTabSharedOverrides(normalizeForgeTabSharedOverrides(p.forgeTabSharedOverrides));
     setForgeCardPose(normalizeForgeCardPoseId(p.forgeCardPose));
+    setForgePortraitPoseId(normalizeForgePortraitPoseId((p as { forgePortraitPoseId?: string }).forgePortraitPoseId));
     toast.success("Restored stashed forge.");
   }, []);
 
@@ -3160,22 +3203,32 @@ User flavor notes: ${extraNotes || "none"}`;
 
               <p className="text-[11px] text-muted-foreground/90 leading-snug">{forgeTabLiveSummary(activeForgeTab)}</p>
 
-              <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-2">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
+              <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
                     <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Card pose (all tabs)</p>
                     <p className="text-[11px] text-muted-foreground/85 mt-0.5">
                       Seated / low lounge only — always facing the lens. Applies to preview + save DNA for Nexus.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setForgeCardPose(randomForgeCardPose())}
-                    className="inline-flex shrink-0 items-center gap-2 self-start rounded-lg border border-white/12 bg-black/45 px-2.5 py-1.5 text-[10px] hover:bg-white/[0.04]"
-                  >
-                    <Dices className="h-3 w-3" />
-                    Random pose
-                  </button>
+                  <div className="flex flex-wrap gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setForgeCardPose(randomForgeCardPose())}
+                      className="inline-flex items-center gap-2 rounded-lg border border-white/12 bg-black/45 px-2.5 py-1.5 text-[10px] hover:bg-white/[0.04]"
+                    >
+                      <Dices className="h-3 w-3" />
+                      Random card
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForgePortraitPoseId(randomForgePortraitPoseId())}
+                      className="inline-flex items-center gap-2 rounded-lg border border-white/12 bg-black/45 px-2.5 py-1.5 text-[10px] hover:bg-white/[0.04]"
+                    >
+                      <Dices className="h-3 w-3" />
+                      Random portrait
+                    </button>
+                  </div>
                 </div>
                 <Select value={forgeCardPose} onValueChange={(v) => setForgeCardPose(normalizeForgeCardPoseId(v))}>
                   <SelectTrigger className="h-9 w-full border-white/12 bg-black/45 text-xs">
@@ -3189,6 +3242,71 @@ User flavor notes: ${extraNotes || "none"}`;
                     ))}
                   </SelectContent>
                 </Select>
+
+                <div className="pt-2 border-t border-white/10 space-y-2">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Portrait pose</p>
+                    <p className="text-[11px] text-muted-foreground/85 mt-0.5">
+                      Dramatic staging for Grok Imagine — search or pick by group. Stays SFW; must match your card
+                      gender and theme. Combined with Card pose above for camera discipline.
+                    </p>
+                  </div>
+                  <Popover open={portraitPosePickerOpen} onOpenChange={setPortraitPosePickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={portraitPosePickerOpen}
+                        className="h-9 w-full justify-between border-white/12 bg-black/45 text-xs font-normal text-white hover:bg-white/[0.06] hover:text-white"
+                      >
+                        <span className="truncate text-left">{getForgePortraitPoseLabel(forgePortraitPoseId)}</span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-[var(--radix-popover-trigger-width)] max-w-[min(100vw-2rem,26rem)] border-white/10 bg-[hsl(280_25%_10%)] p-0 text-white shadow-xl"
+                      align="start"
+                    >
+                      <Command className="rounded-lg border-0 bg-transparent" shouldFilter>
+                        <CommandInput
+                          placeholder="Search 40 poses…"
+                          className="h-9 border-white/10 bg-black/40 text-xs text-white placeholder:text-muted-foreground"
+                        />
+                        <CommandList className="max-h-[min(60vh,18rem)] overflow-y-auto">
+                          <CommandEmpty className="py-3 text-center text-xs text-muted-foreground">No pose found.</CommandEmpty>
+                          {FORGE_PORTRAIT_POSE_GROUP_ORDER.map((group) => (
+                            <CommandGroup
+                              key={group}
+                              heading={group}
+                              className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground"
+                            >
+                              {FORGE_PORTRAIT_POSE_CATALOG.filter((pose) => pose.group === group).map((pose) => (
+                                <CommandItem
+                                  key={pose.id}
+                                  value={`${pose.label} ${pose.id} ${pose.prompt}`}
+                                  onSelect={() => {
+                                    setForgePortraitPoseId(pose.id);
+                                    setPortraitPosePickerOpen(false);
+                                  }}
+                                  className="cursor-pointer text-xs aria-selected:bg-white/10"
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4 shrink-0",
+                                      forgePortraitPoseId === pose.id ? "opacity-100" : "opacity-0",
+                                    )}
+                                  />
+                                  <span className="truncate">{pose.label}</span>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          ))}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
 
               <button

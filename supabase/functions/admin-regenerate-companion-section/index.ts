@@ -251,8 +251,9 @@ Deno.serve(async (req) => {
         });
       }
 
-      const imagePrompt = String(row.image_prompt ?? "").trim() ||
-        `SFW cinematic portrait of ${row.name}: ${String(row.appearance ?? "").slice(0, 900)}`;
+      const imagePrompt =
+        String(row.image_prompt ?? "").trim() ||
+        `SFW cinematic portrait — match gender "${String(row.gender ?? "").trim() || "as on card"}" and theme exactly. ${String(row.name ?? "Character")}: ${String(row.appearance ?? "").slice(0, 900)}`;
 
       const target = source === "forge"
         ? { kind: "forge" as const, uuid: filterId }
@@ -263,6 +264,7 @@ Deno.serve(async (req) => {
         imagePrompt,
         characterData: row,
         target,
+        contentTier: "forge_preview_sfw",
       });
 
       if (source === "forge") {

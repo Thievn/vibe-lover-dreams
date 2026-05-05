@@ -112,12 +112,14 @@ Deno.serve(async (req) => {
         ? ({ kind: "forge" as const, uuid: forgeRowUuid })
         : ({ kind: "catalog" as const, catalogId: companionId! });
 
+    const portraitTier =
+      body.contentTier === "full_adult_art" ? ("full_adult_art" as const) : ("forge_preview_sfw" as const);
     const { publicUrl, displayUrl } = await renderPortraitToStorage({
       adminClient,
       imagePrompt,
       characterData,
       target: storageTarget,
-      ...(body.contentTier === "forge_preview_sfw" ? { contentTier: "forge_preview_sfw" as const } : {}),
+      contentTier: portraitTier,
     });
 
     if (target === "forge") {

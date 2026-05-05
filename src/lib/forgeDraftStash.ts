@@ -54,6 +54,8 @@ export type ForgeStashPayload = {
   forgeTabSharedOverrides?: Record<ForgeThemeTabId, ForgeTabSharedOverride>;
   /** Global seated / lounge pose for card portrait (all tabs). */
   forgeCardPose?: ForgeCardPoseId;
+  /** Optional dramatic portrait pose beat (see `forgePortraitPoseCatalog.ts`). */
+  forgePortraitPoseId?: string;
 };
 
 /** Last few forge portrait previews (user forge) — image URLs + optional full settings snapshot. */

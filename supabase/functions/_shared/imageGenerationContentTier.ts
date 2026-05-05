@@ -14,11 +14,12 @@ export function resolveImageContentTier(input: {
   return input.isPortrait === true ? "forge_preview_sfw" : "full_adult_art";
 }
 
-/** Extra rules on the SFW portrait stack — Forge live preview only. */
+/** Extra rules on the SFW portrait stack — Forge card / preview (paired with PORTRAIT_IMAGE_DESIGN_BRIEF). */
 export const FORGE_PREVIEW_IMAGINE_HARD_SFW = `
-Forge live preview — **stricter than general roster SFW:**
-- No visible areolas or nipples, including through sheer, wet, clingy, or body-tight fabric.
-- No sexual acts, no explicit anatomy, no pornographic staging — fashion / pin-up / cover-art tease only.
+Forge card portrait — **SFW discipline (provider-safe tease):**
+- No nudity, no exposed nipples or genitals, no explicit sex acts or pornographic staging.
+- Revealing fashion, deep cleavage, sideboob/underboob **tease**, sheer or tight fabrics are allowed only if nipples and genitals stay **fully covered** with no see-through detail — editorial / pin-up / fashion-ad glamour, not explicit anatomy.
+- Seduction through gaze, pose, light, and fabric — not shock.
 `.trim();
 
 /**
