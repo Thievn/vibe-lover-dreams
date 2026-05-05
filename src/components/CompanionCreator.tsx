@@ -2050,73 +2050,162 @@ User flavor notes: ${extraNotes || "none"}`;
           forgeThemeDigest: designLabThemeDigest,
           effectiveArtStyle: effectiveArtForGeneration,
         });
-        let labData: Record<string, unknown> | null = null;
         try {
-          const labResult = await withAsyncTimeout(
-            invokeParseCompanionPrompt({ mode: "companion_design_lab", prompt: seedPrompt }),
-            PARSE_COMPANION_TIMEOUT_MS,
-            "Forge design lab (parse-companion-prompt / Grok)",
-          );
-          if (labResult.error) throw labResult.error;
-          labData = labResult.data;
-          if (labData?.error) throw new Error(String(labData.error));
-        } finally {
-          toast.dismiss(designLabToastId);
-        }
-        const fields = labData?.fields as Record<string, unknown> | undefined;
-        // Keep forgeName; design lab is instructed with mandatoryDisplayName and must not replace it in UI.
-        const bs = typeof fields?.backstory === "string" ? fields.backstory.trim() : "";
-        if (chronicleWasShort) {
-          if (!bs) {
-            throw new Error(
-              "Could not generate a full chronicle. Spin the forge to refill the profile, or paste a longer Chronicle, then try again.",
+          let labData: Record<string, unknown> | null = null;
+          try {
+            const labResult = await withAsyncTimeout(
+              invokeParseCompanionPrompt({ mode: "companion_design_lab", prompt: seedPrompt }),
+              PARSE_COMPANION_TIMEOUT_MS,
+              "Forge design lab (parse-companion-prompt / Grok)",
+            );
+            if (labResult.error) throw labResult.error;
+            labData = labResult.data;
+            if (labData?.error) throw new Error(String(labData.error));
+          } finally {
+            toast.dismiss(designLabToastId);
+          }
+          const fields = labData?.fields as Record<string, unknown> | undefined;
+          // Keep forgeName; design lab is instructed with mandatoryDisplayName and must not replace it in UI.
+          const bs = typeof fields?.backstory === "string" ? fields.backstory.trim() : "";
+          if (chronicleWasShort) {
+            if (!bs) {
+              throw new Error(
+                "Could not generate a full chronicle. Spin the forge to refill the profile, or paste a longer Chronicle, then try again.",
+              );
+            }
+            effectiveChronicle = bs.slice(0, 24000);
+            setChronicleBackstory(effectiveChronicle);
+          }
+          const applyNarrative =
+            !effectiveNarrative.trim() || effectiveNarrative.trim().length < MIN_CINEMATIC_APPEARANCE_CHARS;
+          if (typeof fields?.appearance === "string" && fields.appearance.trim() && applyNarrative) {
+            effectiveNarrative = fields.appearance.trim().slice(0, 12000);
+            setNarrativeAppearance(effectiveNarrative);
+          }
+          const applyHook = !effectiveHook.trim() || effectiveHook.trim().length < MIN_HOOK_BIO_CHARS;
+          if (typeof fields?.bio === "string" && fields.bio.trim() && applyHook) {
+            effectiveHook = fields.bio.trim().slice(0, 12000);
+            setHookBio(effectiveHook);
+          }
+          const applyCharter =
+            !effectiveCharter.trim() || effectiveCharter.trim().length < MIN_CHARTER_CHARS_SKIP_LAB;
+          if (typeof fields?.system_prompt === "string" && fields.system_prompt.trim() && applyCharter) {
+            effectiveCharter = fields.system_prompt.trim().slice(0, 32000);
+            setCharterSystemPrompt(effectiveCharter);
+          }
+          const applyPackshot =
+            !effectivePackshot.trim() || effectivePackshot.trim().length < MIN_PACKSHOT_CHARS_SKIP_LAB;
+          if (typeof fields?.image_prompt === "string" && fields.image_prompt.trim() && applyPackshot) {
+            effectivePackshot = fields.image_prompt.trim().slice(0, 3200);
+            setPackshotPrompt(effectivePackshot);
+          }
+          if (Array.isArray(fields?.tags) && fields.tags.length && effectiveRosterTags.length < 4) {
+            effectiveRosterTags = (fields.tags as string[]).map(String).slice(0, 24);
+            setRosterTags(effectiveRosterTags);
+          }
+          if (Array.isArray(fields?.fantasy_starters)) {
+            const normalized = normalizeFantasyStartersFromFields(fields.fantasy_starters);
+            if (normalized.length && countSignificantFantasyStarters(effectiveStartersVault) < 2) {
+              effectiveStartersVault = padFantasyStartersToFour(normalized, forgeName);
+              setFantasyStartersVault(effectiveStartersVault);
+            }
+          }
+          if (isAdmin) {
+            pushForgeOp(
+              chronicleWasShort
+                ? "Design lab pass finished — chronicle / narrative updated."
+                : "Design lab pass finished — thin fields filled from Grok.",
+              "ok",
             );
           }
-          effectiveChronicle = bs.slice(0, 24000);
-          setChronicleBackstory(effectiveChronicle);
-        }
-        const applyNarrative =
-          !effectiveNarrative.trim() || effectiveNarrative.trim().length < MIN_CINEMATIC_APPEARANCE_CHARS;
-        if (typeof fields?.appearance === "string" && fields.appearance.trim() && applyNarrative) {
-          effectiveNarrative = fields.appearance.trim().slice(0, 12000);
-          setNarrativeAppearance(effectiveNarrative);
-        }
-        const applyHook = !effectiveHook.trim() || effectiveHook.trim().length < MIN_HOOK_BIO_CHARS;
-        if (typeof fields?.bio === "string" && fields.bio.trim() && applyHook) {
-          effectiveHook = fields.bio.trim().slice(0, 12000);
-          setHookBio(effectiveHook);
-        }
-        const applyCharter =
-          !effectiveCharter.trim() || effectiveCharter.trim().length < MIN_CHARTER_CHARS_SKIP_LAB;
-        if (typeof fields?.system_prompt === "string" && fields.system_prompt.trim() && applyCharter) {
-          effectiveCharter = fields.system_prompt.trim().slice(0, 32000);
-          setCharterSystemPrompt(effectiveCharter);
-        }
-        const applyPackshot =
-          !effectivePackshot.trim() || effectivePackshot.trim().length < MIN_PACKSHOT_CHARS_SKIP_LAB;
-        if (typeof fields?.image_prompt === "string" && fields.image_prompt.trim() && applyPackshot) {
-          effectivePackshot = fields.image_prompt.trim().slice(0, 3200);
-          setPackshotPrompt(effectivePackshot);
-        }
-        if (Array.isArray(fields?.tags) && fields.tags.length && effectiveRosterTags.length < 4) {
-          effectiveRosterTags = (fields.tags as string[]).map(String).slice(0, 24);
-          setRosterTags(effectiveRosterTags);
-        }
-        if (Array.isArray(fields?.fantasy_starters)) {
-          const normalized = normalizeFantasyStartersFromFields(fields.fantasy_starters);
-          if (normalized.length && countSignificantFantasyStarters(effectiveStartersVault) < 2) {
-            effectiveStartersVault = padFantasyStartersToFour(normalized, forgeName);
+        } catch (labErr) {
+          // If the AI provider path is misconfigured, keep forge usable with deterministic local seed content.
+          const fallbackLocal = buildLocalSpinForgeFields({
+            displayName: forgeName,
+            gender,
+            orientation,
+            ethnicity,
+            forgePersonality,
+            artStyle,
+            sceneAtmosphere,
+            bodyType: effectiveBodyType,
+            traits: combinedAccentSelections,
+          });
+          if (chronicleWasShort) {
+            effectiveChronicle = fallbackLocal.chronicleBackstory.slice(0, 24000);
+            setChronicleBackstory(effectiveChronicle);
+          }
+          if (!effectiveNarrative.trim() || effectiveNarrative.trim().length < MIN_CINEMATIC_APPEARANCE_CHARS) {
+            effectiveNarrative = fallbackLocal.narrativeAppearance.slice(0, 12000);
+            setNarrativeAppearance(effectiveNarrative);
+          }
+          if (!effectiveHook.trim() || effectiveHook.trim().length < MIN_HOOK_BIO_CHARS) {
+            effectiveHook = fallbackLocal.hookBio.slice(0, 12000);
+            setHookBio(effectiveHook);
+          }
+          if (!effectiveCharter.trim() || effectiveCharter.trim().length < MIN_CHARTER_CHARS_SKIP_LAB) {
+            effectiveCharter = fallbackLocal.charterSystemPrompt.slice(0, 32000);
+            setCharterSystemPrompt(effectiveCharter);
+          }
+          if (!effectivePackshot.trim() || effectivePackshot.trim().length < MIN_PACKSHOT_CHARS_SKIP_LAB) {
+            effectivePackshot = fallbackLocal.packshotPrompt.slice(0, 3200);
+            setPackshotPrompt(effectivePackshot);
+          }
+          if (effectiveRosterTags.length < 4) {
+            effectiveRosterTags = fallbackLocal.rosterTags.slice(0, 24);
+            setRosterTags(effectiveRosterTags);
+          }
+          if (countSignificantFantasyStarters(effectiveStartersVault) < 2) {
+            effectiveStartersVault = padFantasyStartersToFour(fallbackLocal.fantasyStarters, forgeName);
             setFantasyStartersVault(effectiveStartersVault);
           }
+          const labMsg = labErr instanceof Error ? labErr.message : "AI design lab failed";
+          toast.warning("AI design lab failed — using local fallback so forge can continue.", {
+            description: labMsg.slice(0, 180),
+          });
+          if (isAdmin) pushForgeOp(`Design lab unavailable; used local fallback: ${labMsg}`, "err");
         }
-        if (isAdmin) {
-          pushForgeOp(
-            chronicleWasShort
-              ? "Design lab pass finished — chronicle / narrative updated."
-              : "Design lab pass finished — thin fields filled from Grok.",
-            "ok",
-          );
-        }
+      }
+
+      // Always ensure empty narrative fields are themed to the current forge mix before save.
+      const themedFallback = buildLocalSpinForgeFields({
+        displayName: forgeName,
+        gender,
+        orientation,
+        ethnicity,
+        forgePersonality,
+        artStyle,
+        sceneAtmosphere,
+        bodyType: effectiveBodyType,
+        traits: combinedAccentSelections,
+      });
+      if (!effectiveChronicle.trim()) {
+        effectiveChronicle = themedFallback.chronicleBackstory.slice(0, 24000);
+        setChronicleBackstory(effectiveChronicle);
+      }
+      if (!effectiveNarrative.trim()) {
+        effectiveNarrative = themedFallback.narrativeAppearance.slice(0, 12000);
+        setNarrativeAppearance(effectiveNarrative);
+      }
+      if (!effectiveHook.trim()) {
+        effectiveHook = themedFallback.hookBio.slice(0, 12000);
+        setHookBio(effectiveHook);
+      }
+      if (!effectiveCharter.trim()) {
+        effectiveCharter = themedFallback.charterSystemPrompt.slice(0, 32000);
+        setCharterSystemPrompt(effectiveCharter);
+      }
+      if (!effectivePackshot.trim()) {
+        effectivePackshot = themedFallback.packshotPrompt.slice(0, 3200);
+        setPackshotPrompt(effectivePackshot);
+      }
+      if (!effectiveRosterTags.length) {
+        effectiveRosterTags = themedFallback.rosterTags.slice(0, 24);
+        setRosterTags(effectiveRosterTags);
+      }
+      if (countSignificantFantasyStarters(effectiveStartersVault) === 0) {
+        effectiveStartersVault = padFantasyStartersToFour(themedFallback.fantasyStarters, forgeName);
+        setFantasyStartersVault(effectiveStartersVault);
       }
 
       const portraitAppearanceForRow = effectiveNarrative || appearanceBlurb;

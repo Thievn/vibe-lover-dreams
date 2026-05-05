@@ -1,6 +1,6 @@
 import { requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
-import { defaultGrokForgeParseModel, grokChatCompletionRaw } from "../_shared/xaiGrokChatRaw.ts";
+import { defaultGrokForgeParseModel, extractGrokAssistantText, grokChatCompletionRaw } from "../_shared/xaiGrokChatRaw.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -229,6 +229,7 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
       : systemDefault;
 
     const model = defaultGrokForgeParseModel();
+    const temperature = companionDesignLab || celebrityParody ? 0.88 : parodyLab ? 0.8 : 0.7;
     const trRes = await grokChatCompletionRaw(
       {
         model,
@@ -247,7 +248,7 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
           },
         ],
         tool_choice: { type: "function", function: { name: "extract_companion_fields" } },
-        temperature: companionDesignLab || celebrityParody ? 0.88 : parodyLab ? 0.8 : 0.7,
+        temperature,
         max_tokens: 4096,
       },
       xaiKey,
@@ -281,22 +282,60 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
       choices?: Array<{ message?: { tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }>;
     };
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    let fields: Record<string, unknown> | null = null;
+    if (toolCall?.function?.name === "extract_companion_fields" && toolCall.function?.arguments) {
+      try {
+        fields = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+      } catch {
+        fields = null;
+      }
+    }
 
-    if (!toolCall || toolCall.function?.name !== "extract_companion_fields") {
+    // xAI-only fallback: if tool calling fails, ask Grok for strict JSON object content.
+    if (!fields) {
+      const jsonRes = await grokChatCompletionRaw(
+        {
+          model,
+          messages: [
+            { role: "system", content: `${effectiveSystem}\n\nReturn ONLY a valid JSON object. No prose.` },
+            {
+              role: "user",
+              content:
+                `${userContent}\n\nOutput one JSON object with this schema shape: ` +
+                JSON.stringify(toolParameters),
+            },
+          ],
+          response_format: { type: "json_object" },
+          temperature,
+          max_tokens: 4096,
+        },
+        xaiKey,
+      );
+      if (!jsonRes.ok || jsonRes.json === null) {
+        const detail = jsonRes.rawText.trim().slice(0, 700) || "no body";
+        return new Response(JSON.stringify({ error: `Grok parse fallback failed (HTTP ${jsonRes.status}): ${detail}` }), {
+          status: jsonRes.status === 504 ? 504 : 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const content = extractGrokAssistantText(jsonRes.json);
+      try {
+        const parsed = JSON.parse(content) as Record<string, unknown>;
+        fields = parsed;
+      } catch {
+        return new Response(JSON.stringify({ error: "Failed to parse profile (tool-call and JSON fallback both failed)." }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    if (!fields || typeof fields !== "object") {
       return new Response(JSON.stringify({ error: "Failed to parse profile" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const args = toolCall.function?.arguments;
-    if (!args) {
-      return new Response(JSON.stringify({ error: "Failed to parse profile" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const fields = JSON.parse(args);
 
     return new Response(JSON.stringify({ fields }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
