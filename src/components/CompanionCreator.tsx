@@ -148,7 +148,7 @@ import {
   FORGE_ACCESSORIES,
   FORGE_ASS_SIZES,
   FORGE_BREAST_SIZES,
-  FORGE_COLOR_PALETTES,
+  FORGE_COLOR_PALETTES_CURATED,
   FORGE_EYE_COLORS,
   FORGE_FOOTWEAR,
   FORGE_HAIR_COLORS,
@@ -160,6 +160,8 @@ import {
   deriveSmartOutfitTheme,
   forgeVisualTailoringSeedsProse,
   forgeVisualPortraitAddon,
+  isForgePaletteOpen,
+  FORGE_PALETTE_FORGE_DECIDES,
   normalizeForgeVisualTailoring,
   randomForgeVisualTailoring,
   type ForgeVisualTailoring,
@@ -1297,7 +1299,10 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     const eth =
       isOpenEthnicityChoice(ethnicity) ? "" : `ancestry/complexion seed: ${normalizeForgeEthnicity(ethnicity)}; `;
     const vt = visualTailoring;
-    const lab = `Look lab: ${vt.hairColor} ${vt.hairStyle}, ${vt.eyeColor} eyes, ${vt.skinTone} skin, ${vt.height}; outfit ${vt.outfitStyle} (${vt.colorPalette}).`;
+    const palHint = isForgePaletteOpen(vt.colorPalette)
+      ? "open clothing palette — infer hues from scene & personality"
+      : vt.colorPalette;
+    const lab = `Look lab: ${vt.hairColor} ${vt.hairStyle}, ${vt.eyeColor} eyes, ${vt.skinTone} skin, ${vt.height}; outfit ${vt.outfitStyle} (${palHint}).`;
     const an = labelIdentityAnatomyForTags(identityAnatomyDetail);
     const anSeg = an ? `; optional anatomy label: ${an} (adult-consistent with identity)` : "";
     return `${forgeThemePrimaryLine}. ${effectiveBodyType} silhouette (anchor); gender/presentation (face & voice): ${gender}${anSeg}; ${eth}${effectiveArtForGeneration} look; scene: ${sceneAtmosphere}; ${t}. ${lab} Personalities: ${personalityLabel}. ${mergedExtraNotes}`.trim();
@@ -3654,13 +3659,72 @@ User flavor notes: ${extraNotes || "none"}`;
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 sm:items-start gap-4">
                     <VisualSelectRow label="Default outfit style" field="outfitStyle" options={FORGE_OUTFIT_STYLES} />
-                    <VisualSelectRow label="Color palette" field="colorPalette" options={FORGE_COLOR_PALETTES} />
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                          Color palette
+                        </p>
+                        <ForgeFieldDice
+                          title="Random palette (sometimes open)"
+                          onRoll={() =>
+                            setVisualTailoring((v) => ({
+                              ...v,
+                              colorPalette:
+                                Math.random() < 0.18
+                                  ? FORGE_PALETTE_FORGE_DECIDES
+                                  : (pick([...FORGE_COLOR_PALETTES_CURATED]) as ForgeVisualTailoring["colorPalette"]),
+                            }))
+                          }
+                        />
+                      </div>
+                      <Select
+                        value={visualTailoring.colorPalette}
+                        onValueChange={(vv) =>
+                          setVisualTailoring((v) => ({
+                            ...v,
+                            colorPalette: vv,
+                          }))
+                        }
+                      >
+                        <SelectTrigger className="w-full border-white/12 bg-black/40 text-white focus:ring-[hsl(170_100%_42%)]/40">
+                          <SelectValue placeholder="Color palette" />
+                        </SelectTrigger>
+                        <SelectContent className="border-white/10 bg-[hsl(280_25%_10%)] text-white max-h-[min(70vh,22rem)]">
+                          <SelectGroup>
+                            <SelectLabel className="px-2 py-1.5 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                              Model-led
+                            </SelectLabel>
+                            <SelectItem
+                              value={FORGE_PALETTE_FORGE_DECIDES}
+                              className="focus:bg-white/10 focus:text-white cursor-pointer"
+                            >
+                              {FORGE_PALETTE_FORGE_DECIDES}
+                            </SelectItem>
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel className="px-2 py-1.5 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                              Fixed schemes
+                            </SelectLabel>
+                            {FORGE_COLOR_PALETTES_CURATED.map((opt) => (
+                              <SelectItem
+                                key={opt}
+                                value={opt}
+                                className="focus:bg-white/10 focus:text-white cursor-pointer"
+                              >
+                                {opt}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <VisualSelectRow label="Footwear" field="footwear" options={FORGE_FOOTWEAR} />
                     <VisualSelectRow label="Accessories" field="accessories" options={FORGE_ACCESSORIES} />
                   </div>
                   <p className="text-[10px] text-muted-foreground leading-relaxed">
-                    The outfit label stays the same (e.g. Bikini) but is re-costumed to your time period + personality — no
-                    accidental modern beach defaults in medieval or mythic worlds.
+                    The outfit label (e.g. Bikini) is re-costumed to your era + personality. For color, pick a duo/triad from
+                    the list or choose <strong className="text-foreground/90">Let the forge choose</strong> so clothing hues
+                    follow the rest of the brief instead of a fixed recipe.
                   </p>
                 </AccordionContent>
               </AccordionItem>

@@ -112,30 +112,162 @@ export const FORGE_SPECIAL_FEATURES = [
   "Arcane halo",
 ] as const;
 
+/** Pick this so prompts don’t lock clothing to a fixed duo — the image model infers hues from era, personality, scene, and art style. */
+export const FORGE_PALETTE_FORGE_DECIDES = "Let the forge choose (open palette)" as const;
+
 export const FORGE_OUTFIT_STYLES = [
   "Bikini",
   "Lingerie",
-  "Evening dress",
+  "Evening gown",
+  "Cocktail dress",
   "Casual streetwear",
+  "Y2K / early-2000s glam",
+  "Coastal linen resort",
   "Fantasy robes",
   "Battle armor",
+  "Leather harness couture",
   "Cyberwear",
+  "Synthwave clubwear",
   "Gothic corsetry",
+  "Victorian bustle silhouette",
   "Athleisure",
+  "Ballet-core wrap layers",
   "Royal court attire",
+  "Military dress uniform",
   "Desert wanderer wraps",
+  "Nomad layered scarves",
   "Swim cover-up",
+  "Sheer overlay + structured underlayer",
+  "Kimono-inspired drape",
+  "Sari-inspired drape",
+  "Tuxedo / androgynous formal",
+  "Punk patched denim",
+  "Grunge oversized knits",
+  "Cottagecore floral layers",
+  "Dark academia knit + pleats",
+  "Art-deco beaded column",
+  "Film-noir trench + slip",
+  "Circus / show costume",
+  "Rave mesh + UV accents",
+  "Boho fringe + coins",
+  "Preppy pleated skirt set",
+  "Western fringe + suede",
+  "Tactical techwear",
+  "Latex-look structured panels",
+  "Velvet evening separates",
+  "Chain-mail accent fashion",
+  "Priestess ceremonial layers",
+  "Space-opera uniform",
+  "Steampunk brass + leather",
+  "Fairy-core petal petals",
+  "Mermaid-scale iridescent",
+  "Ice-queen crystalline trims",
+  "Jungle explorer utility",
+  "Minimalist architectural cut",
+  /* Theme-tab / premium seeds (must stay in pool so normalize + stash preserve them) */
+  "Primitive luxe wraps",
+  "Silk slip and collar-chain fashion",
+  "Chitin-gloss couture",
+  "Tarnished celestial silks",
+  "Flowing zero-g silks",
+  "Infernal couture",
+  "Pearl net and scales",
+  "Tech harness streetwear",
+  "Botanical couture vines",
+  "Victorian mourning chic",
+  "Athletic compression + tape",
+  "Structured latex-look couture",
+  "Crown regalia with tentacle-motif jewelry",
+  "Grotesque crown regalia",
+  "Evening dress",
 ] as const;
 
 export const FORGE_COLOR_PALETTES = [
+  FORGE_PALETTE_FORGE_DECIDES,
   "Noir + crimson accent",
+  "Charcoal + blood red",
   "Teal + rose gold",
+  "Peacock teal + antique brass",
   "Ivory + champagne",
+  "Cream + soft cocoa",
   "Ultraviolet + black",
+  "Electric violet + graphite",
   "Forest green + copper",
+  "Moss + rust",
   "Neon magenta + cyan",
+  "Hot pink + electric blue",
   "Muted earth tones",
+  "Sand + terracotta",
   "Monochrome silver",
+  "Pearl grey + steel",
+  "Sapphire + silver",
+  "Ruby + onyx",
+  "Emerald + gold filigree",
+  "Amber + espresso",
+  "Lilac + smoke grey",
+  "Dusty rose + mauve",
+  "Blush + champagne gold",
+  "Butter yellow + sage",
+  "Mint + sea glass",
+  "Turquoise + coral",
+  "Indigo + wheat",
+  "Wine + dusty pink",
+  "Plum + antique gold",
+  "Oxblood + bone",
+  "Ice blue + white",
+  "Glacier blue + navy",
+  "Sunset orange + plum",
+  "Tangerine + chocolate",
+  "Lemon + slate",
+  "Lime zest + charcoal",
+  "Kelly green + cream",
+  "Jade + blush",
+  "Fuchsia + black",
+  "Bubblegum + lavender",
+  "Periwinkle + buttercream",
+  "Powder blue + rose",
+  "Sky blue + camel",
+  "Denim blue + rust",
+  "Navy + copper rivet",
+  "Slate + copper",
+  "Stone + olive",
+  "Taupe + burgundy",
+  "Greige + soft black",
+  "White + single bold accent (pick hue from scene)",
+  "Triad: cyan + magenta + deep violet (clothing only)",
+  "Triad: amber + teal + wine (rich, not neon)",
+  "Metallic gold + matte black",
+  "Chrome + white",
+  "Bronze + midnight blue",
+  "Gunmetal + wine",
+  "Copper patina + cream",
+  "Iridescent oil-slick (subtle, fashion)",
+  "Holographic trim + neutral base",
+  "Biolume aqua + abyss purple",
+  "UV-reactive accents + black base",
+  "Pastel cloud (lavender, mint, peach — soft)",
+  "Candy gradient (two hues, tasteful)",
+  "Jewel-tone clash (emerald + amethyst — editorial)",
+  "Winter frost (ice, silver birch, pale blue)",
+  "Autumn leaf (rust, mustard, plum)",
+  "Spring garden (soft green, petal pink, butter)",
+  "Desert dusk (dusty rose, sand, bruised plum)",
+  "High-contrast editorial (one neutral + one shock accent)",
+  "Low-contrast tonal (single hue, three shades)",
+  "Sepia + ink (vintage print)",
+  "Newsprint + red accent",
+  "Forest green + amber",
+  "Rose smoke + gold",
+  "Teal biolume + abyss blue",
+  "Pale gold + bruised violet",
+  "Silver + deep violet",
+  "Crimson + soot",
+  "Cyan + magenta + black",
+  "Emerald + pollen gold",
+  "Bone white + dried blood",
+  "Sweat sheen + steel blue",
+  "Onyx + chrome highlight",
+  "Sickly pearl + void black",
 ] as const;
 
 export const FORGE_FOOTWEAR = [
@@ -147,6 +279,14 @@ export const FORGE_FOOTWEAR = [
   "Sneakers",
   "Fantasy greaves",
   "Stiletto pumps",
+  "Mary Janes / ballet flats",
+  "Platform boots",
+  "Wedge sandals",
+  "Riding boots",
+  "Tabi / split-toe boots",
+  "Crystal heels (fantasy)",
+  "Wrapped ankle ties",
+  "Mud boots / utilitarian",
 ] as const;
 
 export const FORGE_ACCESSORIES = [
@@ -159,6 +299,14 @@ export const FORGE_ACCESSORIES = [
   "AR visor",
   "Circlet / tiara",
   "None / minimal",
+  "Opera gloves",
+  "Body chain",
+  "Nose chain / bridge jewelry",
+  "Arm cuffs",
+  "Anklet stack",
+  "Brooch at sternum",
+  "Single dramatic ear cuff",
+  "Silk scarf at throat",
 ] as const;
 
 export const DEFAULT_FORGE_VISUAL_TAILORING: ForgeVisualTailoring = {
@@ -170,8 +318,9 @@ export const DEFAULT_FORGE_VISUAL_TAILORING: ForgeVisualTailoring = {
   skinTone: FORGE_SKIN_TONES[1]!,
   height: FORGE_HEIGHTS[2]!,
   specialFeatures: [],
-  outfitStyle: FORGE_OUTFIT_STYLES[3]!,
-  colorPalette: FORGE_COLOR_PALETTES[0]!,
+  outfitStyle: FORGE_OUTFIT_STYLES[4]!,
+  /** Concrete default so new sessions still get a clear wardrobe anchor; use “Let the forge choose” in UI for open hues. */
+  colorPalette: FORGE_COLOR_PALETTES[1]!,
   footwear: FORGE_FOOTWEAR[1]!,
   accessories: FORGE_ACCESSORIES[8]!,
 };
@@ -180,9 +329,14 @@ function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;
 }
 
+/** Palettes excluding the open option — random spin + curated dropdown group. */
+export const FORGE_COLOR_PALETTES_CURATED = FORGE_COLOR_PALETTES.filter((p) => p !== FORGE_PALETTE_FORGE_DECIDES);
+
 export function randomForgeVisualTailoring(): ForgeVisualTailoring {
   const n = 1 + Math.floor(Math.random() * 3);
   const feats = [...FORGE_SPECIAL_FEATURES].sort(() => Math.random() - 0.5).slice(0, n);
+  const colorPalette =
+    Math.random() < 0.16 ? FORGE_PALETTE_FORGE_DECIDES : pick(FORGE_COLOR_PALETTES_CURATED);
   return {
     breastSize: pick(FORGE_BREAST_SIZES),
     assSize: pick(FORGE_ASS_SIZES),
@@ -193,7 +347,7 @@ export function randomForgeVisualTailoring(): ForgeVisualTailoring {
     height: pick(FORGE_HEIGHTS),
     specialFeatures: feats,
     outfitStyle: pick(FORGE_OUTFIT_STYLES),
-    colorPalette: pick(FORGE_COLOR_PALETTES),
+    colorPalette,
     footwear: pick(FORGE_FOOTWEAR),
     accessories: pick(FORGE_ACCESSORIES),
   };
@@ -262,13 +416,25 @@ export function deriveSmartOutfitTheme(fp: ForgePersonalityProfile, outfitStyle:
   return `${base} Wardrobe reads premium and cohesive with the chosen world — no genre-breaking anachronisms.`;
 }
 
+export function isForgePaletteOpen(palette: string): boolean {
+  return palette.trim() === FORGE_PALETTE_FORGE_DECIDES;
+}
+
+function paletteInstructionForPrompt(palette: string): string {
+  if (isForgePaletteOpen(palette)) {
+    return "clothing colors: **open** — invent a harmonious scheme from era, personality, scene, art style, and skin/hair; do not force a rigid two-color formula unless the set demands it";
+  }
+  return `palette **${palette}** for garments and major accessories`;
+}
+
 export function forgeVisualTailoringSeedsProse(v: ForgeVisualTailoring, fp: ForgePersonalityProfile): string {
   const theme = deriveSmartOutfitTheme(fp, v.outfitStyle);
   const feat = v.specialFeatures.length ? v.specialFeatures.join(", ") : "(none selected)";
+  const pal = paletteInstructionForPrompt(v.colorPalette);
   return [
     `- **Appearance lab:** ${v.height}; ${v.skinTone} skin; ${v.hairColor} ${v.hairStyle}; ${v.eyeColor} eyes; bust ${v.breastSize}; hips/glutes ${v.assSize}; special surface details: ${feat}.`,
     `- **Outfit & palette:** ${v.outfitStyle} — ${theme}`,
-    `- **Color / shoes / extras:** palette ${v.colorPalette}; footwear ${v.footwear}; accessories ${v.accessories}.`,
+    `- **Color / shoes / extras:** ${pal}; footwear ${v.footwear}; accessories ${v.accessories}.`,
   ].join("\n");
 }
 
@@ -276,5 +442,6 @@ export function forgeVisualTailoringSeedsProse(v: ForgeVisualTailoring, fp: Forg
 export function forgeVisualPortraitAddon(v: ForgeVisualTailoring, fp: ForgePersonalityProfile): string {
   const theme = deriveSmartOutfitTheme(fp, v.outfitStyle);
   const feat = v.specialFeatures.length ? v.specialFeatures.join(", ") : "none";
-  return `Wardrobe & figure: ${v.height}; ${v.skinTone} skin; ${v.hairColor} ${v.hairStyle}; ${v.eyeColor} eyes; bust ${v.breastSize}; hips/glutes ${v.assSize}; surface details: ${feat}. Costuming: ${v.outfitStyle} — ${theme} Palette ${v.colorPalette}. Footwear ${v.footwear}. Accessories ${v.accessories}.`;
+  const pal = paletteInstructionForPrompt(v.colorPalette);
+  return `Wardrobe & figure: ${v.height}; ${v.skinTone} skin; ${v.hairColor} ${v.hairStyle}; ${v.eyeColor} eyes; bust ${v.breastSize}; hips/glutes ${v.assSize}; surface details: ${feat}. Costuming: ${v.outfitStyle} — ${theme}. ${pal.charAt(0).toUpperCase() + pal.slice(1)}. Footwear ${v.footwear}. Accessories ${v.accessories}.`;
 }
