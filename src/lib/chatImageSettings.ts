@@ -347,22 +347,25 @@ export function resolveChatImageGenerationPrompt(args: {
   const menu = args.menuImagePrompt?.trim();
   const styled = args.styledSceneExtension?.trim();
   if (menu) {
+    const subjectAnchor =
+      "**SUBJECT (read first):** The companion’s **stored profile / roster picture is not an input.** Match CHARACTER APPEARANCE for **face, hair, skin, eyes, and body-type scale only**. If the appearance paragraph mentions clothes, sets, or poses from an old card photo, **ignore those for this render** — the lines below define outfit, room, and pose. Treat **smoke, fog, haze, and lens-flare prose** from old marketing copy as **low priority** unless this menu preset explicitly asks for that atmosphere — the face still wins.\n\n";
+    const lewdLighting =
+      menu === FAB_SELFIE.lewd.imagePrompt
+        ? "\n\n**Lighting accent (lewd tier):** seductive editorial / key-art lighting — keep the **face sharp and readable**, not blown out by bloom."
+        : "";
+    const coherence =
+      "\n\n**FORGE_VISUAL_IDENTITY (in master prompt):** binding for **hair, eyes, skin, species, body type, musculature/curves, and art style (anime vs photoreal vs creature)** — **not** for outfit, room, pose, or “smoke person” mood boards; those follow **Requested framing** (and FORGE_VISUAL_IDENTITY caps atmosphere vs face priority)." +
+      "\n\n**Scene primacy (non-negotiable):** The block under **Requested framing (from menu)** is the **sole** authority for **location, background, architecture, time of day, weather, furniture, wardrobe, pose, props, interaction with props, lens height, and camera distance**. The **Exposure / tone context** section sets SFW vs lewd vs artistic-nude **band only** — it must **never** replace the menu’s place/outfit/pose with a generic bedroom, bathroom mirror, studio bust, or catalog three-quarter. **No reference photograph is supplied** — likeness = written CHARACTER APPEARANCE + body type + species **only**; **forbidden:** copying pose, crop, lighting recipe, environment, or wardrobe from any roster/profile card. Each preset must read as a **different photoshoot** in that **exact** scenario, not a remaster of the profile image." +
+      "\n\n**SHOT GEOMETRY (binding):** If the menu mentions lying, bent over, legs up, bathtub, beach, car, desk, bed, shower, silk sheets, lingerie, wall, workout, dress, kitchen, etc., the final image must **show that configuration and setting clearly** — not a substitute “same card, different angle” or “pretty subject standing at camera” shot.";
     if (styled) {
-      const subjectAnchor =
-        "**SUBJECT (read first):** The companion’s **stored profile / roster picture is not an input.** Match CHARACTER APPEARANCE for **face, hair, skin, eyes, and body-type scale only**. If the appearance paragraph mentions clothes, sets, or poses from an old card photo, **ignore those for this render** — the lines below define outfit, room, and pose. Treat **smoke, fog, haze, and lens-flare prose** from old marketing copy as **low priority** unless this menu preset explicitly asks for that atmosphere — the face still wins.\n\n";
-      const lewdLighting =
-        menu === FAB_SELFIE.lewd.imagePrompt
-          ? "\n\n**Lighting accent (lewd tier):** seductive editorial / key-art lighting — keep the **face sharp and readable**, not blown out by bloom."
-          : "";
-      const coherence =
-        "\n\n**FORGE_VISUAL_IDENTITY (in master prompt):** binding for **hair, eyes, skin, species, body type, musculature/curves, and art style (anime vs photoreal vs creature)** — **not** for outfit, room, pose, or “smoke person” mood boards; those follow **Requested framing** (and FORGE_VISUAL_IDENTITY caps atmosphere vs face priority)." +
-        "\n\n**Scene primacy (non-negotiable):** The block under **Requested framing (from menu)** is the **sole** authority for **location, background, architecture, time of day, weather, furniture, wardrobe, pose, props, interaction with props, lens height, and camera distance**. The **Exposure / tone context** section sets SFW vs lewd vs artistic-nude **band only** — it must **never** replace the menu’s place/outfit/pose with a generic bedroom, bathroom mirror, studio bust, or catalog three-quarter. **No reference photograph is supplied** — likeness = written CHARACTER APPEARANCE + body type + species **only**; **forbidden:** copying pose, crop, lighting recipe, environment, or wardrobe from any roster/profile card. Each preset must read as a **different photoshoot** in that **exact** scenario, not a remaster of the profile image." +
-        "\n\n**SHOT GEOMETRY (binding):** If the menu mentions lying, bent over, legs up, bathtub, beach, car, desk, bed, shower, silk sheets, lingerie, wall, workout, dress, kitchen, etc., the final image must **show that configuration and setting clearly** — not a substitute “same card, different angle” or “pretty subject standing at camera” shot.";
       return (
         `— Requested framing (from menu) —\n${subjectAnchor}${styled}\n\n${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}\n\n**Exposure / tone context (not the shot layout):**\n${menu}${coherence}`
       ).trim();
     }
-    return menu;
+    // Tier-only (FAB / media bar): same anatomy + likeness rails as gallery tiles; tier string carries exposure + pose hints.
+    return (
+      `— Requested framing (from menu) —\n${subjectAnchor}${menu}\n\n${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}${coherence}`
+    ).trim();
   }
 
   const raw = args.messageText.trim();

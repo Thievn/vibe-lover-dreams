@@ -1984,6 +1984,9 @@ export function useChatSessionController() {
     const holdForImageButton =
       requestingImage && !autoSpendImages && !options?.bypassImageConfirmation;
     const imageRequestFromMenu = options?.imageRequestFromMenu === true;
+    /** FAB / media bar pass tier `imageGenerationPrompt` without `styledSceneExtension` — still must lock scene + identity capsule. */
+    const lockSceneToMenuPreset =
+      Boolean(styledExt) || (imageRequestFromMenu && menuForcesImage);
     const explicitReq =
       isExplicitImageRequest(promptForImage) || isExplicitImageRequest(messageText);
     const freeUsed = getFreeNsfwImagesUsed(user.id, companion.id);
@@ -2091,7 +2094,7 @@ export function useChatSessionController() {
           rawUserMessage: messageText,
           fromMenu: imageRequestFromMenu,
           menuImagePrompt: options?.imageGenerationPrompt ?? null,
-          lockSceneToMenuPreset: Boolean(styledExt),
+          lockSceneToMenuPreset,
         });
         return;
       }
@@ -2125,7 +2128,7 @@ export function useChatSessionController() {
           fromMenu: imageRequestFromMenu,
           rawUserMessage: messageText,
           menuImagePrompt,
-          lockSceneToMenuPreset: Boolean(styledExt),
+          lockSceneToMenuPreset,
         });
 
         if (imageResult) {

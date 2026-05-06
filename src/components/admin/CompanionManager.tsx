@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { withAsyncTimeout } from "@/lib/withAsyncTimeout";
 import { formatSupabaseError } from "@/lib/supabaseError";
+import { adminHardDeleteCompanion } from "@/lib/adminHardDeleteCompanion";
 import { AdminCompanionPortraitPreview } from "@/components/admin/AdminCompanionPortraitPreview";
 import { AdminLoopingVideoBlock } from "@/components/admin/AdminLoopingVideoBlock";
 import { galleryStaticPortraitUrl, isVideoPortraitUrl } from "@/lib/companionMedia";
@@ -27,8 +28,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type ViewMode = "list" | "edit" | "create";
+
+type HallDeleteTarget =
+  | { kind: "forge"; uuid: string; name: string; userId: string }
+  | { kind: "stock"; id: string; name: string };
 
 type CharacterStockSortKey = "name" | "newest" | "rarity";
 type CharacterMediaFilterKey = "all" | "has_loop" | "needs_loop";
@@ -489,6 +504,8 @@ const CompanionManager = () => {
   const [editOverride, setEditOverride] = useState<DbCompanion | null>(null);
   const [forgeEditLoadingId, setForgeEditLoadingId] = useState<string | null>(null);
   const [sectionBusy, setSectionBusy] = useState<Record<string, boolean>>({});
+  const [hallDeleteTarget, setHallDeleteTarget] = useState<HallDeleteTarget | null>(null);
+  const [hallDeleteBusy, setHallDeleteBusy] = useState(false);
   const lastUrlEditOpened = useRef<string | null>(null);
 
   // Auto-fill state
@@ -977,6 +994,49 @@ const CompanionManager = () => {
     setEditingId(null);
     setEditOverride(null);
     syncEditToUrl(null);
+  };
+
+  const confirmHallHardDelete = async () => {
+    if (!hallDeleteTarget) return;
+    setHallDeleteBusy(true);
+    try {
+      const uid = hallDeleteTarget.kind === "forge" ? hallDeleteTarget.userId.trim() : "";
+      const res =
+        hallDeleteTarget.kind === "forge"
+          ? await adminHardDeleteCompanion(
+              supabase,
+              {
+                kind: "forge",
+                uuid: hallDeleteTarget.uuid,
+                publicId: `cc-${hallDeleteTarget.uuid}`,
+              },
+              uid
+                ? { forgePortraitCleanup: { userId: uid, portraitName: hallDeleteTarget.name } }
+                : undefined,
+            )
+          : await adminHardDeleteCompanion(supabase, { kind: "stock", catalogId: hallDeleteTarget.id });
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      toast.success(`“${hallDeleteTarget.name}” was permanently deleted.`);
+      const removedPublicId =
+        hallDeleteTarget.kind === "forge" ? `cc-${hallDeleteTarget.uuid}` : hallDeleteTarget.id;
+      setEditData((prev) => {
+        const next = { ...prev };
+        delete next[removedPublicId];
+        return next;
+      });
+      if (viewMode === "edit" && editingId === removedPublicId) {
+        backToList();
+      }
+      setHallDeleteTarget(null);
+      void queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
+      void queryClient.invalidateQueries({ queryKey: ["companions"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
+    } finally {
+      setHallDeleteBusy(false);
+    }
   };
 
   const createCompanion = async () => {
@@ -1999,6 +2059,23 @@ const CompanionManager = () => {
                         Mark public again
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setHallDeleteTarget({
+                          kind: "forge",
+                          uuid: String(row.id),
+                          name: String(row.name ?? "Unnamed"),
+                          userId: String(row.user_id ?? ""),
+                        });
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-destructive/45 text-destructive text-[10px] font-semibold hover:bg-destructive/10"
+                      title="Permanently delete this forge card and all related data"
+                    >
+                      <Trash2 className="h-3 w-3 shrink-0" />
+                      Delete
+                    </button>
                   </div>
                 </div>
               </li>
@@ -2093,6 +2170,17 @@ const CompanionManager = () => {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
+                      setHallDeleteTarget({ kind: "stock", id: companion.id, name: companion.name });
+                    }}
+                    className="rounded-lg p-2 transition-colors hover:bg-destructive/15 text-destructive"
+                    title="Permanently delete this catalog companion"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
                       toggleActive(companion);
                     }}
                     className="rounded-lg p-2 transition-colors hover:bg-muted"
@@ -2122,6 +2210,54 @@ const CompanionManager = () => {
         </div>
       </div>
       </div>
+
+      <AlertDialog open={hallDeleteTarget != null} onOpenChange={(o) => !o && !hallDeleteBusy && setHallDeleteTarget(null)}>
+        <AlertDialogContent className="border-border/80 bg-card text-foreground">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this card permanently?</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground space-y-2">
+              <span className="block">
+                Are you sure? This removes{" "}
+                <strong className="text-foreground">{hallDeleteTarget?.name ?? ""}</strong>
+                {hallDeleteTarget?.kind === "forge" ? (
+                  <> and the forge row <span className="font-mono text-xs">cc-{hallDeleteTarget.uuid}</span></>
+                ) : (
+                  <> from the catalog ({hallDeleteTarget ? <span className="font-mono text-xs">{hallDeleteTarget.id}</span> : null})</>
+                )}{" "}
+                <strong className="text-foreground">everywhere</strong>: chat history, generated galleries, relationships,
+                gifts, toy pattern slots, discover votes and pins, portrait overrides, and queued social jobs. This
+                cannot be undone.
+              </span>
+              {hallDeleteTarget?.kind === "stock" ? (
+                <span className="block text-amber-200/90">
+                  Catalog deletes affect every player who had this companion — only use if you are retiring the card for
+                  good.
+                </span>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={hallDeleteBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={hallDeleteBusy}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmHallHardDelete();
+              }}
+            >
+              {hallDeleteBusy ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin inline" />
+                  Deleting…
+                </>
+              ) : (
+                "Yes, delete permanently"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
