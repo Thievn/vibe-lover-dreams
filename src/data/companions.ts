@@ -27,6 +27,11 @@ export interface Companion {
   backstory?: string;
   /** Resolved still portrait (DB URL, static asset, or enriched from generated_images). */
   portraitUrl?: string | null;
+  /**
+   * Vision/text distilled core look (face, hair, body, species) — no outfit/scene.
+   * Primary anchor for in-chat selfie & lewd stills when set on DB-backed rows.
+   */
+  appearanceReference?: string | null;
   /** The Nexus — surfaced on profile & cards when present. */
   mergeStats?: {
     compatibility: number;

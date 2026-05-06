@@ -302,7 +302,15 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
     "No duplicate faces, no collage, no watermark, no app UI, no on-image text, no disembodied parts unless the user explicitly asked.",
   ].join(" ");
 
-  const charBlock = `CHARACTER APPEARANCE (primary likeness — text only): ${companion.name}, ${companion.gender}. ${(companion.appearance || "").trim().slice(0, 2000)}`;
+  const coreLook = (companion.appearanceReference || "").trim();
+  const longAppear = (companion.appearance || "").trim();
+  const charBlock = coreLook
+    ? `CHARACTER APPEARANCE (exact core look — text only, no outfit/scene): ${companion.name}, ${companion.gender}. ${coreLook.slice(0, 2000)}${
+        longAppear && longAppear !== coreLook
+          ? `\n\nSupplemental writer appearance (extra species/detail only; core look wins on face/hair conflict): ${longAppear.slice(0, 900)}${longAppear.length > 900 ? "…" : ""}`
+          : ""
+      }`
+    : `CHARACTER APPEARANCE (primary likeness — text only): ${companion.name}, ${companion.gender}. ${longAppear.slice(0, 2000)}`;
 
   const appearanceStripForMenu =
     "**APPEARANCE-TEXT STRIP (gallery preset):** The CHARACTER APPEARANCE paragraph may repeat how she looks on a **roster / profile card**. For **this** render, mine it **only** for face shape, eyes, brows, nose, mouth, hair, skin, species markers, and body proportions. **Discard** any sentences about catalog outfit, cape, swimsuit, jewelry, throne room, studio backdrop, or “icon pose” if they disagree with **Requested framing (from menu)** — the menu wins 100% on clothes, location, pose, props, and camera. **Demote** mood-only lines (heavy smoke, fog, haze, lens-flare poetry, club strobes) unless the **menu** explicitly asks for that vibe — they must not steal detail budget from a **clear face and body**.";

@@ -1,6 +1,7 @@
 import type { Companion } from "@/data/companions";
 import type { CompanionVibrationPatternRow } from "@/hooks/useCompanionVibrationPatterns";
 import { buildVibrationPatternPromptBlock } from "@/lib/chatVibrationPromptBlock";
+import { buildVoiceRegisterThemeBlock } from "@/lib/voiceRegisterThemeBlock";
 
 export type ChatSystemPromptOptions = {
   /**
@@ -144,7 +145,11 @@ FANTASY STARTERS: Optional profile buttons paste a USER opening line — it's th
 
 Stay in character as ${companion.name}.`;
 
+  const voiceRegisterBlock = buildVoiceRegisterThemeBlock(companion, "chat");
+
   return `${platformKernel}
+
+${voiceRegisterBlock}
 
 === CHARACTER (overrides generic lines if they conflict) ===
 ${characterCanon}

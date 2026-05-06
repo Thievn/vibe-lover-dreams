@@ -333,6 +333,20 @@ export function isExplicitImageRequest(text: string): boolean {
   return needles.some((n) => t.includes(n));
 }
 
+function wrapFabSceneWithAppearanceLock(inner: string, appearanceReference: string): string {
+  const ref = appearanceReference.trim();
+  if (!ref) return inner;
+  return [
+    `Use this exact character appearance: ${ref}`,
+    "",
+    "Now place this character in a completely new scene:",
+    "",
+    inner.trim(),
+    "",
+    "Change the outfit, pose, background, and lighting completely while keeping the exact same face, hair, body type and features.",
+  ].join("\n");
+}
+
 /**
  * Resolves the image brief for `generate-image` (Grok Imagine + rewriter).
  * Menu / FAB flows pass `menuImagePrompt`; free-typed chat uses inference, but never replaces
@@ -343,9 +357,12 @@ export function resolveChatImageGenerationPrompt(args: {
   menuImagePrompt?: string | null;
   /** Merged after tier base when user picks a smart menu style (still uses exact FAB tier string for mood). */
   styledSceneExtension?: string | null;
+  /** From DB — primary likeness anchor for FAB / media-bar selfie & lewd tiers. */
+  appearanceReference?: string | null;
 }): string {
   const menu = args.menuImagePrompt?.trim();
   const styled = args.styledSceneExtension?.trim();
+  const appearanceRef = args.appearanceReference?.trim() ?? "";
   if (menu) {
     const subjectAnchor =
       "**SUBJECT (read first):** The companion’s **stored profile / roster picture is not an input.** Match CHARACTER APPEARANCE for **face, hair, skin, eyes, and body-type scale only**. If the appearance paragraph mentions clothes, sets, or poses from an old card photo, **ignore those for this render** — the lines below define outfit, room, and pose. Treat **smoke, fog, haze, and lens-flare prose** from old marketing copy as **low priority** unless this menu preset explicitly asks for that atmosphere — the face still wins.\n\n";
@@ -358,14 +375,16 @@ export function resolveChatImageGenerationPrompt(args: {
       "\n\n**Scene primacy (non-negotiable):** The block under **Requested framing (from menu)** is the **sole** authority for **location, background, architecture, time of day, weather, furniture, wardrobe, pose, props, interaction with props, lens height, and camera distance**. The **Exposure / tone context** section sets SFW vs lewd vs artistic-nude **band only** — it must **never** replace the menu’s place/outfit/pose with a generic bedroom, bathroom mirror, studio bust, or catalog three-quarter. **No reference photograph is supplied** — likeness = written CHARACTER APPEARANCE + body type + species **only**; **forbidden:** copying pose, crop, lighting recipe, environment, or wardrobe from any roster/profile card. Each preset must read as a **different photoshoot** in that **exact** scenario, not a remaster of the profile image." +
       "\n\n**SHOT GEOMETRY (binding):** If the menu mentions lying, bent over, legs up, bathtub, beach, car, desk, bed, shower, silk sheets, lingerie, wall, workout, dress, kitchen, etc., the final image must **show that configuration and setting clearly** — not a substitute “same card, different angle” or “pretty subject standing at camera” shot.";
     if (styled) {
-      return (
+      const fused = (
         `— Requested framing (from menu) —\n${subjectAnchor}${styled}\n\n${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}\n\n**Exposure / tone context (not the shot layout):**\n${menu}${coherence}`
       ).trim();
+      return appearanceRef ? wrapFabSceneWithAppearanceLock(fused, appearanceRef) : fused;
     }
     // Tier-only (FAB / media bar): same anatomy + likeness rails as gallery tiles; tier string carries exposure + pose hints.
-    return (
+    const tierOnly = (
       `— Requested framing (from menu) —\n${subjectAnchor}${menu}\n\n${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}${coherence}`
     ).trim();
+    return appearanceRef ? wrapFabSceneWithAppearanceLock(tierOnly, appearanceRef) : tierOnly;
   }
 
   const raw = args.messageText.trim();

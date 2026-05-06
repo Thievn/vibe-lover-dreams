@@ -1,5 +1,6 @@
 import { isLustforgeAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
-import { openRouterChatCompletion, extractOpenRouterAssistantText, openRouterChatModel, resolveOpenRouterApiKey } from "../_shared/openRouter.ts";
+import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { defaultGrokProductChatModel, extractGrokAssistantText, grokChatCompletionRaw } from "../_shared/xaiGrokChatRaw.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,8 +11,22 @@ const STATIC_FALLBACK = ["Tell me more…", "I love that.", "Keep going."];
 
 const getEnv = (n: string) => Deno.env.get(n);
 
-function smartRepliesModel(): string {
-  return (getEnv("OPENROUTER_SMART_REPLIES_MODEL") ?? openRouterChatModel(getEnv)).trim();
+function extractJsonObject(text: string): unknown {
+  const t = text.trim();
+  const start = t.indexOf("{");
+  const end = t.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(t.slice(start, end + 1)) as unknown;
+    } catch {
+      /* fall through */
+    }
+  }
+  try {
+    return JSON.parse(t) as unknown;
+  } catch {
+    return null;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -36,7 +51,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!resolveOpenRouterApiKey(getEnv)) {
+    if (!resolveXaiApiKey(getEnv)) {
       return new Response(JSON.stringify({ suggestions: STATIC_FALLBACK, degraded: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -47,12 +62,12 @@ Deno.serve(async (req) => {
       ? ""
       : ` Suggestions must stay in fantasy/roleplay with the companion — no homework, technical, product/app, or general Q&A prompts.`;
     const system = `You suggest 3 very short optional replies the USER could send next in an adults-only chat with "${name}".
-Rules: JSON only, no markdown. Format: {"suggestions":["...","...","..."]}
+Rules: Reply with **only** valid JSON, no markdown or code fences. Format: {"suggestions":["...","...","..."]}
 Each string max 72 characters. Match thread energy: flirty, playful, or explicitly sexual language is allowed when it fits; stay consensual-adults fiction.${scopeLine}`;
 
-    const res = await openRouterChatCompletion({
-      getEnv,
-      model: smartRepliesModel(),
+    const model = defaultGrokProductChatModel(getEnv);
+    const res = await grokChatCompletionRaw({
+      model,
       messages: [
         { role: "system", content: system },
         ...thread.map((m) => ({
@@ -60,8 +75,8 @@ Each string max 72 characters. Match thread energy: flirty, playful, or explicit
           content: String(m.content ?? "").slice(0, 4000),
         })),
       ],
-      max_tokens: 220,
       temperature: 0.8,
+      max_tokens: 220,
       top_p: 0.9,
     });
 
@@ -71,25 +86,13 @@ Each string max 72 characters. Match thread energy: flirty, playful, or explicit
       });
     }
 
-    const content = extractOpenRouterAssistantText(res.json);
-
+    const content = extractGrokAssistantText(res.json);
+    const parsed = extractJsonObject(content);
     let suggestions: string[] = [];
-    try {
-      const parsed = JSON.parse(content);
-      if (Array.isArray(parsed?.suggestions)) {
-        suggestions = (parsed as { suggestions: unknown[] }).suggestions.map((x) => String(x ?? "").trim()).filter(Boolean);
-      }
-    } catch {
-      const m = content.match(/\[[\s\S]*\]/);
-      if (m) {
-        try {
-          const arr = JSON.parse(m[0]) as unknown;
-          if (Array.isArray(arr)) {
-            suggestions = (arr as unknown[]).map((x) => String(x ?? "").trim()).filter(Boolean);
-          }
-        } catch {
-          /* ignore */
-        }
+    if (parsed && typeof parsed === "object" && parsed !== null && "suggestions" in parsed) {
+      const arr = (parsed as { suggestions: unknown }).suggestions;
+      if (Array.isArray(arr)) {
+        suggestions = arr.map((x) => String(x ?? "").trim()).filter(Boolean);
       }
     }
 

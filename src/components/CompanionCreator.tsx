@@ -72,6 +72,7 @@ import {
 } from "@/lib/forgePortraitHistorySupabase";
 import { clearForgeSessionDraft, loadForgeSessionDraft, saveForgeSessionDraft } from "@/lib/forgeSessionDraft";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
+import { invokeSyncAppearanceReference } from "@/lib/invokeSyncAppearanceReference";
 import { invokeParseCompanionPrompt } from "@/lib/invokeParseCompanionPrompt";
 import { withAsyncTimeout } from "@/lib/withAsyncTimeout";
 import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
@@ -2312,6 +2313,22 @@ User flavor notes: ${extraNotes || "none"}`;
         );
       }
 
+      let appearanceReferenceOut: string | null = null;
+      try {
+        const { data: arData, error: arErr } = await invokeSyncAppearanceReference({
+          userId,
+          publicImageUrl: portraitUrl,
+          gender,
+          identityAnatomyDetail: identityAnatomyDetail || undefined,
+          appearanceDraft: portraitAppearanceForRow || undefined,
+        });
+        if (!arErr && arData?.appearanceReference?.trim()) {
+          appearanceReferenceOut = arData.appearanceReference.trim();
+        }
+      } catch (e) {
+        console.warn("Forge bind: appearance_reference sync skipped", e);
+      }
+
       if (isAdmin) pushForgeOp("Carving custom_characters row(s) into the vault…", "info");
 
       bumpCreate(batchCount > 1 ? "Whispering distinct names for each binding…" : "Sealing her into the vault ledger…");
@@ -2417,6 +2434,7 @@ User flavor notes: ${extraNotes || "none"}`;
           gradient_to: NEON,
           image_url: portraitUrl,
           image_prompt: imagePromptOut,
+          ...(appearanceReferenceOut ? { appearance_reference: appearanceReferenceOut } : {}),
           is_public: isAdmin && forcePrivateForgeRef.current ? false : isAdmin ? true : goPublic,
           approved: isAdmin && forcePrivateForgeRef.current ? false : isAdmin ? true : goPublic,
           ...(isAdmin
@@ -2468,6 +2486,16 @@ User flavor notes: ${extraNotes || "none"}`;
             if (/identity_anatomy_detail|PGRST204/i.test(msg)) {
               attemptRows = attemptRows.map((r) => {
                 const { identity_anatomy_detail: _i, ...rest } = r;
+                return rest;
+              });
+              res = await supabase.from("custom_characters").insert(attemptRows).select("id");
+            }
+          }
+          if (res.error) {
+            const msg = formatSupabaseError(res.error);
+            if (/appearance_reference|PGRST204/i.test(msg)) {
+              attemptRows = attemptRows.map((r) => {
+                const { appearance_reference: _ar, ...rest } = r;
                 return rest;
               });
               res = await supabase.from("custom_characters").insert(attemptRows).select("id");

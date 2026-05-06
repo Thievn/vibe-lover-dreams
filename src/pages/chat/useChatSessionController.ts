@@ -777,8 +777,11 @@ export function useChatSessionController() {
           ? ` Forge image anchors (text, optional palette/vibe — not a shot list): ${forgeAnchors.slice(0, 720)}${forgeAnchors.length > 720 ? "…" : ""}`
           : "";
       /** Do not paste full `appearance` here — it often describes the roster still (beach, swimsuit) and hijacks Imagine before PRIMARY SCENE. Full prose stays in `prompt` / CHARACTER APPEARANCE only. */
+      const ar = (companion.appearanceReference ?? "").trim();
       const baseDescription = menuSceneLock
-        ? `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Chat gallery preset:** identity caps = face, hair, skin, species, body scale from CHARACTER APPEARANCE in the prompt body — **not** outfit, pose, room, or palette copied from any static marketing still. Wardrobe, set, pose, light = PRIMARY SCENE / menu only.`
+        ? ar
+          ? `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Locked core appearance (text bible — no reference image):** ${ar.slice(0, 1600)}${ar.length > 1600 ? "…" : ""} **Chat gallery preset:** outfit, pose, room, light, and props = PRIMARY SCENE / menu only — never the roster card layout.`
+          : `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Chat gallery preset:** identity caps = face, hair, skin, species, body scale from CHARACTER APPEARANCE in the prompt body — **not** outfit, pose, room, or palette copied from any static marketing still. Wardrobe, set, pose, light = PRIMARY SCENE / menu only.`
         : `Single subject — ${companion.name} (${companion.gender}). Written appearance: ${companion.appearance}.${forgeTail}`;
       const commonCharacterData = {
         companionId: companion.id,
@@ -859,6 +862,7 @@ export function useChatSessionController() {
         messageText: preset.label,
         menuImagePrompt: menuBase,
         styledSceneExtension: preset.imagePrompt,
+        appearanceReference: companion.appearanceReference ?? null,
       });
       const { prompt, portraitConsistencyLock, visualIdentityCapsule } = buildMasterChatImagePrompt({
         companion,
@@ -875,7 +879,10 @@ export function useChatSessionController() {
         inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
         "Average Build";
       const artLabel = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
-      const rewardBaseDescription = `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Chat gallery preset (reward):** identity from CHARACTER APPEARANCE text only (face/hair/skin/build); scene outfit pose set = PRIMARY SCENE only — not the companion’s static still.`;
+      const arReward = (companion.appearanceReference ?? "").trim();
+      const rewardBaseDescription = arReward
+        ? `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Locked core appearance:** ${arReward.slice(0, 1600)}${arReward.length > 1600 ? "…" : ""} **Reward still:** wardrobe, pose, and set = PRIMARY SCENE only.`
+        : `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Chat gallery preset (reward):** identity from CHARACTER APPEARANCE text only (face/hair/skin/build); scene outfit pose set = PRIMARY SCENE only — not the companion’s static still.`;
       const cd = {
         companionId: companion.id,
         style: "chat-session" as const,
@@ -1975,6 +1982,7 @@ export function useChatSessionController() {
       messageText,
       menuImagePrompt: options?.imageGenerationPrompt ?? null,
       styledSceneExtension: options?.styledSceneExtension ?? null,
+      appearanceReference: companion.appearanceReference ?? null,
     });
     const styledExt = options?.styledSceneExtension?.trim();
     const requestingImage = mediaRoute === "image";
@@ -2406,7 +2414,11 @@ export function useChatSessionController() {
   const freeNsfwUsed = user && companion ? getFreeNsfwImagesUsed(user.id, companion.id) : 0;
   const freeNsfwRemaining = Math.max(0, FREE_NSFW_CHAT_IMAGES - freeNsfwUsed);
   const draftImagePrompt = input.trim()
-    ? resolveChatImageGenerationPrompt({ messageText: input, menuImagePrompt: null })
+    ? resolveChatImageGenerationPrompt({
+        messageText: input,
+        menuImagePrompt: null,
+        appearanceReference: companion?.appearanceReference ?? null,
+      })
     : "";
   const rawDraftMediaRoute = input.trim() ? inferChatMediaRoute(input, false) : "text";
   const draftMediaRoute =

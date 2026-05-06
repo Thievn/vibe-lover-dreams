@@ -101,7 +101,10 @@ export function buildCompanionVisualIdentityCapsule(companion: Companion, dbComp
   const silCat = forgeBodyCategoryIdForType(bodyType);
   const idAnatomy = (dbComp.identity_anatomy_detail ?? "").trim().slice(0, 280);
 
-  const appearanceSource = (companion.appearance || dbComp.appearance || "").trim();
+  const appearanceSource = (
+    (companion.appearanceReference || "").trim() ||
+    (companion.appearance || dbComp.appearance || "").trim()
+  );
   const cleaned = stripNonLikenessSentences(appearanceSource, 900);
   const figureLine = figureNotesFromTagsAndText(tags, cleaned);
   const tagAnchors = physicalTagsLine(tags);

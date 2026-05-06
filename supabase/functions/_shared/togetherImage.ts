@@ -2,7 +2,7 @@
  * Together.ai **image** generation (FLUX.2 family via `/v1/images/generations`).
  *
  * LustForge routes **all still image generation** here (Forge previews, chat/gallery images, companion portraits).
- * OpenRouter remains for **text** only (chat, rewriter, vision classify) — see `openRouter.ts`.
+ * Text-side helpers use **xAI Grok** (see `xaiGrokChatRaw.ts`, `safeImagePromptRewriter.ts`).
  *
  * Default image model: **black-forest-labs/FLUX.2-dev** (override with profile `together_image_model` or secret `TOGETHER_IMAGE_MODEL`).
  *

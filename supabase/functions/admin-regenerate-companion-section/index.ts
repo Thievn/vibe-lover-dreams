@@ -3,6 +3,7 @@ import { defaultGrokEdgeChatModel, grokChatCompletionRaw } from "../_shared/xaiG
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { requireAdminUser } from "../_shared/requireSessionUser.ts";
 import { renderPortraitToStorage } from "../_shared/renderCompanionPortrait.ts";
+import { generateAppearanceReferenceText } from "../_shared/generateAppearanceReferenceText.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -267,17 +268,32 @@ Deno.serve(async (req) => {
         contentTier: "forge_preview_sfw",
       });
 
+      let appearanceRef: string | null = null;
+      try {
+        appearanceRef = await generateAppearanceReferenceText(getEnv, {
+          publicImageUrl: publicUrl,
+          gender: String(row.gender ?? ""),
+          identityAnatomyDetail:
+            typeof row.identity_anatomy_detail === "string" ? row.identity_anatomy_detail : undefined,
+          appearanceDraft: String(row.appearance ?? ""),
+        });
+      } catch (e) {
+        console.error("admin-regenerate portrait: appearance_reference failed", e);
+      }
+
       if (source === "forge") {
         await adminClient.from("custom_characters").update({
           image_url: publicUrl,
           avatar_url: publicUrl,
           static_image_url: publicUrl,
           image_prompt: imagePrompt,
+          ...(appearanceRef ? { appearance_reference: appearanceRef } : {}),
         }).eq("id", filterId);
       } else {
         await adminClient.from("companions").update({
           image_url: publicUrl,
           image_prompt: imagePrompt,
+          ...(appearanceRef ? { appearance_reference: appearanceRef } : {}),
         }).eq("id", filterId);
       }
 

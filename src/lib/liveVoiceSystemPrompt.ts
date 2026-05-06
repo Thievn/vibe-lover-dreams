@@ -2,6 +2,7 @@ import type { Companion } from "@/data/companions";
 import type { CompanionVibrationPatternRow } from "@/hooks/useCompanionVibrationPatterns";
 import { buildVibrationPatternPromptBlock } from "@/lib/chatVibrationPromptBlock";
 import { buildAdaptiveVoiceDirectionBlock } from "@/lib/liveVoiceDirectionSystem";
+import { buildVoiceRegisterThemeBlock } from "@/lib/voiceRegisterThemeBlock";
 
 type Opts = {
   safeWord: string;
@@ -41,6 +42,7 @@ function themeAnchor(companion: Companion): string {
 /**
  * System instructions for Live Voice Mode — short spoken lines, Lovense-aware.
  * Live Voice assistant text uses `grok-chat` (xAI) with the voice stack prefix. Classic chat uses the same function with `classic_chat` intent.
+ * Voice / theme rails match `buildVoiceRegisterThemeBlock(..., "spoken")` so spoken lines track the same Forge + profile lane as text chat.
  */
 export function buildLiveVoiceSystemPrompt(companion: Companion, opts: Opts): string {
   const bondTier = Math.min(5, Math.max(1, opts.chatAffectionTier));
@@ -60,6 +62,8 @@ export function buildLiveVoiceSystemPrompt(companion: Companion, opts: Opts): st
   return `You are ${companion.name} on LustForge — Live Voice Mode (real-time voice session).
 
 ${themeAnchor(companion)}
+
+${buildVoiceRegisterThemeBlock(companion, "spoken")}
 
 ${buildAdaptiveVoiceDirectionBlock(companion, "live_voice_assistant")}
 

@@ -7,6 +7,7 @@
  */
 import { isLustforgeAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
+import { defaultGrokProductChatModel } from "../_shared/xaiGrokChatRaw.ts";
 import { lustforgeNarrowUserScopeBlock } from "../_shared/lustforgeNarrowUserScope.ts";
 import { lustforgeChatServerSystemPrefix } from "../_shared/togetherRoleplaySystem.ts";
 import { GROK_VOICE_UNCENSORED_SYSTEM_PREFIX } from "../_shared/grokVoiceUncensoredPrefix.ts";
@@ -21,10 +22,6 @@ function json(obj: Record<string, unknown>, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-function defaultGrokChatModel(): string {
-  return (Deno.env.get("GROK_CHAT_MODEL") ?? "grok-3").trim();
 }
 
 function extractJsonObject(text: string): unknown {
@@ -150,7 +147,7 @@ Each string max 72 characters. Match thread energy: flirty, playful, or explicit
       ];
     }
 
-    const model = defaultGrokChatModel();
+    const model = defaultGrokProductChatModel((n) => Deno.env.get(n));
 
     const res = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",

@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { renderPortraitToStorage } from "../_shared/renderCompanionPortrait.ts";
+import { generateAppearanceReferenceText } from "../_shared/generateAppearanceReferenceText.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -122,6 +123,22 @@ Deno.serve(async (req) => {
       contentTier: portraitTier,
     });
 
+    const getEnv = (n: string) => Deno.env.get(n);
+    let appearanceRef: string | null = null;
+    try {
+      appearanceRef = await generateAppearanceReferenceText(getEnv, {
+        publicImageUrl: publicUrl,
+        gender: String(characterData.gender ?? ""),
+        identityAnatomyDetail:
+          typeof characterData.identity_anatomy_detail === "string"
+            ? characterData.identity_anatomy_detail
+            : undefined,
+        appearanceDraft: String(characterData.appearance ?? ""),
+      });
+    } catch (e) {
+      console.error("generate-companion-image: appearance_reference failed", e);
+    }
+
     if (target === "forge") {
       const { error: updateError } = await adminClient
         .from("custom_characters")
@@ -130,6 +147,7 @@ Deno.serve(async (req) => {
           avatar_url: publicUrl,
           static_image_url: publicUrl,
           image_prompt: imagePrompt,
+          ...(appearanceRef ? { appearance_reference: appearanceRef } : {}),
         })
         .eq("id", forgeRowUuid);
 
@@ -146,6 +164,7 @@ Deno.serve(async (req) => {
         .update({
           image_url: publicUrl,
           image_prompt: imagePrompt,
+          ...(appearanceRef ? { appearance_reference: appearanceRef } : {}),
         })
         .eq("id", companionId!);
 

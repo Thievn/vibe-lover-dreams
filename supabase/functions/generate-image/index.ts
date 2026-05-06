@@ -522,7 +522,7 @@ ${safeRewritten}`.trim();
         JSON.stringify({
           success: false,
           error:
-            /xai|openrouter|together|content policy|moderation|blocked|safety|422/i.test(msg)
+            /xai|together|content policy|moderation|blocked|safety|422/i.test(msg)
               ? msg
               : `Image generation failed: ${msg}. Your forge credits were refunded if this run charged you.`,
           tokensRefunded: tokenCost > 0,

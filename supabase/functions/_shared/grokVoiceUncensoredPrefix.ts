@@ -1,6 +1,6 @@
 /**
  * Prepended to Grok/xAI **live voice** text chat and Realtime voice instructions only.
- * Hybrid stack: normal product chat uses OpenRouter — see `_shared/openRouter.ts`.
+ * Classic + Live Voice assistant text both use **Grok** (`grok-chat`); this prefix is for the uncensored voice stack only.
  *
  * Keep wording in sync with `src/lib/grokVoiceUncensoredPrefix.ts` (browser bundle).
  */

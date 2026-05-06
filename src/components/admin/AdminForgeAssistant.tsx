@@ -66,7 +66,7 @@ const QUICK_PROMPTS = [
 ];
 
 /**
- * Persistent Forge Assistant — OpenRouter admin chat docked on every admin screen.
+ * Persistent Forge Assistant — Grok (xAI) admin chat docked on every admin screen.
  */
 export default function AdminForgeAssistant() {
   const queryClient = useQueryClient();
@@ -201,7 +201,7 @@ export default function AdminForgeAssistant() {
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-white font-gothic tracking-wide truncate">Forge Assistant</p>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-widest truncate">
-                    OpenRouter · catalog control
+                    Grok · catalog control
                   </p>
                 </div>
               </div>

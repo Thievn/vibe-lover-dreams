@@ -1,24 +1,22 @@
-import { openRouterChatCompletion, extractOpenRouterAssistantText, openRouterChatModel, resolveOpenRouterApiKey } from "./openRouter.ts";
+import { resolveXaiApiKey } from "./resolveXaiApiKey.ts";
+import { extractGrokAssistantText, grokChatCompletionRaw } from "./xaiGrokChatRaw.ts";
 
 const DEFAULT_VISION = "grok-2-vision-1212";
 
 /**
- * Asks a vision-capable chat model (OpenRouter) to label the main portrait as realistic vs stylized.
+ * Asks a Grok vision model (xAI) to label the main portrait as realistic vs stylized.
  * Fails soft: returns `null` so callers can default to "realistic".
  */
 export async function classifyPortraitRenderGroupWithXai(
   getEnv: (k: string) => string | undefined,
   publicImageUrl: string,
 ): Promise<"realistic" | "stylized" | null> {
-  if (!resolveOpenRouterApiKey(getEnv) || !publicImageUrl.trim()) return null;
-  const model = (getEnv("OPENROUTER_VISION_CLASSIFY_MODEL") ?? openRouterChatModel(getEnv) ?? DEFAULT_VISION).trim();
+  if (!resolveXaiApiKey(getEnv) || !publicImageUrl.trim()) return null;
+  const model = (getEnv("GROK_VISION_CLASSIFY_MODEL") ?? getEnv("GROK_VISION_MODEL") ?? DEFAULT_VISION).trim();
 
   try {
-    const res = await openRouterChatCompletion({
-      getEnv,
+    const res = await grokChatCompletionRaw({
       model,
-      temperature: 0.1,
-      max_tokens: 16,
       messages: [
         {
           role: "user",
@@ -34,13 +32,14 @@ export async function classifyPortraitRenderGroupWithXai(
           ],
         },
       ],
+      temperature: 0.1,
+      max_tokens: 16,
     });
     if (!res.ok || res.json === null) {
-      const raw = res.rawText;
-      console.error("OpenRouter vision classify: HTTP", res.status, raw.slice(0, 500));
+      console.error("Grok vision classify: HTTP", res.status, res.rawText.slice(0, 500));
       return null;
     }
-    const t = extractOpenRouterAssistantText(res.json).trim().toLowerCase();
+    const t = extractGrokAssistantText(res.json).trim().toLowerCase();
     if (t.includes("styliz") || t.includes("anime") || t === "b" || t.startsWith("b")) {
       return "stylized";
     }

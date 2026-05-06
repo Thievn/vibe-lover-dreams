@@ -30,13 +30,14 @@ verify_jwt = false
 [functions.grok-chat]
 verify_jwt = false
 
-[functions.openrouter-chat]
-verify_jwt = false
-
 [functions.generate-companion-image]
 verify_jwt = false
 
 [functions.admin-regenerate-companion-section]
+verify_jwt = false
+
+# Session validated in Deno (same pattern as generate-image).
+[functions.sync-appearance-reference]
 verify_jwt = false
 
 # Validates session inside Deno (same pattern as generate-image).

@@ -19,6 +19,8 @@ export interface DbCompanion {
   tags: string[];
   kinks: string[];
   appearance: string;
+  /** Core physical appearance without outfit/scene — for chat image consistency. */
+  appearance_reference?: string | null;
   personality: string;
   bio: string;
   system_prompt: string;
@@ -140,6 +142,7 @@ export function mapSupabaseCustomCharacterRow(row: Record<string, unknown>): DbC
     tags: parseStringList(row.tags),
     kinks: parseStringList(row.kinks),
     appearance: (row.appearance as string) || "",
+    appearance_reference: (row.appearance_reference as string | null | undefined) ?? null,
     personality: (row.personality as string) || "",
     bio: (row.bio as string) || "",
     system_prompt: (row.system_prompt as string) || "",
@@ -255,6 +258,7 @@ function staticListToDb(): DbCompanion[] {
     tags: c.tags,
     kinks: c.kinks,
     appearance: c.appearance,
+    appearance_reference: null,
     personality: c.personality,
     bio: c.bio,
     system_prompt: c.systemPrompt,
@@ -300,6 +304,7 @@ export const dbToCompanion = (db: DbCompanion): Companion => ({
   tags: db.tags,
   kinks: db.kinks,
   appearance: db.appearance,
+  appearanceReference: (db.appearance_reference ?? "").trim() || undefined,
   personality: db.personality,
   bio: db.bio,
   systemPrompt: db.system_prompt,

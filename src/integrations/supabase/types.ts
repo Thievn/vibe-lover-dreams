@@ -105,6 +105,7 @@ export type Database = {
           animated_image_url: string | null
           profile_loop_video_enabled: boolean
           appearance: string
+          appearance_reference: string | null
           backstory: string
           bio: string
           created_at: string
@@ -136,6 +137,7 @@ export type Database = {
           animated_image_url?: string | null
           profile_loop_video_enabled?: boolean
           appearance?: string
+          appearance_reference?: string | null
           backstory?: string
           bio?: string
           created_at?: string
@@ -167,6 +169,7 @@ export type Database = {
           animated_image_url?: string | null
           profile_loop_video_enabled?: boolean
           appearance?: string
+          appearance_reference?: string | null
           backstory?: string
           bio?: string
           created_at?: string
@@ -201,6 +204,7 @@ export type Database = {
           animated_image_url: string | null
           profile_loop_video_enabled: boolean
           appearance: string
+          appearance_reference: string | null
           approved: boolean
           avatar_url: string | null
           backstory: string
@@ -246,6 +250,7 @@ export type Database = {
           animated_image_url?: string | null
           profile_loop_video_enabled?: boolean
           appearance?: string
+          appearance_reference?: string | null
           approved?: boolean
           avatar_url?: string | null
           backstory?: string
@@ -291,6 +296,7 @@ export type Database = {
           animated_image_url?: string | null
           profile_loop_video_enabled?: boolean
           appearance?: string
+          appearance_reference?: string | null
           approved?: boolean
           avatar_url?: string | null
           backstory?: string
