@@ -1,6 +1,7 @@
 /**
- * xAI Grok **image** generation (`/v1/images/generations`, default `grok-imagine-image`).
- * @see https://docs.x.ai/docs/models#image-generation
+ * xAI Grok **image** generation (`/v1/images/generations`, default `grok-imagine-image`)
+ * and **identity-locked edits** (`/v1/images/edits` with a profile still as reference).
+ * @see https://docs.x.ai/docs/guides/image-generations
  */
 import { normalizeTogetherImageToDataUrl } from "./togetherImage.ts";
 
@@ -38,19 +39,88 @@ async function fetchHttpsImageUrlAsDataUrl(imageUrl: string): Promise<string> {
   return `data:${mime};base64,${btoa(binary)}`;
 }
 
+async function grokImageDataFromResponse(
+  json: unknown,
+  model: string,
+): Promise<{ dataUrl: string; modelUsed: string }> {
+  const data = (json as { data?: Array<{ b64_json?: string; url?: string }> })?.data?.[0];
+  if (data?.b64_json?.trim()) {
+    return { dataUrl: normalizeTogetherImageToDataUrl(data.b64_json.trim()), modelUsed: model };
+  }
+  if (data?.url?.trim()) {
+    const dataUrl = await fetchHttpsImageUrlAsDataUrl(data.url.trim());
+    return { dataUrl, modelUsed: model };
+  }
+  throw new Error("Grok image: empty response (no b64_json or url in data[0])");
+}
+
 export const DEFAULT_GROK_IMAGE_MODEL = "grok-imagine-image";
 
-export async function grokGenerateImageDataUrl(args: {
+export type GrokGenerateImageDataUrlArgs = {
   apiKey: string;
   prompt: string;
   getEnv: (name: string) => string | undefined;
   aspectRatio?: "2:3" | "1:1" | "3:2";
-}): Promise<{ dataUrl: string; modelUsed: string }> {
+  /**
+   * Public `https://` URL or `data:image/...;base64,...` of the companion’s **still profile portrait**.
+   * When set, calls `/v1/images/edits` so Imagine can **lock face/hair/body** while the prompt drives a new scene.
+   */
+  likenessEditSourceUrl?: string | null;
+};
+
+export async function grokGenerateImageDataUrl(
+  args: GrokGenerateImageDataUrlArgs,
+): Promise<{ dataUrl: string; modelUsed: string }> {
   const model = args.getEnv("GROK_IMAGE_MODEL")?.trim() || DEFAULT_GROK_IMAGE_MODEL;
   const ar = args.aspectRatio ?? "2:3";
-  const body: Record<string, unknown> = {
+  const prompt = args.prompt.trim().slice(0, 16_000);
+  const ref = args.likenessEditSourceUrl?.trim() ?? "";
+
+  const tryEdits =
+    ref.startsWith("https://") ||
+    (ref.startsWith("data:image/") && ref.includes("base64,"));
+
+  if (tryEdits && ref.length > 32) {
+    const body: Record<string, unknown> = {
+      model,
+      prompt,
+      n: 1,
+      response_format: "b64_json",
+      aspect_ratio: ar,
+      image: { type: "image_url", url: ref },
+    };
+    try {
+      const res = await fetch("https://api.x.ai/v1/images/edits", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${args.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      const rawText = await res.text();
+      let json: unknown = null;
+      try {
+        json = JSON.parse(rawText) as unknown;
+      } catch {
+        /* leave null */
+      }
+      if (res.ok && json) {
+        return await grokImageDataFromResponse(json, model);
+      }
+      console.warn(
+        "grokGenerateImageDataUrl: edits failed, falling back to text-only generations",
+        res.status,
+        rawText.slice(0, 400),
+      );
+    } catch (e) {
+      console.warn("grokGenerateImageDataUrl: edits exception, falling back to generations", e);
+    }
+  }
+
+  const bodyGen: Record<string, unknown> = {
     model,
-    prompt: args.prompt.trim().slice(0, 16_000),
+    prompt,
     n: 1,
     response_format: "b64_json",
     aspect_ratio: ar,
@@ -62,7 +132,7 @@ export async function grokGenerateImageDataUrl(args: {
       Authorization: `Bearer ${args.apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(bodyGen),
   });
   const rawText = await res.text();
   let json: unknown = null;
@@ -79,13 +149,8 @@ export async function grokGenerateImageDataUrl(args: {
     throw new Error(`Grok image HTTP ${res.status}: ${msg}`);
   }
 
-  const data = (json as { data?: Array<{ b64_json?: string; url?: string }> })?.data?.[0];
-  if (data?.b64_json?.trim()) {
-    return { dataUrl: normalizeTogetherImageToDataUrl(data.b64_json.trim()), modelUsed: model };
+  if (json == null) {
+    throw new Error("Grok image: empty or invalid JSON body");
   }
-  if (data?.url?.trim()) {
-    const dataUrl = await fetchHttpsImageUrlAsDataUrl(data.url.trim());
-    return { dataUrl, modelUsed: model };
-  }
-  throw new Error("Grok image: empty response (no b64_json or url in data[0])");
+  return await grokImageDataFromResponse(json, model);
 }

@@ -23,6 +23,30 @@ export function stablePortraitDisplayUrl(url: string | null | undefined): string
   return u.split("?")[0];
 }
 
+const DEFAULT_PUBLIC_SITE = "https://lustforge.app";
+
+/**
+ * Absolute **https** URL for xAI Imagine **edits** (remote fetch).
+ * - Applies {@link stablePortraitDisplayUrl} (e.g. Supabase signed → public).
+ * - Prefixes root-relative Vite assets (`/assets/...`) with `VITE_SITE_URL` so production is `https://lustforge.app/...`.
+ */
+export function resolveLikenessReferenceImageUrlForImagine(portraitUrl: string | null | undefined): string | undefined {
+  const stable = stablePortraitDisplayUrl(portraitUrl ?? undefined) ?? portraitUrl?.trim() ?? "";
+  let u = stable.trim();
+  if (!u) return undefined;
+  if (u.startsWith("/") && !u.startsWith("//")) {
+    const origin = (
+      typeof import.meta !== "undefined" && import.meta.env?.VITE_SITE_URL
+        ? String(import.meta.env.VITE_SITE_URL).trim()
+        : ""
+    ).replace(/\/$/, "") || DEFAULT_PUBLIC_SITE.replace(/\/$/, "");
+    u = `${origin}${u}`;
+  }
+  u = (u.split("?")[0] ?? u).trim();
+  if (!u.startsWith("https://")) return undefined;
+  return u;
+}
+
 /** Same stored object may appear as signed vs public URL — compare normalized storage paths. */
 export function portraitUrlsEquivalent(a: string | null | undefined, b: string | null | undefined): boolean {
   const na = stablePortraitDisplayUrl(a ?? undefined);

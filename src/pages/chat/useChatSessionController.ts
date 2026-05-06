@@ -11,6 +11,7 @@ import {
   profileAnimatedPortraitUrl,
   isVideoPortraitUrl,
   shouldShowProfileLoopVideo,
+  resolveLikenessReferenceImageUrlForImagine,
 } from "@/lib/companionMedia";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
@@ -778,11 +779,18 @@ export function useChatSessionController() {
           : "";
       /** Do not paste full `appearance` here — it often describes the roster still (beach, swimsuit) and hijacks Imagine before PRIMARY SCENE. Full prose stays in `prompt` / CHARACTER APPEARANCE only. */
       const ar = (companion.appearanceReference ?? "").trim();
+      const likenessRefUrl = resolveLikenessReferenceImageUrlForImagine(companion.portraitUrl);
       const baseDescription = menuSceneLock
         ? ar
-          ? `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Locked core appearance (text bible — no reference image):** ${ar.slice(0, 1600)}${ar.length > 1600 ? "…" : ""} **Chat gallery preset:** outfit, pose, room, light, and props = PRIMARY SCENE / menu only — never the roster card layout.`
-          : `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Chat gallery preset:** identity caps = face, hair, skin, species, body scale from CHARACTER APPEARANCE in the prompt body — **not** outfit, pose, room, or palette copied from any static marketing still. Wardrobe, set, pose, light = PRIMARY SCENE / menu only.`
-        : `Single subject — ${companion.name} (${companion.gender}). Written appearance: ${companion.appearance}.${forgeTail}`;
+          ? likenessRefUrl
+            ? `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Locked core appearance (text + HTTPS portrait for likeness):** ${ar.slice(0, 1600)}${ar.length > 1600 ? "…" : ""} **Chat gallery preset:** the profile still anchors face/hair/body/tattoos only; **wardrobe, pose, room, light, props** = PRIMARY SCENE / menu — not a remaster of the card photo.`
+            : `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Locked core appearance (text bible — no reference image):** ${ar.slice(0, 1600)}${ar.length > 1600 ? "…" : ""} **Chat gallery preset:** outfit, pose, room, light, and props = PRIMARY SCENE / menu only — never the roster card layout.`
+          : likenessRefUrl
+            ? `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Chat gallery preset:** HTTPS portrait anchors likeness (face, hair, skin, build, tattoos); identity details also in CHARACTER APPEARANCE. **Wardrobe, set, pose, light** = PRIMARY SCENE / menu only — not the static still’s outfit or room.`
+            : `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Chat gallery preset:** identity caps = face, hair, skin, species, body scale from CHARACTER APPEARANCE in the prompt body — **not** outfit, pose, room, or palette copied from any static marketing still. Wardrobe, set, pose, light = PRIMARY SCENE / menu only.`
+        : likenessRefUrl
+          ? `Single subject — ${companion.name} (${companion.gender}). **HTTPS portrait anchors likeness** (face, hair, body, marks); **scene** = PRIMARY SCENE and written profile. Written appearance: ${companion.appearance}.${forgeTail}`
+          : `Single subject — ${companion.name} (${companion.gender}). Written appearance: ${companion.appearance}.${forgeTail}`;
       const commonCharacterData = {
         companionId: companion.id,
         style: "chat-session" as const,
@@ -804,6 +812,7 @@ export function useChatSessionController() {
         ...(menuSceneLock && visualIdentityCapsule?.trim()
           ? { visual_identity_capsule: visualIdentityCapsule.trim() }
           : {}),
+        ...(likenessRefUrl ? { likeness_reference_image_url: likenessRefUrl } : {}),
       };
 
       const { data, error } = await invokeGenerateImage({
@@ -880,9 +889,14 @@ export function useChatSessionController() {
         "Average Build";
       const artLabel = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
       const arReward = (companion.appearanceReference ?? "").trim();
+      const rewardLikenessUrl = resolveLikenessReferenceImageUrlForImagine(companion.portraitUrl);
       const rewardBaseDescription = arReward
-        ? `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Locked core appearance:** ${arReward.slice(0, 1600)}${arReward.length > 1600 ? "…" : ""} **Reward still:** wardrobe, pose, and set = PRIMARY SCENE only.`
-        : `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Chat gallery preset (reward):** identity from CHARACTER APPEARANCE text only (face/hair/skin/build); scene outfit pose set = PRIMARY SCENE only — not the companion’s static still.`;
+        ? rewardLikenessUrl
+          ? `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Locked core appearance (text + portrait likeness):** ${arReward.slice(0, 1600)}${arReward.length > 1600 ? "…" : ""} **Reward still:** HTTPS portrait anchors face/body/tattoos; wardrobe, pose, and set = PRIMARY SCENE only — not a card remaster.`
+          : `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Locked core appearance:** ${arReward.slice(0, 1600)}${arReward.length > 1600 ? "…" : ""} **Reward still:** wardrobe, pose, and set = PRIMARY SCENE only.`
+        : rewardLikenessUrl
+          ? `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Chat gallery preset (reward):** portrait URL anchors likeness; scene outfit pose set = PRIMARY SCENE only — not the companion’s static still remastered.`
+          : `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Chat gallery preset (reward):** identity from CHARACTER APPEARANCE text only (face/hair/skin/build); scene outfit pose set = PRIMARY SCENE only — not the companion’s static still.`;
       const cd = {
         companionId: companion.id,
         style: "chat-session" as const,
@@ -900,6 +914,7 @@ export function useChatSessionController() {
         clothing:
           "Wardrobe, undress, pose, and set come **only** from USER SCENE / **Requested framing (from menu)** — not from forge packshots or profile art.",
         ...(visualIdentityCapsule?.trim() ? { visual_identity_capsule: visualIdentityCapsule.trim() } : {}),
+        ...(rewardLikenessUrl ? { likeness_reference_image_url: rewardLikenessUrl } : {}),
       };
       const { data, error } = await invokeGenerateImage({
         prompt,
