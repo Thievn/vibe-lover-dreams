@@ -125,9 +125,9 @@ export function AdminForgeSchedulePanel({ onAutoForge, className }: Props) {
       const next: DayRuns = { day: today, count: base + 1 };
       saveRuns(next);
       setRuns(next);
-      toast.success("Forge queued — check Character management.");
+      toast.success("Rite queued — watch the forge log, then the Hall of cards.");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Forge failed");
+      toast.error(e instanceof Error ? e.message : "The scheduled rite refused to start.");
     } finally {
       setBusy(false);
     }
@@ -143,7 +143,7 @@ export function AdminForgeSchedulePanel({ onAutoForge, className }: Props) {
       <summary className="cursor-pointer list-none flex items-center justify-between gap-2 px-4 py-3 hover:bg-violet-950/25">
         <div className="flex items-center gap-2 text-sm font-bold text-violet-200 min-w-0">
           <CalendarClock className="h-4 w-4 text-violet-400 shrink-0" />
-          <span className="truncate">Scheduled random forges</span>
+          <span className="truncate">Veil-timed random rites</span>
           {cfg.enabled ? (
             <span className="text-[10px] font-semibold uppercase tracking-wide text-violet-300/90 shrink-0">· on</span>
           ) : (
@@ -154,8 +154,8 @@ export function AdminForgeSchedulePanel({ onAutoForge, className }: Props) {
       </summary>
       <div className="px-4 pb-4 space-y-3 border-t border-violet-500/20 pt-3">
       <p className="text-[11px] text-muted-foreground leading-relaxed">
-        After your chosen local time, you can run random roulette + save up to your daily cap. Use the button below
-        (or &quot;Forge random companion now&quot;) — new rows stay <strong className="text-foreground/90">private</strong> until you publish from Character management.
+        After your chosen hour, the forge may spin random roulette binds up to your daily cap. Use the rune below
+        (or &quot;Summon a random companion&quot;) — new cards stay <strong className="text-foreground/90">veiled</strong> until you lift them in the Hall of cards.
       </p>
       <label className="flex items-center gap-2 text-xs cursor-pointer">
         <input
@@ -164,18 +164,18 @@ export function AdminForgeSchedulePanel({ onAutoForge, className }: Props) {
           onChange={(e) => persist({ ...cfg, enabled: e.target.checked })}
           className="rounded border-violet-500/50"
         />
-        Enable schedule
+        Enable veil clock
       </label>
       <div className="flex flex-wrap gap-3 items-end">
         <div>
-          <label className="text-[10px] uppercase text-muted-foreground block mb-1">Per day (max)</label>
+          <label className="text-[10px] uppercase text-muted-foreground block mb-1">Bindings / day (max)</label>
           <select
             value={cfg.perDay}
             onChange={(e) => persist({ ...cfg, perDay: Number(e.target.value) === 2 ? 2 : 1 })}
             className="rounded-lg bg-background border border-border px-2 py-1.5 text-sm"
           >
-            <option value={1}>1 companion / day</option>
-            <option value={2}>2 companions / day</option>
+            <option value={1}>1 card / day</option>
+            <option value={2}>2 cards / day</option>
           </select>
         </div>
         <div>
@@ -207,7 +207,7 @@ export function AdminForgeSchedulePanel({ onAutoForge, className }: Props) {
             onChange={(e) => persist({ ...cfg, privateByDefault: e.target.checked })}
             className="rounded border-violet-500/50"
           />
-          Private until I review
+          Veiled until I lift them
         </label>
       </div>
       <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
@@ -223,7 +223,7 @@ export function AdminForgeSchedulePanel({ onAutoForge, className }: Props) {
         className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-400/40 bg-violet-600/20 px-4 py-2 text-sm font-semibold text-violet-100 hover:bg-violet-600/30 disabled:opacity-50"
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-        Forge random companion now
+        Summon a random companion
       </button>
       </div>
     </details>

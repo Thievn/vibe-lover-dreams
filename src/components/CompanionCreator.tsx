@@ -888,7 +888,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       setProfileDisplayName(data?.display_name?.trim() || "");
     } catch (e: unknown) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : "Could not load your session — try refreshing.");
+      toast.error(e instanceof Error ? e.message : "The forge couldn’t read your session — refresh and step back in.");
     } finally {
       setLoadingProfile(false);
     }
@@ -955,14 +955,14 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
           previewCanonicalUrl: can,
         };
         hydrateForgeFromPayload(merged);
-        toast.message("Forge restored from history", {
-          description: "Portrait + all fields below match this snapshot. Create when ready.",
+        toast.message("Echo from the portrait hall", {
+          description: "That moment’s look and every field below are restored — seal them when the muse agrees.",
         });
       } else {
         setPreviewUrl(disp);
         setPreviewCanonicalUrl(can);
-        toast.message("Portrait restored", {
-          description: "This save has no field snapshot — tweak narrative tabs if needed, then Create.",
+        toast.message("Portrait remembered", {
+          description: "Only the still returned — whisper the rest in Narrative, then bind when you’re ready.",
         });
       }
     },
@@ -1005,9 +1005,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         }
         await mergeAndSetHistory(cleanedFromDraft);
         if (!cancelled) {
-          toast.message("Your forge is still here", {
-            description: "We kept your last mix, story fields, and preview on this device.",
-          });
+          /* Silent resume: avoid a toast stack when someone is just opening the forge. */
           setForgeSessionHydrated(true);
         }
         return;
@@ -1245,7 +1243,9 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
         setBodyType(normalizeForgeBodyType(pick([...FORGE_BODY_TYPES])));
         setForgeCardPose(randomForgeCardPose());
         setForgePortraitPoseId(randomForgePortraitPoseId());
-        toast.message("Wild roll", { description: "Every theme tab, overrides, look lab, body, and pose — maximum entropy." });
+        toast.message("Chaos rite", {
+          description: "Every tab, veil, look-lab thread, silhouette, and pose — the forge throws wide.",
+        });
         return;
       }
       const rollMode: "normal" | "chaos_wtf" = opts.wildChaos ? "chaos_wtf" : "normal";
@@ -1266,8 +1266,8 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
       setForgeCardPose(randomForgeCardPose());
       setForgePortraitPoseId(randomForgePortraitPoseId());
       setBodyType(pickRandomBodyTypeForForgeTab(tab));
-      toast.message("Tab shuffle", {
-        description: "Theme DNA + tab-affinity silhouette + rendering / wardrobe lab + a fresh seated pose.",
+      toast.message("Tab whispers reshuffled", {
+        description: "This theme’s mood, silhouette, palette, and seated beat — all redrawn from the same flame.",
       });
     },
     [activeForgeTab],
@@ -1278,8 +1278,8 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     setArtStyle(normalizeForgeArtStyle(preset.artStyle));
     setSceneAtmosphere(normalizeForgeScene(preset.sceneAtmosphere));
     setVisualTailoring((v) => normalizeForgeVisualTailoring({ ...v, ...preset.visualTailoringPatch }));
-    toast.message("Theme applied", {
-      description: "Art style, scene, and wardrobe lab updated to match this tab — tweak accordions anytime.",
+    toast.message("Theme’s default breath", {
+      description: "Scene, rendering lane, and look-lab seeds now match this tab — refine in the accordions anytime.",
     });
   }, [activeForgeTab]);
   const mergedExtraNotes = useMemo(
@@ -1413,7 +1413,7 @@ User flavor notes: ${extraNotes || "none"}`;
         return URL.createObjectURL(file);
       });
     } catch {
-      toast.error("Could not read that image.");
+      toast.error("That image wouldn’t yield its colors to the forge.");
     }
   };
 
@@ -1546,7 +1546,7 @@ User flavor notes: ${extraNotes || "none"}`;
         );
         nameGenSessionReserved.current.add(normalizeNameKey(n));
         setName(n);
-        toast.success("New name from your Personalities mix — you can still edit the field.");
+        toast.success("A new true name surfaced from your mix — the field stays yours to edit.");
       } else {
         const n = generateForgeName({
           gender,
@@ -1555,7 +1555,7 @@ User flavor notes: ${extraNotes || "none"}`;
         });
         nameGenSessionReserved.current.add(normalizeNameKey(n));
         setName(n);
-        toast.success("New name from your Personalities — sign in to also avoid names in your collection.");
+        toast.success("A new true name from your mix — sign in later to vow it against your vault, too.");
       }
     } catch {
       const n = generateForgeName({
@@ -1565,7 +1565,7 @@ User flavor notes: ${extraNotes || "none"}`;
       });
       nameGenSessionReserved.current.add(normalizeNameKey(n));
       setName(n);
-      toast.info("Used local name — try again to check your collection for duplicates.");
+      toast.info("Spun a local name — invoke the forge again once you’re signed in to cross the vault.");
     } finally {
       setNameGenBusy(false);
     }
@@ -1575,7 +1575,7 @@ User flavor notes: ${extraNotes || "none"}`;
     setRouletteLoading(true);
     try {
     if (isAdmin) {
-      pushForgeOp("The veil spun — new Personalities mix and local story pass (no model wait).", "info");
+      pushForgeOp("The veil spun — fresh Personalities weave and on-device story pass (no distant chorus).", "info");
     }
     const g = pick(GENDERS);
     const fp = randomForgePersonality();
@@ -1654,11 +1654,11 @@ User flavor notes: ${extraNotes || "none"}`;
 
     if (isAdmin) {
       pushForgeOp(
-        `Spin complete: ${g} · ${ar} · ${sc} — ${pl.slice(0, 80)}${pl.length > 80 ? "…" : ""}. Story fields are template-filled; edit in Narrative if you want a longer custom chronicle.`,
+        `Spin sealed: ${g} · ${ar} · ${sc} — ${pl.slice(0, 80)}${pl.length > 80 ? "…" : ""}. Chronicle is starter ink; deepen it in Narrative if you want a hand-written epic.`,
         "ok",
       );
     } else {
-      toast.success("New mix sealed — preview your portrait when you are ready.");
+      toast.success("The forge drew a new mix — meet her in Live preview when the moment feels right.");
     }
     } finally {
       setRouletteLoading(false);
@@ -1789,12 +1789,12 @@ User flavor notes: ${extraNotes || "none"}`;
     if (!userId) return;
     if (!isAdmin) {
       if (tokens !== null && tokens < PREVIEW_COST) {
-        toast.error(`Need ${PREVIEW_COST} FC for preview.`);
+        toast.error(`You need ${PREVIEW_COST} FC embers for a glimpse — gather more before calling the portrait.`);
         return;
       }
     }
     setPreviewLoading(true);
-    if (isAdmin) pushForgeOp("Portrait: sending packshot to the image pipeline…", "info");
+    if (isAdmin) pushForgeOp("Portrait: packshot sent through the image veil…", "info");
     try {
       const base = buildPortraitGeneratePayload(undefined, { contentTier: "forge_preview_sfw" });
       if (!base) throw new Error("Not signed in.");
@@ -1835,7 +1835,7 @@ User flavor notes: ${extraNotes || "none"}`;
           entry,
         });
       }, 0);
-      if (isAdmin) pushForgeOp("Portrait render finished — check Live preview.", "ok");
+      if (isAdmin) pushForgeOp("Portrait returned from the veil — study Live preview.", "ok");
       if (typeof data.newTokensBalance === "number") setTokens(data.newTokensBalance);
       else if (!isAdmin) {
         const {
@@ -1862,7 +1862,7 @@ User flavor notes: ${extraNotes || "none"}`;
   const runParodyLab = async () => {
     if (!isAdmin) return;
     if (!parodyArchetype.trim()) {
-      toast.error("Describe a broad archetype or genre parody (do not name real celebrities).");
+      toast.error("Give a broad archetype or genre echo — no living names, only shadows to caricature.");
       return;
     }
     setParodyLoading(true);
@@ -1876,9 +1876,9 @@ User flavor notes: ${extraNotes || "none"}`;
       const fields = data?.fields as Record<string, unknown> | undefined;
       if (!fields) throw new Error("No profile returned");
       applyGrokCompanionProfileFields(fields);
-      toast.success("Archetype parody filled — run Live preview when ready.");
+      toast.success("Parody mask pressed on — glance at Live preview when you dare.");
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Parody lab failed");
+      toast.error(e instanceof Error ? e.message : "The parody veil wouldn’t answer.");
     } finally {
       setParodyLoading(false);
     }
@@ -1889,10 +1889,10 @@ User flavor notes: ${extraNotes || "none"}`;
       if (!isAdmin) return;
       const t = celebritySeed.trim();
       if (!t) {
-        toast.error("Enter a celebrity or character name.");
+        toast.error("Whisper a mask name — who should the parody echo?");
         return;
       }
-      pushForgeOp("Celebrity parody: Grok profile pass…", "info");
+      pushForgeOp("Celebrity parody: distant chorus shaping profile…", "info");
       try {
         const { data, error } = await invokeParseCompanionPrompt({
           mode: "celebrity_parody",
@@ -1904,11 +1904,10 @@ User flavor notes: ${extraNotes || "none"}`;
         const fields = data?.fields as Record<string, unknown> | undefined;
         if (!fields) throw new Error("No profile returned");
         applyGrokCompanionProfileFields(fields);
-        pushForgeOp("Celebrity parody profile applied — review Narrative + Live preview.", "ok");
-        toast.success("Parody profile filled — tweak fields or run Live preview.");
+        pushForgeOp("Celebrity parody mask set — read Narrative and Live preview.", "ok");
       } catch (e: unknown) {
         pushForgeOp(e instanceof Error ? e.message : "Celebrity parody failed", "err");
-        toast.error(e instanceof Error ? e.message : "Celebrity parody failed");
+        toast.error(e instanceof Error ? e.message : "The parody mask wouldn’t hold.");
         throw e;
       }
     },
@@ -1917,7 +1916,7 @@ User flavor notes: ${extraNotes || "none"}`;
 
   const runFinalCreate = async () => {
     if (!userId) {
-      toast.error("You are not signed in yet — wait a second or refresh the page, then try Create again.");
+      toast.error("The forge doesn’t see you yet — wait a breath, refresh, then bind again.");
       return;
     }
     /** Spinner + elapsed timer as soon as Create starts — entire flow in try/finally so any throw clears loading. */
@@ -1927,39 +1926,39 @@ User flavor notes: ${extraNotes || "none"}`;
       setForgeRunStartedAt(Date.now());
       setForgeElapsedTick(0);
       if (!isAdmin) {
-        createToastId = toast.loading("Creating companion…", {
-          description: "Reserving name, balance, and vault save…",
+        createToastId = toast.loading("Binding your companion…", {
+          description: "Name, embers, and vault seal — stay in this tab until the sigil closes.",
         });
       }
       const bumpCreate = (description: string) => {
         if (createToastId != null) {
-          toast.loading("Creating companion…", { id: createToastId, description });
+          toast.loading("Binding your companion…", { id: createToastId, description });
         }
       };
       let userCharged = false;
       let userRefunded = false;
       if (isAdmin) {
         pushForgeOp(
-          "Create companion started — the browser will warn if you try to leave before this finishes. You can still switch apps; just don’t close the tab.",
+          "Binding started — the browser may warn if you flee mid-rite; switch apps if you must, but don’t slay the tab.",
           "info",
         );
       }
       let forgeName = name.trim();
       if (!forgeName) {
         try {
-          bumpCreate("Loading your existing forge names…");
+          bumpCreate("Listening for names your vault already claims…");
           const ex = await withAsyncTimeout(
             fetchForgeNameExclusions(supabase, userId),
             FORGE_NAME_LIST_TIMEOUT_MS,
             "Loading existing forge names",
           );
           for (const k of nameGenSessionReserved.current) ex.add(k);
-          bumpCreate("Picking a unique display name…");
+          bumpCreate("Choosing a name the hall hasn’t spoken yet…");
           const invented = generateUniqueForgeNameFromMergedExclusions({ gender, forgePersonality }, ex);
           nameGenSessionReserved.current.add(normalizeNameKey(invented));
           forgeName = invented;
           setName(invented);
-          toast.info("Named from your Personalities + collection — edit anytime.");
+          bumpCreate("A true name surfaced from your mix and vault echoes — still yours to rewrite.");
         } catch {
           const fb = generateForgeName({
             gender,
@@ -1971,21 +1970,21 @@ User flavor notes: ${extraNotes || "none"}`;
           setName(fb);
           toast.warning(
             isAdmin
-              ? "Used local name — check Character management for duplicates."
-              : "Used a local name — you can rename after saving.",
+              ? "Local name only — glance Character management for echoes you may want to break."
+              : "Local name for now — you may rename once she’s bound.",
           );
         }
       }
       if (!forgeName) {
-        toast.error("Could not assign a name — try Spin the forge or enter a name, then try again.");
+        toast.error("No name would take — spin the forge or inscribe one by hand, then bind again.");
         return;
       }
       if (!isAdmin && saveVisibility === "public" && creditUsername && !profileDisplayName.trim()) {
-        toast.error("Add a display username in Account settings to credit yourself on the public gallery.");
+        toast.error("For a public card with your sigil, set a display name in Account first.");
         return;
       }
       if (!isAdmin) {
-        bumpCreate("Checking your Forge Coin balance…");
+        bumpCreate("Counting the FC embers in your purse…");
         const { data: balRow } = await withAsyncTimeout(
           supabase.from("profiles").select("tokens_balance").eq("user_id", userId).maybeSingle(),
           SESSION_LOAD_TIMEOUT_MS,
@@ -1994,12 +1993,14 @@ User flavor notes: ${extraNotes || "none"}`;
         const bal = typeof balRow?.tokens_balance === "number" ? balRow.tokens_balance : 0;
         setTokens(bal);
         if (bal < finalTotalCost) {
-          toast.error(`Need ${finalTotalCost} FC to create — you have ${bal}. Buy Forge Coins or reduce batch size.`);
+          toast.error(
+            `This binding asks ${finalTotalCost} FC — you carry ${bal}. Gather embers or forge fewer at once.`,
+          );
           return;
         }
       }
       if (!isAdmin) {
-        bumpCreate(`Spending ${finalTotalCost} FC…`);
+        bumpCreate(`Offering ${finalTotalCost} FC to the binding…`);
         const spend = await withAsyncTimeout(
           spendForgeCoins(
             finalTotalCost,
@@ -2011,18 +2012,15 @@ User flavor notes: ${extraNotes || "none"}`;
           "Forge coin spend (RPC)",
         );
         if (!spend.ok) {
-          toast.error(spend.err || "Could not spend Forge Coins.");
+          toast.error(spend.err || "The embers wouldn’t leave your purse.");
           return;
         }
         userCharged = true;
         setTokens(spend.newBalance);
-        bumpCreate("Weaving your companion into the vault…");
-        toast.message("Weaving your companion into the vault…", {
-          description: "This can take a little while — keep the tab open until we finish.",
-        });
+        bumpCreate("Weaving her into the vault…");
       }
 
-      if (isAdmin) pushForgeOp("Validating copy, portrait, and DB payload…", "info");
+      if (isAdmin) pushForgeOp("Reading copy, portrait, and vault seal…", "info");
 
       let effectiveChronicle = chronicleBackstory.trim();
       let effectiveHook = hookBio.trim();
@@ -2044,33 +2042,19 @@ User flavor notes: ${extraNotes || "none"}`;
       });
 
       if (needsDesignLab) {
-        bumpCreate("Grok design lab (parse-companion-prompt) — expanding narrative / portrait brief…");
-        toast.info(
+        bumpCreate(
           chronicleWasShort
-            ? "Your chronicle is short — expanding prose from your seeds…"
-            : "Filling missing narrative & portrait brief from your seeds (Grok)…",
+            ? "The forge is lengthening her chronicle from your seeds — stay in this tab."
+            : "The forge is filling thin narrative threads — stay in this tab.",
         );
-        toast.message(chronicleWasShort ? "Expanding chronicle with AI…" : "Finishing literary draft with AI…", {
-          description: "Usually under two minutes. You can keep this tab in the background.",
-        });
         if (isAdmin) {
           pushForgeOp(
             chronicleWasShort
-              ? "Chronicle short — design lab expanding prose & starters…"
-              : "Narrative / portrait brief thin — design lab filling vault fields…",
+              ? "Chronicle thin — design chorus deepening prose & starters…"
+              : "Narrative veil thin — design chorus filling vault fields…",
             "info",
           );
-          toast.message("Grok design lab running", {
-            description:
-              "Usually under 3 minutes. If it errors, check the forge log below and your XAI_API_KEY on parse-companion-prompt.",
-          });
         }
-        const designLabToastId = toast.loading(
-          chronicleWasShort ? "Grok is expanding your chronicle…" : "Grok is finishing your literary draft…",
-          {
-            description: "xAI via Supabase (parse-companion-prompt). Usually 30–120s — keep this tab open.",
-          },
-        );
         const themeSnapForDesignLab = buildForgeThemeSnapshotV1({
           activeForgeTab,
           forgeCardPose,
@@ -2104,25 +2088,21 @@ User flavor notes: ${extraNotes || "none"}`;
         });
         try {
           let labData: Record<string, unknown> | null = null;
-          try {
-            const labResult = await withAsyncTimeout(
-              invokeParseCompanionPrompt({ mode: "companion_design_lab", prompt: seedPrompt }),
-              PARSE_COMPANION_TIMEOUT_MS,
-              "Forge design lab (parse-companion-prompt / Grok)",
-            );
-            if (labResult.error) throw labResult.error;
-            labData = labResult.data;
-            if (labData?.error) throw new Error(String(labData.error));
-          } finally {
-            toast.dismiss(designLabToastId);
-          }
+          const labResult = await withAsyncTimeout(
+            invokeParseCompanionPrompt({ mode: "companion_design_lab", prompt: seedPrompt }),
+            PARSE_COMPANION_TIMEOUT_MS,
+            "Forge design lab (parse-companion-prompt / Grok)",
+          );
+          if (labResult.error) throw labResult.error;
+          labData = labResult.data;
+          if (labData?.error) throw new Error(String(labData.error));
           const fields = labData?.fields as Record<string, unknown> | undefined;
           // Keep forgeName; design lab is instructed with mandatoryDisplayName and must not replace it in UI.
           const bs = typeof fields?.backstory === "string" ? fields.backstory.trim() : "";
           if (chronicleWasShort) {
             if (!bs) {
               throw new Error(
-                "Could not generate a full chronicle. Spin the forge to refill the profile, or paste a longer Chronicle, then try again.",
+                "The chronicle wouldn’t lengthen. Spin the forge for a fuller draft, or paste more Chronicle, then bind again.",
               );
             }
             effectiveChronicle = bs.slice(0, 24000);
@@ -2165,8 +2145,8 @@ User flavor notes: ${extraNotes || "none"}`;
           if (isAdmin) {
             pushForgeOp(
               chronicleWasShort
-                ? "Design lab pass finished — chronicle / narrative updated."
-                : "Design lab pass finished — thin fields filled from Grok.",
+                ? "Design chorus finished — chronicle and narrative rewoven."
+                : "Design chorus finished — thin fields filled from the distant veil.",
               "ok",
             );
           }
@@ -2211,11 +2191,11 @@ User flavor notes: ${extraNotes || "none"}`;
             effectiveStartersVault = padFantasyStartersToFour(fallbackLocal.fantasyStarters, forgeName);
             setFantasyStartersVault(effectiveStartersVault);
           }
-          const labMsg = labErr instanceof Error ? labErr.message : "AI design lab failed";
-          toast.warning("AI design lab failed — using local fallback so forge can continue.", {
+          const labMsg = labErr instanceof Error ? labErr.message : "Design chorus fell silent";
+          toast.warning("The distant chorus hushed — the forge’s own ink finishes the draft.", {
             description: labMsg.slice(0, 180),
           });
-          if (isAdmin) pushForgeOp(`Design lab unavailable; used local fallback: ${labMsg}`, "err");
+          if (isAdmin) pushForgeOp(`Design chorus unavailable — local ink used: ${labMsg}`, "err");
         }
       }
 
@@ -2284,8 +2264,8 @@ User flavor notes: ${extraNotes || "none"}`;
       const previewRaw = previewCanonicalUrl || previewUrl;
       let portraitUrl: string | null = stablePortraitDisplayUrl(previewRaw) ?? previewRaw;
       if (!portraitUrl) {
-        bumpCreate("Rendering portrait (Grok Imagine) — usually under two minutes…");
-        if (isAdmin) pushForgeOp("No preview still — generating portrait from prompts (same as user flow)…", "info");
+        bumpCreate("Painting her portrait from the prompts — give the veil a minute or two…");
+        if (isAdmin) pushForgeOp("No Live preview yet — painting portrait from prompts (guest rite)…", "info");
         const payload = buildPortraitGeneratePayload(effectiveNarrative || undefined, {
           contentTier: "forge_preview_sfw",
         });
@@ -2300,36 +2280,36 @@ User flavor notes: ${extraNotes || "none"}`;
             "Forge portrait (generate-image)",
           );
           if (genErr) {
-            throw new Error(`Portrait (Grok Imagine / generate-image): ${genErr.message}`);
+            throw new Error(`Portrait veil faulted: ${genErr.message}`);
           }
           if (!genData?.success || !genData.imageUrl) {
             throw new Error(
               genData?.error?.trim() ||
-                "Portrait generation did not return an image — check Forge Coins, session, and Edge `generate-image` logs.",
+                "No portrait returned — check your embers and session, then call Generate portrait again.",
             );
           }
           const canon = stablePortraitDisplayUrl(genData.publicImageUrl ?? genData.imageUrl) ?? genData.imageUrl;
           portraitUrl = canon;
           setPreviewUrl(stablePortraitDisplayUrl(genData.imageUrl) ?? genData.imageUrl);
           setPreviewCanonicalUrl(canon);
-          if (isAdmin) pushForgeOp("Inline portrait generation finished.", "ok");
+          if (isAdmin) pushForgeOp("Inline portrait finished — she has a face for the row.", "ok");
         }
       } else {
         portraitUrl = stablePortraitDisplayUrl(portraitUrl) ?? portraitUrl;
-        if (isAdmin) pushForgeOp("Using existing Live preview portrait for the row.", "info");
+        if (isAdmin) pushForgeOp("Borrowing the Live preview portrait already on the altar.", "info");
       }
 
       if (!portraitUrl?.trim()) {
         throw new Error(
           isAdmin
-            ? "No portrait image. Run Generate portrait in Live preview (or fix the image pipeline), then Create again."
-            : "No portrait yet. Tap Generate portrait in Live preview and wait for it to finish, then try Create companion again.",
+            ? "No portrait yet — run Generate portrait in Live preview (or mend the image veil), then bind again."
+            : "No portrait yet — call Generate portrait in Live preview and wait for the still, then bind again.",
         );
       }
 
-      if (isAdmin) pushForgeOp("Inserting custom_characters row(s)…", "info");
+      if (isAdmin) pushForgeOp("Carving custom_characters row(s) into the vault…", "info");
 
-      bumpCreate(batchCount > 1 ? "Reserving names for batch create…" : "Saving companion to database…");
+      bumpCreate(batchCount > 1 ? "Whispering distinct names for each binding…" : "Sealing her into the vault ledger…");
       const nameReserve = await withAsyncTimeout(
         fetchForgeNameExclusions(supabase, userId),
         FORGE_NAME_LIST_TIMEOUT_MS,
@@ -2528,7 +2508,7 @@ User flavor notes: ${extraNotes || "none"}`;
         if (creditErr) {
           const creditMsg = formatSupabaseError(creditErr);
           if (!/gallery_credit_name|PGRST204/i.test(creditMsg)) {
-            toast.error(`Saved companion, but gallery credit failed: ${creditMsg}`);
+            toast.error(`She’s bound, but the gallery sigil wouldn’t take: ${creditMsg}`);
           }
         }
       }
@@ -2542,7 +2522,7 @@ User flavor notes: ${extraNotes || "none"}`;
         if (isAdmin) {
           setLastForgedCcId(ccFull);
           pushForgeOp(
-            `Saved ${ccFull}. Open profile to review visuals, or chat to smoke-test behavior. Generate a looping profile video (Grok I2V) from Character management or the block below when ready.`,
+            `Bound as ${ccFull}. Open her card to judge the art, or chat to feel her voice. Looping profile motion waits in Character management or the block below.`,
             "ok",
           );
         }
@@ -2577,8 +2557,8 @@ User flavor notes: ${extraNotes || "none"}`;
           );
           if (ref.ok) {
             setTokens(ref.newBalance);
-            toast.message("Forge didn’t finish — your FC were refunded.", {
-              description: "Your draft and preview history are still saved in this browser.",
+            toast.message("The binding broke — your FC returned to you.", {
+              description: "Your draft and portrait echoes stay in this browser until you clear them.",
             });
           }
         } catch {
@@ -2598,13 +2578,13 @@ User flavor notes: ${extraNotes || "none"}`;
     () => ({
       async runRandomRouletteAndForge(opts?: { forcePrivate?: boolean }) {
         if (!isAdmin) return;
-        pushForgeOp("Scheduled forge: spin the forge + create companion chain starting…", "info");
+        pushForgeOp("Scheduled rite: spin the forge, then bind — chain opening…", "info");
         forcePrivateForgeRef.current = Boolean(opts?.forcePrivate);
         try {
           await randomizeForgeCharacter();
           await new Promise((r) => setTimeout(r, 400));
           await runFinalCreate();
-          pushForgeOp("Scheduled forge chain finished successfully.", "ok");
+          pushForgeOp("Scheduled rite closed — chain finished clean.", "ok");
         } finally {
           forcePrivateForgeRef.current = false;
         }
@@ -2709,7 +2689,7 @@ User flavor notes: ${extraNotes || "none"}`;
       forgeCardPose,
     };
     saveForgeStash(payload);
-    toast.success("Forge stashed on this device — switch ideas or restore anytime.");
+    toast.success("This mix is shelved on your device — wander elsewhere, then recall it when you wish.");
   }, [
     name,
     namePrefix,
@@ -2745,7 +2725,7 @@ User flavor notes: ${extraNotes || "none"}`;
   const restoreStashedForge = useCallback(() => {
     const p = loadForgeStash();
     if (!p) {
-      toast.error("No stashed forge on this device.");
+      toast.error("No shelved mix waits on this device.");
       return;
     }
     setName(p.name);
@@ -2793,7 +2773,7 @@ User flavor notes: ${extraNotes || "none"}`;
     setForgeTabSharedOverrides(normalizeForgeTabSharedOverrides(p.forgeTabSharedOverrides));
     setForgeCardPose(normalizeForgeCardPoseId(p.forgeCardPose));
     setForgePortraitPoseId(normalizeForgePortraitPoseId((p as { forgePortraitPoseId?: string }).forgePortraitPoseId));
-    toast.success("Restored stashed forge.");
+    toast.success("Shelved mix breathes again — the forge remembers.");
   }, []);
 
   function VisualSelectRow({
@@ -3034,7 +3014,7 @@ User flavor notes: ${extraNotes || "none"}`;
             className="mb-4 md:mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-[#FF2D7B] transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back
+            Step back
           </button>
         )}
 
@@ -3075,8 +3055,8 @@ User flavor notes: ${extraNotes || "none"}`;
                 </h1>
                 <p className="text-sm text-muted-foreground mt-2 max-w-md leading-relaxed">
                   {isAdmin
-                    ? "Admin forge — no token cost. Shape every variable, then commit."
-                    : `Cheap live previews to iterate. Final binding costs ${FINAL_COST_PER} FC per companion.`}
+                    ? "Operator’s forge — no embers spent. Shape every thread, then seal the rite."
+                    : `Live preview is a small offering to iterate; final binding asks ${FINAL_COST_PER} FC each.`}
                 </p>
               </div>
               {!isAdmin && (
@@ -3094,13 +3074,13 @@ User flavor notes: ${extraNotes || "none"}`;
             {isAdmin && embedded ? (
               <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/35 px-3 py-2.5">
                 <Archive className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="text-[11px] text-muted-foreground mr-1">Park this mix and start another:</span>
+                <span className="text-[11px] text-muted-foreground mr-1">Shelve this mix and summon another:</span>
                 <button
                   type="button"
                   onClick={() => stashCurrentForge()}
                   className="text-xs font-semibold rounded-lg border border-primary/35 bg-primary/10 px-3 py-1.5 text-primary hover:bg-primary/15"
                 >
-                  Stash draft
+                  Shelve mix
                 </button>
                 <button
                   type="button"
@@ -3108,17 +3088,17 @@ User flavor notes: ${extraNotes || "none"}`;
                   className="text-xs font-semibold rounded-lg border border-white/15 px-3 py-1.5 text-foreground hover:bg-white/5 inline-flex items-center gap-1"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
-                  Restore stash
+                  Recall shelf
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     clearForgeStash();
-                    toast.info("Stash cleared.");
+                    toast.info("The shelf is bare — old mix released.");
                   }}
                   className="text-xs text-muted-foreground hover:text-foreground px-2"
                 >
-                  Clear stash
+                  Burn shelf
                 </button>
               </div>
             ) : null}
@@ -3138,14 +3118,14 @@ User flavor notes: ${extraNotes || "none"}`;
               {rouletteLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Dices className="h-5 w-5" />}
               {rouletteLoading
                 ? isAdmin
-                  ? "Writing local draft…"
+                  ? "Inscribing local draft…"
                   : "The veil is spinning…"
                 : "Spin the forge"}
             </motion.button>
             <p className="text-[10px] text-muted-foreground leading-relaxed -mt-2">
               {isAdmin
-                ? "Draws a new mix from the same lists, locks a name, and fills copy + starters locally (no model round-trip) — edit the Narrative tab if you want a longer hand-written chronicle."
-                : "Instant random roll: Personalities, scene, body, name, and a starter story pass — all from the forge’s own options, on your device."}
+                ? "Draws a fresh veil from the same lists, locks a name, and inks copy + starters on-device — deepen the chronicle in Narrative if you want a hand-written epic."
+                : "One breath: Personalities, scene, silhouette, name, and starter story — all from the forge’s own whispers, on your device."}
             </p>
 
             <div className="rounded-2xl border border-white/[0.1] bg-black/35 p-3 sm:p-4 space-y-3">
@@ -4357,7 +4337,9 @@ User flavor notes: ${extraNotes || "none"}`;
                           className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.02] object-cover cursor-zoom-in outline-none ring-0"
                           title="Click to expand preview"
                           onError={() => {
-                            toast.error("Preview image failed to load — check Storage bucket is public, then try Live preview again.");
+                            toast.error(
+                              "The preview still wouldn’t appear — ask the keeper that portraits are public, then open Live preview again.",
+                            );
                           }}
                         />
                       ) : (

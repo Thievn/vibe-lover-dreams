@@ -97,7 +97,7 @@ const NAV: { id: AdminSection; label: string; icon: typeof LayoutDashboard }[] =
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "creator", label: "Companion Forge", icon: Sparkles },
   { id: "nexus", label: "The Nexus", icon: Orbit },
-  { id: "characters", label: "Character Management", icon: Palette },
+  { id: "characters", label: "Hall of cards", icon: Palette },
   { id: "xmarketing", label: "X Marketing Hub", icon: Megaphone },
   { id: "weeklydrops", label: "Weekly Drops", icon: CalendarClock },
   { id: "users", label: "User Management", icon: Users },
@@ -826,10 +826,10 @@ function AdminShell() {
                       onClick={() => goSection("characters")}
                       className="rounded-lg border border-white/15 bg-black/35 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/35 hover:text-white"
                     >
-                      Character management
+                      Hall of cards
                     </button>
                     <span className="text-[10px] uppercase tracking-widest text-muted-foreground/90">
-                      Admin · no token cost
+                      Operator veil · no embers taxed
                     </span>
                   </div>
                 </div>
@@ -859,13 +859,13 @@ function AdminShell() {
           {section === "characters" && (
             <div className="rounded-[1.75rem] border border-border/80 bg-card/40 backdrop-blur-md p-4 md:p-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-                <h2 className="font-gothic text-2xl gradient-vice-text">Character management</h2>
+                <h2 className="font-gothic text-2xl gradient-vice-text">Hall of cards</h2>
                 <button
                   type="button"
                   onClick={() => goSection("creator")}
                   className="shrink-0 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold border border-primary/40 text-primary hover:bg-primary/10 transition-colors"
                 >
-                  Open Companion Forge
+                  Enter the Companion Forge
                 </button>
               </div>
               <CompanionManager />

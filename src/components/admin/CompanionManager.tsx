@@ -496,6 +496,61 @@ const CompanionManager = () => {
   const [autoFilling, setAutoFilling] = useState(false);
   const [designLabHints, setDesignLabHints] = useState("");
 
+  const syncEditToUrl = useCallback((id: string | null) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (id) next.set("edit", id);
+        else next.delete("edit");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
+
+  const openForgeAdminEdit = useCallback(
+    async (uuid: string) => {
+      setForgeEditLoadingId(uuid);
+      try {
+        const { data, error: rowErr } = await supabase.from("custom_characters").select("*").eq("id", uuid).maybeSingle();
+        if (rowErr) throw rowErr;
+        if (!data) {
+          toast.error("Forge row not found.");
+          return;
+        }
+        const mapped = mapSupabaseCustomCharacterRow(data as Record<string, unknown>);
+        setEditOverride(mapped);
+        setEditingId(mapped.id);
+        setViewMode("edit");
+        syncEditToUrl(mapped.id);
+      } catch (e: unknown) {
+        lastUrlEditOpened.current = null;
+        toast.error(e instanceof Error ? e.message : "Could not load forge row");
+      } finally {
+        setForgeEditLoadingId(null);
+      }
+    },
+    [syncEditToUrl],
+  );
+
+  useEffect(() => {
+    const raw = searchParams.get("edit");
+    if (!raw) {
+      lastUrlEditOpened.current = null;
+      return;
+    }
+    if (viewMode !== "list") return;
+    if (lastUrlEditOpened.current === raw) return;
+    lastUrlEditOpened.current = raw;
+    if (raw.startsWith("cc-")) {
+      void openForgeAdminEdit(raw.replace(/^cc-/, ""));
+    } else {
+      setEditOverride(null);
+      setEditingId(raw);
+      setViewMode("edit");
+    }
+  }, [searchParams, viewMode, openForgeAdminEdit]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -904,45 +959,11 @@ const CompanionManager = () => {
     }
   };
 
-  const syncEditToUrl = useCallback((id: string | null) => {
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        if (id) next.set("edit", id);
-        else next.delete("edit");
-        return next;
-      },
-      { replace: true },
-    );
-  }, [setSearchParams]);
-
   const openEdit = (id: string) => {
     setEditOverride(null);
     setEditingId(id);
     setViewMode("edit");
     syncEditToUrl(id);
-  };
-
-  const openForgeAdminEdit = async (uuid: string) => {
-    setForgeEditLoadingId(uuid);
-    try {
-      const { data, error } = await supabase.from("custom_characters").select("*").eq("id", uuid).maybeSingle();
-      if (error) throw error;
-      if (!data) {
-        toast.error("Forge row not found.");
-        return;
-      }
-      const mapped = mapSupabaseCustomCharacterRow(data as Record<string, unknown>);
-      setEditOverride(mapped);
-      setEditingId(mapped.id);
-      setViewMode("edit");
-      syncEditToUrl(mapped.id);
-    } catch (e: unknown) {
-      lastUrlEditOpened.current = null;
-      toast.error(e instanceof Error ? e.message : "Could not load forge row");
-    } finally {
-      setForgeEditLoadingId(null);
-    }
   };
 
   const openCreate = () => {
@@ -957,25 +978,6 @@ const CompanionManager = () => {
     setEditOverride(null);
     syncEditToUrl(null);
   };
-
-  useEffect(() => {
-    const raw = searchParams.get("edit");
-    if (!raw) {
-      lastUrlEditOpened.current = null;
-      return;
-    }
-    if (viewMode !== "list") return;
-    if (lastUrlEditOpened.current === raw) return;
-    lastUrlEditOpened.current = raw;
-    if (raw.startsWith("cc-")) {
-      void openForgeAdminEdit(raw.replace(/^cc-/, ""));
-    } else {
-      setEditOverride(null);
-      setEditingId(raw);
-      setViewMode("edit");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- URL-driven entry; avoid re-running on every render
-  }, [searchParams, viewMode]);
 
   const createCompanion = async () => {
     if (!createData.name.trim()) {
