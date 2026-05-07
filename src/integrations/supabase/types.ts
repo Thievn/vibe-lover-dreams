@@ -510,21 +510,33 @@ export type Database = {
           auto_process_forge_queue: boolean
           id: number
           updated_at: string
+          use_framed_card_for_x_video: boolean
           use_looping_video_for_x: boolean
+          x_append_profile_link: boolean
+          x_profile_link_cta_custom: string | null
+          x_profile_link_cta_preset: string
           zernio_twitter_account_id: string | null
         }
         Insert: {
           auto_process_forge_queue?: boolean
           id?: number
           updated_at?: string
+          use_framed_card_for_x_video?: boolean
           use_looping_video_for_x?: boolean
+          x_append_profile_link?: boolean
+          x_profile_link_cta_custom?: string | null
+          x_profile_link_cta_preset?: string
           zernio_twitter_account_id?: string | null
         }
         Update: {
           auto_process_forge_queue?: boolean
           id?: number
           updated_at?: string
+          use_framed_card_for_x_video?: boolean
           use_looping_video_for_x?: boolean
+          x_append_profile_link?: boolean
+          x_profile_link_cta_custom?: string | null
+          x_profile_link_cta_preset?: string
           zernio_twitter_account_id?: string | null
         }
         Relationships: []

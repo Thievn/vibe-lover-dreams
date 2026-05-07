@@ -18,6 +18,7 @@ import {
   sanitizePromptForVideoApi,
 } from "../_shared/profileLoopVideoPrompt.ts";
 import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
+import { publicApiTeaserGuardResponse } from "../_shared/publicApiTeaserGate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -76,6 +77,9 @@ Deno.serve(async (req) => {
   const sessionGate = await requireSessionUser(req);
   if ("response" in sessionGate) return sessionGate.response;
   const sessionUser = sessionGate.user;
+
+  const teaserBlock = await publicApiTeaserGuardResponse(sessionUser);
+  if (teaserBlock) return teaserBlock;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";

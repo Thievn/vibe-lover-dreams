@@ -19,14 +19,17 @@ comment on table public.forge_portrait_history is
 
 alter table public.forge_portrait_history enable row level security;
 
+drop policy if exists "forge_portrait_history_select_own" on public.forge_portrait_history;
 create policy "forge_portrait_history_select_own"
   on public.forge_portrait_history for select
   using (auth.uid() = user_id);
 
+drop policy if exists "forge_portrait_history_insert_own" on public.forge_portrait_history;
 create policy "forge_portrait_history_insert_own"
   on public.forge_portrait_history for insert
   with check (auth.uid() = user_id);
 
+drop policy if exists "forge_portrait_history_delete_own" on public.forge_portrait_history;
 create policy "forge_portrait_history_delete_own"
   on public.forge_portrait_history for delete
   using (auth.uid() = user_id);

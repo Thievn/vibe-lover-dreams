@@ -31,6 +31,7 @@ import {
   normalizeLikenessReferenceForXai,
   resolveCompanionLikenessUrlFromDb,
 } from "../_shared/likenessReferenceUrl.ts";
+import { publicApiTeaserGuardResponse } from "../_shared/publicApiTeaserGate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -154,6 +155,9 @@ serve(async (req) => {
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
+    const teaserBlock = await publicApiTeaserGuardResponse(user);
+    if (teaserBlock) return teaserBlock;
 
     const xaiKey = resolveXaiApiKey((n) => Deno.env.get(n));
     if (!xaiKey) {

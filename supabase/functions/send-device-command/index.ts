@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { publicApiTeaserGuardResponse } from "../_shared/publicApiTeaserGate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -105,6 +106,9 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const teaserBlock = await publicApiTeaserGuardResponse(user);
+    if (teaserBlock) return teaserBlock;
 
     const body = await req.json() as Record<string, unknown>;
     const command = body.command as string | undefined;

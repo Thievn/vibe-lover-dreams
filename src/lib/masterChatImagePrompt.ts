@@ -3,11 +3,8 @@
  * No reference image is sent — instruct the model not to “copy” a profile JPEG; render from prose.
  */
 import type { Companion } from "@/data/companions";
-import {
-  inferForgeBodyTypeFromAppearance,
-  inferForgeBodyTypeFromTags,
-  inferStylizedArtFromTags,
-} from "@/lib/forgeBodyTypes";
+import { inferForgeBodyTypeFromAppearance, inferForgeBodyTypeFromTags } from "@/lib/forgeBodyTypes";
+import { resolveChatArtStyleLabel } from "@/lib/chatArtStyle";
 import {
   DEFAULT_FORGE_PERSONALITY,
   type ForgePersonalityProfile,
@@ -221,7 +218,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
     inferForgeBodyTypeFromTags(dbComp.tags ?? []) ??
     inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
     "Average Build";
-  const art = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
+  const art = resolveChatArtStyleLabel(dbComp);
   const pack = (dbComp.image_prompt || "").trim().slice(0, 900);
   const mood = classifyChatImageMood({ rawUserMessage, menuBasePrompt: menuImagePrompt });
   const seedStr =

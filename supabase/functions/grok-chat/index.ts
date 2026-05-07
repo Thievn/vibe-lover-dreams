@@ -6,6 +6,7 @@
  * - **smart_replies** — three short suggested user replies (JSON).
  */
 import { isLustforgeAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
+import { publicApiTeaserGuardResponse } from "../_shared/publicApiTeaserGate.ts";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { defaultGrokProductChatModel } from "../_shared/xaiGrokChatRaw.ts";
 import { lustforgeNarrowUserScopeBlock } from "../_shared/lustforgeNarrowUserScope.ts";
@@ -51,6 +52,8 @@ Deno.serve(async (req) => {
     const sessionGate = await requireSessionUser(req);
     if ("response" in sessionGate) return sessionGate.response;
     const sessionUser = sessionGate.user;
+    const teaserBlock = await publicApiTeaserGuardResponse(sessionUser);
+    if (teaserBlock) return teaserBlock;
     const adminUnrestricted = await isLustforgeAdminUser(sessionUser);
 
     const apiKey = resolveXaiApiKey((name) => Deno.env.get(name));

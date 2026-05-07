@@ -155,6 +155,10 @@ async function loadSettings(svc: ReturnType<typeof createClient>) {
     zernio_twitter_account_id: string | null;
     auto_process_forge_queue: boolean;
     use_looping_video_for_x: boolean;
+    use_framed_card_for_x_video: boolean;
+    x_append_profile_link: boolean;
+    x_profile_link_cta_preset: string;
+    x_profile_link_cta_custom: string | null;
     updated_at: string;
   } | null;
 }
@@ -408,6 +412,31 @@ Deno.serve(async (req) => {
       const zid = typeof body.zernioTwitterAccountId === "string" ? body.zernioTwitterAccountId.trim() : undefined;
       const autoQ = typeof body.autoProcessForgeQueue === "boolean" ? body.autoProcessForgeQueue : undefined;
       const loopX = typeof body.useLoopingVideoForX === "boolean" ? body.useLoopingVideoForX : undefined;
+      const framedX = typeof body.useFramedCardForXVideo === "boolean" ? body.useFramedCardForXVideo : undefined;
+      const appendProfile =
+        typeof body.xAppendProfileLink === "boolean"
+          ? body.xAppendProfileLink
+          : typeof body.x_append_profile_link === "boolean"
+            ? body.x_append_profile_link
+            : undefined;
+      const presetRaw =
+        typeof body.xProfileLinkCtaPreset === "string"
+          ? body.xProfileLinkCtaPreset.trim()
+          : typeof body.x_profile_link_cta_preset === "string"
+            ? body.x_profile_link_cta_preset.trim()
+            : undefined;
+      const ctaPreset =
+        presetRaw === "check_out" || presetRaw === "meet" || presetRaw === "tap" || presetRaw === "custom"
+          ? presetRaw
+          : undefined;
+      const ctaCustom = ((): string | null | undefined => {
+        const hasCamel = "xProfileLinkCtaCustom" in body;
+        const hasSnake = "x_profile_link_cta_custom" in body;
+        if (!hasCamel && !hasSnake) return undefined;
+        const v = hasCamel ? body.xProfileLinkCtaCustom : body.x_profile_link_cta_custom;
+        if (v == null) return null;
+        return typeof v === "string" ? v.slice(0, 500) : undefined;
+      })();
       const cur = await loadSettings(svc);
       const weeklyEnabled = typeof body.weeklyDropEnabled === "boolean" ? body.weeklyDropEnabled : undefined;
       const weeklyDropsPerWeek =
@@ -430,6 +459,11 @@ Deno.serve(async (req) => {
         zernio_twitter_account_id: zid !== undefined ? zid || null : cur?.zernio_twitter_account_id ?? null,
         auto_process_forge_queue: autoQ !== undefined ? autoQ : cur?.auto_process_forge_queue ?? false,
         use_looping_video_for_x: loopX !== undefined ? loopX : cur?.use_looping_video_for_x ?? false,
+        use_framed_card_for_x_video: framedX !== undefined ? framedX : cur?.use_framed_card_for_x_video ?? false,
+        x_append_profile_link: appendProfile !== undefined ? appendProfile : cur?.x_append_profile_link ?? false,
+        x_profile_link_cta_preset:
+          ctaPreset !== undefined ? ctaPreset : (cur?.x_profile_link_cta_preset?.trim() || "check_out"),
+        x_profile_link_cta_custom: ctaCustom !== undefined ? ctaCustom || null : (cur?.x_profile_link_cta_custom ?? null),
         weekly_drop_enabled: weeklyEnabled !== undefined ? weeklyEnabled : (cur as Record<string, unknown> | null)?.weekly_drop_enabled ?? false,
         weekly_drops_per_week:
           weeklyDropsPerWeek !== undefined ? weeklyDropsPerWeek : Number((cur as Record<string, unknown> | null)?.weekly_drops_per_week ?? 2),
@@ -458,6 +492,10 @@ Deno.serve(async (req) => {
             zernio_twitter_account_id: null,
             auto_process_forge_queue: false,
             use_looping_video_for_x: false,
+            use_framed_card_for_x_video: false,
+            x_append_profile_link: false,
+            x_profile_link_cta_preset: "check_out",
+            x_profile_link_cta_custom: null,
             weekly_drop_enabled: false,
             weekly_drops_per_week: 2,
             weekly_drop_interval_days: 3,

@@ -19,6 +19,7 @@ import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
 import { matchesSafeWord } from "@/lib/matchesSafeWord";
 import { isPlatformAdmin } from "@/config/auth";
+import { isCompanionProfileTeaserMode } from "@/config/publicLaunch";
 import { hasUserPurchasedCompanionCard } from "@/lib/hasUserPurchasedCompanionCard";
 import { toast } from "sonner";
 import { useCompanionRelationship } from "@/hooks/useCompanionRelationship";
@@ -50,8 +51,8 @@ import {
   forgeBodyCategoryIdForType,
   inferForgeBodyTypeFromAppearance,
   inferForgeBodyTypeFromTags,
-  inferStylizedArtFromTags,
 } from "@/lib/forgeBodyTypes";
+import { resolveChatArtStyleLabel } from "@/lib/chatArtStyle";
 import type { FabActionId } from "@/components/chat/ChatQuickActionFab";
 import type { ChatMessage } from "@/components/chat/chatTypes";
 import { deriveChatMood } from "@/lib/chatMood";
@@ -583,11 +584,16 @@ export function useChatSessionController() {
         navigate("/auth");
         return;
       }
+      if (id && isCompanionProfileTeaserMode() && !isPlatformAdmin(session.user)) {
+        toast.message("Coming soon", { description: "Full chat unlocks at launch — browse the profile for now." });
+        navigate(`/companions/${id}`, { replace: true });
+        return;
+      }
       setUser(session.user);
       void fetchTokens(session.user.id);
       checkDevice(session.user.id);
     });
-  }, [navigate]);
+  }, [navigate, id]);
 
   useEffect(() => {
     if (!user) setForgeBalanceReady(false);
@@ -771,7 +777,7 @@ export function useChatSessionController() {
         inferForgeBodyTypeFromTags(dbComp.tags ?? []) ??
         inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
         "Average Build";
-      const artLabel = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
+      const artLabel = resolveChatArtStyleLabel(dbComp);
       const forgeAnchors = (dbComp.image_prompt || "").trim();
       const forgeTail =
         !menuSceneLock && forgeAnchors.length > 0
@@ -887,7 +893,7 @@ export function useChatSessionController() {
         inferForgeBodyTypeFromTags(dbComp.tags ?? []) ??
         inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
         "Average Build";
-      const artLabel = inferStylizedArtFromTags(dbComp.tags ?? []) ?? "Photorealistic";
+      const artLabel = resolveChatArtStyleLabel(dbComp);
       const arReward = (companion.appearanceReference ?? "").trim();
       const rewardLikenessUrl = resolveLikenessReferenceImageUrlForImagine(companion.portraitUrl);
       const rewardBaseDescription = arReward

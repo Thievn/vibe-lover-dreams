@@ -82,6 +82,7 @@ import { ProfileLoopingVideoUpsell } from "@/components/companion/ProfileLooping
 import { Switch } from "@/components/ui/switch";
 import { setProfileLoopVideoEnabledForUser } from "@/lib/setProfileLoopVideoEnabledForUser";
 import { isPlatformAdmin } from "@/config/auth";
+import { isCompanionProfileTeaserMode } from "@/config/publicLaunch";
 import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
 import { stashAndNavigateToLiveCall } from "@/lib/navigateToLiveCall";
 import { ensureCompanionCallNotifications } from "@/lib/companionCallNotifications";
@@ -219,16 +220,17 @@ const CompanionProfile = () => {
   const isOwnForge = Boolean(
     user?.id && dbComp?.user_id === user.id && companion?.id?.startsWith("cc-"),
   );
-  /**
-   * Chat, live call, gallery, Lovense, and FC spend toggles require owning this card
-   * (Forge creator or a `card_purchase` ledger row). Admins use the same rules here as everyone else.
-   */
-  const profileFeatureLocked = Boolean(
+  /** Vault / Discover: chat and spend features require owning the card (unless own forge row). */
+  const vaultLocked = Boolean(
     companion &&
       !isDropLanding &&
       !isOwnForge &&
       (!paidCardQueryDone || !hasPaidForThisCard),
   );
+  /** Global pre-launch: block spend features for everyone except platform admin. */
+  const teaserConsumeLocked = Boolean(companion && isCompanionProfileTeaserMode() && !isAdminUser);
+  /** Combined gate: non-admins hit teaser and/or vault lock. */
+  const profileFeatureLocked = Boolean(companion && !isAdminUser && (teaserConsumeLocked || vaultLocked));
 
   useEffect(() => {
     if (!user?.id || !id) {
@@ -299,6 +301,9 @@ const CompanionProfile = () => {
 
   const lockedPreviewBannerText = useMemo(() => {
     if (!companion) return "";
+    if (isCompanionProfileTeaserMode() && !isAdminUser) {
+      return `Preview mode — ${companion.name} is here for you to explore. Chat, live voice, gallery, and device features are coming soon at launch.`;
+    }
     if (isSharedProfileLink) {
       return `A friend shared this LustForge card — meet ${companion.name}. Browse everything below, then acquire the card to unlock chat, live voice, your gallery, and Lovense patterns.`;
     }
@@ -306,7 +311,7 @@ const CompanionProfile = () => {
       return "Preview from Discover — browse everything below. Acquire this card to unlock chat, live calls, your gallery, and Lovense patterns.";
     }
     return "Preview — browse everything below. Acquire this card to unlock chat, live calls, your gallery, and Lovense patterns.";
-  }, [companion, isSharedProfileLink, discoverPreview]);
+  }, [companion, isSharedProfileLink, discoverPreview, isAdminUser]);
 
   useEffect(() => {
     if (typeof document === "undefined" || !companion?.id) return;

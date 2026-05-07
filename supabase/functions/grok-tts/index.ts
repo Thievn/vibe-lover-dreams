@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { requireSessionUser } from "../_shared/requireSessionUser.ts";
+import { publicApiTeaserGuardResponse } from "../_shared/publicApiTeaserGate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,6 +19,9 @@ Deno.serve(async (req) => {
   try {
     const session = await requireSessionUser(req);
     if ("response" in session) return session.response;
+
+    const teaserBlock = await publicApiTeaserGuardResponse(session.user);
+    if (teaserBlock) return teaserBlock;
 
     const body = await req.json().catch(() => null) as {
       text?: string;

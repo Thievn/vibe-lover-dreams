@@ -1,7 +1,6 @@
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Heart, MessageCircle, Repeat2, Share, BarChart3 } from "lucide-react";
-
-const X_BORDER = "rgb(47, 51, 54)";
 
 function renderHighlighted(full: string) {
   const tokens = full.split(/(\s+)/);
@@ -23,7 +22,10 @@ type Props = {
   handle?: string;
   /** Full tweet including hashtags (same string Zernio will post). */
   fullText: string;
-  imageUrl: string | null;
+  /** @deprecated Prefer `media` — plain image URL when no custom slot. */
+  imageUrl?: string | null;
+  /** Card chrome, looping video, etc. When set, overrides `imageUrl`. */
+  media?: ReactNode;
   charCount: number;
   maxChars?: number;
   mediaBlockedReason?: string | null;
@@ -33,7 +35,8 @@ export function MarketingTweetPreview({
   brandName = "LustForge",
   handle = "LustForgeApp",
   fullText,
-  imageUrl,
+  imageUrl = null,
+  media,
   charCount,
   maxChars = 280,
   mediaBlockedReason,
@@ -70,7 +73,11 @@ export function MarketingTweetPreview({
         )}
       </div>
 
-      {imageUrl ? (
+      {media ? (
+        <div className="mt-1 border-t border-[#2f3336]">
+          <div className="relative w-full bg-[#16181c] py-3 px-3 flex justify-center">{media}</div>
+        </div>
+      ) : imageUrl ? (
         <div className="mt-1 border-t border-[#2f3336]">
           <div className="relative w-full bg-[#16181c]">
             <img src={imageUrl} alt="" className="w-full max-h-[min(320px,45vh)] object-cover object-top" />

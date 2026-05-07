@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { invokeZernioSocial, type ZernioHubTab } from "@/lib/zernioSocial";
 import type { DbCompanion } from "@/hooks/useCompanions";
+import { X_PROFILE_CTA_PRESETS, type XProfileCtaPreset } from "@/lib/xMarketingProfileTweetAppend";
 
 export type TweetVariationLite = { text: string; hashtags: string[] };
 
@@ -66,6 +67,10 @@ export function MarketingHubZernioPanels({
   const [zernioAccountDraft, setZernioAccountDraft] = useState("");
   const [autoProcessQueue, setAutoProcessQueue] = useState(false);
   const [useLoopingVideoForX, setUseLoopingVideoForX] = useState(false);
+  const [useFramedCardForXVideo, setUseFramedCardForXVideo] = useState(false);
+  const [xAppendProfileLink, setXAppendProfileLink] = useState(false);
+  const [xProfileLinkCtaPreset, setXProfileLinkCtaPreset] = useState<XProfileCtaPreset>("check_out");
+  const [xProfileLinkCtaCustom, setXProfileLinkCtaCustom] = useState("");
   const [scheduleLocal, setScheduleLocal] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -89,6 +94,21 @@ export function MarketingHubZernioPanels({
     }
     if (typeof settingsRow?.use_looping_video_for_x === "boolean") {
       setUseLoopingVideoForX(settingsRow.use_looping_video_for_x);
+    }
+    if (typeof settingsRow?.use_framed_card_for_x_video === "boolean") {
+      setUseFramedCardForXVideo(settingsRow.use_framed_card_for_x_video);
+    }
+    if (typeof settingsRow?.x_append_profile_link === "boolean") {
+      setXAppendProfileLink(settingsRow.x_append_profile_link);
+    }
+    const preset = String(settingsRow?.x_profile_link_cta_preset ?? "check_out").trim().toLowerCase();
+    if ((X_PROFILE_CTA_PRESETS as readonly string[]).includes(preset)) {
+      setXProfileLinkCtaPreset(preset as XProfileCtaPreset);
+    }
+    if (typeof settingsRow?.x_profile_link_cta_custom === "string") {
+      setXProfileLinkCtaCustom(settingsRow.x_profile_link_cta_custom);
+    } else {
+      setXProfileLinkCtaCustom("");
     }
   }, [settingsRow]);
 
@@ -114,6 +134,10 @@ export function MarketingHubZernioPanels({
         zernioTwitterAccountId: zernioAccountDraft,
         autoProcessForgeQueue: autoProcessQueue,
         useLoopingVideoForX,
+        useFramedCardForXVideo,
+        xAppendProfileLink,
+        xProfileLinkCtaPreset,
+        xProfileLinkCtaCustom: xProfileLinkCtaCustom.trim() || null,
       });
       if (error) throw error;
       toast.success("Zernio settings saved");
@@ -123,7 +147,16 @@ export function MarketingHubZernioPanels({
     } finally {
       setBusy(null);
     }
-  }, [autoProcessQueue, queryClient, useLoopingVideoForX, zernioAccountDraft]);
+  }, [
+    autoProcessQueue,
+    queryClient,
+    useLoopingVideoForX,
+    useFramedCardForXVideo,
+    xAppendProfileLink,
+    xProfileLinkCtaCustom,
+    xProfileLinkCtaPreset,
+    zernioAccountDraft,
+  ]);
 
   const ping = useCallback(async () => {
     setBusy("ping");
@@ -284,6 +317,50 @@ export function MarketingHubZernioPanels({
           />
           Prefer looping profile video (MP4) for X media when hero is selfie portrait and a public loop URL exists
         </label>
+        <label className="flex items-center gap-2 text-sm text-foreground/90 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={useFramedCardForXVideo}
+            onChange={(e) => setUseFramedCardForXVideo(e.target.checked)}
+            className="rounded border-border"
+          />
+          Bake discover-style card rim + footer into Zernio media (PNG for stills; use “Bake framed video” in Compose when
+          looping video is on)
+        </label>
+        <label className="flex items-center gap-2 text-sm text-foreground/90 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={xAppendProfileLink}
+            onChange={(e) => setXAppendProfileLink(e.target.checked)}
+            className="rounded border-border"
+          />
+          Append profile URL + CTA to post body when a companion is selected in Compose (preview and Zernio post use the
+          final text)
+        </label>
+        <div className="space-y-2 pl-1 border-l border-white/10 ml-1">
+          <label className="block text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
+            Profile link CTA preset
+          </label>
+          <select
+            value={xProfileLinkCtaPreset}
+            onChange={(e) => setXProfileLinkCtaPreset(e.target.value as XProfileCtaPreset)}
+            className="w-full max-w-md rounded-xl bg-black/60 border border-border px-3 py-2 text-sm"
+          >
+            <option value="check_out">Check out … profile</option>
+            <option value="meet">Meet … on LustForge</option>
+            <option value="tap">Tap in for … card</option>
+            <option value="custom">Custom template</option>
+          </select>
+          {xProfileLinkCtaPreset === "custom" ? (
+            <textarea
+              value={xProfileLinkCtaCustom}
+              onChange={(e) => setXProfileLinkCtaCustom(e.target.value.slice(0, 500))}
+              placeholder="Use {name} and optional {tagline} — URL is added on its own line after this."
+              rows={3}
+              className="w-full rounded-xl bg-black/60 border border-border px-3 py-2 text-sm resize-y min-h-[4.5rem]"
+            />
+          ) : null}
+        </div>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"

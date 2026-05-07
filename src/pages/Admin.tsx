@@ -8,8 +8,15 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
+  ComposedChart,
+  Legend,
   Line,
   LineChart,
+  Pie,
+  PieChart,
+  RadialBar,
+  RadialBarChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -39,6 +46,9 @@ import {
   ShoppingBag,
   Trophy,
   ExternalLink,
+  TrendingUp,
+  Gauge,
+  PieChart as PieChartLucide,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -149,9 +159,16 @@ type TrendPoint = {
   dateKey: string;
   name: string;
   sessions: number;
+  /** New `profiles` rows (same window). */
+  profileSignups: number;
+  /** New `waitlist` rows. */
+  waitlistSignups: number;
+  /** `profileSignups + waitlistSignups` (convenience for charts). */
   signups: number;
   images: number;
   forged: number;
+  /** `social_post_jobs` rows (Zernio / marketing), when RLS allows. */
+  marketingPosts: number;
 };
 
 type CardStatsRow = {
@@ -168,6 +185,18 @@ type CardStatsRow = {
 };
 
 type CardStatsRange = "7d" | "30d" | "all";
+
+const EMPTY_TREND_POINT: TrendPoint = {
+  dateKey: "",
+  name: "—",
+  sessions: 0,
+  profileSignups: 0,
+  waitlistSignups: 0,
+  signups: 0,
+  images: 0,
+  forged: 0,
+  marketingPosts: 0,
+};
 
 const chartTooltipStyle = {
   backgroundColor: "hsl(240 15% 8%)",
@@ -212,7 +241,6 @@ function AdminShell() {
   const [userChars, setUserChars] = useState<{ id: string; name: string }[]>([]);
   const [charsLoading, setCharsLoading] = useState(false);
   const [trendData, setTrendData] = useState<TrendPoint[]>([]);
-  const [barData, setBarData] = useState<{ name: string; value: number }[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [cardStatsRows, setCardStatsRows] = useState<CardStatsRow[]>([]);
   const [cardStatsLoading, setCardStatsLoading] = useState(false);
@@ -302,18 +330,19 @@ function AdminShell() {
   const loadAnalytics = useCallback(async () => {
     setAnalyticsLoading(true);
     try {
-      const days = 14;
+      const days = 30;
       const start = new Date();
       start.setUTCHours(0, 0, 0, 0);
       start.setUTCDate(start.getUTCDate() - (days - 1));
       const fromIso = start.toISOString();
 
-      const [profilesRes, waitlistRes, imagesRes, customRes, chatsRes] = await Promise.all([
+      const [profilesRes, waitlistRes, imagesRes, customRes, chatsRes, jobsRes] = await Promise.all([
         supabase.from("profiles").select("created_at").gte("created_at", fromIso),
         supabase.from("waitlist").select("created_at").gte("created_at", fromIso),
         supabase.from("generated_images").select("created_at").gte("created_at", fromIso),
         supabase.from("custom_characters").select("created_at").gte("created_at", fromIso),
         supabase.from("chat_messages").select("created_at").gte("created_at", fromIso),
+        supabase.from("social_post_jobs").select("created_at").gte("created_at", fromIso),
       ]);
 
       const telemetryErrors = [
@@ -322,6 +351,7 @@ function AdminShell() {
         imagesRes.error && `generated_images: ${imagesRes.error.message}`,
         customRes.error && `custom_characters: ${customRes.error.message}`,
         chatsRes.error && `chat_messages: ${chatsRes.error.message}`,
+        jobsRes.error && `social_post_jobs: ${jobsRes.error.message}`,
       ].filter(Boolean) as string[];
       if (telemetryErrors.length) {
         console.warn("[admin analytics]", telemetryErrors.join(" | "));
@@ -336,9 +366,12 @@ function AdminShell() {
           dateKey: key,
           name: labelFromDayKey(key),
           sessions: 0,
+          profileSignups: 0,
+          waitlistSignups: 0,
           signups: 0,
           images: 0,
           forged: 0,
+          marketingPosts: 0,
         };
       });
 
@@ -354,26 +387,24 @@ function AdminShell() {
         });
       };
 
-      addCount(profilesRes.data as { created_at: string }[] | null, "signups");
-      addCount(waitlistRes.data as { created_at: string }[] | null, "signups");
+      addCount(profilesRes.data as { created_at: string }[] | null, "profileSignups");
+      addCount(waitlistRes.data as { created_at: string }[] | null, "waitlistSignups");
       addCount(imagesRes.data as { created_at: string }[] | null, "images");
       addCount(customRes.data as { created_at: string }[] | null, "forged");
       addCount(chatsRes.data as { created_at: string }[] | null, "sessions");
+      addCount(jobsRes.data as { created_at: string }[] | null, "marketingPosts");
 
-      const sum = (k: keyof TrendPoint) => timeline.reduce((acc, row) => acc + Number(row[k]), 0);
+      for (let i = 0; i < timeline.length; i++) {
+        const row = timeline[i]!;
+        const signups = row.profileSignups + row.waitlistSignups;
+        timeline[i] = { ...row, signups };
+      }
 
       setTrendData(timeline);
-      setBarData([
-        { name: "Chats", value: Math.max(0, sum("sessions")) },
-        { name: "Signups", value: Math.max(0, sum("signups")) },
-        { name: "Images", value: Math.max(0, sum("images")) },
-        { name: "Forged", value: Math.max(0, sum("forged")) },
-      ]);
     } catch (e) {
       console.error(e);
       toast.error("Analytics charts failed to load from telemetry tables.");
       setTrendData([]);
-      setBarData([]);
     } finally {
       setAnalyticsLoading(false);
     }
@@ -801,7 +832,6 @@ function AdminShell() {
                 void loadWaitlist();
               }}
               trendData={trendData}
-              barData={barData}
               waitlistPreview={waitlist}
               waitlistLoading={waitlistLoading}
               waitlistError={waitlistError}
@@ -959,6 +989,7 @@ function AdminShell() {
               stats={stats}
               loading={analyticsLoading}
               gaMeasurementId={gaMeasurementId}
+              onReload={() => void loadAnalytics()}
             />
           )}
           {section === "cardstats" && (
@@ -1082,7 +1113,6 @@ function OverviewSection({
   dataIssuesBanner,
   onRefresh,
   trendData,
-  barData,
   waitlistPreview,
   waitlistLoading,
   waitlistError,
@@ -1094,12 +1124,26 @@ function OverviewSection({
   dataIssuesBanner: string | null;
   onRefresh: () => void;
   trendData: TrendPoint[];
-  barData: { name: string; value: number }[];
   waitlistPreview: WaitlistRow[];
   waitlistLoading: boolean;
   waitlistError: string | null;
   onOpenWaitlist: () => void;
 }) {
+  const trendSlice = useMemo(
+    () => (trendData.length <= 14 ? trendData : trendData.slice(-14)),
+    [trendData],
+  );
+  const overviewBar = useMemo(() => {
+    const sum = (k: keyof TrendPoint) => trendSlice.reduce((acc, row) => acc + Number(row[k]), 0);
+    return [
+      { name: "Chats", value: Math.max(0, sum("sessions")) },
+      { name: "Profiles", value: Math.max(0, sum("profileSignups")) },
+      { name: "Waitlist", value: Math.max(0, sum("waitlistSignups")) },
+      { name: "Images", value: Math.max(0, sum("images")) },
+      { name: "Forged", value: Math.max(0, sum("forged")) },
+    ];
+  }, [trendSlice]);
+
   const s = stats;
   const cards = [
     {
@@ -1230,7 +1274,7 @@ function OverviewSection({
           </h3>
           <div className="h-[280px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData.length ? trendData : [{ name: "—", sessions: 0, images: 0 }]}>
+              <AreaChart data={trendSlice.length ? trendSlice : [EMPTY_TREND_POINT]}>
                 <defs>
                   <linearGradient id="lfPink" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={NEON} stopOpacity={0.35} />
@@ -1250,13 +1294,15 @@ function OverviewSection({
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <p className="text-[10px] text-muted-foreground mt-2 italic">Rolling 14-day live telemetry from app tables.</p>
+          <p className="text-[10px] text-muted-foreground mt-2 italic">
+            Latest 14 days of live telemetry (full 30-day window on the Analytics tab).
+          </p>
         </div>
         <div className="lg:col-span-2 rounded-2xl border border-border/80 bg-card/40 backdrop-blur-md p-5">
           <h3 className="font-gothic text-lg mb-4">Feature mix</h3>
           <div className="h-[280px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData.length ? barData : [{ name: "None", value: 0 }]}>
+              <BarChart data={overviewBar.some((b) => b.value > 0) ? overviewBar : [{ name: "None", value: 0 }]}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(280 20% 18%)" />
                 <XAxis dataKey="name" stroke="hsl(240 5% 45%)" tick={{ fontSize: 11 }} />
                 <YAxis stroke="hsl(240 5% 45%)" tick={{ fontSize: 11 }} />
@@ -1702,110 +1748,482 @@ function DiscoveryVotesPanel() {
   );
 }
 
+const ANALYTICS_BAR_COLORS = [
+  NEON,
+  "hsl(285 70% 58%)",
+  "hsl(265 60% 52%)",
+  "hsl(170 85% 45%)",
+  "hsl(35 95% 52%)",
+  "hsl(200 80% 55%)",
+];
+
 function AnalyticsSection({
   trendData,
   stats,
   loading,
   gaMeasurementId,
+  onReload,
 }: {
   trendData: TrendPoint[];
-  stats: {
-    totalUsers: number;
-    toysLinked: number;
-    companionsCreatedCustom: number;
-    imagesGenerated: number;
-  };
+  stats: StatsShape;
   loading: boolean;
   gaMeasurementId: string | null;
+  onReload: () => void;
 }) {
+  const [range, setRange] = useState<"14d" | "30d">("14d");
+
+  const visibleTrend = useMemo(() => {
+    if (!trendData.length) return trendData;
+    if (range === "30d") return trendData;
+    return trendData.length <= 14 ? trendData : trendData.slice(-14);
+  }, [trendData, range]);
+
   const totals = useMemo(
     () =>
-      trendData.reduce(
+      visibleTrend.reduce(
         (acc, row) => {
           acc.sessions += row.sessions;
+          acc.profileSignups += row.profileSignups;
+          acc.waitlistSignups += row.waitlistSignups;
           acc.signups += row.signups;
           acc.images += row.images;
           acc.forged += row.forged;
+          acc.marketingPosts += row.marketingPosts;
           return acc;
         },
-        { sessions: 0, signups: 0, images: 0, forged: 0 },
+        {
+          sessions: 0,
+          profileSignups: 0,
+          waitlistSignups: 0,
+          signups: 0,
+          images: 0,
+          forged: 0,
+          marketingPosts: 0,
+        },
       ),
-    [trendData],
+    [visibleTrend],
   );
+
+  const barFromTrend = useMemo(() => {
+    const sum = (k: keyof TrendPoint) => visibleTrend.reduce((a, r) => a + Number(r[k]), 0);
+    return [
+      { name: "Chats", value: Math.max(0, sum("sessions")) },
+      { name: "Profiles", value: Math.max(0, sum("profileSignups")) },
+      { name: "Waitlist", value: Math.max(0, sum("waitlistSignups")) },
+      { name: "Images", value: Math.max(0, sum("images")) },
+      { name: "Forged", value: Math.max(0, sum("forged")) },
+      { name: "X posts", value: Math.max(0, sum("marketingPosts")) },
+    ];
+  }, [visibleTrend]);
 
   const efficiencyData = useMemo(
     () => [
       {
-        name: "Forge output",
+        name: "Forge / image",
         value: totals.images > 0 ? Number((totals.forged / totals.images).toFixed(2)) : 0,
       },
       {
-        name: "Chat depth",
+        name: "Msgs / signup",
         value: totals.signups > 0 ? Number((totals.sessions / totals.signups).toFixed(2)) : 0,
       },
       {
-        name: "Image / user",
+        name: "Images / user",
         value: stats.totalUsers > 0 ? Number((stats.imagesGenerated / stats.totalUsers).toFixed(2)) : 0,
+      },
+      {
+        name: "Chats / profile",
+        value: totals.profileSignups > 0 ? Number((totals.sessions / totals.profileSignups).toFixed(2)) : 0,
       },
     ],
     [totals, stats.totalUsers, stats.imagesGenerated],
   );
 
+  const pieData = useMemo(() => {
+    const raw = [
+      { name: "Chat messages", value: totals.sessions, fill: NEON },
+      { name: "Profile signups", value: totals.profileSignups, fill: "hsl(285 70% 58%)" },
+      { name: "Waitlist", value: totals.waitlistSignups, fill: "hsl(265 60% 52%)" },
+      { name: "Images", value: totals.images, fill: "hsl(170 85% 42%)" },
+      { name: "Forge rows", value: totals.forged, fill: "hsl(35 95% 52%)" },
+      { name: "Social jobs", value: totals.marketingPosts, fill: "hsl(200 80% 55%)" },
+    ].filter((x) => x.value > 0);
+    if (raw.length) return raw;
+    return [{ name: "No activity in window", value: 1, fill: "hsl(240 12% 28%)" }];
+  }, [totals]);
+
+  const radialData = useMemo(() => {
+    const max = Math.max(
+      totals.sessions,
+      totals.profileSignups + totals.waitlistSignups,
+      totals.images,
+      totals.forged,
+      1,
+    );
+    const pct = (n: number) => Math.min(100, Math.round((n / max) * 100));
+    return [
+      { name: "Chats", uv: pct(totals.sessions), fill: NEON },
+      { name: "All signups", uv: pct(totals.profileSignups + totals.waitlistSignups), fill: "hsl(285 70% 58%)" },
+      { name: "Images", uv: pct(totals.images), fill: "hsl(170 85% 42%)" },
+      { name: "Forge", uv: pct(totals.forged), fill: "hsl(35 95% 52%)" },
+    ];
+  }, [totals]);
+
+  const kpiCards = useMemo(
+    () => [
+      { k: "Google Analytics", v: gaMeasurementId ?? "Disabled (set VITE_GA_MEASUREMENT_ID)", hint: "gtag + page views" },
+      {
+        k: "Msgs / registered user",
+        v: stats.totalUsers ? (totals.sessions / Math.max(stats.totalUsers, 1)).toFixed(2) : "—",
+        hint: "Window chat volume vs total profiles",
+      },
+      { k: "Toy adoption", v: String(stats.toysLinked), hint: "Profiles with device_uid" },
+      {
+        k: "Custom / all images",
+        v: stats.imagesGenerated ? (stats.companionsCreatedCustom / Math.max(stats.imagesGenerated, 1)).toFixed(3) : "—",
+        hint: "Forge rows ÷ generated_images (all time)",
+      },
+      {
+        k: "Waitlist (all time)",
+        v: String(stats.waitlistSignups),
+        hint: "waitlist table count",
+      },
+      {
+        k: "Window signups",
+        v: String(totals.profileSignups + totals.waitlistSignups),
+        hint: `${range}: profiles + waitlist`,
+      },
+    ],
+    [gaMeasurementId, stats, totals, range],
+  );
+
+  const chartData = visibleTrend.length ? visibleTrend : [EMPTY_TREND_POINT];
+
   return (
-    <div className="space-y-8">
-      <h2 className="font-gothic text-3xl gradient-vice-text">Analytics</h2>
-      <div className="grid md:grid-cols-3 gap-4">
-        {[
-          { k: "GA Measurement", v: gaMeasurementId ?? "Disabled" },
-          { k: "14d Sessions / user", v: stats.totalUsers ? (totals.sessions / Math.max(stats.totalUsers, 1)).toFixed(2) : "—" },
-          { k: "Toy adoption", v: `${stats.toysLinked} linked devices` },
-          {
-            k: "Custom / image ratio",
-            v: stats.imagesGenerated ? (stats.companionsCreatedCustom / stats.imagesGenerated).toFixed(2) : "—",
-          },
-        ].map((x) => (
-          <div key={x.k} className="rounded-2xl border border-border/80 bg-card/40 p-5 backdrop-blur-md">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">{x.k}</p>
-            <p className="font-gothic text-2xl text-accent">{x.v}</p>
+    <motion.div
+      className="space-y-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.35 }}
+    >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h2 className="font-gothic text-3xl md:text-4xl gradient-vice-text flex items-center gap-3">
+            <BarChart3 className="h-8 w-8 shrink-0 text-primary" style={{ color: NEON }} />
+            Analytics command
+          </h2>
+          <p className="text-sm text-muted-foreground mt-2 max-w-2xl leading-relaxed">
+            Live telemetry from your Supabase tables plus the GA measurement ID wired in the client. Use the window
+            toggle to zoom; export funnels in{" "}
+            <a
+              href="https://analytics.google.com/analytics/web/"
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary font-semibold hover:underline inline-flex items-center gap-1"
+            >
+              Google Analytics <ExternalLink className="h-3 w-3" />
+            </a>
+            .
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-xl border border-white/10 bg-black/40 p-1">
+            {(["14d", "30d"] as const).map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRange(r)}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
+                  range === r
+                    ? "bg-primary/25 text-primary shadow-[0_0_20px_rgba(255,45,123,0.2)]"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {r === "14d" ? "14 days" : "30 days"}
+              </button>
+            ))}
           </div>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={onReload}
+            className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm hover:border-primary/40 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            Reload telemetry
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {kpiCards.map((x, i) => (
+          <motion.div
+            key={x.k}
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05, type: "spring", stiffness: 320, damping: 28 }}
+            className="rounded-2xl border border-white/[0.08] bg-gradient-to-br from-card/60 via-black/40 to-[#120818]/90 p-5 backdrop-blur-md shadow-[0_0_40px_rgba(255,45,123,0.06)]"
+          >
+            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">{x.k}</p>
+            <p className="font-gothic text-2xl md:text-3xl mt-2 text-accent break-words">{loading ? "…" : x.v}</p>
+            <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">{x.hint}</p>
+          </motion.div>
         ))}
       </div>
-      <div className="grid lg:grid-cols-5 gap-6">
-        <div className="lg:col-span-3 rounded-2xl border border-border/80 bg-card/40 p-5 h-[340px]">
-          <h3 className="font-gothic text-lg mb-4">14-day activity pulse</h3>
+
+      <div className="grid xl:grid-cols-2 gap-6">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="rounded-2xl border border-primary/20 bg-card/35 p-5 md:p-6 h-[380px] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+        >
+          <h3 className="font-gothic text-lg mb-1 flex items-center gap-2 text-white">
+            <TrendingUp className="h-5 w-5" style={{ color: NEON }} />
+            Multi-series pulse
+          </h3>
+          <p className="text-[11px] text-muted-foreground mb-4">Chat, signups, stills, forge, marketing posts</p>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trendData.length ? trendData : [{ name: "—", sessions: 0, signups: 0, images: 0, forged: 0 }]}>
+            <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(280 20% 18%)" />
-              <XAxis dataKey="name" stroke="hsl(240 5% 45%)" tick={{ fontSize: 11 }} />
-              <YAxis stroke="hsl(240 5% 45%)" tick={{ fontSize: 11 }} />
+              <XAxis dataKey="name" stroke="hsl(240 5% 45%)" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+              <YAxis stroke="hsl(240 5% 45%)" tick={{ fontSize: 10 }} width={36} />
               <Tooltip contentStyle={chartTooltipStyle} />
-              <Line type="monotone" dataKey="sessions" stroke={NEON} strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey="signups" stroke="hsl(280 60% 55%)" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="images" stroke="hsl(170 100% 45%)" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="forged" stroke="hsl(35 95% 55%)" strokeWidth={2} dot={false} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Line type="monotone" dataKey="sessions" name="Chat msgs" stroke={NEON} strokeWidth={2.2} dot={false} animationDuration={900} />
+              <Line type="monotone" dataKey="signups" name="Signups Σ" stroke="hsl(280 60% 58%)" strokeWidth={2} dot={false} animationDuration={900} />
+              <Line type="monotone" dataKey="images" name="Images" stroke="hsl(170 100% 45%)" strokeWidth={2} dot={false} animationDuration={900} />
+              <Line type="monotone" dataKey="forged" name="Forge" stroke="hsl(35 95% 55%)" strokeWidth={2} dot={false} animationDuration={900} />
+              <Line
+                type="monotone"
+                dataKey="marketingPosts"
+                name="X / social jobs"
+                stroke="hsl(200 80% 55%)"
+                strokeWidth={2}
+                dot={false}
+                animationDuration={900}
+              />
             </LineChart>
           </ResponsiveContainer>
-        </div>
-        <div className="lg:col-span-2 rounded-2xl border border-border/80 bg-card/40 p-5 h-[340px]">
-          <h3 className="font-gothic text-lg mb-4">Conversion efficiency</h3>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.14 }}
+          className="rounded-2xl border border-white/[0.08] bg-card/35 p-5 md:p-6 h-[380px]"
+        >
+          <h3 className="font-gothic text-lg mb-1 flex items-center gap-2">
+            <Users className="h-5 w-5 text-violet-300" />
+            Signup mix (stacked)
+          </h3>
+          <p className="text-[11px] text-muted-foreground mb-4">New profiles vs waitlist by day</p>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={efficiencyData}>
+            <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="lfProf" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(285 70% 58%)" stopOpacity={0.85} />
+                  <stop offset="100%" stopColor="hsl(285 70% 58%)" stopOpacity={0.15} />
+                </linearGradient>
+                <linearGradient id="lfWl" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(265 60% 52%)" stopOpacity={0.75} />
+                  <stop offset="100%" stopColor="hsl(265 60% 52%)" stopOpacity={0.12} />
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(280 20% 18%)" />
-              <XAxis dataKey="name" stroke="hsl(240 5% 45%)" tick={{ fontSize: 11 }} />
-              <YAxis stroke="hsl(240 5% 45%)" tick={{ fontSize: 11 }} />
+              <XAxis dataKey="name" stroke="hsl(240 5% 45%)" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+              <YAxis stroke="hsl(240 5% 45%)" tick={{ fontSize: 10 }} width={36} />
               <Tooltip contentStyle={chartTooltipStyle} />
-              <Bar dataKey="value" fill="hsl(170 100% 45%)" radius={[8, 8, 0, 0]} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Area
+                type="monotone"
+                dataKey="profileSignups"
+                name="Profiles"
+                stackId="s"
+                stroke="hsl(285 70% 58%)"
+                fill="url(#lfProf)"
+                strokeWidth={1.5}
+                animationDuration={800}
+              />
+              <Area
+                type="monotone"
+                dataKey="waitlistSignups"
+                name="Waitlist"
+                stackId="s"
+                stroke="hsl(265 60% 52%)"
+                fill="url(#lfWl)"
+                strokeWidth={1.5}
+                animationDuration={800}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </motion.div>
+      </div>
+
+      <div className="grid lg:grid-cols-5 gap-6">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.18 }}
+          className="lg:col-span-3 rounded-2xl border border-white/[0.08] bg-card/35 p-5 md:p-6 h-[360px]"
+        >
+          <h3 className="font-gothic text-lg mb-1 flex items-center gap-2">
+            <Flame className="h-5 w-5 text-orange-300" />
+            Volume mix (bars)
+          </h3>
+          <p className="text-[11px] text-muted-foreground mb-4">Totals in selected window — compare channels at a glance</p>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={barFromTrend} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(280 20% 18%)" />
+              <XAxis dataKey="name" stroke="hsl(240 5% 45%)" tick={{ fontSize: 10 }} />
+              <YAxis stroke="hsl(240 5% 45%)" tick={{ fontSize: 10 }} width={40} />
+              <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "rgba(255,45,123,0.06)" }} />
+              <Bar dataKey="value" radius={[10, 10, 0, 0]} animationDuration={900}>
+                {barFromTrend.map((_, i) => (
+                  <Cell key={i} fill={ANALYTICS_BAR_COLORS[i % ANALYTICS_BAR_COLORS.length]} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.22 }}
+          className="lg:col-span-2 rounded-2xl border border-white/[0.08] bg-card/35 p-5 md:p-6 h-[360px]"
+        >
+          <h3 className="font-gothic text-lg mb-1 flex items-center gap-2">
+            <Gauge className="h-5 w-5 text-emerald-300" />
+            Efficiency ratios
+          </h3>
+          <p className="text-[11px] text-muted-foreground mb-4">Derived KPIs — higher is not always “better”; interpret with care</p>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={efficiencyData} layout="vertical" margin={{ left: 8, right: 16 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(280 20% 18%)" horizontal={false} />
+              <XAxis type="number" stroke="hsl(240 5% 45%)" tick={{ fontSize: 10 }} />
+              <YAxis type="category" dataKey="name" stroke="hsl(240 5% 45%)" tick={{ fontSize: 10 }} width={100} />
+              <Tooltip contentStyle={chartTooltipStyle} />
+              <Bar dataKey="value" fill="hsl(170 85% 42%)" radius={[0, 8, 8, 0]} animationDuration={850} />
+            </BarChart>
+          </ResponsiveContainer>
+        </motion.div>
       </div>
+
+      <div className="grid xl:grid-cols-2 gap-6">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.26 }}
+          className="rounded-2xl border border-white/[0.08] bg-card/35 p-5 md:p-6 h-[380px]"
+        >
+          <h3 className="font-gothic text-lg mb-1 flex items-center gap-2">
+            <PieChartLucide className="h-5 w-5 text-pink-300" />
+            Activity distribution
+          </h3>
+          <p className="text-[11px] text-muted-foreground mb-2">Share of raw counts in window</p>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={pieData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={58}
+                outerRadius={100}
+                paddingAngle={2}
+                animationDuration={1000}
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              >
+                {pieData.map((entry, i) => (
+                  <Cell key={i} fill={entry.fill} stroke="hsl(240 15% 8%)" strokeWidth={1} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={chartTooltipStyle} />
+            </PieChart>
+          </ResponsiveContainer>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="rounded-2xl border border-white/[0.08] bg-card/35 p-5 md:p-6 h-[380px]"
+        >
+          <h3 className="font-gothic text-lg mb-1 flex items-center gap-2">
+            <Radio className="h-5 w-5 text-cyan-300" />
+            Relative intensity
+          </h3>
+          <p className="text-[11px] text-muted-foreground mb-4">Each bar is % of the strongest channel in this window</p>
+          <ResponsiveContainer width="100%" height="100%">
+            <RadialBarChart
+              cx="50%"
+              cy="50%"
+              innerRadius="18%"
+              outerRadius="100%"
+              data={radialData}
+              startAngle={90}
+              endAngle={-270}
+            >
+              <RadialBar
+                minAngle={6}
+                background={{ fill: "hsl(240 12% 14%)" }}
+                dataKey="uv"
+                cornerRadius={6}
+                animationDuration={1100}
+              />
+              <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: 11 }} />
+              <Tooltip contentStyle={chartTooltipStyle} />
+            </RadialBarChart>
+          </ResponsiveContainer>
+        </motion.div>
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.34 }}
+        className="rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/[0.07] via-transparent to-violet-500/[0.06] p-5 md:p-6"
+      >
+        <h3 className="font-gothic text-lg mb-2 flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-primary" style={{ color: NEON }} />
+          Composed: chat + images
+        </h3>
+        <p className="text-[11px] text-muted-foreground mb-4">Bars = images per day, line = chat messages</p>
+        <div className="h-[300px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(280 20% 18%)" />
+              <XAxis dataKey="name" stroke="hsl(240 5% 45%)" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+              <YAxis yAxisId="left" stroke="hsl(170 80% 45%)" tick={{ fontSize: 10 }} width={32} />
+              <YAxis yAxisId="right" orientation="right" stroke={NEON} tick={{ fontSize: 10 }} width={32} />
+              <Tooltip contentStyle={chartTooltipStyle} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar yAxisId="left" dataKey="images" name="Images" fill="hsl(170 85% 42%)" radius={[6, 6, 0, 0]} opacity={0.9} animationDuration={800} />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="sessions"
+                name="Chat msgs"
+                stroke={NEON}
+                strokeWidth={2.5}
+                dot={false}
+                animationDuration={900}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </motion.div>
+
       <DiscoveryVotesPanel />
-      <p className="text-xs text-muted-foreground italic">
+
+      <p className="text-xs text-muted-foreground italic border-t border-white/[0.06] pt-6">
         {loading
           ? "Refreshing analytics…"
-          : "Telemetry is live from profiles, waitlist, generated_images, custom_characters, and chat_messages."}
+          : `Telemetry: profiles, waitlist, generated_images, custom_characters, chat_messages, social_post_jobs — ${range} view on charts above.`}
       </p>
-    </div>
+    </motion.div>
   );
 }
 

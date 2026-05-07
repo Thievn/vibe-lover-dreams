@@ -5,7 +5,8 @@ declare global {
   }
 }
 
-const GA_DEFAULT = "531474793";
+/** Default property when `VITE_GA_MEASUREMENT_ID` is unset (override via env in Vercel). */
+const GA_DEFAULT = "JF1831WS0G";
 const GA_DISABLED_VALUES = new Set(["0", "false", "off", "disabled"]);
 
 let initialized = false;
