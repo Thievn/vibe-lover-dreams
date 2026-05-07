@@ -55,6 +55,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
 import CompanionCreator, { type CompanionCreatorHandle } from "@/components/CompanionCreator";
+import { CompanionForgeRarityOddsButton } from "@/components/forge/CompanionForgeRarityOddsButton";
 import { AdminForgeSchedulePanel } from "@/components/admin/AdminForgeSchedulePanel";
 import { AdminCelebrityParodyPanel } from "@/components/admin/AdminCelebrityParodyPanel";
 import CompanionManager from "@/components/admin/CompanionManager";
@@ -850,7 +851,12 @@ function AdminShell() {
               />
               <div className="relative z-10 flex flex-col">
                 <div className="flex shrink-0 flex-col gap-3 border-b border-white/10 bg-white/[0.03] px-4 py-4 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between md:px-8">
-                  <h2 className="font-gothic text-2xl tracking-wide text-white gradient-vice-text">Companion Forge</h2>
+                  <div className="flex flex-wrap items-center gap-2.5 min-w-0">
+                    <h2 className="font-gothic text-2xl tracking-wide text-white gradient-vice-text whitespace-nowrap">
+                      Companion Forge
+                    </h2>
+                    <CompanionForgeRarityOddsButton size="title" forgeMode="admin" />
+                  </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"

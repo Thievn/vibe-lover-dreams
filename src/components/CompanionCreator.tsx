@@ -100,6 +100,7 @@ import {
 } from "@/lib/forgePersonalityProfile";
 import { cn } from "@/lib/utils";
 import { SITE_URL } from "@/config/auth";
+import { CompanionForgeRarityOddsButton } from "@/components/forge/CompanionForgeRarityOddsButton";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { AdminLoopingVideoBlock } from "@/components/admin/AdminLoopingVideoBlock";
 import { stablePortraitDisplayUrl } from "@/lib/companionMedia";
@@ -108,6 +109,7 @@ import {
   type CompanionRarity,
   normalizeCompanionRarity,
 } from "@/lib/companionRarity";
+import { rollCompanionForgeRarity } from "@/lib/companionForgeRarityOdds";
 import { generateTcgStatBlock } from "@/lib/tcgStats";
 import {
   FORGE_BODY_GROUPS,
@@ -818,11 +820,12 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     return (ALL_FORGE_ETHNICITY_OPTIONS as readonly string[]).includes(n) ? n : FORGE_ETHNICITY_ANY_LABEL;
   }, [ethnicity]);
 
+  /** Live preview frame: admin reflects chosen lab tier; users see a neutral placeholder (true tier rolls on seal only). */
   const forgePreviewTier = useMemo((): CompanionRarity => {
     if (isAdmin) {
       return adminAbyssalForge ? "abyssal" : normalizeCompanionRarity(adminForgeRarity);
     }
-    return "rare";
+    return "common";
   }, [isAdmin, adminAbyssalForge, adminForgeRarity]);
 
   type ForgeOpKind = "info" | "ok" | "warn" | "err";
@@ -2401,7 +2404,8 @@ User flavor notes: ${extraNotes || "none"}`;
         const adminTier = adminAbyssalForge
           ? "abyssal"
           : normalizeCompanionRarity(adminForgeRarity);
-        const rarityForTcg = isAdmin ? adminTier : "rare";
+        const sealedRarity = isAdmin ? adminTier : rollCompanionForgeRarity();
+        const rarityForTcg = sealedRarity;
         const displayTraitsSeed = `${userId}|${displayName}|${i}`;
         const forgeThemeSnap = buildForgeThemeSnapshotV1({
           activeForgeTab,
@@ -2448,7 +2452,9 @@ User flavor notes: ${extraNotes || "none"}`;
                 rarity: adminTier,
                 exclude_from_personal_vault: true,
               }
-            : {}),
+            : {
+                rarity: sealedRarity,
+              }),
           avatar_url: portraitUrl,
           tcg_stats: generateTcgStatBlock(`${userId}:${displayName}:${i}:${batchCount}`, rarityForTcg),
           display_traits: serializeBaseDisplayTraitsForInsert({
@@ -2457,7 +2463,7 @@ User flavor notes: ${extraNotes || "none"}`;
             kinks: kinksOut,
             personality: rowPersonality,
             bio: bioRow,
-            rarity: isAdmin ? adminTier : rarityForTcg,
+            rarity: sealedRarity,
           }),
         });
       }
@@ -3085,12 +3091,15 @@ User flavor notes: ${extraNotes || "none"}`;
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-[#FF2D7B]/90 mb-2">Forge Studio</p>
-                <h1 className="font-gothic text-3xl md:text-4xl text-white tracking-wide flex items-center gap-3">
+                <h1 className="font-gothic text-3xl md:text-4xl text-white tracking-wide flex flex-wrap items-center gap-x-3 gap-y-2">
                   <Sparkles
                     className="h-8 w-8 shrink-0 motion-safe:animate-lf-drift"
                     style={{ color: NEON, filter: `drop-shadow(0 0 12px ${NEON})` }}
                   />
-                  Companion Forge
+                  <span className="inline-flex items-center gap-2.5 min-w-0">
+                    <span className="whitespace-nowrap">Companion Forge</span>
+                    <CompanionForgeRarityOddsButton size="title" forgeMode={isAdmin ? "admin" : "user"} />
+                  </span>
                 </h1>
                 <p className="text-sm text-muted-foreground mt-2 max-w-md leading-relaxed">
                   {isAdmin
