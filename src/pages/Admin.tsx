@@ -49,6 +49,7 @@ import {
   TrendingUp,
   Gauge,
   PieChart as PieChartLucide,
+  Activity,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -2152,7 +2153,7 @@ function AnalyticsSection({
           className="rounded-2xl border border-white/[0.08] bg-card/35 p-5 md:p-6 h-[380px]"
         >
           <h3 className="font-gothic text-lg mb-1 flex items-center gap-2">
-            <Radio className="h-5 w-5 text-cyan-300" />
+            <Activity className="h-5 w-5 text-cyan-300" />
             Relative intensity
           </h3>
           <p className="text-[11px] text-muted-foreground mb-4">Each bar is % of the strongest channel in this window</p>
