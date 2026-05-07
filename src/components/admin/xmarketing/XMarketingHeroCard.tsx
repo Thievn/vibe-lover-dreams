@@ -1,5 +1,5 @@
 import type { DbCompanion } from "@/hooks/useCompanions";
-import { galleryStaticPortraitUrl, isVideoPortraitUrl } from "@/lib/companionMedia";
+import { galleryStaticPortraitUrl, isEligibleLoopPortraitVideoUrl, isVideoPortraitUrl } from "@/lib/companionMedia";
 import { normalizeCompanionRarity } from "@/lib/companionRarity";
 import { cn } from "@/lib/utils";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
@@ -33,8 +33,12 @@ export function XMarketingHeroCard({
 }: XMarketingHeroCardProps) {
   const rarity = normalizeCompanionRarity(companion.rarity);
   const interiorUrl =
-    loopVideoUrl?.trim() && isVideoPortraitUrl(loopVideoUrl) ? loopVideoUrl.trim() : mediaUrl?.trim() ?? null;
-  const showVideo = Boolean(interiorUrl && isVideoPortraitUrl(interiorUrl));
+    loopVideoUrl?.trim() && isEligibleLoopPortraitVideoUrl(loopVideoUrl, companion.profile_loop_video_enabled)
+      ? loopVideoUrl.trim()
+      : mediaUrl?.trim() ?? null;
+  const showVideo = Boolean(
+    interiorUrl && isEligibleLoopPortraitVideoUrl(interiorUrl, companion.profile_loop_video_enabled),
+  );
   const stillUrl =
     !showVideo && mediaUrl?.trim()
       ? mediaUrl.trim()

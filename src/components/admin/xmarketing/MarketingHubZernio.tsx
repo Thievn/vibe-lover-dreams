@@ -337,6 +337,10 @@ export function MarketingHubZernioPanels({
           Append profile URL + CTA to post body when a companion is selected in Compose (preview and Zernio post use the
           final text)
         </label>
+        <p className="text-[11px] text-muted-foreground leading-snug -mt-1 max-w-xl">
+          X always linkifies URLs in tweet text. With looping video on and bake off, the public MP4 is attached as media;
+          the line below uses a short arrow so the profile link reads as a CTA rather than a naked paste.
+        </p>
         <div className="space-y-2 pl-1 border-l border-white/10 ml-1">
           <label className="block text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
             Profile link CTA preset

@@ -25,7 +25,12 @@ import type { User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { mapSupabaseCustomCharacterRow, useAdminCompanions, type DbCompanion } from "@/hooks/useCompanions";
-import { galleryStaticPortraitUrl, stablePortraitDisplayUrl, isVideoPortraitUrl } from "@/lib/companionMedia";
+import {
+  galleryStaticPortraitUrl,
+  resolvePublicLoopPortraitVideoUrlForX,
+  stablePortraitDisplayUrl,
+  isVideoPortraitUrl,
+} from "@/lib/companionMedia";
 import { normalizeCompanionRarity, type CompanionRarity, COMPANION_RARITIES } from "@/lib/companionRarity";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
 import { cn } from "@/lib/utils";
@@ -688,13 +693,10 @@ export default function XMarketingHub() {
     return null;
   }, [heroSource, marketingRenders, selected, portraitHeroFromTier]);
 
-  const loopVideoPublicUrl = useMemo(() => {
-    const raw = selected?.animated_image_url?.trim();
-    if (!raw || !isVideoPortraitUrl(raw)) return null;
-    const loopUrl = stablePortraitDisplayUrl(raw)?.split("?")[0];
-    if (loopUrl && /^https?:\/\//i.test(loopUrl)) return loopUrl;
-    return null;
-  }, [selected]);
+  const loopVideoPublicUrl = useMemo(
+    () => (selected ? resolvePublicLoopPortraitVideoUrlForX(selected) : null),
+    [selected],
+  );
 
   const preferLoopForX = Boolean(
     marketingSocialSettings?.use_looping_video_for_x &&
@@ -750,18 +752,14 @@ export default function XMarketingHub() {
     }
 
     const preferLoop =
-      marketingSocialSettings?.use_looping_video_for_x &&
-      selected &&
+      Boolean(marketingSocialSettings?.use_looping_video_for_x) &&
+      Boolean(selected) &&
       heroSource.type === "portrait" &&
       portraitTierForX === "selfie";
 
     let naturalUrl: string | null = null;
-    if (preferLoop) {
-      const raw = selected?.animated_image_url?.trim();
-      if (raw && isVideoPortraitUrl(raw)) {
-        const loopUrl = stablePortraitDisplayUrl(raw)?.split("?")[0];
-        if (loopUrl && /^https?:\/\//i.test(loopUrl)) naturalUrl = loopUrl;
-      }
+    if (preferLoop && loopVideoPublicUrl) {
+      naturalUrl = loopVideoPublicUrl;
     }
     if (!naturalUrl && /^https?:\/\//i.test(heroVisual)) {
       naturalUrl = heroVisual.split("?")[0] ?? null;
@@ -932,6 +930,24 @@ export default function XMarketingHub() {
   const composePreviewMedia = useMemo(() => {
     if (!heroVisual) return null;
     if (selected) {
+      const plainLoopPreview = !framedModeOn && preferLoopForX && loopVideoPublicUrl;
+      if (plainLoopPreview) {
+        return (
+          <div className="w-full max-w-[min(100%,280px)] mx-auto">
+            <div className="relative rounded-xl overflow-hidden border border-[#2f3336] bg-black aspect-[2/3] max-h-[min(56vh,520px)]">
+              <video
+                src={loopVideoPublicUrl}
+                className="absolute inset-0 h-full w-full origin-center scale-[1.02] object-cover object-top"
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+              />
+            </div>
+          </div>
+        );
+      }
       return (
         <div className="w-full max-w-[min(100%,280px)] mx-auto">
           <XMarketingHeroCard
@@ -958,7 +974,7 @@ export default function XMarketingHub() {
       );
     }
     return null;
-  }, [heroVisual, selected, preferLoopForX, loopVideoPublicUrl, pinCounts]);
+  }, [heroVisual, selected, preferLoopForX, loopVideoPublicUrl, pinCounts, framedModeOn]);
 
   const generateMarketingStill = async () => {
     if (!selected) {

@@ -88,6 +88,32 @@ export function isVideoPortraitUrl(url: string): boolean {
   return /\.(mp4|webm|mov)(\?|$)/i.test(url);
 }
 
+/**
+ * Public https URL for a looping profile video suitable for X / Zernio attachment.
+ * Storage URLs sometimes omit a file extension; when `profile_loop_video_enabled` is true we still treat https URLs as video.
+ */
+export function resolvePublicLoopPortraitVideoUrlForX(db: {
+  animated_image_url?: string | null;
+  profile_loop_video_enabled?: boolean;
+}): string | null {
+  const raw = db.animated_image_url?.trim();
+  if (!raw) return null;
+  const hasVideoExt = isVideoPortraitUrl(raw);
+  const trustedLoop = Boolean(db.profile_loop_video_enabled && /^https?:\/\//i.test(raw));
+  if (!hasVideoExt && !trustedLoop) return null;
+  const loopUrl = stablePortraitDisplayUrl(raw)?.split("?")[0];
+  if (loopUrl && /^https?:\/\//i.test(loopUrl)) return loopUrl;
+  return null;
+}
+
+/** Interior URL is video by extension, or operator enabled loop + remote URL (extensionless storage). */
+export function isEligibleLoopPortraitVideoUrl(url: string | null | undefined, profileLoopVideoEnabled: boolean): boolean {
+  if (!url?.trim()) return false;
+  const u = url.trim();
+  if (isVideoPortraitUrl(u)) return true;
+  return Boolean(profileLoopVideoEnabled && /^https?:\/\//i.test(u));
+}
+
 /** Companion profile / chat: show looping MP4 only when enabled and URL is video */
 export function shouldShowProfileLoopVideo(
   db: PortraitDbFields | undefined,

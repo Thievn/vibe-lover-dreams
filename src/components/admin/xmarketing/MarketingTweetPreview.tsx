@@ -13,6 +13,13 @@ function renderHighlighted(full: string) {
         </span>
       );
     }
+    if (/^https?:\/\//i.test(t)) {
+      return (
+        <span key={i} className="text-[#1d9bf0]">
+          {tok}
+        </span>
+      );
+    }
     return <span key={i}>{tok}</span>;
   });
 }

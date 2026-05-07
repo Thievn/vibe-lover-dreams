@@ -50,5 +50,6 @@ export function appendXProfileLinkToTweet(baseTweet: string, args: AppendXProfil
   const tagline = (args.companionTagline ?? "").trim();
   const line = lineForPreset(preset, name, tagline, args.custom);
   const url = getPublicCompanionProfileShareUrl(args.companionId.trim());
-  return `${t}\n\n${line}\n${url}`;
+  // One block reads more intentional on X than an isolated URL line; platform still linkifies the URL.
+  return `${t}\n\n${line}\n➜ ${url}`;
 }
