@@ -535,6 +535,12 @@ function buildForgeDesignLabSeedPrompt(o: {
     : "";
   return `FORGE — treat the lines below as creative SEEDS only. Interpret into a cohesive original character. Do NOT paste the seed list into "appearance" or "backstory".
 
+Chronicle discipline (backstory field):
+- Write a real short story: concrete places, moments, other people, a wound and a want, at least one scene with dialogue or action beat.
+- FORBIDDEN: opening with a recap of picks ("Their time period is…", "Speech style:", "Notable traits:", "Psychology:", "The operator selected…").
+- FORBIDDEN: paragraphs that only paraphrase the Personalities block in order (era → type → speech → energy → vibe) without plot.
+- The card UI already shows traits and matrix picks — chronicle must add lore readers cannot get from those labels alone.
+
 Seeds:
 ${nameLine}
 ${themeBlock ? `${themeBlock}\n` : ""}- gender leaning (${o.gender}): informs **face, voice, and personality presentation only** — physique / species / scale also obey body type "${o.bodyType}" **and** must stay faithful to the ACTIVE FORGE THEME above when they interact.
@@ -552,8 +558,8 @@ ${forgePersonalitySeedsProse(o.forgePersonality)
 
 Hard requirements:
 ${forgeCompactStatureInstruction(o.bodyType)}${nameRule1}
-2) appearance: minimum three sentences of lush cinematic prose — no comma-only trait dumps. **First sentence must lock a readable face and hair** (eyes, brows, mouth, skin tone, species marks), **then** weave the ACTIVE FORGE THEME identity (costume language, species fantasy, 2D anime discipline, creature read, etc.). **Do not** spend whole sentences on smoke, fog, or lens effects unless they define the body (e.g. smoke-formed elemental). Fold **Shared look lab** hair/skin/palette into the portrait. Then ground physique from body type "${o.bodyType}" with unmistakable proportions. If the theme and body type conflict, **theme wins the genre/costume/rendering read** while body type still controls limb count, scale, and species silhouette.
-3) backstory: 3–4 paragraphs of premium dark-romance storytelling that weaves every Personalities line into one coherent history — not a bullet recap of tags.
+2) appearance: minimum three sentences of lush cinematic prose — how they look in-world, not a spec sheet. **First sentence must lock a readable face and hair** (eyes, brows, mouth, skin tone, species marks), **then** costume, silhouette, and aura from the ACTIVE FORGE THEME. FORBIDDEN: chaining raw UI labels ("Photorealistic, Athletic, Neon…") or "traits:" lines — fold picks into sensual description. **Do not** spend whole sentences on smoke, fog, or lens effects unless they define the body (e.g. smoke-formed elemental). Fold **Shared look lab** hair/skin/palette into the portrait. Ground physique from body type "${o.bodyType}" with unmistakable proportions. If the theme and body type conflict, **theme wins the genre/costume/rendering read** while body type still controls limb count, scale, and species silhouette.
+3) backstory (Chronicle): 3–4 paragraphs of continuous fiction — same craft as a novelette opening. Weave psychology through events and memory, never as an enumerated recap of the seed block. Do not restate "notable traits" or dropdown labels as prose; show their consequences in story.
 4) bio: 1–2 short hook paragraphs, different opening beat than backstory.
 5) fantasy_starters: exactly four; each description is the user's first in-character chat message (1–4 sentences). Bold NSFW when persona fits; never end with meta questions ("Are you ready?", "Want to start?") — close on dialogue or action.
 6) tags: 8–12 items mixing species (if any), aesthetic, era, hobbies — not identical to the appearance paragraph.

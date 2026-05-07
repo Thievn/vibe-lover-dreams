@@ -3,7 +3,6 @@ import { isOpenEthnicityChoice, normalizeForgeEthnicity } from "@/lib/forgeEthni
 import { forgeCompactStatureInstruction } from "@/lib/forgeBodyTypes";
 import {
   forgePersonalityLabel,
-  forgePersonalitySeedsProse,
   forgePersonalityToArchetypeList,
   type ForgePersonalityProfile,
 } from "@/lib/forgePersonalityProfile";
@@ -46,32 +45,47 @@ export function buildLocalSpinForgeFields(o: {
 } {
   const { displayName, gender, orientation, ethnicity, forgePersonality, artStyle, sceneAtmosphere, bodyType, traits } = o;
   const pl = forgePersonalityLabel(forgePersonality);
-  const seeds = forgePersonalitySeedsProse(forgePersonality);
   const eth = isOpenEthnicityChoice(ethnicity) ? "open" : normalizeForgeEthnicity(ethnicity);
   const traitLine = traits.length ? traits.join(", ") : "none listed";
 
   const tagline = `${forgePersonality.personalityType} · ${sceneAtmosphere}`;
 
   const narrativeAppearance =
-    `A ${gender.toLowerCase()} ${bodyType.toLowerCase()} figure staged in ${sceneAtmosphere} — ` +
-    `${artStyle} rendering, ${orientation.toLowerCase()} energy. ` +
-    `${isOpenEthnicityChoice(ethnicity) ? "Invent a coherent face and skin tone; " : `${eth} complexion cues; `}` +
-    `the silhouette must read as "${bodyType}" first, not a stock default. ` +
-    `Notable look details: ${traitLine}. The mood follows ${pl} — every fold of fabric and glance should feel intentional.`.slice(
-      0,
-      12000,
-    );
+    `They read as ${bodyType.toLowerCase()} — the kind of silhouette that ${artStyle.toLowerCase()} light catches honestly, not a catalog default. ` +
+    `${isOpenEthnicityChoice(ethnicity) ? "Face and skin tone feel invented but coherent; " : `${eth} cues live in bone structure and warmth under the skin; `}` +
+    `${sceneAtmosphere} is the air around them, and ${orientation.toLowerCase()} charge shows in how they hold eye contact. ` +
+    (traits.length
+      ? `Details worth remembering: ${traitLine} — worked into fabric, ink, or bearing, not read aloud as a list.`
+      : `Every fold of costume and glance should feel intentional.`) +
+    ` The vibe is ${forgePersonality.personalityType.toLowerCase()} without naming the forge menus — pure look and presence.`.slice(0, 12000);
 
-  const p1 = `${displayName} moves through a world painted in ${artStyle} tones, anchored in ${sceneAtmosphere}. ` +
-    `They carry ${forgePersonality.timePeriod} textures into how they love, fight, and surrender — the five Personalities lines are not a checklist: they are the reason their voice changes when the door locks.\n\n`;
+  /** Chronicle = in-world story only; trait matrices already show under the card — never paste labeled Psychology / "traits in play" blocks. */
+  const vibeWord = forgePersonality.relationshipVibe.split(/[,&]/)[0]?.trim().toLowerCase() ?? "tension";
+  const p1 =
+    `${displayName} did not arrive in anyone's life as a footnote. ` +
+    `Somewhere under ${sceneAtmosphere.toLowerCase()} light, a habit formed — the way they pause before speaking, ` +
+    `the way ${forgePersonality.speechStyle.toLowerCase()} rhythm turns ordinary air into something charged. ` +
+    `They learned early that ${forgePersonality.timePeriod.toLowerCase()} habits of heart are hard to unlearn: ` +
+    `what they want, what they fear, what they pretend not to need.\n\n`;
 
-  const p2 = `Psychology: ${seeds}\n\n`;
+  const p2 =
+    `A chapter worth telling: a night (or a season) when everything they usually control slipped — not as melodrama, but as the moment ` +
+    `${displayName} realized ${vibeWord} could be honest instead of performed. ` +
+    `That is the person under the ${bodyType.toLowerCase()} frame and ${gender.toLowerCase()} presentation: ` +
+    `someone whose ${forgePersonality.sexualEnergy.toLowerCase()} energy is story, not a slider label.\n\n`;
 
   const p3 =
-    `Their body is staged as ${bodyType} — scale, mass, and species cues stay honest to that label, while gender (${gender}) shapes face and voice only. ` +
-    `Traits in play: ${traitLine}. A turning point: they first noticed the user as more than a stranger when ${forgePersonality.relationshipVibe.toLowerCase()} tension stopped being theory and became breath.\n\n`;
+    `They still carry a private rule — what they will not trade for approval — and a softer one: what they will offer ` +
+    `when trust finally shows up without a script. The people who matter learn it in scenes and confessions, ` +
+    `not by hearing their character sheet read back to them.\n\n`;
 
-  const p4 = `Wardrobe, kink, and aftercare are woven through the same story — not bullet tags. The reader should feel why ${displayName} craves the dynamic they do, and what they will not compromise on when desire runs hot.`;
+  const lookDetail =
+    traits.length > 0 ? `the way ${traitLine} shows in ink, metal, fabric, or posture` : `the small tells in how they dress and hold still`;
+  const p4 =
+    `If you met them tomorrow, you would notice the look first — the ${artStyle.toLowerCase()} read of them, ` +
+    `${lookDetail} — ` +
+    `then the story under it: why they smile like that, why they go quiet when touched a certain way, ` +
+    `and what kind of partner could stand beside them without trying to fix what was never broken.`;
 
   const chronicleBackstory = (p1 + p2 + p3 + p4).slice(0, 24000);
 

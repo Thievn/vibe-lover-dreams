@@ -108,13 +108,13 @@ Naming (critical — players see this first; avoid “AI catalog sameness”):
 
 Bio vs backstory (minimum depth — never thin keyword dumps):
 - bio: at least ~80 words across 2 vivid paragraphs users skim first; voice-forward, seductive or tender per persona.
-- backstory: at least ~400 words across 3+ full paragraphs of continuous prose — deep, memorable lore (wound, want, secret, relationships, at least one cinematic scene with concrete place/time). May imply mature chemistry without pornographic blow-by-blow. FORBIDDEN: restating tags as a list, "Tags:" lines, comma-only keyword dumps, or any paragraph that is mostly traits without narrative.
+- backstory (Chronicle): at least ~400 words across 3+ full paragraphs of **fiction** — concrete places, other characters, turning points, memory, at least one scene with tension or dialogue. This is a short story about them, not a digest of forge options. FORBIDDEN: opening with labeled recap of operator seeds ("Time period:", "Speech style:", "Psychology:", "Traits in play:", "The five personalities are…"). FORBIDDEN: walking through each dropdown value in order without plot. FORBIDDEN: restating tags as a list, "Tags:" lines, comma-only keyword dumps. The profile UI already exposes matrix picks — chronicle must add narrative readers cannot infer from labels alone.
 
 Fantasy starters: exactly 4 items (mandatory in this mode). Each needs title (card label) + description (the verbatim first USER chat line when they tap the card — in-world; seductive, explicit, or tender per persona — not assistant narration). Each description should be 1–4 natural sentences. FORBIDDEN: immersion-breaking meta ("Are you ready?", "Want to start?") — end on an in-world beat. Prefer bold NSFW openers when the character's tone supports it.
 
-Appearance: NEVER output the seed trait list as comma-separated keywords. Write 3+ flowing sentences of cinematic prose (silhouette, skin, hair, eyes, wardrobe, aura). Tags belong in the tags array, not copy-pasted into appearance.
+Appearance: NEVER output the seed trait list as comma-separated keywords or a run of UI labels. Write 3+ flowing sentences of cinematic prose (silhouette, skin, hair, eyes, wardrobe, aura) as if describing a film still. Tags belong in the tags array, not copy-pasted into appearance.
 
-Backstory: literary dark-romance energy — scene, wound, want, friction, desire. Do NOT restate tags as a bullet recap; tell a story. Every paragraph must advance plot or emotional history (not a catalog of kinks).
+Backstory: literary dark-romance energy — scene, wound, want, friction, desire. Do NOT restate tags or personality matrix as a bullet recap; tell a story. Every paragraph must advance plot or emotional history (not a catalog of kinks or a list of what was "picked").
 
 Tags: 8-14 strings — mix species/archetype, visual aesthetic, era, location vibe, and hobbies or obsessions (music, dueling, botany, street racing, relic hunting, tea ceremony, orbital sports, antiquarian books, DJ culture, courtroom drama, artisan crafts…). Do not lean on one repeated “brand” theme across every tag unless seeds demand it.
 
@@ -133,7 +133,7 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
       : parodyLab
       ? `Parody lab request (broad archetypes / genres only — no real people named):\n\n${prompt}\n\nGenerate ONE original parody companion profile via the tool.`
       : companionDesignLab
-      ? `Invent ONE premium catalog companion.\n\nOperator hints (optional — if blank, maximize surprise and variety):\n${prompt.trim() || "(none — go wild within policy)"}\n\nPopulate all tool fields.`
+      ? `Invent ONE premium catalog companion.\n\nOperator hints (optional — if blank, maximize surprise and variety):\n${prompt.trim() || "(none — go wild within policy)"}\n\nPopulate all tool fields. Critical: "backstory" must read as an actual chronicle (scenes, history, people) — never a labeled recap of the hint block or personality matrix; those belong in tags/personality, not pasted into lore.`
       : `Parse this companion profile and extract all fields:\n\n${prompt}`;
 
     const fantasyStartersSchema: Record<string, unknown> = {
@@ -196,12 +196,17 @@ Return everything ONLY via the extract_companion_fields tool call (that is your 
             ? "3+ sentences of lush cinematic prose for how they look; FORBIDDEN: comma-only trait dumps or pasting seed lists"
             : "Physical appearance for profile + chat consistency",
         },
-        personality: { type: "string", description: "Personality traits, voice, social stance" },
+        personality: {
+          type: "string",
+          description: companionDesignLab
+            ? "Concise trait + voice summary for the profile strip (can echo archetype labels). Must NOT be the only place psychology lives — but backstory must NOT duplicate this as a numbered recap; expand into fiction there."
+            : "Personality traits, voice, social stance",
+        },
         bio: { type: "string", description: "Short hook bio (1-2 tight paragraphs when inventing full profiles)" },
         backstory: {
           type: "string",
           description: companionDesignLab
-            ? "MINIMUM 3 full paragraphs, ~400+ words of continuous narrative lore. FORBIDDEN: tag lists, comma keyword dumps, 'Tags:' lines, or re-listing the tags array. Include concrete scenes, relationships, secrets, and emotional arc — not a catalog recap."
+            ? "MINIMUM 3 full paragraphs, ~400+ words of continuous narrative fiction (Chronicle). Include concrete scenes, places, relationships, secrets, emotional arc. FORBIDDEN: tag lists, comma dumps, 'Tags:' lines, re-listing tags array, labeled recap of forge seeds ('Time period:', 'Speech style:', 'Psychology:' blocks), or paragraphs that only enumerate operator picks without story."
             : parodyLab || celebrityParody
             ? "3+ paragraphs of satirical parody lore; still prose, not tag dumps"
             : "Profile backstory: 3+ narrative paragraphs when inferring; never a bare trait list",
