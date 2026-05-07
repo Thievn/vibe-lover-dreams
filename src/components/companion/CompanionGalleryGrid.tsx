@@ -188,11 +188,13 @@ export function CompanionGalleryGrid({
               {isVideo ? (
                 <span
                   className={cn(
-                    "absolute right-1.5 top-1.5 z-[2] rounded-full border border-white/20 bg-black/55 font-semibold uppercase tracking-wider text-white/90",
+                    "absolute right-1.5 top-1.5 z-[2] inline-flex items-center gap-0.5 rounded-full border border-emerald-400/45 bg-emerald-500/15 font-semibold uppercase tracking-wider text-emerald-100/95",
                     compact ? "px-1.5 py-0.5 text-[8px]" : "top-2 right-2 px-2 py-0.5 text-[10px]",
                   )}
+                  title="Loop / motion clip"
                 >
-                  Video
+                  <Video className={cn("shrink-0 text-emerald-300", compact ? "h-2.5 w-2.5" : "h-3 w-3")} />
+                  Clip
                 </span>
               ) : null}
               {!isVideo && selectedLoopSourceId === row.id ? (

@@ -79,6 +79,8 @@ import { useWindowVisibleRefresh } from "@/hooks/useWindowVisibleRefresh";
 import { LovensePairingQrBlock } from "@/components/toy/LovensePairingQrBlock";
 import { LiveCallTypePanel } from "@/components/liveCall/LiveCallTypePanel";
 import { ProfileLoopingVideoUpsell } from "@/components/companion/ProfileLoopingVideoUpsell";
+import { Switch } from "@/components/ui/switch";
+import { setProfileLoopVideoEnabledForUser } from "@/lib/setProfileLoopVideoEnabledForUser";
 import { isPlatformAdmin } from "@/config/auth";
 import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
 import { stashAndNavigateToLiveCall } from "@/lib/navigateToLiveCall";
@@ -174,6 +176,7 @@ const CompanionProfile = () => {
   const [profileTab, setProfileTab] = useState<"profile" | "live">("profile");
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [loopFromGeneratedImageId, setLoopFromGeneratedImageId] = useState<string | null>(null);
+  const [loopPrefBusy, setLoopPrefBusy] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
   const [autoSpendChatImages, setAutoSpendChatImagesState] = useState(false);
   const [dropClickTracked, setDropClickTracked] = useState(false);
@@ -197,6 +200,14 @@ const CompanionProfile = () => {
   );
 
   const companion = dbCompDisplay ? dbToCompanion(dbCompDisplay) : null;
+
+  const loopMp4SourceUrl = useMemo(() => {
+    const o = displayOverride?.animated_portrait_url?.trim();
+    if (o && isVideoPortraitUrl(o)) return o;
+    const b = dbComp?.animated_image_url?.trim();
+    if (b && isVideoPortraitUrl(b)) return b;
+    return null;
+  }, [displayOverride?.animated_portrait_url, dbComp?.animated_image_url]);
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const isDropLanding = searchParams.get("drop") === "1";
   const weeklyDropId = searchParams.get("wd");
@@ -736,11 +747,14 @@ const CompanionProfile = () => {
   };
 
   const handlePortraitFromGallery = async (imageUrl: string) => {
-    if (!user?.id || !id) return;
+    if (!user?.id || !id || !dbComp) return;
+    const baseAnim = dbComp.animated_image_url?.trim() ?? "";
     await setCompanionPortraitFromGalleryUrl({
       userId: user.id,
       companionId: id,
       imageUrl,
+      fallbackLoopVideoUrl: baseAnim && isVideoPortraitUrl(baseAnim) ? baseAnim : null,
+      fallbackLoopVideoEnabled: Boolean(dbComp.profile_loop_video_enabled),
     });
     await queryClient.invalidateQueries({ queryKey: ["companions"] });
     await queryClient.refetchQueries({ queryKey: ["companions"] });
@@ -874,10 +888,7 @@ const CompanionProfile = () => {
           <div className="mt-3 w-full min-w-0 border-t border-white/[0.06] pt-3 space-y-2">
             <ProfileLoopingVideoUpsell
               companionId={companion.id}
-              hasExistingLoopVideo={Boolean(
-                companion.animated_image_url?.trim() &&
-                  isVideoPortraitUrl(companion.animated_image_url),
-              )}
+              hasExistingLoopVideo={Boolean(loopMp4SourceUrl)}
               disabled={false}
               tokensBalance={fcBalanceProfile}
               isAdminUser={isAdminUser}
@@ -906,6 +917,42 @@ const CompanionProfile = () => {
                   });
               }}
             />
+            {loopMp4SourceUrl && stillForProfile && user?.id && dbComp ? (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-950/25 px-3 py-2.5">
+                <div className="min-w-0 space-y-0.5 pr-2">
+                  <p className="text-xs font-semibold text-emerald-100/95">Looping portrait video</p>
+                  <p className="text-[10px] text-muted-foreground leading-snug">
+                    Show the MP4 loop on this profile and in chat, or switch back to the still. Your clip stays in the
+                    gallery.
+                  </p>
+                </div>
+                <Switch
+                  className="shrink-0 data-[state=checked]:bg-emerald-500"
+                  checked={showLoopVideo}
+                  disabled={loopPrefBusy}
+                  onCheckedChange={async (next) => {
+                    if (!user?.id || !id) return;
+                    setLoopPrefBusy(true);
+                    try {
+                      await setProfileLoopVideoEnabledForUser({
+                        userId: user.id,
+                        companionId: id,
+                        enabled: next,
+                        baseDb: dbComp,
+                        overrideRow: displayOverride ?? null,
+                      });
+                      await queryClient.invalidateQueries({ queryKey: ["companions"] });
+                      await queryClient.invalidateQueries({ queryKey: ["companion-display-override", user.id, id] });
+                      toast.success(next ? "Showing loop video on profile" : "Showing still portrait on profile");
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "Could not update preference");
+                    } finally {
+                      setLoopPrefBusy(false);
+                    }
+                  }}
+                />
+              </div>
+            ) : null}
             <Collapsible open={galleryOpen} onOpenChange={setGalleryOpen}>
               <CollapsibleContent className="mt-1 data-[state=closed]:hidden">
                 <section className="rounded-2xl border border-white/[0.1] bg-black/50 p-4 shadow-inner">

@@ -20,6 +20,7 @@ import {
   nexusCooldownRemainingMs,
 } from "@/lib/nexusMerge";
 import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
+import { invokeGenerateProfileLoopVideo } from "@/lib/invokeGenerateProfileLoopVideo";
 import { normalizeCompanionRarity } from "@/lib/companionRarity";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { AdminLoopingVideoBlock } from "@/components/admin/AdminLoopingVideoBlock";
@@ -644,20 +645,13 @@ export default function TheNexus({
       if (portraitReady) {
         setMergeSubphase("video");
         try {
-          const { data: vidData, error: vidErr } = await supabase.functions.invoke("generate-profile-loop-video", {
-            headers: { Authorization: `Bearer ${token}` },
-            body: { companionId: payload.childId },
-          });
-          if (vidErr || (vidData as { error?: string })?.error) {
-            const vm = await messageFromFunctionsInvoke(vidErr, vidData);
-            toast.message(`Loop video: ${vm.slice(0, 140)}${vm.length > 140 ? "…" : ""} — open profile to retry.`);
-          }
-        } catch (ve) {
-          toast.message(
-            ve instanceof Error
-              ? `${ve.message.slice(0, 120)}… Open their profile to generate the loop when ready.`
-              : "Loop video pending — open profile to finish.",
+          await invokeGenerateProfileLoopVideo(
+            { companionId: payload.childId },
+            { headers: { Authorization: `Bearer ${token}` } },
           );
+        } catch (ve) {
+          const vm = ve instanceof Error ? ve.message : "Loop video pending — open profile to finish.";
+          toast.message(`${vm.slice(0, 140)}${vm.length > 140 ? "…" : ""} — open profile to retry.`);
         }
       }
 

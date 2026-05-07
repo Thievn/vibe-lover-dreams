@@ -1013,11 +1013,14 @@ export function useChatSessionController() {
   };
 
   const handlePortraitFromGallery = async (imageUrl: string) => {
-    if (!user?.id || !id) return;
+    if (!user?.id || !id || !dbComp) return;
+    const baseAnim = dbComp.animated_image_url?.trim() ?? "";
     await setCompanionPortraitFromGalleryUrl({
       userId: user.id,
       companionId: id,
       imageUrl,
+      fallbackLoopVideoUrl: baseAnim && isVideoPortraitUrl(baseAnim) ? baseAnim : null,
+      fallbackLoopVideoEnabled: Boolean(dbComp.profile_loop_video_enabled),
     });
     await queryClient.invalidateQueries({ queryKey: ["companions"] });
     await queryClient.invalidateQueries({ queryKey: ["companion-display-override", user.id, id] });

@@ -3,8 +3,7 @@ import { Loader2, Video } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
+import { invokeGenerateProfileLoopVideo } from "@/lib/invokeGenerateProfileLoopVideo";
 import { pickRandomVideoLoadingLine } from "@/lib/chatVisualRouting";
 import { profileLoopMotionInvalidReason } from "@/lib/profileLoopVideoSafety";
 import { cn } from "@/lib/utils";
@@ -49,12 +48,10 @@ export function AdminLoopingVideoBlock({
     const loadId = toast.loading(pickRandomVideoLoadingLine());
     try {
       const trimmed = motionNotes.trim().slice(0, MOTION_MAX);
-      const { data, error } = await supabase.functions.invoke("generate-profile-loop-video", {
-        body: { companionId: companionId.trim(), motionNotes: trimmed || undefined },
+      await invokeGenerateProfileLoopVideo({
+        companionId: companionId.trim(),
+        motionNotes: trimmed || undefined,
       });
-      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
-      const errMsg = (data as { error?: string })?.error;
-      if (errMsg) throw new Error(errMsg);
       toast.success(hasExistingLoopVideo ? "Loop video updated" : "Looping profile video saved", {
         id: loadId,
         description:

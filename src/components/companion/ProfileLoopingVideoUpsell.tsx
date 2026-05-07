@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, Images, Loader2, Sparkles, Video } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
+import { invokeGenerateProfileLoopVideo } from "@/lib/invokeGenerateProfileLoopVideo";
 import { pickRandomVideoLoadingLine } from "@/lib/chatVisualRouting";
 import { PROFILE_LOOP_VIDEO_FC } from "@/lib/forgeEconomy";
 import { profileLoopMotionInvalidReason } from "@/lib/profileLoopVideoSafety";
@@ -72,10 +71,7 @@ export function ProfileLoopingVideoUpsell({
       if (!isAdminUser) {
         body.tokenCost = PROFILE_LOOP_VIDEO_FC;
       }
-      const { data, error } = await supabase.functions.invoke("generate-profile-loop-video", { body });
-      if (error) throw new Error(await getEdgeFunctionInvokeMessage(error, data));
-      const errMsg = (data as { error?: string })?.error;
-      if (errMsg) throw new Error(errMsg);
+      await invokeGenerateProfileLoopVideo(body);
       toast.success(hasExistingLoopVideo ? "Loop video updated" : "Looping portrait video saved", {
         id: loadId,
         description: "Added to this companion’s gallery. It may take a moment to show everywhere.",

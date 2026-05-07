@@ -7,6 +7,7 @@ import { buildNexusStoredDisplayTraits, serializeBaseDisplayTraitsForInsert } fr
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { supabase } from "@/integrations/supabase/client";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
+import { invokeGenerateProfileLoopVideo } from "@/lib/invokeGenerateProfileLoopVideo";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -810,12 +811,7 @@ const CompanionManager = () => {
       for (let i = 0; i < allIds.length; i++) {
         const companionId = allIds[i];
         try {
-          const { data, error: fnErr } = await supabase.functions.invoke("generate-profile-loop-video", {
-            body: { companionId },
-          });
-          if (fnErr) throw new Error(await getEdgeFunctionInvokeMessage(fnErr, data));
-          const errMsg = (data as { error?: string })?.error;
-          if (errMsg) throw new Error(errMsg);
+          await invokeGenerateProfileLoopVideo({ companionId });
           ok++;
         } catch {
           fail++;
