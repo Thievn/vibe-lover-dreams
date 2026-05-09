@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Coins, History, LogOut, Save, Shield, Sparkles, UserRound } from "lucide-react";
+import { ArrowLeft, Coins, Download, History, LogOut, Save, Shield, Sparkles, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
@@ -302,6 +302,29 @@ export default function Account() {
                 {saving ? "Saving…" : "Save username"}
               </span>
             </button>
+
+            <div className="rounded-2xl border border-white/10 bg-black/35 px-4 py-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Download className="h-4 w-4 text-[#00E5C8]" />
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Install app</p>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                On your phone, add LustForge to your home screen for a full-screen app experience. iPhone: Safari →
+                Share → Add to Home Screen. Android: browser menu → Install app.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(new Event("lustforge-request-install-hint"));
+                  toast.message("Install sheet", {
+                    description: "If you are on a phone, check the bottom of the screen for the install prompt.",
+                  });
+                }}
+                className="w-full rounded-xl border border-[#FF2D7B]/35 bg-[#FF2D7B]/10 py-2.5 text-xs font-semibold text-[#FF2D7B] hover:bg-[#FF2D7B]/15 transition-colors"
+              >
+                Show install prompt
+              </button>
+            </div>
 
             <div className="pt-2 border-t border-white/10">
               <button

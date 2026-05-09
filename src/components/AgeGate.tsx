@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { trackEvent } from "@/lib/analytics";
 
 const NEON = "#FF2D7B";
 
@@ -15,6 +16,7 @@ export default function AgeGate({ onConfirm }: AgeGateProps) {
   const confirm = useCallback(() => {
     localStorage.setItem("ageConfirmed", "true");
     setShowModal(false);
+    trackEvent("age_gate_confirm");
     onConfirm();
   }, [onConfirm]);
 

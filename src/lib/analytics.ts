@@ -11,6 +11,16 @@ const GA_DISABLED_VALUES = new Set(["0", "false", "off", "disabled"]);
 
 let initialized = false;
 
+function gtagScriptAlreadyInHead(measurementId: string): boolean {
+  if (typeof document === "undefined") return false;
+  const nodes = document.querySelectorAll('script[src*="googletagmanager.com/gtag/js"]');
+  for (const n of nodes) {
+    const src = n.getAttribute("src") || "";
+    if (src.includes(measurementId)) return true;
+  }
+  return false;
+}
+
 function normalizeMeasurementId(input: string | undefined): string | null {
   const raw = (input ?? "").trim();
   if (!raw) return `G-${GA_DEFAULT}`;
@@ -36,7 +46,9 @@ export function initAnalytics(): void {
     };
   }
 
-  if (!document.querySelector('script[data-lf-ga="gtag"]')) {
+  const fromIndexHtml = gtagScriptAlreadyInHead(measurementId);
+
+  if (!fromIndexHtml && !document.querySelector('script[data-lf-ga="gtag"]')) {
     const gtagScript = document.createElement("script");
     gtagScript.async = true;
     gtagScript.src = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`;
@@ -44,11 +56,13 @@ export function initAnalytics(): void {
     document.head.appendChild(gtagScript);
   }
 
-  window.gtag("js", new Date());
-  window.gtag("config", measurementId, {
-    send_page_view: false,
-    anonymize_ip: true,
-  });
+  if (!fromIndexHtml) {
+    window.gtag("js", new Date());
+    window.gtag("config", measurementId, {
+      send_page_view: false,
+      anonymize_ip: true,
+    });
+  }
 
   initialized = true;
 }
@@ -62,5 +76,19 @@ export function trackPageView(path: string): void {
     page_title: document.title,
     send_to: measurementId,
   });
+}
+
+/** GA4 recommended + custom events (no PII in params). */
+export function trackEvent(name: string, params?: Record<string, string | number | boolean | undefined>): void {
+  const measurementId = getGaMeasurementId();
+  if (!measurementId || !window.gtag) return;
+  const clean: Record<string, string | number | boolean> = {};
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      if (v === undefined) continue;
+      if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") clean[k] = v;
+    }
+  }
+  window.gtag("event", name, { ...clean, send_to: measurementId });
 }
 

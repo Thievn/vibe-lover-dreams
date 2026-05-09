@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/integrations/supabase/env";
+import { trackEvent } from "@/lib/analytics";
 
 export type GenerateImageResponse = {
   success?: boolean;
@@ -139,5 +140,12 @@ export async function invokeGenerateImage(
   }
 
   const data = (await res.json()) as GenerateImageResponse;
+  if (!data.error && (data.imageUrl || data.publicImageUrl)) {
+    const style = typeof body.style === "string" ? body.style : undefined;
+    trackEvent("generate_image", {
+      has_video: Boolean(data.videoUrl),
+      ...(style ? { style: style.slice(0, 64) } : {}),
+    });
+  }
   return { data, error: null };
 }

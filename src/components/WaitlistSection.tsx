@@ -3,6 +3,7 @@ import { Mail, CheckCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
+import { trackEvent } from "@/lib/analytics";
 
 export default function WaitlistSection() {
   const [email, setEmail] = useState("");
@@ -51,6 +52,11 @@ export default function WaitlistSection() {
           duration: 6500,
         });
       }
+
+      trackEvent("waitlist_submit", {
+        result: res.status === "duplicate" ? "duplicate" : "created",
+        email_delivered: res.email_status === "email_sent",
+      });
 
     } catch (err: unknown) {
       console.error("Waitlist error:", err);

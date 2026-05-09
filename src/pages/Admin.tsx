@@ -144,6 +144,8 @@ interface StatsShape {
   companionsCreatedCustom: number;
   revenueMrr: number;
   toysLinked: number;
+  /** Rows in `pwa_install_events` with `event_type = appinstalled` (client-reported). */
+  pwaInstalledTotal: number;
 }
 
 type WeeklyDropRow = {
@@ -171,6 +173,10 @@ type TrendPoint = {
   forged: number;
   /** `social_post_jobs` rows (Zernio / marketing), when RLS allows. */
   marketingPosts: number;
+  /** `pwa_install_events` appinstalled per day. */
+  pwaInstalled: number;
+  /** `pwa_install_events` install_prompt_shown per day. */
+  pwaPromptShown: number;
 };
 
 type CardStatsRow = {
@@ -198,6 +204,8 @@ const EMPTY_TREND_POINT: TrendPoint = {
   images: 0,
   forged: 0,
   marketingPosts: 0,
+  pwaInstalled: 0,
+  pwaPromptShown: 0,
 };
 
 const chartTooltipStyle = {
@@ -230,6 +238,7 @@ function AdminShell() {
     companionsCreatedCustom: 0,
     revenueMrr: 0,
     toysLinked: 0,
+    pwaInstalledTotal: 0,
   });
   const [statsLoading, setStatsLoading] = useState(true);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
@@ -273,6 +282,7 @@ function AdminShell() {
         customRes,
         imgRes,
         wlRes,
+        pwaInstallRes,
         payingRes,
         toysRes,
       ] = await Promise.all([
@@ -281,6 +291,7 @@ function AdminShell() {
         supabase.from("custom_characters").select("id", { count: "exact", head: true }),
         supabase.from("generated_images").select("id", { count: "exact", head: true }),
         supabase.from("waitlist").select("id", { count: "exact", head: true }),
+        supabase.from("pwa_install_events").select("id", { count: "exact", head: true }).eq("event_type", "appinstalled"),
         supabase.from("profiles").select("id").not("stripe_customer_id", "is", null),
         supabase.from("profiles").select("id").not("device_uid", "is", null),
       ]);
@@ -293,6 +304,7 @@ function AdminShell() {
       note("Custom forges (count)", customRes);
       note("Generated images (count)", imgRes);
       note("Waitlist (count)", wlRes);
+      note("PWA installs (count)", pwaInstallRes);
       note("Profiles (paying list)", payingRes);
       note("Profiles (toys list)", toysRes);
 
@@ -301,6 +313,7 @@ function AdminShell() {
       const customCount = customRes.error ? 0 : (customRes.count ?? 0);
       const imagesGenerated = imgRes.error ? 0 : (imgRes.count ?? 0);
       const waitlistSignups = wlRes.error ? 0 : (wlRes.count ?? 0);
+      const pwaInstalledTotal = pwaInstallRes.error ? 0 : (pwaInstallRes.count ?? 0);
 
       setStats({
         totalUsers,
@@ -310,6 +323,7 @@ function AdminShell() {
         companionsCreatedCustom: customCount,
         revenueMrr: (payingRes.error ? 0 : payingRes.data?.length ?? 0) * 19.99,
         toysLinked: toysRes.error ? 0 : toysRes.data?.length ?? 0,
+        pwaInstalledTotal,
       });
 
       if (failed.length) {
@@ -338,13 +352,14 @@ function AdminShell() {
       start.setUTCDate(start.getUTCDate() - (days - 1));
       const fromIso = start.toISOString();
 
-      const [profilesRes, waitlistRes, imagesRes, customRes, chatsRes, jobsRes] = await Promise.all([
+      const [profilesRes, waitlistRes, imagesRes, customRes, chatsRes, jobsRes, pwaRes] = await Promise.all([
         supabase.from("profiles").select("created_at").gte("created_at", fromIso),
         supabase.from("waitlist").select("created_at").gte("created_at", fromIso),
         supabase.from("generated_images").select("created_at").gte("created_at", fromIso),
         supabase.from("custom_characters").select("created_at").gte("created_at", fromIso),
         supabase.from("chat_messages").select("created_at").gte("created_at", fromIso),
         supabase.from("social_post_jobs").select("created_at").gte("created_at", fromIso),
+        supabase.from("pwa_install_events").select("created_at, event_type").gte("created_at", fromIso),
       ]);
 
       const telemetryErrors = [
@@ -354,6 +369,7 @@ function AdminShell() {
         customRes.error && `custom_characters: ${customRes.error.message}`,
         chatsRes.error && `chat_messages: ${chatsRes.error.message}`,
         jobsRes.error && `social_post_jobs: ${jobsRes.error.message}`,
+        pwaRes.error && `pwa_install_events: ${pwaRes.error.message}`,
       ].filter(Boolean) as string[];
       if (telemetryErrors.length) {
         console.warn("[admin analytics]", telemetryErrors.join(" | "));
@@ -374,6 +390,8 @@ function AdminShell() {
           images: 0,
           forged: 0,
           marketingPosts: 0,
+          pwaInstalled: 0,
+          pwaPromptShown: 0,
         };
       });
 
@@ -395,6 +413,18 @@ function AdminShell() {
       addCount(customRes.data as { created_at: string }[] | null, "forged");
       addCount(chatsRes.data as { created_at: string }[] | null, "sessions");
       addCount(jobsRes.data as { created_at: string }[] | null, "marketingPosts");
+
+      for (const row of (pwaRes.data as { created_at: string; event_type: string }[] | null) ?? []) {
+        const key = (row.created_at || "").slice(0, 10);
+        const idx = indexByKey.get(key);
+        if (idx == null) continue;
+        const prev = timeline[idx]!;
+        if (row.event_type === "appinstalled") {
+          timeline[idx] = { ...prev, pwaInstalled: prev.pwaInstalled + 1 } as TrendPoint;
+        } else if (row.event_type === "install_prompt_shown") {
+          timeline[idx] = { ...prev, pwaPromptShown: prev.pwaPromptShown + 1 } as TrendPoint;
+        }
+      }
 
       for (let i = 0; i < timeline.length; i++) {
         const row = timeline[i]!;
@@ -1148,6 +1178,7 @@ function OverviewSection({
       { name: "Waitlist", value: Math.max(0, sum("waitlistSignups")) },
       { name: "Images", value: Math.max(0, sum("images")) },
       { name: "Forged", value: Math.max(0, sum("forged")) },
+      { name: "PWA installs", value: Math.max(0, sum("pwaInstalled")) },
     ];
   }, [trendSlice]);
 
@@ -1173,6 +1204,12 @@ function OverviewSection({
       value: s.companionsCreatedCustom,
       sub: "custom_characters (all users when admin)",
       color: "text-accent/90",
+    },
+    {
+      label: "PWA installs (reported)",
+      value: s.pwaInstalledTotal,
+      sub: "Client `appinstalled` events in pwa_install_events",
+      color: "text-emerald-300/90",
     },
   ];
 
@@ -1204,7 +1241,7 @@ function OverviewSection({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {cards.map((c, i) => (
           <motion.div
             key={c.label}
@@ -1762,6 +1799,7 @@ const ANALYTICS_BAR_COLORS = [
   "hsl(170 85% 45%)",
   "hsl(35 95% 52%)",
   "hsl(200 80% 55%)",
+  "hsl(145 70% 42%)",
 ];
 
 function AnalyticsSection({
@@ -1796,6 +1834,8 @@ function AnalyticsSection({
           acc.images += row.images;
           acc.forged += row.forged;
           acc.marketingPosts += row.marketingPosts;
+          acc.pwaInstalled += row.pwaInstalled;
+          acc.pwaPromptShown += row.pwaPromptShown;
           return acc;
         },
         {
@@ -1806,6 +1846,8 @@ function AnalyticsSection({
           images: 0,
           forged: 0,
           marketingPosts: 0,
+          pwaInstalled: 0,
+          pwaPromptShown: 0,
         },
       ),
     [visibleTrend],
@@ -1820,6 +1862,7 @@ function AnalyticsSection({
       { name: "Images", value: Math.max(0, sum("images")) },
       { name: "Forged", value: Math.max(0, sum("forged")) },
       { name: "X posts", value: Math.max(0, sum("marketingPosts")) },
+      { name: "PWA installs", value: Math.max(0, sum("pwaInstalled")) },
     ];
   }, [visibleTrend]);
 
@@ -1853,6 +1896,7 @@ function AnalyticsSection({
       { name: "Images", value: totals.images, fill: "hsl(170 85% 42%)" },
       { name: "Forge rows", value: totals.forged, fill: "hsl(35 95% 52%)" },
       { name: "Social jobs", value: totals.marketingPosts, fill: "hsl(200 80% 55%)" },
+      { name: "PWA installs", value: totals.pwaInstalled, fill: "hsl(145 70% 42%)" },
     ].filter((x) => x.value > 0);
     if (raw.length) return raw;
     return [{ name: "No activity in window", value: 1, fill: "hsl(240 12% 28%)" }];
@@ -1898,6 +1942,16 @@ function AnalyticsSection({
         k: "Window signups",
         v: String(totals.profileSignups + totals.waitlistSignups),
         hint: `${range}: profiles + waitlist`,
+      },
+      {
+        k: "PWA installs (all time)",
+        v: String(stats.pwaInstalledTotal),
+        hint: "Chromium `appinstalled` rows (under-counts iOS Add to Home Screen)",
+      },
+      {
+        k: `PWA funnel (${range})`,
+        v: `${totals.pwaInstalled} installs · ${totals.pwaPromptShown} prompts`,
+        hint: "install_prompt_shown vs appinstalled in window",
       },
     ],
     [gaMeasurementId, stats, totals, range],
@@ -1962,7 +2016,7 @@ function AnalyticsSection({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpiCards.map((x, i) => (
           <motion.div
             key={x.k}
@@ -1989,7 +2043,7 @@ function AnalyticsSection({
             <TrendingUp className="h-5 w-5" style={{ color: NEON }} />
             Multi-series pulse
           </h3>
-          <p className="text-[11px] text-muted-foreground mb-4">Chat, signups, stills, forge, marketing posts</p>
+          <p className="text-[11px] text-muted-foreground mb-4">Chat, signups, stills, forge, marketing, PWA installs</p>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(280 20% 18%)" />
@@ -2006,6 +2060,15 @@ function AnalyticsSection({
                 dataKey="marketingPosts"
                 name="X / social jobs"
                 stroke="hsl(200 80% 55%)"
+                strokeWidth={2}
+                dot={false}
+                animationDuration={900}
+              />
+              <Line
+                type="monotone"
+                dataKey="pwaInstalled"
+                name="PWA installed"
+                stroke="hsl(145 70% 42%)"
                 strokeWidth={2}
                 dot={false}
                 animationDuration={900}
@@ -2228,7 +2291,7 @@ function AnalyticsSection({
       <p className="text-xs text-muted-foreground italic border-t border-white/[0.06] pt-6">
         {loading
           ? "Refreshing analytics…"
-          : `Telemetry: profiles, waitlist, generated_images, custom_characters, chat_messages, social_post_jobs — ${range} view on charts above.`}
+          : `Telemetry: profiles, waitlist, generated_images, custom_characters, chat_messages, social_post_jobs, pwa_install_events — ${range} view on charts above.`}
       </p>
     </motion.div>
   );

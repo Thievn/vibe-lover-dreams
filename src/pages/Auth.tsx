@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { User, Lock, Mail, Eye, EyeOff, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isPublicSignUpEnabled, stripLeadingAtForLoginIdentifier } from "@/config/auth";
+import { trackEvent } from "@/lib/analytics";
 
 const NEON = "#FF2D7B";
 
@@ -116,6 +117,8 @@ export default function Auth() {
 
       if (authError) throw authError;
 
+      trackEvent("sign_up", { method: "email" });
+
       const uid = signUpData.user?.id;
       if (uid) {
         const { error: profileError } = await supabase.from("profiles").upsert(
@@ -178,6 +181,7 @@ export default function Auth() {
 
       if (error) throw error;
 
+      trackEvent("login", { method: "password" });
       navigate("/dashboard");
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Sign in failed");

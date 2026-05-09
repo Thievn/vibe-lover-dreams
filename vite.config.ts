@@ -22,18 +22,48 @@ function ogSiteOrigin(): string {
   return "https://lustforge.app";
 }
 
+/** Must match `src/lib/analytics.ts` — GA4 id in index.html for earliest load. */
+function gaMeasurementIdForHtml(): string | null {
+  const raw = (process.env.VITE_GA_MEASUREMENT_ID ?? "").trim();
+  if (["0", "false", "off", "disabled"].includes(raw.toLowerCase())) return null;
+  if (!raw) return "G-JF1831WS0G";
+  if (raw.startsWith("G-")) return raw;
+  if (/^\d+$/.test(raw)) return `G-${raw}`;
+  return raw;
+}
+
+function googleTagSnippet(measurementId: string): string {
+  return `    <!-- Google tag (gtag.js) — early load; SPA sends page_view from src/lib/analytics.ts -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${measurementId}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '${measurementId}', { send_page_view: false, anonymize_ip: true });
+    </script>
+`;
+}
+
 export default defineConfig({
   plugins: [
     {
       name: "inject-og-site-origin",
       transformIndexHtml(html) {
-        return html.replace(/__OG_SITE_ORIGIN__/g, ogSiteOrigin());
+        let out = html.replace(/__OG_SITE_ORIGIN__/g, ogSiteOrigin());
+        const gaId = gaMeasurementIdForHtml();
+        if (gaId && !out.includes("googletagmanager.com/gtag/js")) {
+          out = out.replace(
+            /<script type="module" src="\/src\/main\.tsx"><\/script>/,
+            `${googleTagSnippet(gaId)}    <script type="module" src="/src/main.tsx"></script>`,
+          );
+        }
+        return out;
       },
     },
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg", "favicon.ico", "og-image.png", "robots.txt"],
+      includeAssets: ["favicon.svg", "og-image.png", "pwa-icon-192.png", "pwa-icon-512.png", "robots.txt"],
       manifest: {
         name: "LustForge AI",
         short_name: "LustForge",
@@ -47,16 +77,22 @@ export default defineConfig({
         categories: ["entertainment", "lifestyle"],
         icons: [
           {
-            src: "/favicon.svg",
-            sizes: "512x512",
-            type: "image/svg+xml",
+            src: "/pwa-icon-192.png",
+            sizes: "192x192",
+            type: "image/png",
             purpose: "any",
           },
           {
-            src: "/og-image.png",
+            src: "/pwa-icon-512.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "any",
+          },
+          {
+            src: "/pwa-icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
           },
         ],
       },
