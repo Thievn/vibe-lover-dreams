@@ -25,6 +25,7 @@ import { LiveCallPhoneShell, type LiveCallUiPhase } from "@/components/liveCall/
 import { useCompanionDisplayOverride } from "@/hooks/useCompanionDisplayOverride";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
 import { mergeCompanionDisplayWithUserOverride } from "@/lib/mergeCompanionDisplayOverride";
+import { stripDiscoverForgeTemplateCanonicalLoop } from "@/lib/discoverTemplateMedia";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { hasUserPurchasedCompanionCard } from "@/lib/hasUserPurchasedCompanionCard";
@@ -59,9 +60,10 @@ const LiveCallPage = () => {
     return dbRows.find((r) => r.id === id) ?? null;
   }, [dbRows, id]);
 
+  const dbCompStripped = useMemo(() => stripDiscoverForgeTemplateCanonicalLoop(dbComp), [dbComp]);
   const dbCompDisplay = useMemo(
-    () => mergeCompanionDisplayWithUserOverride(dbComp, displayOverride ?? undefined) ?? dbComp,
-    [dbComp, displayOverride],
+    () => mergeCompanionDisplayWithUserOverride(dbCompStripped, displayOverride ?? undefined) ?? dbCompStripped,
+    [dbCompStripped, displayOverride],
   );
 
   const companion = useMemo(() => {

@@ -344,7 +344,54 @@ Deno.serve(async (req) => {
 
     const publicUrl = storage.storage.from("companion-images").getPublicUrl(fileName).data.publicUrl;
 
-    if (adminUser) {
+    const isDiscoverListedForgeTemplate =
+      table === "custom_characters" &&
+      Boolean((row as { is_public?: unknown }).is_public) &&
+      Boolean((row as { approved?: unknown }).approved);
+
+    /** Discover-listed forge cards must never store looping video on the shared row — only per-user overrides. */
+    if (adminUser && isDiscoverListedForgeTemplate) {
+      const { data: existingOv } = await svc
+        .from("user_companion_portrait_overrides")
+        .select("portrait_url")
+        .eq("user_id", sessionUser.id)
+        .eq("companion_id", companionId)
+        .maybeSingle();
+      let portraitStill =
+        (typeof existingOv?.portrait_url === "string" && existingOv.portrait_url.trim()) ||
+        (sourceGalleryStillUrl && sourceGalleryStillUrl.trim()) ||
+        "";
+      if (!portraitStill) {
+        const raw =
+          (typeof row.static_image_url === "string" && row.static_image_url) ||
+          (typeof row.image_url === "string" && row.image_url) ||
+          (typeof row.avatar_url === "string" && row.avatar_url);
+        portraitStill = typeof raw === "string" ? raw.trim() : "";
+      }
+      if (!portraitStill) {
+        if (tokensCharged) {
+          await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "could not resolve portrait still for override");
+        }
+        return jsonResponse({ error: "Could not resolve a still portrait for your private profile." }, 500);
+      }
+      const { error: ovErr } = await svc.from("user_companion_portrait_overrides").upsert(
+        {
+          user_id: sessionUser.id,
+          companion_id: companionId,
+          portrait_url: portraitStill,
+          animated_portrait_url: publicUrl,
+          profile_loop_video_enabled: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,companion_id" },
+      );
+      if (ovErr) {
+        if (tokensCharged) {
+          await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "override save failed");
+        }
+        return jsonResponse({ error: ovErr.message }, 500);
+      }
+    } else if (adminUser) {
       const { error: upRow } = await svc
         .from(table)
         .update({
@@ -405,9 +452,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    const galleryUserId = companionId.startsWith("cc-")
-      ? (String((row as { user_id?: unknown }).user_id ?? "").trim() || sessionUser.id)
-      : sessionUser.id;
+    const galleryUserId =
+      adminUser && isDiscoverListedForgeTemplate && companionId.startsWith("cc-")
+        ? sessionUser.id
+        : companionId.startsWith("cc-")
+          ? (String((row as { user_id?: unknown }).user_id ?? "").trim() || sessionUser.id)
+          : sessionUser.id;
     const galleryPrompt = [
       "Profile loop video (Grok I2V)",
       motionNotes ? motionNotes.slice(0, 400) : "Portrait-driven motion",

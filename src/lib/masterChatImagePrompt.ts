@@ -1,6 +1,6 @@
 /**
- * Master chat image brief: **text-only** character bible (appearance + forge anchors) + scene.
- * No reference image is sent — instruct the model not to “copy” a profile JPEG; render from prose.
+ * Master chat image brief: character bible (appearance + forge anchors) + scene.
+ * Likeness = face, hair, eyes, lips, hands, legs, body, species from prose (and optional roster portrait URL downstream for identity-only — never the card’s backdrop or outfit).
  */
 import type { Companion } from "@/data/companions";
 import { inferForgeBodyTypeFromAppearance, inferForgeBodyTypeFromTags } from "@/lib/forgeBodyTypes";
@@ -20,6 +20,10 @@ import {
 } from "@/lib/chatImageSettings";
 import type { DbCompanion } from "@/hooks/useCompanions";
 import { buildCompanionVisualIdentityCapsule } from "@/lib/buildCompanionVisualIdentityCapsule";
+import {
+  CHAT_LIKENESS_SCENE_FORBIDDEN_INLINE,
+  CHAT_LIKENESS_SUBJECT_FEATURES_INLINE,
+} from "@/lib/chatLikenessAnchors";
 
 function resolvePersonalityMatrix(companion: Companion): ForgePersonalityProfile {
   if (companion.personalityForge) {
@@ -54,12 +58,12 @@ export function classifyChatImageMood(input: { rawUserMessage: string; menuBaseP
 
 function moodNsfwClauses(m: FabSelfieTier): string {
   if (m === "nude") {
-    return "Artistic intimate nude (Grok Imagine): fine-art boudoir or editorial silhouette — sensual, graceful, soft light; **no** crude anatomy, graphic acts, or pornographic staging. **One** consistent individual per the written Character appearance; believable photoreal body. Wardrobe absent only when the scene calls for nude; do not default to swimwear unless USER SCENE is beach/pool.";
+    return "Artistic intimate nude (Grok Imagine): fine-art boudoir or editorial silhouette — sensual, graceful, soft light; **no** crude anatomy, graphic acts, or pornographic staging. **One** consistent individual per CHARACTER APPEARANCE (face, eyes, lips, hair, hands, legs, skin, build); believable photoreal body. Wardrobe absent only when the scene calls for nude; do not default to swimwear unless USER SCENE is beach/pool.";
   }
   if (m === "lewd") {
-    return "Tasteful lewd: lingerie, sheer, wet fabric, silhouette, teasing poses — premium editorial / perfume-ad heat, **not** explicit porn staging or obscene wording. Same **identity** (face, hair, skin, build) as CHARACTER APPEARANCE — **wardrobe, pose, and room** only from USER SCENE / menu framing, not from any implied catalog photo. No generic bikini unless the scene calls for it.";
+    return "Tasteful lewd: lingerie, sheer, wet fabric, silhouette, teasing poses — premium editorial / perfume-ad heat, **not** explicit porn staging or obscene wording. Same **identity** (face, eyes, lips, hair, hands, legs, skin, build) as CHARACTER APPEARANCE — **wardrobe, pose, and room** only from USER SCENE / menu framing, not from any implied catalog photo. No generic bikini unless the scene calls for it.";
   }
-  return "SFW — flirty, romantic, or cute; fully clothed for public-safe framing. Same individual as the **written** character description (face + body type). Outfit must fit THIS preset and USER SCENE.";
+  return "SFW — flirty, romantic, or cute; fully clothed for public-safe framing. Same individual as the **written** character description (face, eyes, lips, hair, hands, legs, body type). Outfit must fit THIS preset and USER SCENE.";
 }
 
 function timePeriodAesthetic(period: string): string {
@@ -234,10 +238,10 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
     : "Keep framing tasteful and story-led; default flattering portrait or boudoir tease unless the user clearly escalated.";
 
   const identity = [
-    "— IDENTITY (TEXT BIBLE — NO REFERENCE PHOTO) —",
-    "**No profile or roster image is supplied.** Do not try to duplicate, remaster, or “match pixels” to a card JPEG. Build **one** believable person who fits the **CHARACTER APPEARANCE** paragraph and forge metadata below — hair, skin, face shape, age read, species, and body type must read consistently with that prose.",
+    "— IDENTITY (TEXT BIBLE — ROSTER PORTRAIT = LIKENESS ONLY IF SUPPLIED) —",
+    `**Prose-first bible.** When a roster portrait HTTPS URL is supplied to the image step, use it **only** for ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE} — **never** import ${CHAT_LIKENESS_SCENE_FORBIDDEN_INLINE}. Do not duplicate, remaster, or “match pixels” to a **catalog composition**. Build **one** believable person who fits **CHARACTER APPEARANCE** and forge metadata — eyes, lips, hands, legs, hair, skin, face shape, age read, species, and body type must read consistently with that prose.`,
     menuSceneLock
-      ? "— MENU PRESET LOCK — The **Requested framing (from menu)** section is the **sole** authority for **environment, wardrobe, pose, props, lighting, and camera**. Use the written profile **only** for **face, hair, skin, species, and body proportions** — not for background, outfit, or pose from any implied catalog/portrait shot."
+      ? "— MENU PRESET LOCK — The **Requested framing (from menu)** section is the **sole** authority for **environment, wardrobe, pose, props, lighting, and camera**. Use the written profile (and optional portrait URL) **only** for **face, eyes, lips, hair, hands, legs, skin, species, and body proportions** — not for background, outfit, or pose from any implied catalog/portrait shot."
       : "",
     "— SCENE-FIRST —",
     menuSceneLock
@@ -245,7 +249,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
       : "USER SCENE / menu framing decides **location, outfit, pose, props, lighting, and camera**. The appearance text is **who** they are, not **which photograph** to recreate. Each still should feel like a **new** shoot, not a reskin of a catalog frame.",
     "— STYLIZED / CHIBI LORE —",
     "If the written profile or tags imply chibi, caricature, or non-photoreal marketing art, translate into **coherent photoreal** anatomy for this render unless USER SCENE explicitly asks for stylized output. Keep distinctive marks, hair, and vibe from the **words**.",
-    "Likeness = continuity of **described** traits (face, hair, skin, build, species). Not a new random model, not a generic influencer — but also **not** “copy the card photo.”",
+    "Likeness = continuity of **described** traits (face, eyes, lips, hair, hands, legs, skin, build, species). Not a new random model, not a generic influencer — but also **not** “copy the card photo’s scene or pose.”",
     "Forbidden: swapping ethnic appearance, face shape, or body type away from the written profile. Forbidden: de-aging, aging, or turning them into a different character.",
     menuSceneLock
       ? "The **same** described person stars in the shot; **wardrobe, background, light, and pose** follow the menu preset text, not any catalog frame."
@@ -309,13 +313,12 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
       }`
     : `CHARACTER APPEARANCE (primary likeness — text only): ${companion.name}, ${companion.gender}. ${longAppear.slice(0, 2000)}`;
 
-  const appearanceStripForMenu =
-    "**APPEARANCE-TEXT STRIP (gallery preset):** The CHARACTER APPEARANCE paragraph may repeat how she looks on a **roster / profile card**. For **this** render, mine it **only** for face shape, eyes, brows, nose, mouth, hair, skin, species markers, and body proportions. **Discard** any sentences about catalog outfit, cape, swimsuit, jewelry, throne room, studio backdrop, or “icon pose” if they disagree with **Requested framing (from menu)** — the menu wins 100% on clothes, location, pose, props, and camera. **Demote** mood-only lines (heavy smoke, fog, haze, lens-flare poetry, club strobes) unless the **menu** explicitly asks for that vibe — they must not steal detail budget from a **clear face and body**.";
+  const appearanceStripForMenu = `**APPEARANCE-TEXT STRIP (gallery preset):** The CHARACTER APPEARANCE paragraph may repeat how she looks on a **roster / profile card**. For **this** render, mine it **only** for ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE}. **Discard** any sentences about catalog outfit, cape, swimsuit, jewelry, throne room, studio backdrop, or “icon pose” if they disagree with **Requested framing (from menu)** — the menu wins 100% on clothes, location, pose, props, and camera. **Demote** mood-only lines (heavy smoke, fog, haze, lens-flare poetry, club strobes) unless the **menu** explicitly asks for that vibe — they must not steal detail budget from a **clear face, hands, and figure**.`;
 
   const prompt = (
     menuSceneLock
       ? [
-          "LUSTFORGE MASTER BRIEF — in-session gallery-preset still (scene-first; likeness from text only)",
+          "LUSTFORGE MASTER BRIEF — in-session gallery-preset still (scene-first; subject likeness from CHARACTER APPEARANCE + optional roster portrait URL; scene from menu)",
           antiProfileRemaster,
           scene,
           visualIdentityCapsule ?? "",
@@ -326,7 +329,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
           appearanceStripForMenu,
         ]
       : [
-          "LUSTFORGE MASTER BRIEF — in-session generative still (no reference image)",
+          "LUSTFORGE MASTER BRIEF — in-session generative still (likeness from CHARACTER APPEARANCE; scene from USER SCENE — not the card backdrop)",
           identity,
           theming,
           scene,
@@ -342,16 +345,16 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
     .slice(0, 12_000);
 
   const portraitConsistencyLock = [
-    `TEXT-ONLY CHARACTER LOCK for ${companion.name}: keep **face, hair, skin, species markers, and ${bodyType}** consistent with the written CHARACTER APPEARANCE block — do not invent a different person. **Face-first:** atmosphere (smoke, fog, particles, dramatic backlight) stays **subordinate** to a readable face unless the menu scene text explicitly demands that effect.`,
+    `CHARACTER LOCK for ${companion.name}: keep **${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE}** and **${bodyType}** consistent with CHARACTER APPEARANCE — do not invent a different person. **Face-first:** atmosphere (smoke, fog, particles, dramatic backlight) stays **subordinate** to a readable face unless the menu scene text explicitly demands that effect.`,
     menuSceneLock
-      ? `Menu preset lock: **pose, outfit, background, props, and lighting** come only from PRIMARY SCENE / the **Requested framing (from menu)** block — not from forge packshots, packshot prose, or roster/profile portraits. **Ignore** any mental image of the stored card photo.`
+      ? `Menu preset lock: **pose, outfit, background, props, and lighting** come only from PRIMARY SCENE / the **Requested framing (from menu)** block — not from forge packshots, packshot prose, or roster/profile portrait **environments**. **Ignore** the card photo as a **location or wardrobe** template.`
       : `Body-type lock: ${bodyType} — limbs, torso scale, and species read must match the prose. **Pose, outfit, location, lens, and lighting** follow USER SCENE / PRIMARY SCENE.`,
     `Art & era: ${art} · time/world: ${profile.timePeriod} — props and set must plausibly belong in that world.`,
     !menuSceneLock && pack
       ? `Forge prompt anchors (mood/color/style hints only — not a framing mandate): ${pack.slice(0, 500)}`
       : "",
     "Wardrobe is invented per scene from USER SCENE — never assume a bikini/catalog outfit unless the scene calls for it.",
-    "No visual reference input: interpret likeness only from words; photoreal output should match the **described** eyes, nose, mouth, brows, and hair — no race-swap, no random substitute model, no continuity to a stored marketing still.",
+    "Likeness channel: a roster portrait URL (when supplied) is **identity only** — never copy that still’s backdrop, crop, pose, or costume unless the menu explicitly matches. **Text-only path:** if no URL, interpret the same subject-feature list from CHARACTER APPEARANCE only — no race-swap, no substitute model, no continuity to a marketing still’s **scene**.",
   ]
     .filter(Boolean)
     .join(" ")

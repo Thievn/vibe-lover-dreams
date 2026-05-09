@@ -2,6 +2,7 @@ import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCompanionDisplayOverride } from "@/hooks/useCompanionDisplayOverride";
 import { mergeCompanionDisplayWithUserOverride } from "@/lib/mergeCompanionDisplayOverride";
+import { stripDiscoverForgeTemplateCanonicalLoop } from "@/lib/discoverTemplateMedia";
 import { useCompanionGeneratedImages } from "@/hooks/useCompanionGeneratedImages";
 import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { useForgeCompanionOverlay } from "@/hooks/useForgeCompanionOverlay";
@@ -39,7 +40,10 @@ import {
   profileStillPortraitUrl,
   isVideoPortraitUrl,
   shouldShowProfileLoopVideo,
+  portraitUrlsEquivalent,
 } from "@/lib/companionMedia";
+import { prependCanonicalPortraitIfMissing } from "@/lib/companionGalleryWithCanonical";
+import { clearUserPortraitOverrideStill } from "@/lib/clearUserPortraitOverrideStill";
 import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFromGallery";
 import { CompanionGalleryGrid } from "@/components/companion/CompanionGalleryGrid";
 import type { CompanionRarity } from "@/lib/companionRarity";
@@ -178,6 +182,7 @@ const CompanionProfile = () => {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [loopFromGeneratedImageId, setLoopFromGeneratedImageId] = useState<string | null>(null);
   const [loopPrefBusy, setLoopPrefBusy] = useState(false);
+  const [portraitRevertBusy, setPortraitRevertBusy] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
   const [autoSpendChatImages, setAutoSpendChatImagesState] = useState(false);
   const [dropClickTracked, setDropClickTracked] = useState(false);
@@ -195,20 +200,19 @@ const CompanionProfile = () => {
 
   const { dbComp, forgeLookupBusy: forgeRowFetching } = useForgeCompanionOverlay(id, dbCompanions, isLoading);
   const { data: displayOverride } = useCompanionDisplayOverride(id, user?.id);
+  const dbCompStripped = useMemo(() => stripDiscoverForgeTemplateCanonicalLoop(dbComp), [dbComp]);
   const dbCompDisplay = useMemo(
-    () => mergeCompanionDisplayWithUserOverride(dbComp, displayOverride ?? undefined) ?? dbComp,
-    [dbComp, displayOverride],
+    () => mergeCompanionDisplayWithUserOverride(dbCompStripped, displayOverride ?? undefined) ?? dbCompStripped,
+    [dbCompStripped, displayOverride],
   );
 
   const companion = dbCompDisplay ? dbToCompanion(dbCompDisplay) : null;
 
   const loopMp4SourceUrl = useMemo(() => {
-    const o = displayOverride?.animated_portrait_url?.trim();
-    if (o && isVideoPortraitUrl(o)) return o;
-    const b = dbComp?.animated_image_url?.trim();
-    if (b && isVideoPortraitUrl(b)) return b;
+    const u = dbCompDisplay?.animated_image_url?.trim();
+    if (u && isVideoPortraitUrl(u)) return u;
     return null;
-  }, [displayOverride?.animated_portrait_url, dbComp?.animated_image_url]);
+  }, [dbCompDisplay?.animated_image_url]);
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const isDropLanding = searchParams.get("drop") === "1";
   const weeklyDropId = searchParams.get("wd");
@@ -291,6 +295,23 @@ const CompanionProfile = () => {
         : undefined;
   const { data: galleryImages = [], isLoading: galleryImagesLoading } = useCompanionGeneratedImages(id, user?.id);
   const stillForProfile = useMemo(() => profileStillPortraitUrl(dbCompDisplay, id), [dbCompDisplay, id]);
+  const canonicalCardStillUrl = useMemo(
+    () => (id && dbCompStripped ? profileStillPortraitUrl(dbCompStripped, id) : null),
+    [dbCompStripped, id],
+  );
+  const galleryImagesForGrid = useMemo(
+    () =>
+      prependCanonicalPortraitIfMissing(galleryImages, {
+        companionId: id ?? "",
+        canonicalStillUrl: canonicalCardStillUrl,
+        sortTimestamp: dbCompStripped?.created_at,
+      }),
+    [galleryImages, id, canonicalCardStillUrl, dbCompStripped?.created_at],
+  );
+  const portraitDiffersFromCardArt = useMemo(() => {
+    if (!user?.id || !canonicalCardStillUrl?.trim() || !stillForProfile?.trim()) return false;
+    return !portraitUrlsEquivalent(canonicalCardStillUrl, stillForProfile);
+  }, [user?.id, canonicalCardStillUrl, stillForProfile]);
 
   const loopVideoActive = Boolean(
     showLoopVideo && animatedPortrait && isVideoPortraitUrl(animatedPortrait),
@@ -768,6 +789,26 @@ const CompanionProfile = () => {
     await queryClient.refetchQueries({ queryKey: ["companion-generated-images", user.id, id] });
   };
 
+  const handleRevertPortraitToCardArt = async () => {
+    if (!user?.id || !id) return;
+    setPortraitRevertBusy(true);
+    try {
+      const cleared = await clearUserPortraitOverrideStill(user.id, id);
+      await queryClient.invalidateQueries({ queryKey: ["companion-display-override", user.id, id] });
+      await queryClient.invalidateQueries({ queryKey: ["companions"] });
+      await queryClient.refetchQueries({ queryKey: ["companions"] });
+      if (cleared) {
+        toast.success("Portrait restored to the card’s original art.");
+      } else {
+        toast.message("Nothing to revert", { description: "There was no custom portrait override saved for this card." });
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not revert portrait.");
+    } finally {
+      setPortraitRevertBusy(false);
+    }
+  };
+
   const handleDiscoverPurchase = async () => {
     if (!id || !companion) return;
     if (!user) {
@@ -965,14 +1006,37 @@ const CompanionProfile = () => {
                     Saved from chat
                   </h3>
                   <p className="text-[11px] text-muted-foreground/90 mb-3 leading-relaxed">
-                    Stills &amp; loop clips (newest first). Large libraries scroll inside this panel — use{" "}
+                    Stills &amp; loop clips (newest first). The first tile labeled{" "}
+                    <span className="text-foreground/85 font-medium">Card art</span> is the companion&apos;s original
+                    portrait from the card — tap it and use <span className="text-foreground/85 font-medium">Set portrait</span>{" "}
+                    to switch back. Large libraries scroll inside this panel — use{" "}
                     <span className="text-foreground/85 font-medium">All / Stills / Clips</span> when shown.{" "}
                     <span className="text-foreground/85 font-medium">Loop</span> picks a still for{" "}
                     <span className="text-foreground/85 font-medium">Looping portrait video</span> above (FC applies).
+                    {" "}
+                    <span className="text-emerald-200/85 font-medium">Portrait</span> always applies to{" "}
+                    <span className="text-foreground/85 font-medium">your account only</span> — Discover and other
+                    collectors still see the public card art.
                   </p>
+                  {portraitDiffersFromCardArt ? (
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={portraitRevertBusy}
+                        onClick={() => void handleRevertPortraitToCardArt()}
+                        className="inline-flex items-center gap-2 rounded-lg border border-sky-500/35 bg-sky-500/15 px-3 py-2 text-xs font-semibold text-sky-100 hover:bg-sky-500/25 transition-colors disabled:opacity-50"
+                      >
+                        {portraitRevertBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                        Revert portrait to card art
+                      </button>
+                      <span className="text-[10px] text-muted-foreground">
+                        Clears your custom portrait override; keeps a saved loop clip if you have one.
+                      </span>
+                    </div>
+                  ) : null}
                   <CompanionGalleryGrid
                     companionName={companion.name}
-                    images={galleryImages}
+                    images={galleryImagesForGrid}
                     loading={galleryImagesLoading}
                     currentPortraitUrl={stillForProfile}
                     onSetAsPortrait={handlePortraitFromGallery}

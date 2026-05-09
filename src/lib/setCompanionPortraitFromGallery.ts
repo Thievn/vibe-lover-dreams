@@ -2,8 +2,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { isVideoPortraitUrl, stablePortraitDisplayUrl } from "@/lib/companionMedia";
 
 /**
- * Sets the companion still portrait for **this user only** (profile + chat).
- * Never mutates public `companions` / `custom_characters` art used on discover / landing.
+ * Sets the companion still portrait for **this signed-in user only** (profile + chat hero).
+ * Writes `user_companion_portrait_overrides` keyed by `(user_id, companion_id)` — other accounts,
+ * Discover tiles, and the Hall of cards canonical row are unchanged.
+ * Any **still** you save from this companion’s gallery (including the synthetic “Card art” tile) may be chosen;
+ * videos cannot be used as the still portrait.
  * If a **looping portrait MP4** is already stored on the override row, it is kept so you can
  * switch between still and loop from the profile toggle instead of losing the clip.
  */

@@ -25,7 +25,7 @@ const ATMOSPHERE_OR_VFX =
   /\b(smoke|smoky|swirling smoke|cigarette smoke|fog|mist|haze|volumetric|lens flare|lens-flare|god[-\s]?rays|particles?|dust moats|backlit dust|neon streaks|strobes?|club lights|chiaroscuro haze|wreathed in|shrouded in|curls? of smoke)\b/i;
 
 const LIKENESS_ANCHOR =
-  /\b(face|facial|eyes?|brows?|lashes|nose|mouth|lips|teeth|cheek|jaw|chin|freckle|mole|dimple|hair|skin|complexion|species|hybrid|anthro|tail|horns?|wings?|ears?|fangs?|claws?|fur|furry|scales?|markings?|tattoos?|physique|torso|limbs?|muscles?|curves?|bust|hips|thighs|stature|silhouette)\b/i;
+  /\b(face|facial|eyes?|brows?|lashes|nose|mouth|lips|teeth|cheek|jaw|chin|freckle|mole|dimple|hair|skin|complexion|species|hybrid|anthro|tail|horns?|wings?|ears?|fangs?|claws?|fur|furry|scales?|markings?|tattoos?|physique|torso|limbs?|muscles?|curves?|bust|hips|thighs|hands?|fingers?|nails?|legs?|feet|stature|silhouette)\b/i;
 
 const SPECIES_MATERIAL_BODY =
   /\b(made of|composed of|body (?:is |of )|formed from|incarnate as|elemental)\b.{0,48}\b(smoke|fire|ice|shadow|lightning|ash|mist|steam|neon|glass)\b/i;
@@ -111,7 +111,7 @@ export function buildCompanionVisualIdentityCapsule(companion: Companion, dbComp
 
   const lines = [
     "**FORGE_VISUAL_IDENTITY (binding — looks + art style only; NOT outfit, pose, room, or catalog photo):**",
-    "**Likeness priority (non-negotiable order):** (1) readable **face** — eyes, brows, nose, mouth, jaw; (2) **hair** color/texture/cut; (3) **skin** tone/texture; (4) **species / non-human** marks; (5) **body silhouette** per forge body type. Mood lighting, smoke, fog, particles, or lens FX are **background/subordinate** unless **Requested framing (from menu)** explicitly demands that atmosphere — they must **not** dominate the subject or replace facial detail.",
+    "**Likeness priority (non-negotiable order):** (1) readable **face** — eyes, brows, nose, lips, mouth, jaw; (2) **hair** color/texture/cut; (3) **skin** tone/texture; (4) **hands, legs, and figure** read (fingers, nails, limb proportions); (5) **species / non-human** marks; (6) **body silhouette** per forge body type. Mood lighting, smoke, fog, particles, or lens FX are **background/subordinate** unless **Requested framing (from menu)** explicitly demands that atmosphere — they must **not** dominate the subject or replace facial detail.",
     renderingDisciplineLine(art),
     `**Silhouette category:** ${silCat} — **forge body type:** ${bodyType} (show this build clearly; correct species / hybrid / non-human mass when the label implies it).`,
     `**Named subject:** ${companion.name} (${companion.gender}).`,

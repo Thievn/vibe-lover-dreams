@@ -5,6 +5,8 @@ import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
 import { useForgeCompanionOverlay } from "@/hooks/useForgeCompanionOverlay";
 import { useCompanionDisplayOverride } from "@/hooks/useCompanionDisplayOverride";
 import { mergeCompanionDisplayWithUserOverride } from "@/lib/mergeCompanionDisplayOverride";
+import { stripDiscoverForgeTemplateCanonicalLoop } from "@/lib/discoverTemplateMedia";
+import { prependCanonicalPortraitIfMissing } from "@/lib/companionGalleryWithCanonical";
 import { useCompanionGeneratedImages } from "@/hooks/useCompanionGeneratedImages";
 import {
   galleryStaticPortraitUrl,
@@ -134,9 +136,10 @@ export function useChatSessionController() {
   const { data: dbCompanions, isLoading: companionsLoading } = useCompanions();
   const { dbComp, forgeLookupBusy } = useForgeCompanionOverlay(id, dbCompanions, companionsLoading);
   const { data: displayOverride } = useCompanionDisplayOverride(id, user?.id);
+  const dbCompStripped = useMemo(() => stripDiscoverForgeTemplateCanonicalLoop(dbComp), [dbComp]);
   const dbCompDisplay = useMemo(
-    () => mergeCompanionDisplayWithUserOverride(dbComp, displayOverride ?? undefined) ?? dbComp,
-    [dbComp, displayOverride],
+    () => mergeCompanionDisplayWithUserOverride(dbCompStripped, displayOverride ?? undefined) ?? dbCompStripped,
+    [dbCompStripped, displayOverride],
   );
   const companion = dbCompDisplay ? dbToCompanion(dbCompDisplay) : null;
   const basePortraitUrl = useMemo(() => galleryStaticPortraitUrl(dbCompDisplay, id), [dbCompDisplay, id]);
@@ -245,7 +248,20 @@ export function useChatSessionController() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const portraitStillUrl = id ? basePortraitUrl ?? null : null;
-  const { data: galleryImages = [], isLoading: galleryImagesLoading } = useCompanionGeneratedImages(id, user?.id);
+  const { data: galleryImagesRaw = [], isLoading: galleryImagesLoading } = useCompanionGeneratedImages(id, user?.id);
+  const canonicalCardStillForGallery = useMemo(
+    () => (id && dbCompStripped ? galleryStaticPortraitUrl(dbCompStripped, id) : null),
+    [dbCompStripped, id],
+  );
+  const galleryImages = useMemo(
+    () =>
+      prependCanonicalPortraitIfMissing(galleryImagesRaw, {
+        companionId: id ?? "",
+        canonicalStillUrl: canonicalCardStillForGallery,
+        sortTimestamp: dbCompStripped?.created_at,
+      }),
+    [galleryImagesRaw, id, canonicalCardStillForGallery, dbCompStripped?.created_at],
+  );
 
   const isAdminUser = useMemo(() => isPlatformAdmin(user), [user]);
 

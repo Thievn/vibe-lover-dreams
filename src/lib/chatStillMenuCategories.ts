@@ -1,4 +1,5 @@
 import type { FabSelfieTier } from "@/lib/chatImageSettings";
+import { CHAT_LIKENESS_SUBJECT_FEATURES_INLINE } from "@/lib/chatLikenessAnchors";
 
 /** Chat still picker tiers (no nude tab in the new UI — billing follows `tier`). */
 export type ChatStillMenuTier = Exclude<FabSelfieTier, "nude">;
@@ -12,10 +13,10 @@ export type ChatStillMenuCategory = {
 
 /** Scene line only — global quality / anatomy / likeness rules are appended in `resolveChatImageGenerationPrompt` when a tile is chosen. */
 const selfie = (scene: string) =>
-  `Vertical phone selfie — same face, hair, skin, species marks, and body type as the roster reference; gender presentation from CHARACTER APPEARANCE. ${scene} Outfit, pose, background, and props belong **only** to this scene — do not copy catalog-card wardrobe or packshot pose.`;
+  `Vertical phone selfie — lock likeness to roster reference for ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE}; gender presentation from CHARACTER APPEARANCE. ${scene} Outfit, pose, background, and props belong **only** to this scene — do not copy catalog-card wardrobe, backdrop, or packshot pose.`;
 
 const lewd = (scene: string) =>
-  `Tasteful editorial-adult phone capture — same face, hair, skin, species marks, and body type as the roster reference; gender presentation from CHARACTER APPEARANCE. ${scene} Wardrobe, pose, and set follow this line only — not the profile marketing still.`;
+  `Tasteful editorial-adult phone capture — lock likeness to roster reference for ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE}; gender presentation from CHARACTER APPEARANCE. ${scene} Wardrobe, pose, and set follow this line only — not the profile marketing still’s environment or costume.`;
 
 export const CHAT_SELFIE_STILL_CATEGORIES: readonly ChatStillMenuCategory[] = [
   {

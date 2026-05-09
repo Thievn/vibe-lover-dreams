@@ -21,6 +21,12 @@ import { adminHardDeleteCompanion } from "@/lib/adminHardDeleteCompanion";
 import { AdminCompanionPortraitPreview } from "@/components/admin/AdminCompanionPortraitPreview";
 import { AdminLoopingVideoBlock } from "@/components/admin/AdminLoopingVideoBlock";
 import { galleryStaticPortraitUrl, isVideoPortraitUrl } from "@/lib/companionMedia";
+import { mergeCompanionDisplayWithUserOverride } from "@/lib/mergeCompanionDisplayOverride";
+import { useCompanionDisplayOverride } from "@/hooks/useCompanionDisplayOverride";
+import {
+  isPublicApprovedDiscoverForgeTemplate,
+  stripDiscoverForgeTemplateCanonicalLoop,
+} from "@/lib/discoverTemplateMedia";
 import { IDENTITY_ANATOMY_CHOICES, normalizeIdentityAnatomyDetail } from "@/lib/identityAnatomyDetail";
 import {
   Select,
@@ -76,6 +82,8 @@ const emptyCompanion: Omit<DbCompanion, "created_at" | "updated_at"> = {
   profile_loop_video_enabled: false,
   rarity_border_overlay_url: null,
   display_traits: [] as unknown[],
+  is_public: null,
+  approved: null,
 };
 
 /**
@@ -491,6 +499,33 @@ const CompanionManager = () => {
   const [mediaFilter, setMediaFilter] = useState<CharacterMediaFilterKey>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const { data: adminSessionUserId } = useQuery({
+    queryKey: ["admin-hall-session-user"],
+    queryFn: async () => {
+      const { data } = await supabase.auth.getSession();
+      return data.session?.user?.id ?? null;
+    },
+    staleTime: 60_000,
+  });
+  const adminHallEditCompanionId = viewMode === "edit" && editingId ? editingId : undefined;
+  const { data: adminEditPortraitOverride } = useCompanionDisplayOverride(
+    adminHallEditCompanionId,
+    adminSessionUserId ?? undefined,
+  );
+  const { data: adminAllGenImages = [], isFetching: adminGenImagesLoading } = useQuery({
+    queryKey: ["admin-hall-all-generated-images", adminHallEditCompanionId],
+    enabled: Boolean(adminHallEditCompanionId?.startsWith("cc-")),
+    queryFn: async () => {
+      const { data, error: qErr } = await supabase
+        .from("generated_images")
+        .select("id, user_id, image_url, prompt, created_at, is_video")
+        .eq("companion_id", adminHallEditCompanionId!)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (qErr) throw qErr;
+      return data ?? [];
+    },
+  });
   const [editData, setEditData] = useState<Record<string, Partial<DbCompanion>>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [generating, setGenerating] = useState<Record<string, boolean>>({});
@@ -687,19 +722,81 @@ const CompanionManager = () => {
       const isForge = companion.id.startsWith("cc-");
       if (isForge) {
         const uuid = companion.id.slice(3);
+        const template = isPublicApprovedDiscoverForgeTemplate(companion);
         const patch: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(changes)) {
-          if (CUSTOM_CHARACTER_UPDATE_KEYS.has(k)) patch[k] = v;
+          if (!CUSTOM_CHARACTER_UPDATE_KEYS.has(k)) continue;
+          if (template && (k === "animated_image_url" || k === "profile_loop_video_enabled")) continue;
+          patch[k] = v;
         }
-        if (Object.keys(patch).length === 0) {
+
+        let didWork = false;
+
+        if (template && ("animated_image_url" in changes || "profile_loop_video_enabled" in changes)) {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          const uid = session?.user?.id;
+          if (!uid) throw new Error("Not signed in");
+          const { data: ovRow } = await supabase
+            .from("user_companion_portrait_overrides")
+            .select("portrait_url, animated_portrait_url, profile_loop_video_enabled")
+            .eq("user_id", uid)
+            .eq("companion_id", companion.id)
+            .maybeSingle();
+          const mergedField = (field: keyof DbCompanion) =>
+            changes[field] !== undefined ? changes[field] : companion[field];
+          const stillRaw =
+            (mergedField("static_image_url") as string | null) ||
+            (mergedField("image_url") as string | null) ||
+            (mergedField("avatar_url") as string | null) ||
+            ovRow?.portrait_url ||
+            "";
+          const still = String(stillRaw).trim();
+          if (!still) {
+            throw new Error(
+              "Set a static (or legacy image) portrait before saving loop fields on a Discover-listed card.",
+            );
+          }
+          const anim =
+            changes.animated_image_url !== undefined
+              ? (changes.animated_image_url as string | null)
+              : ((ovRow?.animated_portrait_url as string | null) ?? null);
+          const loopPref =
+            changes.profile_loop_video_enabled !== undefined
+              ? Boolean(changes.profile_loop_video_enabled)
+              : Boolean(ovRow?.profile_loop_video_enabled);
+          const animTrim = anim && String(anim).trim() ? String(anim).trim() : null;
+          const loopOn = Boolean(animTrim && loopPref && isVideoPortraitUrl(animTrim));
+          const { error: ovErr } = await supabase.from("user_companion_portrait_overrides").upsert(
+            {
+              user_id: uid,
+              companion_id: companion.id,
+              portrait_url: still,
+              animated_portrait_url: animTrim,
+              profile_loop_video_enabled: loopOn,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id,companion_id" },
+          );
+          if (ovErr) throw ovErr;
+          didWork = true;
+        }
+
+        if (Object.keys(patch).length > 0) {
+          const { error } = await supabase.from("custom_characters").update(patch as any).eq("id", uuid);
+          if (error) throw error;
+          didWork = true;
+        }
+
+        if (!didWork) {
           return;
         }
-        const { error } = await supabase.from("custom_characters").update(patch as any).eq("id", uuid);
-        if (error) throw error;
         if ("rarity" in changes || "name" in changes) {
           void queryClient.invalidateQueries({ queryKey: ["companion-vibration-patterns", companion.id] });
           void queryClient.invalidateQueries({ queryKey: ["admin-vib-rows", companion.id] });
         }
+        void queryClient.invalidateQueries({ queryKey: ["companion-display-override"] });
       } else {
         const { error } = await supabase
           .from("companions")
@@ -1421,13 +1518,26 @@ const CompanionManager = () => {
     const edit = getEdit(companion.id);
     const val = (field: keyof DbCompanion) => edit[field] !== undefined ? edit[field] : companion[field];
     const editRarity = normalizeCompanionRarity(String(val("rarity")));
+    const discoverTemplate = isPublicApprovedDiscoverForgeTemplate(companion);
+    const strippedBase = stripDiscoverForgeTemplateCanonicalLoop(companion) ?? companion;
+    const mergedPreview =
+      mergeCompanionDisplayWithUserOverride(strippedBase, adminEditPortraitOverride ?? undefined) ?? strippedBase;
     const adminStillPreview =
       (val("static_image_url") as string | null) ||
       (val("image_url") as string | null) ||
       companion.static_image_url ||
       companion.image_url ||
       null;
-    const adminAnimPreview = (val("animated_image_url") as string | null) ?? companion.animated_image_url ?? null;
+    const adminAnimPreview = discoverTemplate
+      ? edit.animated_image_url !== undefined
+        ? (edit.animated_image_url as string | null)
+        : mergedPreview.animated_image_url ?? null
+      : ((val("animated_image_url") as string | null) ?? null);
+    const adminLoopPreviewEnabled = discoverTemplate
+      ? edit.profile_loop_video_enabled !== undefined
+        ? Boolean(edit.profile_loop_video_enabled)
+        : Boolean(mergedPreview.profile_loop_video_enabled)
+      : Boolean(val("profile_loop_video_enabled"));
     const adminOverlayPreview =
       (val("rarity_border_overlay_url") as string | null) ?? companion.rarity_border_overlay_url ?? null;
 
@@ -1487,7 +1597,7 @@ const CompanionManager = () => {
                     name={companion.name}
                     stillSrc={adminStillPreview}
                     animatedSrc={adminAnimPreview}
-                    profileLoopEnabled={Boolean(val("profile_loop_video_enabled"))}
+                    profileLoopEnabled={adminLoopPreviewEnabled}
                     rarity={editRarity}
                     isAbyssal={editRarity === "abyssal"}
                     gradientFrom={String(val("gradient_from"))}
@@ -1557,15 +1667,62 @@ const CompanionManager = () => {
               <AdminLoopingVideoBlock
                 companionId={companion.id}
                 hasExistingLoopVideo={hasProfileLoopMp4({
-                  animated_image_url: val("animated_image_url") as string | null,
+                  animated_image_url: adminAnimPreview,
                 })}
                 onSuccess={() => {
                   void queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
                   void queryClient.invalidateQueries({ queryKey: ["companions"] });
                   void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
                   void queryClient.invalidateQueries({ queryKey: ["admin-vib-rows", companion.id] });
+                  void queryClient.invalidateQueries({ queryKey: ["companion-display-override"] });
+                  void queryClient.invalidateQueries({ queryKey: ["admin-hall-all-generated-images", companion.id] });
                 }}
               />
+              {companion.id.startsWith("cc-") ? (
+                <div className="rounded-lg border border-border/80 bg-black/30 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wide text-primary/90">
+                      All accounts — gallery &amp; clips
+                    </h4>
+                    {adminGenImagesLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : null}
+                  </div>
+                  <p className="text-[10px] leading-relaxed text-muted-foreground">
+                    Every <code className="text-[9px]">generated_images</code> row for this companion id (each
+                    user&apos;s vault stays private to them on the site; here you see the combined audit trail).
+                  </p>
+                  <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                    {(adminAllGenImages as { id: string; user_id: string; image_url: string; prompt: string; created_at: string; is_video?: boolean | null }[]).map((row) => (
+                      <div
+                        key={row.id}
+                        className="flex gap-2 rounded-md border border-border/60 bg-background/40 p-2 text-[10px]"
+                      >
+                        <a
+                          href={row.image_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="relative h-14 w-10 shrink-0 overflow-hidden rounded border border-border/70 bg-black/40"
+                        >
+                          {row.is_video ? (
+                            <video src={row.image_url} className="h-full w-full object-cover" muted playsInline />
+                          ) : (
+                            <img src={row.image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                          )}
+                        </a>
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <p className="font-mono text-[9px] text-muted-foreground truncate" title={row.user_id}>
+                            {row.user_id}
+                          </p>
+                          <p className="text-[9px] text-muted-foreground/90 line-clamp-2">{row.prompt}</p>
+                          <p className="text-[9px] text-muted-foreground/70">{new Date(row.created_at).toLocaleString()}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {!adminGenImagesLoading && adminAllGenImages.length === 0 ? (
+                    <p className="text-[10px] text-muted-foreground">No generated_images rows for this id yet.</p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -1705,11 +1862,28 @@ const CompanionManager = () => {
             </div>
             <AdminToyPatternsSection companionId={companion.id} />
             <Field label="Static portrait URL" value={(val("static_image_url") as string) || ""} onChange={(v) => setField(companion.id, "static_image_url", v || null)} />
-            <Field label="Animated portrait URL" value={(val("animated_image_url") as string) || ""} onChange={(v) => setField(companion.id, "animated_image_url", v || null)} />
+            {discoverTemplate ? (
+              <p className="text-[10px] leading-relaxed text-amber-200/90 border border-amber-500/25 rounded-lg bg-amber-500/10 px-3 py-2">
+                Discover-listed forge card: looping MP4 is stored on <strong>your</strong> staff portrait override, not
+                on the shared row — buyers never inherit another user&apos;s loop. Discover tiles use the still portrait
+                only.
+              </p>
+            ) : null}
+            <Field
+              label="Animated portrait URL"
+              value={
+                (discoverTemplate
+                  ? edit.animated_image_url !== undefined
+                    ? (edit.animated_image_url as string | null)
+                    : mergedPreview.animated_image_url
+                  : (val("animated_image_url") as string | null)) || ""
+              }
+              onChange={(v) => setField(companion.id, "animated_image_url", v || null)}
+            />
             <label className="flex items-center gap-2 text-xs text-foreground/90 cursor-pointer">
               <input
                 type="checkbox"
-                checked={Boolean(val("profile_loop_video_enabled"))}
+                checked={adminLoopPreviewEnabled}
                 onChange={(e) => setField(companion.id, "profile_loop_video_enabled", e.target.checked)}
                 className="rounded border-border"
               />

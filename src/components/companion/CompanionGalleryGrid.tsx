@@ -4,6 +4,7 @@ import { ImageIcon, Loader2, Sparkles, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import type { CompanionGalleryRow } from "@/hooks/useCompanionGeneratedImages";
 import { portraitUrlsEquivalent, stablePortraitDisplayUrl } from "@/lib/companionMedia";
+import { CANONICAL_PORTRAIT_GALLERY_ID_PREFIX } from "@/lib/companionGalleryWithCanonical";
 import { ZoomableImageViewport } from "@/components/ZoomableImageViewport";
 import { loadImageNaturalSize } from "@/lib/chatImageSettings";
 import { isAcceptableChatPortraitUpload } from "@/lib/portraitAspect";
@@ -69,7 +70,9 @@ export function CompanionGalleryGrid({
         return;
       }
       await onSetAsPortrait(url);
-      toast.success("Portrait updated — you'll see this in chat and on the profile.");
+      toast.success("Portrait updated for your account", {
+        description: "Profile and chat use this still for you only — Discover and other players’ views stay unchanged.",
+      });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not update portrait.");
     } finally {
@@ -184,6 +187,15 @@ export function CompanionGalleryGrid({
                 >
                   Portrait
                 </span>
+              ) : row.id.startsWith(CANONICAL_PORTRAIT_GALLERY_ID_PREFIX) ? (
+                <span
+                  className={cn(
+                    "absolute left-1.5 top-1.5 z-[2] rounded-full border border-sky-400/45 bg-sky-950/70 font-semibold uppercase tracking-wider text-sky-100/95",
+                    compact ? "px-1.5 py-0.5 text-[8px]" : "top-2 left-2 px-2 py-0.5 text-[10px]",
+                  )}
+                >
+                  Card art
+                </span>
               ) : null}
               {isVideo ? (
                 <span
@@ -213,7 +225,7 @@ export function CompanionGalleryGrid({
                   compact ? "flex-row flex-wrap gap-1 p-1" : "flex-col gap-1.5 p-2",
                 )}
               >
-                {onSelectForLoop && !isVideo ? (
+                {onSelectForLoop && !isVideo && !row.id.startsWith(CANONICAL_PORTRAIT_GALLERY_ID_PREFIX) ? (
                   <button
                     type="button"
                     title={selectedLoopSourceId === row.id ? "Clear loop video source" : "Use this still for loop video"}

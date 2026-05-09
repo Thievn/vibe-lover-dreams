@@ -5,7 +5,9 @@ import type { CompanionDisplayOverrideRow } from "@/lib/mergeCompanionDisplayOve
 
 /**
  * Per-user private portrait + looping portrait video (catalog + forged `cc-*`).
- * Does not affect public discover / landing art — those read canonical `companions` / `custom_characters` rows only.
+ * Discover-listed forge templates never expose looping video on the shared `custom_characters` row; merge this
+ * override after `stripDiscoverForgeTemplateCanonicalLoop` (see `discoverTemplateMedia.ts`) on profile/chat/live so
+ * staff and buyers only see their own loop.
  */
 export function useCompanionDisplayOverride(companionId: string | undefined, userId: string | undefined) {
   return useQuery({

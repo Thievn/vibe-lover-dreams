@@ -30,7 +30,10 @@ export function ChatGallerySheet({
         <SheetHeader className="text-left pb-2 space-y-1">
           <SheetTitle className="font-gothic text-xl text-foreground">{companionName}&apos;s gallery</SheetTitle>
           <p className="text-xs text-muted-foreground font-normal">
-            Every image you generate in chat is saved here. Tap one to set it as their portrait.
+            Every still you save to this companion&apos;s gallery can be your portrait —{" "}
+            <span className="text-foreground/90 font-medium">your view only</span>; it never changes the shared card for
+            anyone else. The <span className="text-foreground/90 font-medium">Card art</span> tile is the original portrait
+            — tap it to switch back after using a chat still as your portrait.
           </p>
         </SheetHeader>
         <div className="pt-2 pb-6">

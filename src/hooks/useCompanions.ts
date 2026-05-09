@@ -49,6 +49,9 @@ export interface DbCompanion {
   exclude_from_personal_vault?: boolean;
   /** Forge row owner (custom_characters only). */
   user_id?: string | null;
+  /** Community forge — listed in Discover when both true (catalog stock omits these). */
+  is_public?: boolean | null;
+  approved?: boolean | null;
   /** Default Grok TTS voice preset for forged companions. */
   tts_voice_preset?: string | null;
   nexus_cooldown_until?: string | null;
@@ -106,6 +109,8 @@ function coerceStockRow(row: Record<string, unknown>): DbCompanion {
     tcg_stats:
       row.tcg_stats && typeof row.tcg_stats === "object" ? (row.tcg_stats as Record<string, unknown>) : null,
     display_traits: row.display_traits,
+    is_public: null,
+    approved: null,
   };
 }
 
@@ -169,6 +174,8 @@ export function mapSupabaseCustomCharacterRow(row: Record<string, unknown>): DbC
         : null,
     exclude_from_personal_vault: Boolean(row.exclude_from_personal_vault),
     user_id: typeof row.user_id === "string" ? row.user_id : null,
+    is_public: typeof row.is_public === "boolean" ? row.is_public : null,
+    approved: typeof row.approved === "boolean" ? row.approved : null,
     nexus_cooldown_until: (row.nexus_cooldown_until as string | null | undefined) ?? null,
     lineage_parent_ids: Array.isArray(row.lineage_parent_ids)
       ? (row.lineage_parent_ids as string[])

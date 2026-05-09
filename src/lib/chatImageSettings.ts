@@ -1,4 +1,10 @@
 /** Per-companion: skip "Generate image" confirmation and spend immediately. */
+import {
+  CHAT_LIKENESS_SCENE_PRIMACY_FOOTER,
+  CHAT_LIKENESS_SUBJECT_ANCHOR,
+  CHAT_LIKENESS_WRAP_KEEP_LINE,
+} from "@/lib/chatLikenessAnchors";
+
 const AUTO_IMAGE_KEY = "lustforge-chat-auto-image";
 
 export function getChatAutoSpendImages(companionId: string): boolean {
@@ -56,7 +62,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "SFW phone selfie: same face, hair, and body proportions as the character — **new outfit and backdrop** for this shot (do not paste their roster/catalog swimsuit or costume unless this scene is explicitly swim/beach). Fully clothed, flattering light, camera-aware pose — not nude or lingerie. **Pose families:** front smile, three-quarter, tasteful over-shoulder (clothed), mirror fit-check — vary which you pick per generation.",
+      "SFW phone selfie: same face, eyes, lips, hair, hands, legs, skin, and body proportions as the character — **new outfit and backdrop** for this shot (do not paste their roster/catalog swimsuit or costume unless this scene is explicitly swim/beach). Fully clothed, flattering light, camera-aware pose — not nude or lingerie. **Pose families:** front smile, three-quarter, tasteful over-shoulder (clothed), mirror fit-check — vary which you pick per generation.",
   },
 
   lewd: {
@@ -69,7 +75,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Tasteful lewd phone selfie: lock identity (face, hair, skin, body type) — lingerie, sheer or wet fabric, sensual silhouette, tasteful implied or partial nude; **editorial / perfume-ad** glamour only — no crude or pornographic staging. Do not default to roster swimsuit when the scene implies something else. **Pose families:** tasteful backshot with fabric-aware curves, mirror tease, seated lean, silhouette through steam/sheer — never hardcore staging.",
+      "Tasteful lewd phone selfie: lock identity (face, eyes, lips, hair, hands, legs, skin, body type) — lingerie, sheer or wet fabric, sensual silhouette, tasteful implied or partial nude; **editorial / perfume-ad** glamour only — no crude or pornographic staging. Do not default to roster swimsuit when the scene implies something else. **Pose families:** tasteful backshot with fabric-aware curves, mirror tease, seated lean, silhouette through steam/sheer — never hardcore staging.",
   },
 
   nude: {
@@ -82,7 +88,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Artistic nude phone selfie: fine-art boudoir framing — same person (face, hair, identity lock); believable photoreal body if reference is stylized. Soft cinematic light, graceful pose, elegant sensuality — **no** graphic anatomy, explicit acts, or obscene angles. Natural or studio light; editorial mood. **Pose families:** draped sheet, profile line, seated twist, modest silhouette — vary set and lens each generation.",
+      "Artistic nude phone selfie: fine-art boudoir framing — same person (face, eyes, lips, hair, hands, legs, identity lock); believable photoreal body if reference is stylized. Soft cinematic light, graceful pose, elegant sensuality — **no** graphic anatomy, explicit acts, or obscene angles. Natural or studio light; editorial mood. **Pose families:** draped sheet, profile line, seated twist, modest silhouette — vary set and lens each generation.",
   },
 } as const;
 
@@ -93,7 +99,7 @@ export const CHAT_STILL_MENU_QUALITY_AND_ANATOMY = `**Generation quality (bindin
 
 **Anti-artifact / anatomy (binding — humans and fantasy):** one coherent subject; **two arms and two legs** unless CHARACTER APPEARANCE explicitly describes a different limb count (insectoid extras, naga lower body, canon amputation, etc.); **human hands: exactly five fingers per hand** unless the written species explicitly calls for another digit count; no fused, duplicated, or melted fingers; no extra arms or legs, no phantom mirrored limbs; **at most one tail** unless appearance text explicitly describes multiple tails; no duplicate faces or stacked heads; avoid low-res blur, heavy JPEG wreckage, and warped perspective.
 
-**Likeness vs scene (binding):** strongly match the companion reference for **face, hair, skin, species marks, and body-type scale** — **outfit, pose, background, props, and lighting** only from this menu line plus the chat scenario; do not remaster the roster packshot layout or copy its wardrobe.`;
+**Likeness vs scene (binding):** strongly match the companion reference for **face, eyes, lips, hair, hands, legs, skin, species marks, and body-type scale** — **outfit, pose, background, props, and lighting** only from this menu line plus the chat scenario; do not remaster the roster packshot layout or copy its wardrobe or backdrop.`;
 
 /**
  * Resolves chat line for + menu selfies: random line from `display` when it is an array
@@ -337,13 +343,13 @@ function wrapFabSceneWithAppearanceLock(inner: string, appearanceReference: stri
   const ref = appearanceReference.trim();
   if (!ref) return inner;
   return [
-    `Use this exact character appearance: ${ref}`,
+    `Use this exact character appearance (subject-only — not their old photo’s room or outfit): ${ref}`,
     "",
     "Now place this character in a completely new scene:",
     "",
     inner.trim(),
     "",
-    "Change the outfit, pose, background, and lighting completely while keeping the exact same face, hair, body type and features.",
+    CHAT_LIKENESS_WRAP_KEEP_LINE,
   ].join("\n");
 }
 
@@ -364,15 +370,14 @@ export function resolveChatImageGenerationPrompt(args: {
   const styled = args.styledSceneExtension?.trim();
   const appearanceRef = args.appearanceReference?.trim() ?? "";
   if (menu) {
-    const subjectAnchor =
-      "**SUBJECT (read first):** The companion’s **stored profile / roster picture is not an input.** Match CHARACTER APPEARANCE for **face, hair, skin, eyes, and body-type scale only**. If the appearance paragraph mentions clothes, sets, or poses from an old card photo, **ignore those for this render** — the lines below define outfit, room, and pose. Treat **smoke, fog, haze, and lens-flare prose** from old marketing copy as **low priority** unless this menu preset explicitly asks for that atmosphere — the face still wins.\n\n";
+    const subjectAnchor = `${CHAT_LIKENESS_SUBJECT_ANCHOR}\n\n`;
     const lewdLighting =
       menu === FAB_SELFIE.lewd.imagePrompt
         ? "\n\n**Lighting accent (lewd tier):** seductive editorial / key-art lighting — keep the **face sharp and readable**, not blown out by bloom."
         : "";
     const coherence =
-      "\n\n**FORGE_VISUAL_IDENTITY (in master prompt):** binding for **hair, eyes, skin, species, body type, musculature/curves, and art style (anime vs photoreal vs creature)** — **not** for outfit, room, pose, or “smoke person” mood boards; those follow **Requested framing** (and FORGE_VISUAL_IDENTITY caps atmosphere vs face priority)." +
-      "\n\n**Scene primacy (non-negotiable):** The block under **Requested framing (from menu)** is the **sole** authority for **location, background, architecture, time of day, weather, furniture, wardrobe, pose, props, interaction with props, lens height, and camera distance**. The **Exposure / tone context** section sets SFW vs lewd vs artistic-nude **band only** — it must **never** replace the menu’s place/outfit/pose with a generic bedroom, bathroom mirror, studio bust, or catalog three-quarter. **No reference photograph is supplied** — likeness = written CHARACTER APPEARANCE + body type + species **only**; **forbidden:** copying pose, crop, lighting recipe, environment, or wardrobe from any roster/profile card. Each preset must read as a **different photoshoot** in that **exact** scenario, not a remaster of the profile image." +
+      "\n\n**FORGE_VISUAL_IDENTITY (in master prompt):** binding for **hair, eyes, lips, skin, hands, legs, species, body type, musculature/curves, and art style (anime vs photoreal vs creature)** — **not** for outfit, room, pose, or “smoke person” mood boards; those follow **Requested framing** (and FORGE_VISUAL_IDENTITY caps atmosphere vs face priority)." +
+      `\n\n${CHAT_LIKENESS_SCENE_PRIMACY_FOOTER}` +
       "\n\n**SHOT GEOMETRY (binding):** If the menu mentions lying, bent over, legs up, bathtub, beach, car, desk, bed, shower, silk sheets, lingerie, wall, workout, dress, kitchen, etc., the final image must **show that configuration and setting clearly** — not a substitute “same card, different angle” or “pretty subject standing at camera” shot.";
     if (styled) {
       const fused = (

@@ -31,6 +31,7 @@ import {
   normalizeLikenessReferenceForXai,
   resolveCompanionLikenessUrlFromDb,
 } from "../_shared/likenessReferenceUrl.ts";
+import { CHAT_LIKENESS_SUBJECT_FEATURES_INLINE } from "../_shared/chatLikenessAnchors.ts";
 import { publicApiTeaserGuardResponse } from "../_shared/publicApiTeaserGate.ts";
 
 const corsHeaders = {
@@ -300,7 +301,9 @@ serve(async (req) => {
       const executionHead = useLikenessEdit
         ? [
             "[EXECUTION — IDENTITY-LOCKED NEW SCENE — READ FIRST]",
-            "A **still profile portrait** is supplied to the **edit** API as an **identity anchor only** — preserve **the same person**: face shape, eyes, hair, skin, body type, tattoos, piercings, and species marks so they clearly match that individual.",
+            "A **still profile portrait** is supplied to the **edit** API as an **identity anchor only** — preserve **the same person**: " +
+              CHAT_LIKENESS_SUBJECT_FEATURES_INLINE +
+              " plus tattoos, piercings, and species marks so they clearly match that individual.",
             "**Replace everything else:** outfit, pose, location, props, lighting, lens, and crop must follow **Requested framing (from menu)** and PRIMARY SCENE **literally** — **not** the reference’s wardrobe, background, card crop, or catalog composition.",
             "**Forbidden:** a remaster, beauty filter, or reskin of the reference card. Output must be a **new photograph** in the requested scenario. **Forbidden default:** facing-camera glam bust, neutral catalog three-quarter, or phone-mirror bathroom headshot unless the menu explicitly demands that.",
           ].join("\n\n")
@@ -372,9 +375,9 @@ serve(async (req) => {
     const portraitLockLine = portraitLock
       ? isChatSessionStill
         ? useLikenessEdit
-          ? `- **Identity anchor (HTTPS profile still + written bible):** The model receives the roster **portrait URL** for **likeness only** (face, hair, eyes, skin, build, tattoos, species marks). **Wardrobe, pose, set, and lighting** = PRIMARY SCENE / menu — not the still. Written lock: ${portraitLock}`
+          ? `- **Identity anchor (HTTPS profile still + written bible):** The model receives the roster **portrait URL** for **likeness only** (${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE}; tattoos / piercings / species marks). **Wardrobe, pose, set, background, props, and lighting** = PRIMARY SCENE / menu — **not** the still’s room, crop, or costume. Written lock: ${portraitLock}`
           : chatMenuSceneLock
-            ? `- **Character bible (written identity — no visual reference input):** ${portraitLock}`
+            ? `- **Character bible (written identity — no HTTPS portrait for this request):** Mine roster text **only** for ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE}; scene from menu. ${portraitLock}`
             : `- **Character bible (text profile — no reference image):** ${portraitLock}`
         : `- **Portrait / roster continuity:** ${portraitLock}`
       : null;

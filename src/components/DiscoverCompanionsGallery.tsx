@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import type { CompanionRarity } from "@/lib/companionRarity";
 import { COMPANION_RARITIES, normalizeCompanionRarity, rarityTierCaptionColor } from "@/lib/companionRarity";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
+import { discoverListingPortraitDbSlice } from "@/lib/discoverTemplateMedia";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { CompanionVibeTraitStrip } from "@/components/traits/CompanionVibeTraitStrip";
 import { resolveDisplayTraitsForCompanion } from "@/lib/vibeDisplayTraits";
@@ -32,8 +33,9 @@ export type CommunityGalleryRow = Companion & {
 
 function rowsFromDb(dbList: DbCompanion[]): CommunityGalleryRow[] {
   return dbList.map((db) => {
-    const c = dbToCompanion(db);
-    const imageUrl = galleryStaticPortraitUrl(db, db.id) ?? null;
+    const slice = discoverListingPortraitDbSlice(db);
+    const c = dbToCompanion(slice);
+    const imageUrl = galleryStaticPortraitUrl(slice, slice.id) ?? null;
     return {
       ...c,
       rarity: normalizeCompanionRarity(db.rarity),
@@ -559,11 +561,9 @@ export default function DiscoverCompanionsGallery() {
                               Nexus
                             </div>
                           ) : null}
+                          {/* Collection affordances: keep Nexus top-left, Vaulted top-right, name block bottom — product layout contract */}
                           {acquired ? (
-                            <div
-                              className="absolute top-2 right-2 z-[4] pointer-events-none"
-                              aria-hidden
-                            >
+                            <div className="absolute top-2 right-2 z-[4] pointer-events-none" aria-hidden>
                               <div className="flex items-center gap-0.5 rounded-md border border-emerald-400/55 bg-gradient-to-br from-emerald-600/25 via-black/70 to-teal-700/20 px-1.5 py-0.5 shadow-[0_0_20px_rgba(52,211,153,0.35)] backdrop-blur-sm rotate-[-4deg]">
                                 <BadgeCheck className="h-3 w-3 text-emerald-300 shrink-0" strokeWidth={2.5} />
                                 <span className="text-[8px] font-extrabold uppercase tracking-wider text-emerald-50/95">
