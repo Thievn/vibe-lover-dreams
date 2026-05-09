@@ -89,3 +89,6 @@ verify_jwt = false
 
 [functions.nowpayments-fc]
 verify_jwt = false
+
+[functions.waitlist-signup]
+verify_jwt = false

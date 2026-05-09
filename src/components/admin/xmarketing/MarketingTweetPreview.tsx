@@ -24,6 +24,36 @@ function renderHighlighted(full: string) {
   });
 }
 
+/** Same block `appendXProfileLinkToTweet` adds — preview only; Zernio still posts the full URL. */
+const PROFILE_URL_BLOCK = /\n\n([^\n]+)\n➜\s+(https?:\/\/\S+)\s*$/;
+
+function renderTweetCopyForPreview(full: string) {
+  const m = full.match(PROFILE_URL_BLOCK);
+  if (!m || m.index === undefined) {
+    return renderHighlighted(full);
+  }
+  const prefix = full.slice(0, m.index);
+  const ctaLine = m[1];
+  const url = m[2];
+  return (
+    <>
+      {renderHighlighted(prefix)}
+      {"\n\n"}
+      {renderHighlighted(ctaLine)}
+      {"\n➜ "}
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-[#1d9bf0] underline underline-offset-2 hover:opacity-90"
+        title={url}
+      >
+        check it here
+      </a>
+    </>
+  );
+}
+
 type Props = {
   brandName?: string;
   handle?: string;
@@ -73,7 +103,7 @@ export function MarketingTweetPreview({
       <div className="px-4 pb-2">
         {hasCopy ? (
           <p className="text-[15px] text-white leading-[1.4] whitespace-pre-wrap break-words [word-break:break-word]">
-            {renderHighlighted(fullText)}
+            {renderTweetCopyForPreview(fullText)}
           </p>
         ) : (
           <p className="text-[15px] text-[#71767b] leading-relaxed">Generate copy to see your post preview.</p>

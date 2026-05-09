@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Mail, CheckCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
 
 export default function WaitlistSection() {
   const [email, setEmail] = useState("");
@@ -16,24 +17,42 @@ export default function WaitlistSection() {
     setIsLoading(true);
 
     try {
-      // Save to Supabase
-      const { error: dbError } = await supabase
-        .from("waitlist")
-        .insert([{ email: trimmedEmail }]);
-
-      if (dbError && dbError.code !== "23505") {
-        throw dbError;
+      const { data, error } = await supabase.functions.invoke("waitlist-signup", {
+        body: { email: trimmedEmail },
+      });
+      if (error) {
+        throw new Error(await getEdgeFunctionInvokeMessage(error, data));
       }
+
+      const res = (data ?? {}) as {
+        status?: "created" | "duplicate";
+        email_status?: "email_sent" | "email_failed";
+      };
 
       // Success feedback
       setIsSuccess(true);
       setEmail("");
-      toast.success("You're officially on the waitlist! 🎉", {
-        description: "We'll notify you when we launch.",
-        duration: 5000,
-      });
 
-    } catch (err: any) {
+      if (res.status === "duplicate") {
+        toast.success("You're already on the waitlist! 🎉", {
+          description: "You're still on the list. We will keep you posted.",
+          duration: 5000,
+        });
+      } else {
+        toast.success("You're officially on the waitlist! 🎉", {
+          description: "We emailed you a confirmation.",
+          duration: 5000,
+        });
+      }
+
+      if (res.email_status === "email_failed") {
+        toast.warning("Waitlist saved, but email delivery failed.", {
+          description: "Your signup is safe. We will retry notifications from the admin side.",
+          duration: 6500,
+        });
+      }
+
+    } catch (err: unknown) {
       console.error("Waitlist error:", err);
       toast.error("Failed to join waitlist. Please try again.");
     } finally {
