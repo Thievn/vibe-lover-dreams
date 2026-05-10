@@ -233,8 +233,12 @@ const CompanionProfile = () => {
   );
   /** Global pre-launch: block spend features for everyone except platform admin. */
   const teaserConsumeLocked = Boolean(companion && isCompanionProfileTeaserMode() && !isAdminUser);
-  /** Combined gate: non-admins hit teaser and/or vault lock. */
-  const profileFeatureLocked = Boolean(companion && !isAdminUser && (teaserConsumeLocked || vaultLocked));
+  /**
+   * Teaser pre-launch: only non-admins are blocked from spend features.
+   * Discover / catalog vault: **everyone** (including platform admins) must acquire the card —
+   * so Discover testing matches a real shopper.
+   */
+  const profileFeatureLocked = Boolean(companion && (teaserConsumeLocked || vaultLocked));
 
   useEffect(() => {
     if (!user?.id || !id) {

@@ -13,10 +13,10 @@ export type ChatStillMenuCategory = {
 
 /** Scene line only — global quality / anatomy / likeness rules are appended in `resolveChatImageGenerationPrompt` when a tile is chosen. */
 const selfie = (scene: string) =>
-  `Vertical phone selfie — **this roster companion only** (not a generic lookalike); lock ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE} to CHARACTER APPEARANCE + portrait likeness URL when supplied; gender presentation from CHARACTER APPEARANCE. ${scene} Outfit, pose, background, and props belong **only** to this scene — do not copy catalog-card wardrobe, backdrop, or packshot pose.`;
+  `Natural vertical selfie — **this roster companion only** (not a generic lookalike); lock ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE} to CHARACTER APPEARANCE + portrait likeness URL when supplied; gender presentation from CHARACTER APPEARANCE. **No smartphone, screen, or phone case visible** — arm-extended front-camera POV, mirror reflection, tripod/remote, or partner-held frame. ${scene} Outfit, pose, background, and props belong **only** to this scene — do not copy catalog-card wardrobe, backdrop, or packshot pose.`;
 
 const lewd = (scene: string) =>
-  `Tasteful editorial-adult phone capture — **this roster companion only** (not a generic lookalike); lock ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE} to CHARACTER APPEARANCE + portrait likeness URL when supplied; gender presentation from CHARACTER APPEARANCE. ${scene} Wardrobe, pose, and set follow this line only — not the profile marketing still’s environment or costume.`;
+  `Tasteful editorial-adult shot — **this roster companion only** (not a generic lookalike); lock ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE} to CHARACTER APPEARANCE + portrait likeness URL when supplied; gender presentation from CHARACTER APPEARANCE. **Suggestive wardrobe only** (lingerie, sheer, short shorts, tanks, wet fabric with coverage, silk sheets) — **no nudity, no visible genitals, no explicit sexual acts, no phone in hand.** ${scene} Wardrobe, pose, and set follow this line only — not the profile marketing still’s environment or costume.`;
 
 export const CHAT_SELFIE_STILL_CATEGORIES: readonly ChatStillMenuCategory[] = [
   {

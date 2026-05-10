@@ -35,6 +35,7 @@ import { CHAT_LIKENESS_EDGE_SAME_SUBJECT, CHAT_LIKENESS_SUBJECT_FEATURES_INLINE 
 import { publicApiTeaserGuardResponse } from "../_shared/publicApiTeaserGate.ts";
 import { enrichImaginePromptUniversal } from "../_shared/characterReferenceImagePrompt.ts";
 import { resolveCharacterReferenceForImagine } from "../_shared/resolveCharacterReferenceFromDb.ts";
+import { assertUserUnlockedCompanionForSpend } from "../_shared/requireCompanionFcUnlock.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -162,6 +163,23 @@ serve(async (req) => {
     const teaserBlock = await publicApiTeaserGuardResponse(user);
     if (teaserBlock) return teaserBlock;
 
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Supabase service configuration missing (URL or service role)");
+    }
+    const supabaseGate = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const cdGate = characterData as Record<string, unknown>;
+    const isChatSessionGate = String(characterData.style ?? "").trim() === "chat-session";
+    const cidGate = String(cdGate.companionId ?? cdGate.companion_id ?? "").trim();
+    if (isChatSessionGate && cidGate && cidGate !== "forge-preview") {
+      const gate = await assertUserUnlockedCompanionForSpend(supabaseGate, user.id, cidGate);
+      if (!gate.ok) {
+        return new Response(
+          JSON.stringify({ success: false, error: gate.message, code: "COMPANION_LOCKED" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
     const xaiKey = resolveXaiApiKey((n) => Deno.env.get(n));
     if (!xaiKey) {
       return new Response(
@@ -174,11 +192,7 @@ serve(async (req) => {
       );
     }
 
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Supabase service configuration missing (URL, anon, or service role)");
-    }
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabase = supabaseGate;
 
     const { data: profRow, error: profRowErr } = await supabase
       .from("profiles")

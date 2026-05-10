@@ -6,6 +6,12 @@ export const IMAGINE_QUALITY_POSITIVE_LINE =
 export const IMAGINE_QUALITY_NEGATIVE_LINE =
   "deformed, extra limbs, extra fingers, fused fingers, mutated hands, poorly drawn hands, bad anatomy, bad proportions, extra arms, extra legs, mutated limbs, blurry, low quality, deformed face, bad face, duplicate limbs, missing limbs, watermark, text, logo";
 
+export const CHARACTER_REFERENCE_INTRO_LINES = [
+  "CHARACTER REFERENCE (read first — identity lock):",
+  "Use this exact character's face, hair, body type, eyes, skin, and all distinctive features exactly.",
+  "Do not change facial features. Do not swap ethnicity, age read, or species away from this description.",
+].join("\n");
+
 export function enrichImaginePromptUniversal(o: {
   corePrompt: string;
   characterReference?: string | null;
@@ -16,7 +22,9 @@ export function enrichImaginePromptUniversal(o: {
     /\b8k\b/i.test(body) && /\bmasterpiece\b/i.test(body) && /\bultra\s+detailed\b/i.test(body);
   const head = hasQualityStem ? "" : `${IMAGINE_QUALITY_POSITIVE_LINE}.\n\n`;
   const lock = ref
-    ? `Use this exact character appearance as strong reference: ${ref}
+    ? `${CHARACTER_REFERENCE_INTRO_LINES}
+
+${ref}
 
 Maintain identical face, hair, eyes, body type, and all distinctive features.
 

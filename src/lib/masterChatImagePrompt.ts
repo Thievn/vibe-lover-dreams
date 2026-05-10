@@ -19,7 +19,10 @@ import {
   type FabSelfieTier,
 } from "@/lib/chatImageSettings";
 import type { DbCompanion } from "@/hooks/useCompanions";
-import { resolveEffectiveCharacterReference } from "@/lib/characterReferenceImagePrompt";
+import {
+  CHARACTER_REFERENCE_INTRO_LINES,
+  resolveEffectiveCharacterReference,
+} from "@/lib/characterReferenceImagePrompt";
 import { buildCompanionVisualIdentityCapsule } from "@/lib/buildCompanionVisualIdentityCapsule";
 import {
   CHAT_LIKENESS_SCENE_FORBIDDEN_INLINE,
@@ -60,17 +63,18 @@ export function classifyChatImageMood(input: { rawUserMessage: string; menuBaseP
 
 function moodNsfwClauses(m: FabSelfieTier): string {
   if (m === "nude") {
-    return "Artistic intimate nude (Grok Imagine): fine-art boudoir or editorial silhouette — sensual, graceful, soft light; **no** crude anatomy, graphic acts, or pornographic staging. **One** consistent individual per CHARACTER APPEARANCE (face, eyes, lips, hair, hands, legs, skin, build); believable photoreal body. Wardrobe absent only when the scene calls for nude; do not default to swimwear unless USER SCENE is beach/pool.";
+    return "Artistic intimate nude (Grok Imagine): fine-art boudoir or editorial silhouette — sensual, graceful, soft light; **no** crude anatomy, graphic acts, or pornographic staging. **One** consistent individual per CHARACTER APPEARANCE (face, eyes, lips, hair, hands, legs, skin, build); **do not change facial features**; believable photoreal body. Prefer mirror, tripod, or sheet-drape framing — **no smartphone in hand**. Wardrobe absent only when the scene calls for nude; do not default to swimwear unless USER SCENE is beach/pool.";
   }
   if (m === "lewd") {
-    return "Tasteful lewd: lingerie, sheer, wet fabric, silhouette, teasing poses — premium editorial / perfume-ad heat, **not** explicit porn staging or obscene wording. Same **identity** (face, eyes, lips, hair, hands, legs, skin, build) as CHARACTER APPEARANCE — **wardrobe, pose, and room** only from USER SCENE / menu framing, not from any implied catalog photo. No generic bikini unless the scene calls for it.";
+    return "Tasteful lewd: lingerie, sheer layers, short shorts, tanks, wet fabric with coverage, silk sheets, silhouette, teasing poses — premium editorial / perfume-ad heat, **not** explicit porn staging. Same **identity** (face, eyes, lips, hair, hands, legs, skin, build) as CHARACTER APPEARANCE — **do not change facial features**; **wardrobe, pose, and room** only from USER SCENE / menu framing. **Forbidden:** nudity, visible genitals, explicit sexual acts, phone in hand or visible smartphone. No generic bikini unless the scene calls for it.";
   }
-  return "SFW — flirty, romantic, or cute; fully clothed for public-safe framing. Same individual as the **written** character description (face, eyes, lips, hair, hands, legs, body type). Outfit must fit THIS preset and USER SCENE.";
+  return "SFW — flirty, romantic, or cute; fully clothed for public-safe framing. Same individual as the **written** character description (face, eyes, lips, hair, hands, legs, body type); **do not change facial features**. Outfit must fit THIS preset and USER SCENE.";
 }
 
 function timePeriodAesthetic(period: string): string {
   const p = {
-    "Modern Day": "contemporary real-world: current fashion, current interiors, current phone/camera look unless the user names a set.",
+    "Modern Day":
+      "contemporary real-world: current fashion, current interiors, contemporary digital-camera / sensor look unless the user names a set.",
     "Medieval Fantasy": "medieval / fantasy: fabrics, rooms, and props read period-true — not modern tech unless user asked.",
     "Ancient Greece/Mythology": "Hellenic / mythic: marble, drapery, mythic or temple light — not cyberpunk neon unless asked.",
     "Victorian Era": "Victorian / gaslight / high collars, corsetry where appropriate, period set dressing.",
@@ -86,14 +90,14 @@ function timePeriodAesthetic(period: string): string {
 
 const MENU_TEASERS: Record<FabSelfieTier, string[]> = {
   sfw: [
-    "Mmm… you want a peek? Alright, give me a second — I’ll make it cute, just for you. 📸",
-    "Hehe, fine — you’re lucky I like you. Hold on; I want this one to look perfect.",
-    "Okay, okay~ Let me get the angle. Don’t you dare look away~",
+    "Mmm… you want a peek? Alright — give me a second. I’ll angle the light, bite my lip just a little, and send you something *very* cute. Don’t look away. 📸",
+    "Hehe, fine — you’re lucky I like you. Hold on; I want you to feel this one in your chest when it lands.",
+    "Okay, okay~ Let me find the sweet spot — soft smile, eyes only for you. One sec, love~",
   ],
   lewd: [
-    "You want me a little *indecent*? …Fine. Gimme a second — and don’t act innocent when you see it. 😈",
-    "Oh? *That* kind of request? I’m blushing in the right places. One moment~",
-    "Mischief unlocked. I’m about to be very unfair to your self-control. Hold on~",
+    "You want me a little *dirty-cute*? …Fine. Gimme a second — fabric, shadow, and a smile that knows exactly what it’s doing. 😈",
+    "Oh? *That* kind of request? I’m warm already. One moment — I’m going to make you regret asking so politely~",
+    "Mischief unlocked. Lingerie logic, slow breath, eyes on you. Hold on — this one’s for your imagination, not your innocence~",
   ],
   nude: [
     "Fuck, you don’t play fair, do you? Alright, love — give me a second. I’ll bare everything the way you like. 💋",
@@ -142,7 +146,7 @@ function shotVariationBlock(mood: FabSelfieTier, seed: number): string {
   const lens = [
     "35mm storytelling lens, gentle distortion control",
     "50mm portrait, creamy bokeh, natural perspective",
-    "24mm environmental selfie arm, slight wide character",
+    "24mm environmental portrait, slight wide — arm-extended front-camera POV or mirror shot with **no smartphone visible**",
     "85mm compression, flattering face flattening",
   ] as const;
   const sfwSets = [
@@ -154,7 +158,7 @@ function shotVariationBlock(mood: FabSelfieTier, seed: number): string {
   const sfwPose = [
     "Slight hip shift + relaxed shoulders; eyes to lens.",
     "Three-quarter turn with chin low — friendly confidence.",
-    "One hand in hair, phone slightly high — classic selfie geometry.",
+    "One hand in hair, arm-extended POV — **no phone or screen visible**.",
     "Seated lean-forward — engaged, conspiratorial smile.",
   ] as const;
   const lewdSets = [
@@ -275,7 +279,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
     seeds,
     menuSceneLock
       ? "Where the preset is silent on a detail, infer one tasteful fill-in that still matches that exact scene (not a genre switch)."
-      : "Translate these into: fabric choices, set dressing, what they'd plausibly wear in-scene, how they hold the phone/camera, how bold or shy the expression is, and the emotional temperature of the light.",
+      : "Translate these into: fabric choices, set dressing, what they'd plausibly wear in-scene, how they relate to the lens (arm-extended POV, mirror glance, tripod) — **no smartphone visible** unless a period-accurate film camera is explicitly scene-appropriate — how bold or shy the expression is, and the emotional temperature of the light.",
   ].join("\n");
 
   const scene = [
@@ -300,20 +304,30 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
   const tech = [
     "— CAPTURE / FRAMING —",
     menuSceneLock
-      ? "Single-subject, vertical 2:3; match camera grammar implied by **Requested framing (from menu)** (phone selfie, mirror, tripod, environmental shot, etc.) and the time period; premium lens, coherent depth of field."
-      : "Single-subject, vertical 2:3 card-style phone / mirror / tripod selfie or POV, matching the time period; premium lens, coherent depth of field.",
+      ? "Single-subject, vertical 2:3; match camera grammar implied by **Requested framing (from menu)** (natural selfie POV, mirror, tripod, environmental shot, etc.) — **avoid a visible smartphone in hand** — and the time period; premium lens, coherent depth of field."
+      : "Single-subject, vertical 2:3 card-style natural selfie POV, mirror, tripod, or partner-held frame — **no phone visible** — matching the time period; premium lens, coherent depth of field.",
     "Photographic realism; match art direction:" + ` ${art}. Body-type anchor: ${bodyType}.`,
     "No duplicate faces, no collage, no watermark, no app UI, no on-image text, no disembodied parts unless the user explicitly asked.",
   ].join(" ");
 
   const coreLook = (resolveEffectiveCharacterReference(dbComp) ?? "").trim();
   const longAppear = (companion.appearance || "").trim();
+  const characterRefPreamble = coreLook
+    ? [
+        "— CHARACTER REFERENCE (READ FIRST — EXECUTE BEFORE ANY SCENE TEXT) —",
+        CHARACTER_REFERENCE_INTRO_LINES,
+        "",
+        coreLook.slice(0, 2000),
+        "",
+        "---",
+        "",
+      ].join("\n")
+    : "";
+
   const charBlock = coreLook
-    ? `CHARACTER APPEARANCE (exact core look — text only, no outfit/scene): ${companion.name}, ${companion.gender}. ${coreLook.slice(0, 2000)}${
-        longAppear && longAppear !== coreLook
-          ? `\n\nSupplemental writer appearance (extra species/detail only; core look wins on face/hair conflict): ${longAppear.slice(0, 900)}${longAppear.length > 900 ? "…" : ""}`
-          : ""
-      }`
+    ? longAppear && longAppear !== coreLook
+      ? `CHARACTER APPEARANCE supplement (must match CHARACTER REFERENCE above — text only, no outfit/scene): ${companion.name}, ${companion.gender}. ${longAppear.slice(0, 1200)}${longAppear.length > 1200 ? "…" : ""}`
+      : `CHARACTER APPEARANCE: identity locked by CHARACTER REFERENCE block above — ${companion.name}, ${companion.gender}.`
     : `CHARACTER APPEARANCE (primary likeness — text only): ${companion.name}, ${companion.gender}. ${longAppear.slice(0, 2000)}`;
 
   const appearanceStripForMenu = `**APPEARANCE-TEXT STRIP (gallery preset):** The CHARACTER APPEARANCE paragraph may repeat how she looks on a **roster / profile card**. For **this** render, mine it **only** for ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE}. **Discard** any sentences about catalog outfit, cape, swimsuit, jewelry, throne room, studio backdrop, or “icon pose” if they disagree with **Requested framing (from menu)** — the menu wins 100% on clothes, location, pose, props, and camera. **Demote** mood-only lines (heavy smoke, fog, haze, lens-flare poetry, club strobes) unless the **menu** explicitly asks for that vibe — they must not steal detail budget from a **clear face, hands, and figure**.`;
@@ -321,6 +335,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
   const prompt = (
     menuSceneLock
       ? [
+          characterRefPreamble,
           "LUSTFORGE MASTER BRIEF — in-session gallery-preset still (scene-first; subject likeness from CHARACTER APPEARANCE + optional roster portrait URL; scene from menu)",
           antiProfileRemaster,
           scene,
@@ -332,6 +347,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
           appearanceStripForMenu,
         ]
       : [
+          characterRefPreamble,
           "LUSTFORGE MASTER BRIEF — in-session generative still (likeness from CHARACTER APPEARANCE; scene from USER SCENE — not the card backdrop)",
           identity,
           theming,

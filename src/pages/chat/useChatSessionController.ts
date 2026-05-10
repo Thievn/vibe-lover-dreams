@@ -2178,6 +2178,7 @@ export function useChatSessionController() {
           : messageText;
         const teaser =
           (await fetchChatImageTeaserLine({
+            companionId: companion.id,
             systemPrompt: composeChatSystemPrompt(),
             userRequest: teaserUserRequest,
           })) ||

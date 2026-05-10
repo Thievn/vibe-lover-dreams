@@ -5,8 +5,10 @@
  * - **image_teaser** — one short in-character line before a still is shown.
  * - **smart_replies** — three short suggested user replies (JSON).
  */
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { isLustforgeAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { publicApiTeaserGuardResponse } from "../_shared/publicApiTeaserGate.ts";
+import { assertUserUnlockedCompanionForSpend } from "../_shared/requireCompanionFcUnlock.ts";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { defaultGrokProductChatModel } from "../_shared/xaiGrokChatRaw.ts";
 import { lustforgeNarrowUserScopeBlock } from "../_shared/lustforgeNarrowUserScope.ts";
@@ -91,6 +93,26 @@ Deno.serve(async (req) => {
     const systemRaw = String(body?.systemPrompt ?? "").trim();
     if (intent !== "smart_replies" && !systemRaw) {
       return json({ error: "systemPrompt is required" }, 400);
+    }
+
+    const companionIdForGate = String(body?.companionId ?? "").trim();
+    if (intent === "classic_chat" || intent === "live_voice" || intent === "smart_replies" || intent === "image_teaser") {
+      if (!companionIdForGate) {
+        return json(
+          {
+            error:
+              "companionId is required — the server checks that this card is in your vault before running AI (same rule as Discover).",
+            code: "MISSING_COMPANION_ID",
+          },
+          400,
+        );
+      }
+      const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+      const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+      if (!supabaseUrl || !svcKey) return json({ error: "Server misconfigured" }, 500);
+      const svc = createClient(supabaseUrl, svcKey);
+      const gate = await assertUserUnlockedCompanionForSpend(svc, sessionUser.id, companionIdForGate);
+      if (!gate.ok) return json({ error: gate.message, code: "COMPANION_LOCKED" }, 403);
     }
 
     const threadRaw = Array.isArray(body?.messages) ? body!.messages! : [];

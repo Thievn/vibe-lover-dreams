@@ -7,10 +7,15 @@ const TEASER_APPEND =
 /**
  * One Grok chat call for a natural in-character line before the still is shown (typed / custom requests).
  */
-export async function fetchChatImageTeaserLine(args: { systemPrompt: string; userRequest: string }): Promise<string | null> {
+export async function fetchChatImageTeaserLine(args: {
+  companionId: string;
+  systemPrompt: string;
+  userRequest: string;
+}): Promise<string | null> {
   const { data, error } = await supabase.functions.invoke("grok-chat", {
     body: {
       intent: "image_teaser",
+      companionId: args.companionId,
       systemPrompt: `${args.systemPrompt.trim()}${TEASER_APPEND}`.slice(0, 120_000),
       messages: [
         {

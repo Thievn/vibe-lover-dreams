@@ -7,7 +7,11 @@ import {
   CHAT_LIKENESS_SUBJECT_ANCHOR,
   CHAT_LIKENESS_WRAP_KEEP_LINE,
 } from "@/lib/chatLikenessAnchors";
-import { IMAGINE_QUALITY_NEGATIVE_LINE, IMAGINE_QUALITY_POSITIVE_LINE } from "@/lib/characterReferenceImagePrompt";
+import {
+  CHARACTER_REFERENCE_INTRO_LINES,
+  IMAGINE_QUALITY_NEGATIVE_LINE,
+  IMAGINE_QUALITY_POSITIVE_LINE,
+} from "@/lib/characterReferenceImagePrompt";
 
 const AUTO_IMAGE_KEY = "lustforge-chat-auto-image";
 
@@ -54,6 +58,14 @@ export function incrementFreeNsfwImagesUsed(userId: string, companionId: string)
 /** Paid chat clip (Grok Imagine video ~5–15s). Same as `CHAT_SHORT_VIDEO_FC` in forgeEconomy. */
 export { CHAT_SHORT_VIDEO_FC as CHAT_VIDEO_TOKEN_COST } from "@/lib/forgeEconomy";
 
+/** Binding for every FAB / gallery still that reads as a “selfie” — keeps Grok from painting a phone in hand. */
+export const CHAT_IMAGINE_SELFIE_NO_PHONE_BLOCK = `**Natural selfie (binding — no phone):** Front-camera energy: eyes to lens, **arm-extended POV**, mirror reflection, tripod/remote timer, or partner-held frame. **Do not** show a smartphone, mobile phone, screen bezel, or phone case in the subject’s hands or as a foreground prop.`;
+
+/** Lewd tier: suggestive wardrobe / editorial heat; strict negatives (matches product-safe Imagine band). */
+export const CHAT_IMAGINE_LEWD_TASTEFUL_BLOCK = `**Lewd tier — editorial thirst (binding):** lingerie, sheer layers, short shorts, tank tops, wet-look fabric **with coverage**, silk sheets, open blouse, side silhouette — premium perfume-ad heat, **not** pornographic staging.
+
+**Strong negative (binding):** no nudity, no visible genitals, no explicit sexual acts, no phone in hand or visible smartphone.`;
+
 /** Quick Action Buttons for image requests in chat */
 export const FAB_SELFIE = {
   sfw: {
@@ -66,7 +78,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "SFW phone selfie: **must be this exact roster companion** — same face, eyes, lips, hair, ears, hands, legs, skin, and body proportions as CHARACTER APPEARANCE + portrait likeness (not a generic model). **New outfit and backdrop** for this shot (do not paste their roster/catalog swimsuit or costume unless this scene is explicitly swim/beach). Fully clothed, flattering light, camera-aware pose — not nude or lingerie. **Pose families:** front smile, three-quarter, tasteful over-shoulder (clothed), mirror fit-check — vary which you pick per generation.",
+      "SFW natural selfie: **must be this exact roster companion** — same face, eyes, lips, hair, ears, hands, legs, skin, and body proportions as CHARACTER APPEARANCE + portrait likeness (not a generic model). **Do not change facial features.** **New outfit and backdrop** for this shot (do not paste their roster/catalog swimsuit or costume unless this scene is explicitly swim/beach). Fully clothed, flattering light, camera-aware pose — not nude or lingerie. **Pose families:** front smile, three-quarter, tasteful over-shoulder (clothed), mirror fit-check — vary which you pick per generation.",
   },
 
   lewd: {
@@ -79,7 +91,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Tasteful lewd phone selfie: **must be this exact roster companion** — lock identity (face, eyes, lips, hair, ears, hands, legs, skin, body type, tattoos); not a different attractive woman. Lingerie, sheer or wet fabric, sensual silhouette, tasteful implied or partial nude; **editorial / perfume-ad** glamour only — no crude or pornographic staging. Do not default to roster swimsuit when the scene implies something else. **Pose families:** tasteful backshot with fabric-aware curves, mirror tease, seated lean, silhouette through steam/sheer — never hardcore staging.",
+      "Tasteful lewd natural selfie: **must be this exact roster companion** — lock identity (face, eyes, lips, hair, ears, hands, legs, skin, body type, tattoos); **do not change facial features**; not a different attractive woman. Wardrobe: lingerie, sheer layers, short shorts, tanks, wet-look fabric with coverage, silk sheets — **editorial / perfume-ad** glamour only; no crude or pornographic staging. Do not default to roster swimsuit when the scene implies something else. **Pose families:** tasteful backshot with fabric-aware curves, mirror tease, seated lean, silhouette through steam/sheer — never hardcore staging.",
   },
 
   nude: {
@@ -92,7 +104,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Artistic nude phone selfie: **must be this exact roster companion** — fine-art boudoir framing; same person (face, eyes, lips, hair, ears, hands, legs, identity lock); believable photoreal body if reference is stylized. Soft cinematic light, graceful pose, elegant sensuality — **no** graphic anatomy, explicit acts, or obscene angles. Natural or studio light; editorial mood. **Pose families:** draped sheet, profile line, seated twist, modest silhouette — vary set and lens each generation.",
+      "Artistic nude natural selfie: **must be this exact roster companion** — fine-art boudoir framing; same person (face, eyes, lips, hair, ears, hands, legs, identity lock); **do not change facial features**; believable photoreal body if reference is stylized. Soft cinematic light, graceful pose, elegant sensuality — **no** graphic anatomy, explicit acts, or obscene angles. Natural or studio light; editorial mood. **Pose families:** draped sheet, profile line, seated twist, modest silhouette — vary set and lens each generation.",
   },
 } as const;
 
@@ -289,6 +301,7 @@ export function inferChatImageGenerationPrompt(text: string): string | undefined
       "SFW swim editorial inferred from the user's words: honor **their** beach/coast geography and **their** swim silhouette (colors, cover-ups, rash guard, sarong, hat) — do **not** substitute the roster card bikini as the default wardrobe.",
       "**Same roster companion identity** as CHARACTER APPEARANCE + portrait likeness (face, hair, ears, skin, body, tattoos) — not a different model; believable adult proportions; flattering sun + fill; candid vacation energy.",
       FAB_SELFIE.sfw.imagePrompt,
+      CHAT_IMAGINE_SELFIE_NO_PHONE_BLOCK,
     ].join(" ");
   }
 
@@ -347,13 +360,35 @@ export function isExplicitImageRequest(text: string): boolean {
   return needles.some((n) => t.includes(n));
 }
 
+function menuMatchesFabTier(menu: string, tier: FabSelfieTier): boolean {
+  const base = FAB_SELFIE[tier].imagePrompt;
+  return menu === base || menu.startsWith(`${base}\n`);
+}
+
+function fabTierImagineRails(menu: string): string {
+  const rails: string[] = [];
+  if (
+    menuMatchesFabTier(menu, "sfw") ||
+    menuMatchesFabTier(menu, "lewd") ||
+    menuMatchesFabTier(menu, "nude")
+  ) {
+    rails.push(CHAT_IMAGINE_SELFIE_NO_PHONE_BLOCK);
+  }
+  if (menuMatchesFabTier(menu, "lewd")) {
+    rails.push(CHAT_IMAGINE_LEWD_TASTEFUL_BLOCK);
+  }
+  return rails.length ? `\n\n${rails.join("\n\n")}` : "";
+}
+
 function wrapFabSceneWithAppearanceLock(inner: string, identityReference: string): string {
   const ref = identityReference.trim();
   if (!ref) return inner;
   return [
-    `Use this exact character appearance as strong reference: ${ref}`,
+    CHARACTER_REFERENCE_INTRO_LINES,
     "",
-    "Maintain identical face, hair, eyes, body type, and all distinctive features.",
+    ref,
+    "",
+    "Maintain identical face, hair, eyes, body type, skin, species marks, and all distinctive features.",
     "",
     "Now generate this new scene:",
     "",
@@ -385,22 +420,23 @@ export function resolveChatImageGenerationPrompt(args: {
   if (menu) {
     const subjectAnchor = `${CHAT_LIKENESS_MENU_PRESET_IDENTITY_LEAD}\n\n${CHAT_LIKENESS_SUBJECT_ANCHOR}\n\n`;
     const lewdLighting =
-      menu === FAB_SELFIE.lewd.imagePrompt
+      menuMatchesFabTier(menu, "lewd")
         ? "\n\n**Lighting accent (lewd tier):** seductive editorial / key-art lighting — keep the **face sharp and readable**, not blown out by bloom."
         : "";
+    const tierRails = fabTierImagineRails(menu);
     const coherence =
       "\n\n**FORGE_VISUAL_IDENTITY (in master prompt):** binding for **hair, eyes, lips, skin, hands, legs, species, body type, musculature/curves, and art style (anime vs photoreal vs creature)** — **not** for outfit, room, pose, or “smoke person” mood boards; those follow **Requested framing** (and FORGE_VISUAL_IDENTITY caps atmosphere vs face priority)." +
       `\n\n${CHAT_LIKENESS_SCENE_PRIMACY_FOOTER}` +
       "\n\n**SHOT GEOMETRY (binding):** If the menu mentions lying, bent over, legs up, bathtub, beach, car, desk, bed, shower, silk sheets, lingerie, wall, workout, dress, kitchen, etc., the final image must **show that configuration and setting clearly** — not a substitute “same card, different angle” or “pretty subject standing at camera” shot.";
     if (styled) {
       const fused = (
-        `— Requested framing (from menu) —\n${subjectAnchor}${styled}\n\n${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}\n\n**Exposure / tone context (not the shot layout):**\n${menu}${coherence}`
+        `— Requested framing (from menu) —\n${subjectAnchor}${styled}\n\n${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}${tierRails}\n\n**Exposure / tone context (not the shot layout):**\n${menu}${coherence}`
       ).trim();
       return appearanceRef ? wrapFabSceneWithAppearanceLock(fused, appearanceRef) : fused;
     }
     // Tier-only (FAB / media bar): same anatomy + likeness rails as gallery tiles; tier string carries exposure + pose hints.
     const tierOnly = (
-      `— Requested framing (from menu) —\n${subjectAnchor}${menu}\n\n${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}${coherence}`
+      `— Requested framing (from menu) —\n${subjectAnchor}${menu}\n\n${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}${tierRails}${coherence}`
     ).trim();
     return appearanceRef ? wrapFabSceneWithAppearanceLock(tierOnly, appearanceRef) : tierOnly;
   }
@@ -417,7 +453,7 @@ export function resolveChatImageGenerationPrompt(args: {
   const inferredExplicit = isExplicitImageRequest(inferred);
   if (userExplicit && !inferredExplicit) return wrapFreeform(raw);
 
-  return wrapFreeform(inferred);
+  return wrapFreeform(`${inferred}${fabTierImagineRails(inferred)}`.trim());
 }
 
 export {

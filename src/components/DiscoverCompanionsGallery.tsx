@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { BadgeCheck, Crown, Filter, Gem, Gift, Loader2, Search, Sparkles, UserRound, Wand2, X } from "lucide-react";
+import { BadgeCheck, Crown, Filter, Gem, Gift, Loader2, Lock, Search, Sparkles, UserRound, Wand2, X } from "lucide-react";
 import { toast } from "sonner";
 import type { Companion } from "@/data/companions";
 import { useCompanions, dbToCompanion, type DbCompanion } from "@/hooks/useCompanions";
@@ -503,6 +503,14 @@ export default function DiscoverCompanionsGallery() {
                 const acquired = Boolean(sessionUserId && purchasedCompanionIds?.has(c.id));
                 const buyFc =
                   sessionUserId && !acquired && c.rarity === "common" && freeCommonClaimed === false ? 0 : listFc;
+                const openLockedPortrait = () => {
+                  if (!sessionUserId) {
+                    navigate("/auth", { state: { from: `${location.pathname}${location.search}` } });
+                    return;
+                  }
+                  setBuyConfirmFor(c);
+                };
+
                 return (
                   <motion.div
                     key={c.id}
@@ -510,7 +518,7 @@ export default function DiscoverCompanionsGallery() {
                     initial={{ opacity: 0, y: 14 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: Math.min(i * 0.03, 0.35), type: "spring", stiffness: 300, damping: 30 }}
-                    whileHover={{ y: -2, scale: 1.01 }}
+                    whileHover={acquired ? { y: -2, scale: 1.01 } : { y: 0, scale: 1 }}
                     className={cn(
                       "relative text-left rounded-2xl border border-transparent bg-card/50 backdrop-blur-md overflow-visible group shadow-lg shadow-black/30 transition-all hover:shadow-[0_0_28px_rgba(255,45,123,0.15)] p-1.5 max-md:p-1",
                       acquired &&
@@ -523,45 +531,41 @@ export default function DiscoverCompanionsGallery() {
                     }}
                   >
                     <div className="flex flex-col rounded-2xl overflow-visible border border-white/[0.06] bg-black/20 shadow-inner">
-                      <Link
-                        to={`/companions/${c.id}?discover=1`}
-                        state={{
-                          from: `${location.pathname}${location.search}`,
-                          discoverPreview: true as const,
-                        }}
-                        className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-t-2xl"
-                      >
-                        <TierHaloPortraitFrame
-                          variant="card"
-                          frameStyle="clean"
-                          rarity={c.rarity}
-                          gradientFrom={c.gradientFrom}
-                          gradientTo={c.gradientTo}
-                          overlayUrl={c.rarityBorderOverlayUrl}
-                          rarityFrameBleed
+                      {acquired ? (
+                        <Link
+                          to={`/companions/${c.id}`}
+                          state={{ from: `${location.pathname}${location.search}` }}
+                          className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/45 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-t-2xl"
                         >
-                          <div
-                            className="absolute inset-0 z-0"
-                            style={{
-                              background: img ? undefined : `linear-gradient(160deg, ${c.gradientFrom}, ${c.gradientTo})`,
-                            }}
-                          />
-                          {img ? (
-                            <img
-                              src={img}
-                              alt=""
-                              className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.02] object-cover object-top"
-                              loading="lazy"
+                          <TierHaloPortraitFrame
+                            variant="card"
+                            frameStyle="clean"
+                            rarity={c.rarity}
+                            gradientFrom={c.gradientFrom}
+                            gradientTo={c.gradientTo}
+                            overlayUrl={c.rarityBorderOverlayUrl}
+                            rarityFrameBleed
+                          >
+                            <div
+                              className="absolute inset-0 z-0"
+                              style={{
+                                background: img ? undefined : `linear-gradient(160deg, ${c.gradientFrom}, ${c.gradientTo})`,
+                              }}
                             />
-                          ) : null}
-                          <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/95 via-black/25 to-transparent pointer-events-none" />
-                          {c.isNexusHybrid ? (
-                            <div className="absolute top-2 left-2 z-[3] text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-950/50 text-fuchsia-100/90">
-                              Nexus
-                            </div>
-                          ) : null}
-                          {/* Collection affordances: keep Nexus top-left, Vaulted top-right, name block bottom — product layout contract */}
-                          {acquired ? (
+                            {img ? (
+                              <img
+                                src={img}
+                                alt=""
+                                className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.02] object-cover object-top"
+                                loading="lazy"
+                              />
+                            ) : null}
+                            <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/95 via-black/25 to-transparent pointer-events-none" />
+                            {c.isNexusHybrid ? (
+                              <div className="absolute top-2 left-2 z-[3] text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-950/50 text-fuchsia-100/90">
+                                Nexus
+                              </div>
+                            ) : null}
                             <div className="absolute top-2 right-2 z-[4] pointer-events-none" aria-hidden>
                               <div className="flex items-center gap-0.5 rounded-md border border-emerald-400/55 bg-gradient-to-br from-emerald-600/25 via-black/70 to-teal-700/20 px-1.5 py-0.5 shadow-[0_0_20px_rgba(52,211,153,0.35)] backdrop-blur-sm rotate-[-4deg]">
                                 <BadgeCheck className="h-3 w-3 text-emerald-300 shrink-0" strokeWidth={2.5} />
@@ -570,28 +574,102 @@ export default function DiscoverCompanionsGallery() {
                                 </span>
                               </div>
                             </div>
-                          ) : null}
-                          {discoverTraits.length > 0 ? (
-                            <div className="absolute bottom-24 left-0 right-0 z-[3] px-2 pointer-events-none">
-                              <CompanionVibeTraitStrip
-                                traits={discoverTraits}
-                                className="justify-center"
-                                size="sm"
-                                max={4}
-                              />
-                            </div>
-                          ) : null}
-                          <div className="absolute inset-x-0 bottom-0 z-[3] p-3 space-y-0.5">
-                            <p className="text-xs font-bold text-white truncate leading-tight font-gothic">{c.name}</p>
-                            <p className="text-[10px] text-white/75 truncate">{c.tagline}</p>
-                            <p className="text-[9px] text-teal-300/90 truncate pt-0.5">{c.vibe}</p>
-                            {c.galleryCredit ? (
-                              <p className="text-[9px] text-[hsl(170_100%_65%)] mt-1 flex items-center gap-1 truncate">
-                                <UserRound className="h-3 w-3 shrink-0" />
-                                <span className="truncate">by {c.galleryCredit}</span>
-                              </p>
+                            {discoverTraits.length > 0 ? (
+                              <div className="absolute bottom-24 left-0 right-0 z-[3] px-2 pointer-events-none">
+                                <CompanionVibeTraitStrip
+                                  traits={discoverTraits}
+                                  className="justify-center"
+                                  size="sm"
+                                  max={4}
+                                />
+                              </div>
                             ) : null}
-                            {!acquired ? (
+                            <div className="absolute inset-x-0 bottom-0 z-[3] p-3 space-y-0.5">
+                              <p className="text-xs font-bold text-white truncate leading-tight font-gothic">{c.name}</p>
+                              <p className="text-[10px] text-white/75 truncate">{c.tagline}</p>
+                              <p className="text-[9px] text-teal-300/90 truncate pt-0.5">{c.vibe}</p>
+                              {c.galleryCredit ? (
+                                <p className="text-[9px] text-[hsl(170_100%_65%)] mt-1 flex items-center gap-1 truncate">
+                                  <UserRound className="h-3 w-3 shrink-0" />
+                                  <span className="truncate">by {c.galleryCredit}</span>
+                                </p>
+                              ) : null}
+                            </div>
+                            <div className="absolute inset-0 z-[3] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/[0.07] to-primary/10 pointer-events-none" />
+                          </TierHaloPortraitFrame>
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={openLockedPortrait}
+                          aria-label={sessionUserId ? `Acquire ${c.name} to unlock profile and chat` : "Sign in to acquire cards from Discover"}
+                          className="block w-full text-left rounded-t-2xl border-0 bg-transparent p-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background cursor-pointer"
+                        >
+                          <TierHaloPortraitFrame
+                            variant="card"
+                            frameStyle="clean"
+                            rarity={c.rarity}
+                            gradientFrom={c.gradientFrom}
+                            gradientTo={c.gradientTo}
+                            overlayUrl={c.rarityBorderOverlayUrl}
+                            rarityFrameBleed
+                          >
+                            <div
+                              className={cn(
+                                "absolute inset-0 z-[2] bg-black/50 backdrop-blur-[1px] transition-opacity",
+                                "opacity-100 group-hover:opacity-[0.92]",
+                              )}
+                              aria-hidden
+                            />
+                            <div
+                              className="absolute inset-0 z-0"
+                              style={{
+                                background: img ? undefined : `linear-gradient(160deg, ${c.gradientFrom}, ${c.gradientTo})`,
+                              }}
+                            />
+                            {img ? (
+                              <img
+                                src={img}
+                                alt=""
+                                className="absolute inset-0 z-[1] h-full w-full origin-center scale-[1.02] object-cover object-top saturate-[0.55] opacity-75"
+                                loading="lazy"
+                              />
+                            ) : null}
+                            <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/95 via-black/25 to-transparent pointer-events-none" />
+                            {c.isNexusHybrid ? (
+                              <div className="absolute top-2 left-2 z-[3] text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-950/50 text-fuchsia-100/90">
+                                Nexus
+                              </div>
+                            ) : null}
+                            <div
+                              className="absolute top-2 right-2 z-[4] flex items-center gap-0.5 rounded-md border border-white/15 bg-black/70 px-1.5 py-0.5 shadow-lg pointer-events-none"
+                              aria-hidden
+                            >
+                              <Lock className="h-3 w-3 text-white/80 shrink-0" strokeWidth={2.5} />
+                              <span className="text-[8px] font-extrabold uppercase tracking-wider text-white/85">
+                                Locked
+                              </span>
+                            </div>
+                            {discoverTraits.length > 0 ? (
+                              <div className="absolute bottom-24 left-0 right-0 z-[3] px-2 pointer-events-none opacity-60">
+                                <CompanionVibeTraitStrip
+                                  traits={discoverTraits}
+                                  className="justify-center"
+                                  size="sm"
+                                  max={4}
+                                />
+                              </div>
+                            ) : null}
+                            <div className="absolute inset-x-0 bottom-0 z-[3] p-3 space-y-0.5">
+                              <p className="text-xs font-bold text-white/90 truncate leading-tight font-gothic">{c.name}</p>
+                              <p className="text-[10px] text-white/65 truncate">{c.tagline}</p>
+                              <p className="text-[9px] text-teal-300/70 truncate pt-0.5">{c.vibe}</p>
+                              {c.galleryCredit ? (
+                                <p className="text-[9px] text-[hsl(170_100%_55%)]/80 mt-1 flex items-center gap-1 truncate">
+                                  <UserRound className="h-3 w-3 shrink-0" />
+                                  <span className="truncate">by {c.galleryCredit}</span>
+                                </p>
+                              ) : null}
                               <div className="pt-1">
                                 <div
                                   className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-[0_0_24px_rgba(255,45,123,0.18)]"
@@ -600,7 +678,7 @@ export default function DiscoverCompanionsGallery() {
                                     borderColor: `${rarityTierCaptionColor(c.rarity)}55`,
                                     background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(0,0,0,0.28))",
                                   }}
-                                  aria-label={buyFc <= 0 ? "Free first Common unlock" : `${buyFc} Forge Coins`}
+                                  aria-hidden
                                 >
                                   <Gem className="h-3.5 w-3.5" />
                                   {buyFc <= 0 ? (
@@ -615,11 +693,10 @@ export default function DiscoverCompanionsGallery() {
                                   )}
                                 </div>
                               </div>
-                            ) : null}
-                          </div>
-                          <div className="absolute inset-0 z-[3] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-tr from-transparent via-white/[0.07] to-primary/10 pointer-events-none" />
-                        </TierHaloPortraitFrame>
-                      </Link>
+                            </div>
+                          </TierHaloPortraitFrame>
+                        </button>
+                      )}
                       {acquired ? (
                         <Link
                           to={`/companions/${c.id}`}

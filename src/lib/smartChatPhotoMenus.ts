@@ -17,9 +17,9 @@ export const SMART_SELFIE_STYLES: SmartChatPhotoStyleOption[] = [
     id: "casual_selfie",
     label: "Casual Selfie",
     hint: "Sofa, hoodie, daylight — effortless you",
-    userLine: "Casual selfie — like you just grabbed your phone mid-day.",
+    userLine: "Casual selfie — effortless daylight you, like you caught me staring.",
     sceneExtension:
-      "SFW casual phone selfie: **fresh everyday outfit** (not the roster swimsuit/card costume unless casual beach was requested); coffee shop nook, studio apartment, or tree-lined street per era; soft window light; arm’s-length phone; shallow depth; fully clothed.",
+      "SFW casual natural selfie: **fresh everyday outfit** (not the roster swimsuit/card costume unless casual beach was requested); coffee shop nook, studio apartment, or tree-lined street per era; soft window light; **arm-extended front-camera POV or tripod** — **no smartphone visible**; shallow depth; fully clothed.",
     paletteIndex: 0,
   },
   {
@@ -28,7 +28,7 @@ export const SMART_SELFIE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Full fit, eyes in the glass",
     userLine: "Mirror selfie — I want the whole outfit and your reflection.",
     sceneExtension:
-      "SFW mirror selfie: mid-distance so head-to-toe outfit reads; bedroom, closet, or studio mirror; eyes connecting with reflection; one hip cocked or jacket half-on; warm practicals — tasteful, not boudoir unless era-appropriate outerwear only.",
+      "SFW mirror selfie: mid-distance so head-to-toe outfit reads; bedroom, closet, or studio mirror; eyes connecting with reflection; one hip cocked or jacket half-on; warm practicals — tasteful, not boudoir unless era-appropriate outerwear only; **reflection must not show a phone in hand** — compose as if lens is beside the mirror or remote-triggered.",
     paletteIndex: 1,
   },
   {
@@ -37,7 +37,7 @@ export const SMART_SELFIE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Sheets, soft light, sweet energy",
     userLine: "Bed selfie — soft light, flirty-sweet, still SFW.",
     sceneExtension:
-      "SFW bed selfie: seated on bed edge or kneeling on linens; knit sweater, sleep shirt, or lounge set appropriate to era; golden sidelight; tousled hair; intimate-cute expression; no cleavage-as-focus unless modest; no nudity.",
+      "SFW bed selfie: seated on bed edge or kneeling on linens; knit sweater, sleep shirt, or lounge set appropriate to era; golden sidelight; tousled hair; intimate-cute expression; no cleavage-as-focus unless modest; no nudity; **no phone in frame** — tripod, partner POV, or soft window reflection only.",
     paletteIndex: 2,
   },
   {
@@ -46,7 +46,7 @@ export const SMART_SELFIE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Messy hair, mug, golden haze",
     userLine: "Morning selfie — messy hair, steam or sunlight, just woke up cute.",
     sceneExtension:
-      "SFW morning selfie: bathroom or kitchen rim light, steam or coffee mug; sleepy smile; robe tied closed or casual tee; fresh skin, believable AM clutter; phone slightly high angle; warm color grade — wholesome flirty, not explicit.",
+      "SFW morning selfie: bathroom or kitchen rim light, steam or coffee mug; sleepy smile; robe tied closed or casual tee; fresh skin, believable AM clutter; **slight high-angle POV without a visible phone**; warm color grade — wholesome flirty, not explicit.",
     paletteIndex: 3,
   },
   {
@@ -55,7 +55,7 @@ export const SMART_SELFIE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Athletic, confident, post-workout glow",
     userLine: "Gym mirror selfie — athletic, confident, still appropriate.",
     sceneExtension:
-      "SFW gym selfie: mirrored wall, tasteful athletic top; healthy glow, light sheen; headphones or towel prop; strong posture; fluorescent + window mix; environment reads real gym — no sexualized angles, no stripping.",
+      "SFW gym selfie: mirrored wall, tasteful athletic top; healthy glow, light sheen; headphones or towel prop; strong posture; fluorescent + window mix; environment reads real gym — no sexualized angles, no stripping; **no phone visible** in reflection or hands.",
     paletteIndex: 4,
   },
   {
@@ -64,7 +64,7 @@ export const SMART_SELFIE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Sun, breeze, swim cover",
     userLine: "Beach selfie — sun, wind, and that smile.",
     sceneExtension:
-      "SFW beach/boardwalk selfie: **wardrobe distinct from the roster swim portrait** — wrap dress, linen shirt over suit, rash guard, or sarong; wind, dunes or pier background variety; sun rim and salt hair; ocean bokeh; no repeat of the exact catalog bikini framing unless intentional.",
+      "SFW beach/boardwalk selfie: **wardrobe distinct from the roster swim portrait** — wrap dress, linen shirt over suit, rash guard, or sarong; wind, dunes or pier background variety; sun rim and salt hair; ocean bokeh; no repeat of the exact catalog bikini framing unless intentional; **natural selfie POV — no smartphone in hand**.",
     paletteIndex: 5,
   },
   {
@@ -73,7 +73,7 @@ export const SMART_SELFIE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Dash glow, leather, golden hour",
     userLine: "Car selfie — golden hour through the window.",
     sceneExtension:
-      "SFW car interior selfie: seatbelt on; dashboard glow + sunset through glass; streetlights bokeh; outfit fits their world (period car if vintage setting); flattering wide selfie arm; cinematic color — no crash-risk staging, no undressing.",
+      "SFW car interior selfie: seatbelt on; dashboard glow + sunset through glass; streetlights bokeh; outfit fits their world (period car if vintage setting); flattering **wide arm-extended POV**; cinematic color — no crash-risk staging, no undressing; **no phone visible**.",
     paletteIndex: 6,
   },
   {
@@ -82,7 +82,7 @@ export const SMART_SELFIE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Monitor rim, study lamp, cozy",
     userLine: "Desk selfie — monitor glow, study lamp, you leaning in.",
     sceneExtension:
-      "SFW desk / workspace selfie: monitor or candle-lamp rim on face; books, quill, holo-pad, or tools matching time period; cozy intellectual vibe; slight lean-in; shallow DOF; outfit everyday-smart — not office fetish staging.",
+      "SFW desk / workspace selfie: monitor or candle-lamp rim on face; books, quill, holo-pad, or tools matching time period; cozy intellectual vibe; slight lean-in; shallow DOF; outfit everyday-smart — not office fetish staging; **tripod or webcam POV — no handheld smartphone**.",
     paletteIndex: 7,
   },
   {
@@ -91,7 +91,7 @@ export const SMART_SELFIE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Editorial color, soft bloom",
     userLine: "Cute aesthetic selfie — soft editorial, very you.",
     sceneExtension:
-      "SFW cute aesthetic selfie: pastel or jewel color story, gentle bloom, artful negative space; fashion-forward but innocent; tripod or steady hand; props minimal (flowers, ribbon, headphones) matching personality — Pinterest-soft, not lewd.",
+      "SFW cute aesthetic selfie: pastel or jewel color story, gentle bloom, artful negative space; fashion-forward but innocent; tripod or steady POV; props minimal (flowers, ribbon, headphones) matching personality — Pinterest-soft, not lewd; **no phone in hand**.",
     paletteIndex: 0,
   },
   {
@@ -100,7 +100,7 @@ export const SMART_SELFIE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Close crop, smirk, eye contact",
     userLine: "Close-up — flirty face, that look you save for me.",
     sceneExtension:
-      "SFW tight portrait selfie: shoulders-up; playful smirk or lip bite (subtle); magnetic eye contact; soft beauty dish or window key; skin texture natural; outfit collar or strap visible but not cleavage-forward — tease in the eyes only.",
+      "SFW tight portrait selfie: shoulders-up; playful smirk or lip bite (subtle); magnetic eye contact; soft beauty dish or window key; skin texture natural; outfit collar or strap visible but not cleavage-forward — tease in the eyes only; **no smartphone visible**.",
     paletteIndex: 1,
   },
   {
@@ -109,7 +109,7 @@ export const SMART_SELFIE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Hand to lips, charm",
     userLine: "Blow me a kiss for the camera~",
     sceneExtension:
-      "SFW blowing-kiss selfie: hand at lips, cheek puff optional; wink or half-laugh; warm key; slightly wider than flirty-face crop so gesture reads; outfit visible at frame edge; charming rom-com energy — still modest coverage.",
+      "SFW blowing-kiss selfie: hand at lips, cheek puff optional; wink or half-laugh; warm key; slightly wider than flirty-face crop so gesture reads; outfit visible at frame edge; charming rom-com energy — still modest coverage; **no phone in frame**.",
     paletteIndex: 2,
   },
   {
@@ -118,7 +118,7 @@ export const SMART_SELFIE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "V by eye or cheek — cute",
     userLine: "Peace sign selfie — extra cute, please.",
     sceneExtension:
-      "SFW peace-sign selfie: V fingers near cheek or eye; bright friendly smile; slight head tilt; natural or ring light; casual outfit; playful K-pop / yearbook energy adapted to their era — no rude gestures, no lingerie focus.",
+      "SFW peace-sign selfie: V fingers near cheek or eye; bright friendly smile; slight head tilt; natural or ring light; casual outfit; playful K-pop / yearbook energy adapted to their era — no rude gestures, no lingerie focus; **no smartphone visible**.",
     paletteIndex: 3,
   },
   {
@@ -127,7 +127,7 @@ export const SMART_SELFIE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Playful, mischievous, still SFW",
     userLine: "Little tongue-out selfie — playful, not crude.",
     sceneExtension:
-      "SFW playful selfie: tongue slightly out, mischievous eyes; sporty or casual outfit; crisp shutter; avoid overt sexual tongue framing; keep cute-mischief tone matching personality; bright upbeat background.",
+      "SFW playful selfie: tongue slightly out, mischievous eyes; sporty or casual outfit; crisp shutter; avoid overt sexual tongue framing; keep cute-mischief tone matching personality; bright upbeat background; **no phone in hand**.",
     paletteIndex: 4,
   },
   {
@@ -136,7 +136,7 @@ export const SMART_SELFIE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Lower lids, still clothed heat",
     userLine: "Seductive stare into the lens — but keep it SFW.",
     sceneExtension:
-      "SFW seductive stare selfie: heavy-lidded eyes, slow smile, unbroken eye contact; clothed neckline modest; moody split lighting; tension through gaze not undressing; noir-romance or editorial fashion — no nudity, no explicit gestures.",
+      "SFW seductive stare selfie: heavy-lidded eyes, slow smile, unbroken eye contact; clothed neckline modest; moody split lighting; tension through gaze not undressing; noir-romance or editorial fashion — no nudity, no explicit gestures; **no smartphone visible**.",
     paletteIndex: 5,
   },
   {
@@ -145,7 +145,7 @@ export const SMART_SELFIE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Glance up through lashes",
     userLine: "Shy smile selfie — a little bashful, a lot pretty.",
     sceneExtension:
-      "SFW shy smile selfie: eyes up through lashes or looking away then peeking; soft blush; hands tucked in sleeves or holding strap; diffused light; cozy sweater or modest dress; intimate sweetness without sexual explicitness.",
+      "SFW shy smile selfie: eyes up through lashes or looking away then peeking; soft blush; hands tucked in sleeves or holding strap; diffused light; cozy sweater or modest dress; intimate sweetness without sexual explicitness; **no phone in frame**.",
     paletteIndex: 6,
   },
 ];
@@ -157,16 +157,16 @@ export const SMART_LEWD_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Lace, straps, era-true set",
     userLine: "Lingerie tease — lace and straps that fit your world.",
     sceneExtension:
-      "Lewd lingerie tease: **new lingerie set invented for this shot** (era-appropriate lace/silk/garters); boudoir or hotel suite with warm lamp — *not* the roster swimsuit; confident or shy expression per personality; cleavage and legs suggested; photoreal skin; identity = face/hair/body only.",
+      "Lewd lingerie tease: **new lingerie set invented for this shot** (era-appropriate lace/silk/garters); boudoir or hotel suite with warm lamp — *not* the roster swimsuit; confident or shy expression per personality; cleavage and legs suggested; photoreal skin; identity = face/hair/body only; **no nudity, no visible genitals, no explicit sexual acts, no phone in hand**.",
     paletteIndex: 0,
   },
   {
     id: "topless_tease",
-    label: "Topless Tease",
-    hint: "Hands, hair, or sheet as cover",
-    userLine: "Topless tease — cover just enough to drive me crazy.",
+    label: "Sheer / Sheet Tease",
+    hint: "Coverage that still kills — hands, lace, steam",
+    userLine: "Sheer tease — fabric and shadow, barely enough coverage.",
     sceneExtension:
-      "Lewd topless tease: breasts partially or fully bare with hands, hair, or sheet; heated eye contact; **steam bathroom OR velvet-drape lounge OR rain-kissed balcony** (pick one vivid backdrop); warm sidelight; photoreal; same anatomy as subject; no explicit genital focus; **no bikini top from profile card.**",
+      "Lewd sheer / sheet tease: **no bare breasts or nipples** — lace, open blouse, satin sheet, or wet fabric **with coverage**; heated eye contact; **steam bathroom OR velvet-drape lounge OR rain-kissed balcony** (pick one vivid backdrop); warm sidelight; photoreal; same anatomy as subject; **no nudity, no visible genitals, no explicit sexual acts, no phone in hand**; **no bikini top from profile card.**",
     paletteIndex: 1,
   },
   {
@@ -175,7 +175,7 @@ export const SMART_LEWD_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Crop lift, shadow under curve",
     userLine: "Underboob tease — that crop lift, slow and deliberate.",
     sceneExtension:
-      "Lewd underboob: cropped tee or athletic crop **different from roster swimwear** — lifted hem shows under-curve; torso arch; **neon alley, gym locker, or sun-drenched loft** as backdrop; moody contrast; confident or bratty expression; avoid explicit lower nudity.",
+      "Lewd underboob: cropped tee or athletic crop **different from roster swimwear** — lifted hem shows under-curve; torso arch; **neon alley, gym locker, or sun-drenched loft** as backdrop; moody contrast; confident or bratty expression; avoid explicit lower nudity; **no nudity, no visible genitals, no explicit sexual acts, no phone in hand**.",
     paletteIndex: 2,
   },
   {
@@ -184,7 +184,7 @@ export const SMART_LEWD_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Profile or three-quarter",
     userLine: "Sideboob angle — profile heat.",
     sceneExtension:
-      "Lewd sideboob: three-quarter or profile; open-side dress, loose tank, silk wrap, or unlaced corset (**not default bikini from card**); candlelit hall, velvet booth, or marble bath steam; rim light on curve; shallow DOF; elegant silhouette.",
+      "Lewd sideboob: three-quarter or profile; open-side dress, loose tank, silk wrap, or unlaced corset (**not default bikini from card**); candlelit hall, velvet booth, or marble bath steam; rim light on curve; shallow DOF; elegant silhouette; **no nudity, no visible genitals, no explicit sexual acts, no phone in hand**.",
     paletteIndex: 3,
   },
   {
@@ -193,7 +193,7 @@ export const SMART_LEWD_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Fabric, curve, glance — editorial",
     userLine: "Tasteful backshot — fabric and curve, still classy.",
     sceneExtension:
-      "Lewd editorial backshot: subject turned three-quarter away; **wardrobe tells the story** (slip, open-back dress, robe gap, or athletic crop) — not nude hardcore rear exposure; glance over shoulder or hair sweep; **new interior or dusk balcony**; warm rim on shoulders; same identity as portrait; **negative:** no gratuitous spread, no catalog swimsuit clone unless swim scene.",
+      "Lewd editorial backshot: subject turned three-quarter away; **wardrobe tells the story** (slip, open-back dress, robe gap, or athletic crop) — not nude hardcore rear exposure; glance over shoulder or hair sweep; **new interior or dusk balcony**; warm rim on shoulders; same identity as portrait; **negative:** no gratuitous spread, no catalog swimsuit clone unless swim scene; **no nudity, no visible genitals, no explicit sexual acts, no phone in hand**.",
     paletteIndex: 3,
   },
   {
@@ -202,7 +202,7 @@ export const SMART_LEWD_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Hips, fabric, arch — tasteful thirst",
     userLine: "Focus on your ass — arch, fabric, that slow pose.",
     sceneExtension:
-      "Lewd ass-focus: thong, cheeky shorts, or skirt lift — **fresh bottoms/pose**, not catalog swimsuit rear clone; back arch; glance over shoulder optional; **penthouse night city glow OR candlelit bedroom OR locker-room steam**; warm tungsten or neon rim; real skin texture; tasteful adult framing.",
+      "Lewd ass-focus: thong, cheeky shorts, or skirt lift — **fresh bottoms/pose**, not catalog swimsuit rear clone; back arch; glance over shoulder optional; **penthouse night city glow OR candlelit bedroom OR locker-room steam**; warm tungsten or neon rim; real skin texture; tasteful adult framing; **no nudity, no visible genitals, no explicit sexual acts, no phone in hand**.",
     paletteIndex: 4,
   },
   {
@@ -211,7 +211,7 @@ export const SMART_LEWD_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Counter, bed, or chair lean",
     userLine: "Bend over for the shot — counter or bed, your call.",
     sceneExtension:
-      "Lewd bend-over: hands on kitchen island, vanity, or chair back — **scene-specific outfit** (skirt, shorts, athleisure), not profile swimsuit; lower back curve; face to camera or cheek to shoulder; **cozy apartment, dressing room, or patio dusk**; intimate lamp light.",
+      "Lewd bend-over: hands on kitchen island, vanity, or chair back — **scene-specific outfit** (skirt, shorts, athleisure), not profile swimsuit; lower back curve; face to camera or cheek to shoulder; **cozy apartment, dressing room, or patio dusk**; intimate lamp light; **no nudity, no visible genitals, no explicit sexual acts, no phone in hand**.",
     paletteIndex: 5,
   },
   {
@@ -220,7 +220,7 @@ export const SMART_LEWD_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Rug, bed edge, power dynamic",
     userLine: "On your knees — slow, deliberate, for the camera.",
     sceneExtension:
-      "Lewd on-knees: plush rug, silk sheets, or tatami — pick a **new interior** from their era; lingerie or slip dress **designed for this shot**; thighs together or straddle-lite; wrists on thighs; sub/dom flavor per personality; warm fill + rim; fashion-thirst.",
+      "Lewd on-knees: plush rug, silk sheets, or tatami — pick a **new interior** from their era; lingerie or slip dress **designed for this shot**; thighs together or modest kneel; wrists on thighs; sub/dom flavor per personality; warm fill + rim; fashion-thirst; **no nudity, no visible genitals, no explicit sexual acts, no phone in hand**.",
     paletteIndex: 6,
   },
   {
@@ -229,7 +229,7 @@ export const SMART_LEWD_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Reclined, lingerie on",
     userLine: "Legs spread tease — still in lingerie, I want the tension.",
     sceneExtension:
-      "Lewd legs-apart tease: chaise, velvet sofa, or silk-draped bed — **varied set**; thighs apart in lingerie or harness; arched lower back; moody color grade; tension through fabric and pose, not clinical close-up; identity consistent.",
+      "Lewd legs-apart tease: chaise, velvet sofa, or silk-draped bed — **varied set**; thighs apart **only with lingerie / shorts / skirt still on** — suggestive tension through fabric and pose, not graphic spread or clinical close-up; arched lower back; moody color grade; identity consistent; **no nudity, no visible genitals, no explicit sexual acts, no phone in hand**.",
     paletteIndex: 7,
   },
   {
@@ -238,7 +238,7 @@ export const SMART_LEWD_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Hand over fabric or skin",
     userLine: "Touch yourself where I’m staring — tease first.",
     sceneExtension:
-      "Lewd self-touch: fingers over lingerie or bare stomach/inner thigh; heavy-lidded eyes; **soft spotlight bedroom OR moonlit window seat OR steamy bath edge**; shallow DOF; suggestive hands — lingerie invented for scene, not roster swim.",
+      "Lewd self-touch: fingers **over lingerie or fabric** at waist, ribs, or outer thigh — **no explicit genital contact**; heavy-lidded eyes; **soft spotlight bedroom OR moonlit window seat OR steamy bath edge**; shallow DOF; lingerie invented for scene, not roster swim; **no nudity, no visible genitals, no explicit sexual acts, no phone in hand**.",
     paletteIndex: 0,
   },
   {
@@ -247,7 +247,7 @@ export const SMART_LEWD_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Sheer, pinch, ice-tease implied",
     userLine: "Nipple play tease — sheer, pinch, something wicked.",
     sceneExtension:
-      "Lewd nipple tease: sheer robe, camisole, or hands/fingers — **not repeating bikini hardware from profile**; chain or silk detail optional; warm skin highlights; **private lounge or curtained alcove**; editorial boudoir heat.",
+      "Lewd nipple tease: sheer robe, camisole, or lace **with nipples covered by fabric or hands** — **not repeating bikini hardware from profile**; chain or silk detail optional; warm skin highlights; **private lounge or curtained alcove**; editorial boudoir heat; **no nudity, no visible genitals, no explicit sexual acts, no phone in hand**.",
     paletteIndex: 1,
   },
   {
@@ -256,7 +256,7 @@ export const SMART_LEWD_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Soaked tee, no bra — steam or rain",
     userLine: "Wet shirt cling — shower steam or rain.",
     sceneExtension:
-      "Lewd wet-shirt beat: **thin white or heather tee soaked through — NO bra underneath** — cotton clings to breasts; nipple silhouette and texture visible through fabric tastefully; steam shower, warm summer rain on terrace, or pool-house dusk; cinematic droplets and backlight; sultry playful expression; adults-only premium thirst-trap — **not** the catalog swimsuit under a tee.",
+      "Lewd wet-shirt beat: thin tee or tank **with bra or neutral lining** — fabric clings suggestively but **stays SFW** (no bare nipples, no see-through nudity); steam shower, warm summer rain on terrace, or pool-house dusk; cinematic droplets and backlight; sultry playful expression; adults-only editorial thirst — **not** the catalog swimsuit under a tee; **no nudity, no visible genitals, no explicit sexual acts, no phone in hand**.",
     paletteIndex: 2,
   },
   {
@@ -265,7 +265,7 @@ export const SMART_LEWD_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Hem lift, cheeky flash",
     userLine: "Skirt flip tease — cheeky, quick, hot.",
     sceneExtension:
-      "Lewd skirt flip: pleated, leather, or flowing skirt per era — hem lifted by wind or hand; thigh/cheek glimpse; **cobblestone alley, palace steps, or rooftop golden hour** — distinct backdrop; flirty eye contact; tasteful thirst.",
+      "Lewd skirt flip: pleated, leather, or flowing skirt per era — hem lifted by wind or hand; thigh/cheek glimpse; **cobblestone alley, palace steps, or rooftop golden hour** — distinct backdrop; flirty eye contact; tasteful thirst; **no nudity, no visible genitals, no explicit sexual acts, no phone in hand**.",
     paletteIndex: 3,
   },
   {
@@ -274,7 +274,7 @@ export const SMART_LEWD_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Leg line, garters, chair pose",
     userLine: "Stockings and heels — leg line for days.",
     sceneExtension:
-      "Lewd stockings & heels: garters, sheer denier, period or stiletto heel; **velvet chair, opera balcony, or noir hotel corridor**; seated leg-cross or standing pose; dominant or coquette energy; matching lingerie top — **no swimsuit legs-from-catalog paste.**",
+      "Lewd stockings & heels: garters, sheer denier, period or stiletto heel; **velvet chair, opera balcony, or noir hotel corridor**; seated leg-cross or standing pose; dominant or coquette energy; matching lingerie top — **no swimsuit legs-from-catalog paste.** **No nudity, no visible genitals, no explicit sexual acts, no phone in hand.**",
     paletteIndex: 4,
   },
   {
@@ -283,7 +283,7 @@ export const SMART_LEWD_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Choker, chain, eye contact",
     userLine: "Collar and leash shot — make it ours.",
     sceneExtension:
-      "Lewd collar & leash: leather choker or O-ring; chain toward camera; lingerie or harness **styled for this set**; **dungeon-soft candlelit OR cyber neon suite OR Victorian chamber** per era; consensual smirk; moody rim; adults-only fantasy — unique scene, not beach-card repeat.",
+      "Lewd collar & leash: leather choker or O-ring; chain toward camera; lingerie or harness **styled for this set**; **dungeon-soft candlelit OR cyber neon suite OR Victorian chamber** per era; consensual smirk; moody rim; adults-only fantasy — unique scene, not beach-card repeat; **no nudity, no visible genitals, no explicit sexual acts, no phone in hand**.",
     paletteIndex: 5,
   },
 ];
@@ -394,7 +394,7 @@ export const SMART_NUDE_STYLES: SmartChatPhotoStyleOption[] = [
     hint: "Reflection doubles the heat",
     userLine: "Mirror nude — show me front and reflection.",
     sceneExtension:
-      "NSFW mirror nude: full-length or three-quarter; reflection matches pose; phone visible optional; explicit nudity; warm tungsten mix; verify face consistency in mirror — same identity.",
+      "NSFW mirror nude: full-length or three-quarter; reflection matches pose; **no smartphone visible** in hands or reflection; explicit nudity only where artistic boudoir framing allows; warm tungsten mix; verify face consistency in mirror — same identity.",
     paletteIndex: 3,
   },
   {
