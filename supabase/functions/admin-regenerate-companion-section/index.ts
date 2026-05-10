@@ -281,20 +281,50 @@ Deno.serve(async (req) => {
         console.error("admin-regenerate portrait: appearance_reference failed", e);
       }
 
+      const refPatch = appearanceRef ? { appearance_reference: appearanceRef, character_reference: appearanceRef } : {};
+
       if (source === "forge") {
-        await adminClient.from("custom_characters").update({
+        const forgeUp = {
           image_url: publicUrl,
           avatar_url: publicUrl,
           static_image_url: publicUrl,
           image_prompt: imagePrompt,
-          ...(appearanceRef ? { appearance_reference: appearanceRef } : {}),
-        }).eq("id", filterId);
+          ...refPatch,
+        };
+        let { error: fe } = await adminClient.from("custom_characters").update(forgeUp).eq("id", filterId);
+        if (fe && /character_reference|PGRST204/i.test(fe.message ?? "")) {
+          const { error: e2 } = await adminClient
+            .from("custom_characters")
+            .update({
+              image_url: publicUrl,
+              avatar_url: publicUrl,
+              static_image_url: publicUrl,
+              image_prompt: imagePrompt,
+              ...(appearanceRef ? { appearance_reference: appearanceRef } : {}),
+            })
+            .eq("id", filterId);
+          fe = e2;
+        }
+        if (fe) console.error("admin-regenerate portrait forge update:", fe);
       } else {
-        await adminClient.from("companions").update({
+        const catUp = {
           image_url: publicUrl,
           image_prompt: imagePrompt,
-          ...(appearanceRef ? { appearance_reference: appearanceRef } : {}),
-        }).eq("id", filterId);
+          ...refPatch,
+        };
+        let { error: ce } = await adminClient.from("companions").update(catUp).eq("id", filterId);
+        if (ce && /character_reference|PGRST204/i.test(ce.message ?? "")) {
+          const { error: e2 } = await adminClient
+            .from("companions")
+            .update({
+              image_url: publicUrl,
+              image_prompt: imagePrompt,
+              ...(appearanceRef ? { appearance_reference: appearanceRef } : {}),
+            })
+            .eq("id", filterId);
+          ce = e2;
+        }
+        if (ce) console.error("admin-regenerate portrait catalog update:", ce);
       }
 
       return new Response(JSON.stringify({ ok: true, section, imageUrl: displayUrl, publicImageUrl: publicUrl }), {

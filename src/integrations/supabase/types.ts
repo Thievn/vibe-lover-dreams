@@ -106,6 +106,7 @@ export type Database = {
           profile_loop_video_enabled: boolean
           appearance: string
           appearance_reference: string | null
+          character_reference: string | null
           backstory: string
           bio: string
           created_at: string
@@ -115,6 +116,7 @@ export type Database = {
           gradient_from: string
           gradient_to: string
           id: string
+          identity_anatomy_detail: string | null
           image_prompt: string | null
           image_url: string | null
           is_active: boolean
@@ -139,6 +141,7 @@ export type Database = {
           profile_loop_video_enabled?: boolean
           appearance?: string
           appearance_reference?: string | null
+          character_reference?: string | null
           backstory?: string
           bio?: string
           created_at?: string
@@ -148,6 +151,7 @@ export type Database = {
           gradient_from?: string
           gradient_to?: string
           id: string
+          identity_anatomy_detail?: string | null
           image_prompt?: string | null
           image_url?: string | null
           is_active?: boolean
@@ -172,6 +176,7 @@ export type Database = {
           profile_loop_video_enabled?: boolean
           appearance?: string
           appearance_reference?: string | null
+          character_reference?: string | null
           backstory?: string
           bio?: string
           created_at?: string
@@ -181,6 +186,7 @@ export type Database = {
           gradient_from?: string
           gradient_to?: string
           id?: string
+          identity_anatomy_detail?: string | null
           image_prompt?: string | null
           image_url?: string | null
           is_active?: boolean
@@ -208,6 +214,7 @@ export type Database = {
           profile_loop_video_enabled: boolean
           appearance: string
           appearance_reference: string | null
+          character_reference: string | null
           approved: boolean
           avatar_url: string | null
           backstory: string
@@ -255,6 +262,7 @@ export type Database = {
           profile_loop_video_enabled?: boolean
           appearance?: string
           appearance_reference?: string | null
+          character_reference?: string | null
           approved?: boolean
           avatar_url?: string | null
           backstory?: string
@@ -302,6 +310,7 @@ export type Database = {
           profile_loop_video_enabled?: boolean
           appearance?: string
           appearance_reference?: string | null
+          character_reference?: string | null
           approved?: boolean
           avatar_url?: string | null
           backstory?: string

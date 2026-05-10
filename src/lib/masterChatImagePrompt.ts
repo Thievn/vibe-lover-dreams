@@ -19,6 +19,7 @@ import {
   type FabSelfieTier,
 } from "@/lib/chatImageSettings";
 import type { DbCompanion } from "@/hooks/useCompanions";
+import { resolveEffectiveCharacterReference } from "@/lib/characterReferenceImagePrompt";
 import { buildCompanionVisualIdentityCapsule } from "@/lib/buildCompanionVisualIdentityCapsule";
 import {
   CHAT_LIKENESS_SCENE_FORBIDDEN_INLINE,
@@ -305,7 +306,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
     "No duplicate faces, no collage, no watermark, no app UI, no on-image text, no disembodied parts unless the user explicitly asked.",
   ].join(" ");
 
-  const coreLook = (companion.appearanceReference || "").trim();
+  const coreLook = (resolveEffectiveCharacterReference(dbComp) ?? "").trim();
   const longAppear = (companion.appearance || "").trim();
   const charBlock = coreLook
     ? `CHARACTER APPEARANCE (exact core look — text only, no outfit/scene): ${companion.name}, ${companion.gender}. ${coreLook.slice(0, 2000)}${

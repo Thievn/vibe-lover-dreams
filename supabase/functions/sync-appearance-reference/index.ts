@@ -112,11 +112,19 @@ serve(async (req) => {
     });
 
     if (persistId) {
-      const { error: upErr } = await svc
-        .from("custom_characters")
-        .update({ appearance_reference: appearanceReference })
-        .eq("id", persistId)
-        .eq("user_id", user.id);
+      const patch: Record<string, unknown> = {
+        appearance_reference: appearanceReference,
+        character_reference: appearanceReference,
+      };
+      let { error: upErr } = await svc.from("custom_characters").update(patch).eq("id", persistId).eq("user_id", user.id);
+      if (upErr && /character_reference|PGRST204/i.test(upErr.message ?? "")) {
+        const { error: up2 } = await svc
+          .from("custom_characters")
+          .update({ appearance_reference: appearanceReference })
+          .eq("id", persistId)
+          .eq("user_id", user.id);
+        upErr = up2;
+      }
       if (upErr) {
         return new Response(JSON.stringify({ success: false, error: upErr.message }), {
           status: 400,

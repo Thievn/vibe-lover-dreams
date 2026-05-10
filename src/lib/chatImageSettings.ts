@@ -7,6 +7,7 @@ import {
   CHAT_LIKENESS_SUBJECT_ANCHOR,
   CHAT_LIKENESS_WRAP_KEEP_LINE,
 } from "@/lib/chatLikenessAnchors";
+import { IMAGINE_QUALITY_NEGATIVE_LINE, IMAGINE_QUALITY_POSITIVE_LINE } from "@/lib/characterReferenceImagePrompt";
 
 const AUTO_IMAGE_KEY = "lustforge-chat-auto-image";
 
@@ -98,9 +99,11 @@ export const FAB_SELFIE = {
 export type FabSelfieTier = keyof typeof FAB_SELFIE;
 
 /** Appended for Grok Imagine when a chat still tile supplies `styledSceneExtension` (Selfies & Lewd gallery). */
-export const CHAT_STILL_MENU_QUALITY_AND_ANATOMY = `**Generation quality (binding):** masterpiece, best quality, highly detailed, sharp focus, beautiful lighting, intricate detail, clean composition.
+export const CHAT_STILL_MENU_QUALITY_AND_ANATOMY = `**Generation quality (binding):** ${IMAGINE_QUALITY_POSITIVE_LINE}.
 
 **Anti-artifact / anatomy (binding — humans and fantasy):** one coherent subject; **two arms and two legs** unless CHARACTER APPEARANCE explicitly describes a different limb count (insectoid extras, naga lower body, canon amputation, etc.); **human hands: exactly five fingers per hand** unless the written species explicitly calls for another digit count; no fused, duplicated, or melted fingers; no extra arms or legs, no phantom mirrored limbs; **at most one tail** unless appearance text explicitly describes multiple tails; no duplicate faces or stacked heads; avoid low-res blur, heavy JPEG wreckage, and warped perspective.
+
+**Negative prompt (avoid):** ${IMAGINE_QUALITY_NEGATIVE_LINE}
 
 **Likeness vs scene (binding):** strongly match the companion reference for **face, eyes, lips, hair, hands, legs, skin, species marks, and body-type scale** — **outfit, pose, background, props, and lighting** only from this menu line plus the chat scenario; do not remaster the roster packshot layout or copy its wardrobe or backdrop.
 
@@ -344,13 +347,15 @@ export function isExplicitImageRequest(text: string): boolean {
   return needles.some((n) => t.includes(n));
 }
 
-function wrapFabSceneWithAppearanceLock(inner: string, appearanceReference: string): string {
-  const ref = appearanceReference.trim();
+function wrapFabSceneWithAppearanceLock(inner: string, identityReference: string): string {
+  const ref = identityReference.trim();
   if (!ref) return inner;
   return [
-    `Use this exact character appearance (subject-only — not their old photo’s room or outfit): ${ref}`,
+    `Use this exact character appearance as strong reference: ${ref}`,
     "",
-    "Now place this character in a completely new scene:",
+    "Maintain identical face, hair, eyes, body type, and all distinctive features.",
+    "",
+    "Now generate this new scene:",
     "",
     inner.trim(),
     "",
@@ -370,10 +375,13 @@ export function resolveChatImageGenerationPrompt(args: {
   styledSceneExtension?: string | null;
   /** From DB — primary likeness anchor for FAB / media-bar selfie & lewd tiers. */
   appearanceReference?: string | null;
+  /** DB `character_reference` — wins over appearanceReference when set. */
+  characterReference?: string | null;
 }): string {
   const menu = args.menuImagePrompt?.trim();
   const styled = args.styledSceneExtension?.trim();
-  const appearanceRef = args.appearanceReference?.trim() ?? "";
+  const appearanceRef =
+    (args.characterReference?.trim() || args.appearanceReference?.trim() || "").trim();
   if (menu) {
     const subjectAnchor = `${CHAT_LIKENESS_MENU_PRESET_IDENTITY_LEAD}\n\n${CHAT_LIKENESS_SUBJECT_ANCHOR}\n\n`;
     const lewdLighting =

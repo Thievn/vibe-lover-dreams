@@ -95,6 +95,7 @@ import {
   classifyChatImageMood,
   pickMenuImageTeaserLine,
 } from "@/lib/masterChatImagePrompt";
+import { resolveEffectiveCharacterReference } from "@/lib/characterReferenceImagePrompt";
 import { chatLikenessSameSubjectMandate } from "@/lib/chatLikenessAnchors";
 import { fetchChatImageTeaserLine } from "@/lib/fetchChatImageTeaserLine";
 import { inferChatMediaRoute, inferClipMoodFromUserText, pickRandomVideoLoadingLine } from "@/lib/chatVisualRouting";
@@ -801,7 +802,7 @@ export function useChatSessionController() {
           ? ` Forge image anchors (text, optional palette/vibe — not a shot list): ${forgeAnchors.slice(0, 720)}${forgeAnchors.length > 720 ? "…" : ""}`
           : "";
       /** Do not paste full `appearance` here — it often describes the roster still (beach, swimsuit) and hijacks Imagine before PRIMARY SCENE. Full prose stays in `prompt` / CHARACTER APPEARANCE only. */
-      const ar = (companion.appearanceReference ?? "").trim();
+      const ar = (resolveEffectiveCharacterReference(dbComp) ?? "").trim();
       const likenessRefUrl = resolveChatLikenessReferenceHttpsUrl({
         portraitUrl: companion.portraitUrl,
         db: dbComp,
@@ -842,6 +843,7 @@ export function useChatSessionController() {
           ? { visual_identity_capsule: visualIdentityCapsule.trim() }
           : {}),
         ...(likenessRefUrl ? { likeness_reference_image_url: likenessRefUrl } : {}),
+        ...(ar ? { character_reference: ar } : {}),
       };
 
       const { data, error } = await invokeGenerateImage({
@@ -901,6 +903,7 @@ export function useChatSessionController() {
         menuImagePrompt: menuBase,
         styledSceneExtension: preset.imagePrompt,
         appearanceReference: companion.appearanceReference ?? null,
+        characterReference: companion.characterReference ?? null,
       });
       const { prompt, portraitConsistencyLock, visualIdentityCapsule } = buildMasterChatImagePrompt({
         companion,
@@ -917,7 +920,7 @@ export function useChatSessionController() {
         inferForgeBodyTypeFromAppearance(dbComp.appearance) ??
         "Average Build";
       const artLabel = resolveChatArtStyleLabel(dbComp);
-      const arReward = (companion.appearanceReference ?? "").trim();
+      const arReward = (resolveEffectiveCharacterReference(dbComp) ?? "").trim();
       const rewardLikenessUrl = resolveChatLikenessReferenceHttpsUrl({
         portraitUrl: companion.portraitUrl,
         db: dbComp,
@@ -950,6 +953,7 @@ export function useChatSessionController() {
           "Wardrobe, undress, pose, and set come **only** from USER SCENE / **Requested framing (from menu)** — not from forge packshots or profile art.",
         ...(visualIdentityCapsule?.trim() ? { visual_identity_capsule: visualIdentityCapsule.trim() } : {}),
         ...(rewardLikenessUrl ? { likeness_reference_image_url: rewardLikenessUrl } : {}),
+        ...(arReward ? { character_reference: arReward } : {}),
       };
       const { data, error } = await invokeGenerateImage({
         prompt,
@@ -2036,6 +2040,7 @@ export function useChatSessionController() {
       menuImagePrompt: options?.imageGenerationPrompt ?? null,
       styledSceneExtension: options?.styledSceneExtension ?? null,
       appearanceReference: companion.appearanceReference ?? null,
+      characterReference: companion.characterReference ?? null,
     });
     const styledExt = options?.styledSceneExtension?.trim();
     const requestingImage = mediaRoute === "image";
@@ -2471,6 +2476,7 @@ export function useChatSessionController() {
         messageText: input,
         menuImagePrompt: null,
         appearanceReference: companion?.appearanceReference ?? null,
+        characterReference: companion?.characterReference ?? null,
       })
     : "";
   const rawDraftMediaRoute = input.trim() ? inferChatMediaRoute(input, false) : "text";

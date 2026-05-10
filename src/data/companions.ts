@@ -32,6 +32,8 @@ export interface Companion {
    * Primary anchor for in-chat selfie & lewd stills when set on DB-backed rows.
    */
   appearanceReference?: string | null;
+  /** Preferred physical-only lock for Imagine (DB `character_reference`). */
+  characterReference?: string | null;
   /** The Nexus — surfaced on profile & cards when present. */
   mergeStats?: {
     compatibility: number;

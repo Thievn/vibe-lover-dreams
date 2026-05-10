@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "backfill:portraits": "node scripts/backfill-missing-portraits.mjs"
+    "backfill:portraits": "node scripts/backfill-missing-portraits.mjs",
+    "backfill:character-reference": "node scripts/backfill-character-reference.mjs"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

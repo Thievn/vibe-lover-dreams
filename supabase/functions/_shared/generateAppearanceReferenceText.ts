@@ -1,3 +1,4 @@
+import { grokVisionImageModelCandidates } from "./grokVisionModels.ts";
 import {
   defaultGrokForgeParseModel,
   extractGrokAssistantText,
@@ -27,14 +28,6 @@ function clamp(s: string): string {
   const t = s.replace(/\s+/g, " ").trim();
   if (t.length <= MAX_OUT) return t;
   return `${t.slice(0, MAX_OUT).trimEnd()}…`;
-}
-
-function defaultGrokVisionModel(getEnv: (name: string) => string | undefined): string {
-  return (
-    getEnv("GROK_VISION_MODEL")?.trim() ||
-    getEnv("GROK_APPEARANCE_VISION_MODEL")?.trim() ||
-    "grok-2-vision-1212"
-  );
 }
 
 /**
@@ -88,18 +81,24 @@ export async function generateAppearanceReferenceText(
 
   let visionText = "";
   if (url.startsWith("http")) {
-    try {
-      visionText = await grokVisionAppearanceParagraph(getEnv, {
-        model: defaultGrokVisionModel(getEnv),
-        system: SYSTEM,
-        imageUrl: url,
-        userText: userTextParts.join("\n"),
-      });
-    } catch (e) {
-      console.error("generateAppearanceReferenceText Grok vision:", e);
+    for (const model of grokVisionImageModelCandidates(getEnv)) {
+      try {
+        const t = await grokVisionAppearanceParagraph(getEnv, {
+          model,
+          system: SYSTEM,
+          imageUrl: url,
+          userText: userTextParts.join("\n"),
+        });
+        if (t.trim().length >= 40) {
+          visionText = t;
+          break;
+        }
+      } catch (e) {
+        console.warn("generateAppearanceReferenceText: vision attempt failed, trying next model:", model, e);
+      }
     }
   }
-  if (visionText.length >= 40) return clamp(visionText);
+  if (visionText.trim().length >= 40) return clamp(visionText);
 
   if (!draft) {
     return clamp(
@@ -109,15 +108,25 @@ export async function generateAppearanceReferenceText(
   }
 
   const grokModel = defaultGrokForgeParseModel();
-  const distilled = await grokSingleChatAssistantText({
-    model: grokModel,
-    system: SYSTEM,
-    user: `Gender / presentation: ${gender}.
+  try {
+    const distilled = await grokSingleChatAssistantText({
+      model: grokModel,
+      system: SYSTEM,
+      user: `Gender / presentation: ${gender}.
 ${idAnat ? `Identity / anatomy: ${idAnat}\n` : ""}
 Writer appearance draft (strip scene, outfit, pose, and background — keep only permanent body/face/hair facts):
 ${draft}`,
-    temperature: 0.35,
-    max_tokens: 650,
-  });
-  return clamp(distilled);
+      temperature: 0.35,
+      max_tokens: 650,
+    });
+    const d = distilled.trim();
+    if (d.length >= 40) return clamp(d);
+  } catch (e) {
+    console.error("generateAppearanceReferenceText: text-only distill failed:", e);
+  }
+
+  return clamp(
+    visionText ||
+      `${gender} adult-presenting companion — preserve face, hair, skin, and body-type continuity from the profile portrait when generating new outfits and scenes.`,
+  );
 }

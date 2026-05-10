@@ -13,6 +13,7 @@ import { buildForgeStyleDnaPrefix } from "./forgeTabStyleDna.ts";
 import { decodeImageDataUrl } from "./togetherImage.ts";
 import { resolveXaiApiKey } from "./resolveXaiApiKey.ts";
 import { grokGenerateImageDataUrl } from "./xaiGrokImage.ts";
+import { enrichImaginePromptUniversal } from "./characterReferenceImagePrompt.ts";
 
 const getEnv = (name: string) => Deno.env.get(name);
 
@@ -108,10 +109,18 @@ export async function renderPortraitToStorage(opts: {
     isPortrait: true,
   });
 
-  const finalPrompt =
+  const rawFinal =
     effectiveTier === "forge_preview_sfw"
       ? buildPortraitFinalPrompt(imagePrompt, characterData)
       : await buildFullAdultArtPortraitPrompt(imagePrompt, characterData);
+  const ref =
+    String(characterData.character_reference ?? "").trim() ||
+    String(characterData.appearance_reference ?? "").trim() ||
+    "";
+  const finalPrompt = enrichImaginePromptUniversal({
+    corePrompt: rawFinal,
+    characterReference: ref.length >= 20 ? ref : null,
+  });
 
   const apiKey = resolveXaiApiKey(getEnv);
   if (!apiKey) {

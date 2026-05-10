@@ -160,6 +160,7 @@ const CUSTOM_CHARACTER_UPDATE_KEYS = new Set([
   "personality_forge",
   "vibe_theme_selections",
   "appearance_reference",
+  "character_reference",
 ]);
 
 function adminStockNeedsLoopVideo(c: DbCompanion): boolean {

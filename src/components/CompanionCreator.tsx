@@ -2457,7 +2457,9 @@ User flavor notes: ${extraNotes || "none"}`;
           gradient_to: NEON,
           image_url: portraitUrl,
           image_prompt: imagePromptOut,
-          ...(appearanceReferenceOut ? { appearance_reference: appearanceReferenceOut } : {}),
+          ...(appearanceReferenceOut
+            ? { appearance_reference: appearanceReferenceOut, character_reference: appearanceReferenceOut }
+            : {}),
           is_public: isAdmin && forcePrivateForgeRef.current ? false : isAdmin ? true : goPublic,
           approved: isAdmin && forcePrivateForgeRef.current ? false : isAdmin ? true : goPublic,
           ...(isAdmin
@@ -2530,8 +2532,8 @@ User flavor notes: ${extraNotes || "none"}`;
             }
             if (res.error) {
               const msg = formatSupabaseError(res.error);
-              if (/appearance_reference|PGRST204/i.test(msg)) {
-                const { appearance_reference: _ar, ...rest } = attempt;
+              if (/appearance_reference|character_reference|PGRST204/i.test(msg)) {
+                const { appearance_reference: _ar, character_reference: _cr, ...rest } = attempt;
                 attempt = rest;
                 res = await supabase.from("custom_characters").update(attempt).eq("id", embeddedUpdateUuid).select("id");
               }
@@ -2581,9 +2583,9 @@ User flavor notes: ${extraNotes || "none"}`;
             }
             if (res.error) {
               const msg = formatSupabaseError(res.error);
-              if (/appearance_reference|PGRST204/i.test(msg)) {
+              if (/appearance_reference|character_reference|PGRST204/i.test(msg)) {
                 attemptRows = attemptRows.map((r) => {
-                  const { appearance_reference: _ar, ...rest } = r;
+                  const { appearance_reference: _ar, character_reference: _cr, ...rest } = r;
                   return rest;
                 });
                 res = await supabase.from("custom_characters").insert(attemptRows).select("id");

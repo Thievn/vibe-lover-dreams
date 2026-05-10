@@ -21,6 +21,8 @@ export interface DbCompanion {
   appearance: string;
   /** Core physical appearance without outfit/scene — for chat image consistency. */
   appearance_reference?: string | null;
+  /** Physical-only Imagine lock (preferred over appearance_reference when set). */
+  character_reference?: string | null;
   personality: string;
   bio: string;
   system_prompt: string;
@@ -109,6 +111,8 @@ function coerceStockRow(row: Record<string, unknown>): DbCompanion {
     animated_image_url: (row.animated_image_url as string | null | undefined) ?? null,
     profile_loop_video_enabled: Boolean(row.profile_loop_video_enabled),
     rarity_border_overlay_url: (row.rarity_border_overlay_url as string | null | undefined) ?? null,
+    appearance_reference: (row.appearance_reference as string | null | undefined) ?? null,
+    character_reference: (row.character_reference as string | null | undefined) ?? null,
     tcg_stats:
       row.tcg_stats && typeof row.tcg_stats === "object" ? (row.tcg_stats as Record<string, unknown>) : null,
     display_traits: row.display_traits,
@@ -151,6 +155,7 @@ export function mapSupabaseCustomCharacterRow(row: Record<string, unknown>): DbC
     kinks: parseStringList(row.kinks),
     appearance: (row.appearance as string) || "",
     appearance_reference: (row.appearance_reference as string | null | undefined) ?? null,
+    character_reference: (row.character_reference as string | null | undefined) ?? null,
     personality: (row.personality as string) || "",
     bio: (row.bio as string) || "",
     system_prompt: (row.system_prompt as string) || "",
@@ -270,6 +275,7 @@ function staticListToDb(): DbCompanion[] {
     kinks: c.kinks,
     appearance: c.appearance,
     appearance_reference: null,
+    character_reference: null,
     personality: c.personality,
     bio: c.bio,
     system_prompt: c.systemPrompt,
@@ -317,6 +323,7 @@ export const dbToCompanion = (db: DbCompanion): Companion => ({
   kinks: db.kinks,
   appearance: db.appearance,
   appearanceReference: (db.appearance_reference ?? "").trim() || undefined,
+  characterReference: (db.character_reference ?? "").trim() || undefined,
   personality: db.personality,
   bio: db.bio,
   systemPrompt: db.system_prompt,

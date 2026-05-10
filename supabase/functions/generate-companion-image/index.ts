@@ -140,16 +140,27 @@ Deno.serve(async (req) => {
     }
 
     if (target === "forge") {
-      const { error: updateError } = await adminClient
-        .from("custom_characters")
-        .update({
-          image_url: publicUrl,
-          avatar_url: publicUrl,
-          static_image_url: publicUrl,
-          image_prompt: imagePrompt,
-          ...(appearanceRef ? { appearance_reference: appearanceRef } : {}),
-        })
-        .eq("id", forgeRowUuid);
+      const forgePatch: Record<string, unknown> = {
+        image_url: publicUrl,
+        avatar_url: publicUrl,
+        static_image_url: publicUrl,
+        image_prompt: imagePrompt,
+        ...(appearanceRef ? { appearance_reference: appearanceRef, character_reference: appearanceRef } : {}),
+      };
+      let { error: updateError } = await adminClient.from("custom_characters").update(forgePatch).eq("id", forgeRowUuid);
+      if (updateError && /character_reference|PGRST204/i.test(updateError.message ?? "")) {
+        const { error: e2 } = await adminClient
+          .from("custom_characters")
+          .update({
+            image_url: publicUrl,
+            avatar_url: publicUrl,
+            static_image_url: publicUrl,
+            image_prompt: imagePrompt,
+            ...(appearanceRef ? { appearance_reference: appearanceRef } : {}),
+          })
+          .eq("id", forgeRowUuid);
+        updateError = e2;
+      }
 
       if (updateError) {
         console.error("DB update error (forge):", updateError);
@@ -159,14 +170,23 @@ Deno.serve(async (req) => {
         });
       }
     } else {
-      const { error: updateError } = await adminClient
-        .from("companions")
-        .update({
-          image_url: publicUrl,
-          image_prompt: imagePrompt,
-          ...(appearanceRef ? { appearance_reference: appearanceRef } : {}),
-        })
-        .eq("id", companionId!);
+      const catPatch: Record<string, unknown> = {
+        image_url: publicUrl,
+        image_prompt: imagePrompt,
+        ...(appearanceRef ? { appearance_reference: appearanceRef, character_reference: appearanceRef } : {}),
+      };
+      let { error: updateError } = await adminClient.from("companions").update(catPatch).eq("id", companionId!);
+      if (updateError && /character_reference|PGRST204/i.test(updateError.message ?? "")) {
+        const { error: e2 } = await adminClient
+          .from("companions")
+          .update({
+            image_url: publicUrl,
+            image_prompt: imagePrompt,
+            ...(appearanceRef ? { appearance_reference: appearanceRef } : {}),
+          })
+          .eq("id", companionId!);
+        updateError = e2;
+      }
 
       if (updateError) {
         console.error("DB update error (catalog):", updateError);

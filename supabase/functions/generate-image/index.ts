@@ -33,6 +33,8 @@ import {
 } from "../_shared/likenessReferenceUrl.ts";
 import { CHAT_LIKENESS_EDGE_SAME_SUBJECT, CHAT_LIKENESS_SUBJECT_FEATURES_INLINE } from "../_shared/chatLikenessAnchors.ts";
 import { publicApiTeaserGuardResponse } from "../_shared/publicApiTeaserGate.ts";
+import { enrichImaginePromptUniversal } from "../_shared/characterReferenceImagePrompt.ts";
+import { resolveCharacterReferenceForImagine } from "../_shared/resolveCharacterReferenceFromDb.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -542,7 +544,13 @@ ${adultVisualRules}
 PRIMARY SCENE (follow closely — rewriter output is authoritative for mood and explicitness):
 ${safeRewritten}`.trim();
       })();
-    const finalPrompt = clampPromptForImagine(finalPromptRaw, TOGETHER_IMAGE_PROMPT_SOFT_LIMIT);
+    const companionIdForRef = String(cd.companionId ?? cd.companion_id ?? "").trim();
+    const charRefResolved = await resolveCharacterReferenceForImagine(supabase, companionIdForRef, cd);
+    const finalPromptRawEnriched = enrichImaginePromptUniversal({
+      corePrompt: finalPromptRaw,
+      characterReference: charRefResolved,
+    });
+    const finalPrompt = clampPromptForImagine(finalPromptRawEnriched, TOGETHER_IMAGE_PROMPT_SOFT_LIMIT);
 
     let imageDataUrl: string;
     try {
