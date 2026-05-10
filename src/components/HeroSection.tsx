@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Flame, Infinity, Lock, RefreshCw } from "lucide-react";
+import { Flame, Infinity as InfinityIcon, Lock, RefreshCw } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -210,7 +210,7 @@ export default function HeroSection({ onGetStarted }: HeroSectionProps) {
             </div>
             <div className="flex min-w-0 flex-col items-center">
               <div className="flex min-h-[2.75rem] sm:min-h-[3.25rem] w-full items-center justify-center">
-                <Infinity
+                <InfinityIcon
                   className="h-9 w-9 sm:h-11 sm:w-11 shrink-0 text-electric-teal drop-shadow-[0_0_14px_hsl(170_100%_50%_/_0.35)]"
                   strokeWidth={2.35}
                   aria-hidden

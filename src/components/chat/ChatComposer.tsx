@@ -36,6 +36,7 @@ import { CHAT_MESSAGE_FC_AFTER_DAILY_FREE } from "@/lib/forgeEconomy";
 import type { ChatStillMenuCategory } from "@/lib/chatStillMenuCategories";
 import { CHAT_LEWD_STILL_CATEGORIES, CHAT_SELFIE_STILL_CATEGORIES } from "@/lib/chatStillMenuCategories";
 import { cn } from "@/lib/utils";
+import type { ChatVisualVariant } from "@/components/chat/chatVisualVariant";
 
 function MicWaveBars({ active }: { active: boolean }) {
   if (!active) return null;
@@ -95,6 +96,7 @@ type Props = {
   photoDockLayout?: "full" | "live_voice";
   /** Free text lines left today (UTC); footer copy when drafting plain text. */
   textQuotaRemaining?: number | null;
+  visualVariant?: ChatVisualVariant;
 };
 
 const GALLERY_DND = "application/lustforge-gallery";
@@ -137,6 +139,7 @@ export function ChatComposer({
   userLoggedIn,
   photoDockLayout = "full",
   textQuotaRemaining = null,
+  visualVariant = "default",
 }: Props) {
   const [micLive, setMicLive] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -242,11 +245,15 @@ export function ChatComposer({
   );
 
   const liveDock = photoDockLayout === "live_voice";
+  const luxury = visualVariant === "luxury";
 
   return (
     <div
       className={cn(
-        "shrink-0 border-t border-white/[0.07] bg-gradient-to-t from-black/95 via-black/80 to-black/40 backdrop-blur-2xl",
+        "shrink-0 border-t backdrop-blur-2xl",
+        luxury
+          ? "border-fuchsia-500/12 bg-gradient-to-t from-[#030208]/98 via-[#08040f]/88 to-transparent shadow-[0_-24px_80px_rgba(0,0,0,0.55)]"
+          : "border-white/[0.07] bg-gradient-to-t from-black/95 via-black/80 to-black/40",
         liveDock
           ? "px-2.5 pt-2 pb-[max(0.65rem,env(safe-area-inset-bottom))] sm:px-3 sm:pt-2"
           : "px-3 pt-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] sm:px-4 sm:pt-3.5",
@@ -264,6 +271,7 @@ export function ChatComposer({
           chatImageLewdFc={chatImageLewdFc}
           videoClipFc={videoClipFc}
           photoDockLayout={photoDockLayout}
+          visualVariant={visualVariant}
         />
       ) : null}
 
@@ -280,9 +288,16 @@ export function ChatComposer({
           className={cn(
             "flex items-stretch gap-2 rounded-[1.15rem] border p-1.5 transition-[box-shadow,background,border-color]",
             liveDock ? "min-h-[3.35rem] sm:min-h-[3.5rem]" : "min-h-[3.75rem] sm:min-h-16",
-            focused
-              ? "border-primary/45 bg-gradient-to-r from-fuchsia-950/45 to-black/55 shadow-[0_0_0_1px_hsl(320_85%_50%_/_0.25),0_0_40px_hsl(320_85%_50%_/_0.15)]"
-              : "border-white/11 bg-black/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+            luxury &&
+              focused &&
+              "border-fuchsia-400/40 bg-[hsl(280_35%_8%/0.75)] shadow-[inset_0_0_0_1px_rgba(192,38,211,0.35),0_0_0_1px_rgba(168,85,247,0.2),0_0_48px_rgba(147,51,234,0.18)]",
+            luxury &&
+              !focused &&
+              "border-white/[0.08] bg-black/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] backdrop-blur-xl",
+            !luxury &&
+              focused &&
+              "border-primary/45 bg-gradient-to-r from-fuchsia-950/45 to-black/55 shadow-[0_0_0_1px_hsl(320_85%_50%_/_0.25),0_0_40px_hsl(320_85%_50%_/_0.15)]",
+            !luxury && !focused && "border-white/11 bg-black/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
             disabled && "opacity-50",
           )}
         >
@@ -291,10 +306,13 @@ export function ChatComposer({
               type="button"
               onClick={() => toggleVoice()}
               className={cn(
-                "inline-flex h-10 w-10 items-center justify-center rounded-xl text-[#00ffd4] transition-colors sm:h-11 sm:w-11",
-                "hover:bg-[#00ffd4]/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00ffd4]/40",
+                luxury
+                  ? "inline-flex h-9 w-9 items-center justify-center rounded-full border border-cyan-500/15 text-cyan-300/90 transition-colors sm:h-10 sm:w-10"
+                  : "inline-flex h-10 w-10 items-center justify-center rounded-xl text-[#00ffd4] transition-colors sm:h-11 sm:w-11",
+                !luxury && "hover:bg-[#00ffd4]/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00ffd4]/40",
+                luxury && "hover:border-cyan-400/35 hover:bg-cyan-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/30",
                 disabled && !micLive && "pointer-events-none opacity-40",
-                micLive && "bg-[#00ffd4]/15 ring-1 ring-[#00ffd4]/35",
+                micLive && (luxury ? "border-cyan-400/40 bg-cyan-500/10 ring-1 ring-cyan-400/30" : "bg-[#00ffd4]/15 ring-1 ring-[#00ffd4]/35"),
               )}
               title={micLive ? "Stop speech-to-text" : "Speech to text — tap again to stop"}
               aria-label={micLive ? "Stop speech-to-text" : "Start speech-to-text dictation"}
@@ -322,7 +340,12 @@ export function ChatComposer({
             type="submit"
             whileTap={{ scale: 0.99 }}
             disabled={loading || !input.trim() || disabled}
-            className="inline-flex h-14 min-w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-fuchsia-700 text-primary-foreground transition-opacity disabled:opacity-30 shadow-[0_4px_24px_hsl(320_85%_50%_/_0.35),0_0_40px_hsl(320_85%_50%_/_0.2)] sm:min-w-[3.75rem] sm:px-2"
+            className={cn(
+              "inline-flex items-center justify-center text-primary-foreground transition-opacity disabled:opacity-30",
+              luxury
+                ? "h-12 min-w-[3.25rem] rounded-full bg-gradient-to-br from-fuchsia-600 via-primary to-purple-900 px-5 shadow-[0_0_28px_rgba(236,72,153,0.45),0_4px_20px_rgba(0,0,0,0.4)] sm:h-[3.25rem] sm:min-w-[3.5rem]"
+                : "h-14 min-w-14 rounded-2xl bg-gradient-to-br from-primary to-fuchsia-700 shadow-[0_4px_24px_hsl(320_85%_50%_/_0.35),0_0_40px_hsl(320_85%_50%_/_0.2)] sm:min-w-[3.75rem] sm:px-2",
+            )}
             title={submitTitle}
           >
             {mediaDraftKind === "video" ? (
@@ -338,8 +361,8 @@ export function ChatComposer({
 
       <p
         className={cn(
-          "flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[9px] leading-relaxed text-muted-foreground/85 text-center px-0.5 sm:text-[10px]",
-          liveDock ? "mt-1.5" : "mt-2",
+          "flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[9px] leading-relaxed text-center px-0.5 sm:text-[10px]",
+          luxury ? "mt-1.5 text-muted-foreground/55" : cn("text-muted-foreground/85", liveDock ? "mt-1.5" : "mt-2"),
         )}
       >
         {userLoggedIn ? (
@@ -407,6 +430,7 @@ function StillStylePicker({
   chatImageLewdFc,
   videoClipFc,
   photoDockLayout = "full",
+  visualVariant = "default",
 }: {
   companionName: string;
   disabled: boolean;
@@ -418,6 +442,7 @@ function StillStylePicker({
   chatImageLewdFc: number;
   videoClipFc: number;
   photoDockLayout?: "full" | "live_voice";
+  visualVariant?: ChatVisualVariant;
 }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<StillTab>("selfies");
@@ -459,6 +484,7 @@ function StillStylePicker({
     setOpen(false);
   };
 
+  const luxury = visualVariant === "luxury";
   const galleryTrigger = (
     <motion.button
       type="button"
@@ -468,11 +494,18 @@ function StillStylePicker({
       title="Selfies & lewd stills"
       aria-label="Open still gallery — selfies or lewd inside"
       className={cn(
-        "inline-flex h-7 w-7 items-center justify-center rounded-lg border border-fuchsia-400/35 bg-gradient-to-br from-fuchsia-500/25 via-[#FF2D7B]/20 to-cyan-500/20 text-white shadow-[0_0_16px_rgba(255,45,123,0.15)] transition-[border-color,box-shadow,transform] hover:border-primary/45 hover:shadow-[0_0_22px_rgba(255,45,123,0.24)] sm:h-8 sm:w-8",
+        "inline-flex items-center justify-center text-white transition-[border-color,box-shadow,transform]",
+        luxury
+          ? "h-7 w-7 rounded-full border border-white/[0.1] bg-white/[0.04] shadow-none hover:border-fuchsia-500/35 hover:bg-fuchsia-500/10 sm:h-8 sm:w-8"
+          : "h-7 w-7 rounded-lg border border-fuchsia-400/35 bg-gradient-to-br from-fuchsia-500/25 via-[#FF2D7B]/20 to-cyan-500/20 shadow-[0_0_16px_rgba(255,45,123,0.15)] hover:border-primary/45 hover:shadow-[0_0_22px_rgba(255,45,123,0.24)] sm:h-8 sm:w-8",
         disabled && "pointer-events-none opacity-40",
       )}
     >
-      <Aperture className="h-[1.05rem] w-[1.05rem] sm:h-[1.15rem] sm:w-[1.15rem]" strokeWidth={2.25} aria-hidden />
+      <Aperture
+        className={cn(luxury ? "h-3.5 w-3.5 sm:h-4 sm:w-4" : "h-[1.05rem] w-[1.05rem] sm:h-[1.15rem] sm:w-[1.15rem]")}
+        strokeWidth={luxury ? 2 : 2.25}
+        aria-hidden
+      />
     </motion.button>
   );
 

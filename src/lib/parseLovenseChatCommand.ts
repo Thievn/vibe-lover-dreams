@@ -53,7 +53,7 @@ export function parseLooseInnerObject(innerWithBraces: string): Record<string, u
     const m = part.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*(.+)$/s);
     if (!m) continue;
     const k = m[1];
-    let v = m[2].trim();
+    const v = m[2].trim();
     if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
       out[k] = v.slice(1, -1);
       continue;

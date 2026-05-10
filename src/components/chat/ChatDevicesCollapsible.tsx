@@ -7,6 +7,7 @@ import type { CompanionVibrationPatternRow } from "@/hooks/useCompanionVibration
 import { cn } from "@/lib/utils";
 
 type Props = {
+  className?: string;
   companionName: string;
   connectedCount: number;
   activeCount: number;
@@ -33,6 +34,7 @@ type Props = {
 };
 
 export function ChatDevicesCollapsible({
+  className,
   companionName,
   connectedCount,
   activeCount,
@@ -60,7 +62,12 @@ export function ChatDevicesCollapsible({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="shrink-0 border-b border-white/[0.07] bg-black/35 backdrop-blur-xl">
+    <div
+      className={cn(
+        "shrink-0 border-b border-white/[0.07] bg-black/35 backdrop-blur-xl",
+        className,
+      )}
+    >
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

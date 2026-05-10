@@ -8,8 +8,6 @@ import { ChatPremiumHeader } from "@/components/chat/ChatPremiumHeader";
 import { ChatMessageThread } from "@/components/chat/ChatMessageThread";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatAmbientBackground } from "@/components/chat/ChatAmbientBackground";
-import { ChatMobilePortraitSpotlight } from "@/components/chat/ChatMobilePortraitSpotlight";
-import { ChatFloatingActionDock } from "@/components/chat/ChatFloatingActionDock";
 import { ChatSmartReplies } from "@/components/chat/ChatSmartReplies";
 import { ChatDevicesCollapsible } from "@/components/chat/ChatDevicesCollapsible";
 import { FloatingHeartsLayer } from "@/components/chat/FloatingHeartsLayer";
@@ -28,6 +26,7 @@ import { setChatSessionMode as persistChatSessionMode } from "@/lib/chatSessionM
 import { CHAT_IMAGE_LEWD_FC, CHAT_IMAGE_NUDE_FC } from "@/lib/forgeEconomy";
 import { DailyFreeMessagesBar } from "@/components/chat/DailyFreeMessagesBar";
 import { CHAT_VIDEO_TOKEN_COST, FAB_SELFIE, setChatAutoSpendImages } from "@/lib/chatImageSettings";
+import { resolveBreedingRitualPartnerB } from "@/lib/breedingRitualPartner";
 import type { UseChatSessionControllerReturn } from "@/pages/chat/useChatSessionController";
 
 export function MobileChatLayout(props: UseChatSessionControllerReturn) {
@@ -36,6 +35,8 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
 
   const {
     companion,
+    dbCompDisplay,
+    breedingPartnerDb,
     heartBursts,
     mood,
     affectionTier,
@@ -69,7 +70,6 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
     handleToggleToyEnabled,
     activeToys,
     portraitStillUrl,
-    headerAnimated,
     galleryImages,
     galleryImagesLoading,
     handlePortraitFromGallery,
@@ -164,7 +164,15 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
   );
 
   return (
-    <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,hsl(300_35%_12%/0.5),hsl(280_32%_4%))] text-foreground">
+    <div className="relative flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#030208] text-foreground [color-scheme:dark]">
+      <div
+        className="pointer-events-none absolute inset-0 z-[5] opacity-[0.5]"
+        aria-hidden
+        style={{
+          background:
+            "radial-gradient(ellipse 100% 70% at 50% -10%, rgba(147, 51, 234, 0.14), transparent 55%), radial-gradient(ellipse 80% 50% at 100% 100%, rgba(236, 72, 153, 0.08), transparent 50%)",
+        }}
+      />
       <FloatingHeartsLayer bursts={heartBursts} />
 
       <ChatPremiumHeader
@@ -176,7 +184,8 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
         tokensBalance={tokensBalance}
         isAdminUser={isAdminUser}
         safeWord={safeWord}
-        mobileCompact
+        variant="luxurySlim"
+        companionImageUrl={portraitStillUrl}
         onBack={() => {
           void handleEmergencyStop();
           const st = location.state as { from?: string; profileBackTarget?: string } | undefined;
@@ -237,31 +246,9 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
         }
       />
 
-      <div className="flex min-h-0 flex-1 flex-col">
-        <ChatMobilePortraitSpotlight
-          companion={companion}
-          imageUrl={portraitStillUrl}
-          headerAnimated={headerAnimated}
-          onVoiceClick={() => setVoiceSettingsOpen(true)}
-          compact
-        />
-        <div className="z-30 shrink-0 border-b border-white/[0.06] bg-black/35 py-0.5">
-          <ChatFloatingActionDock
-            companionId={companion.id}
-            onLiveCall={goLiveCallFromChat}
-            onRamp={handleRampPill}
-            hideRampButton={sessionMode === "live_voice"}
-            micro
-            onGallery={() => (user ? setGalleryOpen(true) : void navigate("/auth", { state: { from: location.pathname } }))}
-            onVoiceOptions={() => setVoiceSettingsOpen(true)}
-            safeWord={safeWord}
-            onEmergencyStop={() => void handleEmergencyStopFromUi()}
-            rampAvailable={Boolean(user)}
-            rampActive={sessionMode === "live_voice" && rampModeActive}
-            disabled={false}
-          />
-        </div>
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col">
         <ChatDevicesCollapsible
+          className="border-b border-fuchsia-500/[0.08] bg-[#050308]/55 backdrop-blur-xl"
           companionName={companion.name}
           connectedCount={connectedToys.length}
           activeCount={activeToys.length}
@@ -299,11 +286,11 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
         <div
           className={cn(
             "relative z-0 min-h-0 flex-1 overflow-y-auto overscroll-y-contain",
-            sessionMode === "live_voice" ? "pb-6" : "pb-14",
+            sessionMode === "live_voice" ? "pb-4" : "pb-8",
           )}
           style={{ WebkitOverflowScrolling: "touch" }}
         >
-          <ChatAmbientBackground activityKey={messages.length} />
+          <ChatAmbientBackground activityKey={messages.length} luxuryScanlines />
           <ChatMessageThread
             messages={messages}
             companion={companion}
@@ -329,13 +316,14 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
             toyDriveActive={toyDriveActive}
             compactThread={sessionMode === "live_voice"}
             onStopToyDrive={() => void stopSustainedToy()}
+            visualVariant="luxury"
           />
         </div>
 
         <div
           className={cn(
-            "z-20 shrink-0 bg-gradient-to-t from-black/80 to-transparent px-2",
-            sessionMode === "live_voice" ? "pb-0" : "pb-1",
+            "z-20 shrink-0 bg-gradient-to-t from-[#030208]/95 to-transparent px-2",
+            sessionMode === "live_voice" ? "pb-0" : "pb-0.5",
           )}
         >
           <ChatSmartReplies
@@ -343,6 +331,7 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
             disabled={false}
             loading={loading}
             compact={sessionMode === "live_voice"}
+            visualVariant="luxury"
             onPick={(s) => {
               setInput(s);
               void sendMessage(s);
@@ -380,16 +369,17 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
 
         <div
           className={cn(
-            "z-20 shrink-0 border-t border-white/[0.06] bg-gradient-to-t from-black/90 via-black/55 to-black/40",
-            sessionMode === "live_voice" ? "pt-1 pb-[max(0.35rem,env(safe-area-inset-bottom))]" : "pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]",
+            "z-20 shrink-0 border-t border-fuchsia-500/10 bg-gradient-to-t from-[#030208] via-[#050308]/95 to-transparent",
+            sessionMode === "live_voice" ? "pt-1 pb-[max(0.35rem,env(safe-area-inset-bottom))]" : "pt-1.5 pb-[max(0.45rem,env(safe-area-inset-bottom))]",
           )}
         >
-          <div className={sessionMode === "live_voice" ? "px-2 pb-0.5" : "px-2 pb-1.5"}>
+          <div className={sessionMode === "live_voice" ? "px-2 pb-0.5" : "px-2 pb-1"}>
             <DailyFreeMessagesBar
               visible={Boolean(user)}
               remainingFree={chatDailyQuotaUi.remainingFree}
               nextLineFc={chatDailyQuotaUi.nextMessageFc}
               isAdminUser={isAdminUser}
+              className="border-fuchsia-500/12 bg-black/35 py-1.5 text-[9px] shadow-none sm:text-[10px]"
             />
           </div>
           <ChatComposer
@@ -438,6 +428,7 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
             userLoggedIn={Boolean(user)}
             photoDockLayout={sessionMode === "live_voice" ? "live_voice" : "full"}
             onGalleryClipRequest={(p) => void generateChatVideoClip({ mood: p.mood, motionHint: p.motionHint })}
+            visualVariant="luxury"
           />
         </div>
       </div>
@@ -447,13 +438,13 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
         size="icon"
         onClick={() => setToolsOpen(true)}
         className={cn(
-          "fixed z-[45] h-12 w-12 rounded-full border border-primary/40 bg-gradient-to-br from-primary/90 to-primary/60 shadow-lg shadow-primary/20 sm:h-14 sm:w-14",
-          "bottom-[max(5.25rem,calc(4.25rem+env(safe-area-inset-bottom,0px)))] right-3 sm:bottom-[max(7rem,calc(5.5rem+env(safe-area-inset-bottom,0px)))] sm:right-4",
+          "fixed z-[45] h-10 w-10 rounded-full border border-fuchsia-500/25 bg-black/50 text-fuchsia-200/90 shadow-[0_0_20px_rgba(236,72,153,0.2)] backdrop-blur-md transition-opacity hover:opacity-100 sm:h-11 sm:w-11",
+          "bottom-[max(4.5rem,calc(3.75rem+env(safe-area-inset-bottom,0px)))] right-2.5 opacity-80 sm:bottom-[max(5.5rem,calc(4.5rem+env(safe-area-inset-bottom,0px)))] sm:right-3",
           "touch-manipulation",
         )}
         aria-label="Chat tools"
       >
-        <LayoutGrid className="h-6 w-6" />
+        <LayoutGrid className="h-4 w-4 sm:h-[1.15rem] sm:w-[1.15rem]" />
       </Button>
 
       <Sheet open={toolsOpen} onOpenChange={setToolsOpen}>
@@ -521,12 +512,14 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
         />
       ) : null}
 
-      {showBreedingRitual && companion && (
+      {showBreedingRitual && companion && dbCompDisplay && (
         <BreedingRitual
-          companionId={companion.id}
-          companionName={companion.name}
+          parentA={dbCompDisplay}
+          parentB={resolveBreedingRitualPartnerB(dbCompDisplay, breedingPartnerDb)}
           onClose={() => setShowBreedingRitual(false)}
           onComplete={handleBreedingComplete}
+          userId={user?.id}
+          hasConnectedToys={connectedToys.length > 0}
         />
       )}
     </div>

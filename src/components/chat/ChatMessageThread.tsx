@@ -9,6 +9,7 @@ import { ChatTypingIndicator } from "@/components/chat/ChatTypingIndicator";
 import { cn } from "@/lib/utils";
 import { parseAssistantDisplayContent } from "@/lib/chatSignatureBeat";
 import { getChatTypingVariant } from "@/lib/chatTypingPersonality";
+import type { ChatVisualVariant } from "@/components/chat/chatVisualVariant";
 
 type Props = {
   messages: ChatMessage[];
@@ -40,6 +41,7 @@ type Props = {
   onStopToyDrive?: () => void;
   /** Live Voice: tighter scroll padding + density so more messages fit above the dock. */
   compactThread?: boolean;
+  visualVariant?: ChatVisualVariant;
 };
 
 export function ChatMessageThread({
@@ -67,16 +69,23 @@ export function ChatMessageThread({
   toyDriveActive = false,
   onStopToyDrive,
   compactThread = false,
+  visualVariant = "default",
 }: Props) {
   const typingVariant = getChatTypingVariant(companion);
+  const luxury = visualVariant === "luxury";
 
   return (
     <div
       className={cn(
         "relative z-[1] mx-auto min-h-0 w-full min-w-0 max-w-full flex-1 overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch]",
-        compactThread
-          ? "space-y-3 scroll-pb-20 px-2.5 py-2 sm:px-4 md:space-y-4 md:py-3"
-          : "space-y-4 scroll-pb-36 px-3 py-3 sm:px-5 md:space-y-5 md:py-5",
+        luxury && !compactThread && "space-y-5 scroll-pb-28 px-3 py-4 sm:px-6 md:space-y-6 md:py-6",
+        !luxury &&
+          (compactThread
+            ? "space-y-3 scroll-pb-20 px-2.5 py-2 sm:px-4 md:space-y-4 md:py-3"
+            : "space-y-4 scroll-pb-36 px-3 py-3 sm:px-5 md:space-y-5 md:py-5"),
+        luxury &&
+          compactThread &&
+          "space-y-3 scroll-pb-16 px-2.5 py-2 sm:px-4 md:space-y-4 md:py-3",
       )}
     >
       {/* Phase 4: toy session — persistent strip so “toy active” is obvious without breaking chat layout */}
@@ -119,7 +128,14 @@ export function ChatMessageThread({
           )}
         >
           {msg.role === "assistant" ? (
-            <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-white/30 bg-zinc-900 shadow-[0_0_20px_rgba(168,85,247,0.15)] ring-1 ring-white/5 sm:h-10 sm:w-10">
+            <div
+              className={cn(
+                "h-9 w-9 shrink-0 overflow-hidden rounded-full border bg-zinc-900 sm:h-10 sm:w-10",
+                luxury
+                  ? "border-fuchsia-500/20 shadow-[0_0_16px_rgba(192,38,211,0.2)] ring-1 ring-purple-500/15"
+                  : "border-white/30 shadow-[0_0_20px_rgba(168,85,247,0.15)] ring-1 ring-white/5",
+              )}
+            >
               {companionImageUrl ? (
                 <img
                   src={companionImageUrl}
@@ -144,11 +160,28 @@ export function ChatMessageThread({
           <div
             className={cn(
               "min-w-0 max-w-[min(100%,38rem)] rounded-[1.25rem] px-4 py-[1.1rem] text-[15px] leading-relaxed break-words sm:px-5 sm:py-5",
-              msg.role === "user"
-                ? "rounded-br-[0.55rem] bg-gradient-to-br from-primary to-[hsl(320_70%_32%)] text-primary-foreground shadow-[0_4px_28px_rgba(0,0,0,0.35),0_0_40px_rgba(255,45,123,0.22),inset_0_1px_0_rgba(255,255,255,0.14)]"
-                : assistantDisplay.signatureBeat
-                  ? "border border-[#ff2d7b]/35 bg-gradient-to-br from-[#ff2d7b]/[0.15] via-fuchsia-950/25 to-[#00ffd4]/[0.08] text-foreground/95 rounded-bl-[0.55rem] backdrop-blur-md shadow-[0_0_44px_rgba(255,45,123,0.16),0_4px_24px_rgba(0,0,0,0.2)] ring-1 ring-[#ff2d7b]/25"
-                  : "border border-white/[0.11] bg-[hsl(280_24%_7%/0.94)] text-foreground/95 rounded-bl-[0.55rem] backdrop-blur-md shadow-[0_2px_24px_rgba(0,0,0,0.32),0_0_50px_-12px_rgba(168,85,247,0.12),inset_0_1px_0_rgba(255,255,255,0.04)]",
+              msg.role === "user" &&
+                luxury &&
+                "rounded-br-[0.55rem] border border-fuchsia-500/25 bg-gradient-to-br from-[hsl(300_55%_18%)] to-[hsl(280_50%_12%)] text-primary-foreground shadow-[0_4px_28px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md transition-[box-shadow,transform] duration-300 hover:shadow-[0_4px_32px_rgba(0,0,0,0.5),0_0_36px_rgba(236,72,153,0.35),inset_0_1px_0_rgba(255,255,255,0.1)]",
+              msg.role === "user" &&
+                !luxury &&
+                "rounded-br-[0.55rem] bg-gradient-to-br from-primary to-[hsl(320_70%_32%)] text-primary-foreground shadow-[0_4px_28px_rgba(0,0,0,0.35),0_0_40px_rgba(255,45,123,0.22),inset_0_1px_0_rgba(255,255,255,0.14)]",
+              msg.role === "assistant" &&
+                assistantDisplay.signatureBeat &&
+                luxury &&
+                "border border-[#ff2d7b]/30 bg-gradient-to-br from-[#ff2d7b]/[0.12] via-[hsl(280_40%_8%/0.85)] to-[#00ffd4]/[0.06] text-foreground/95 rounded-bl-[0.55rem] backdrop-blur-md shadow-[0_0_32px_rgba(255,45,123,0.12)] ring-1 ring-fuchsia-500/20",
+              msg.role === "assistant" &&
+                assistantDisplay.signatureBeat &&
+                !luxury &&
+                "border border-[#ff2d7b]/35 bg-gradient-to-br from-[#ff2d7b]/[0.15] via-fuchsia-950/25 to-[#00ffd4]/[0.08] text-foreground/95 rounded-bl-[0.55rem] backdrop-blur-md shadow-[0_0_44px_rgba(255,45,123,0.16),0_4px_24px_rgba(0,0,0,0.2)] ring-1 ring-[#ff2d7b]/25",
+              msg.role === "assistant" &&
+                !assistantDisplay.signatureBeat &&
+                luxury &&
+                "rounded-bl-[0.55rem] border border-white/[0.06] border-l-[3px] border-l-fuchsia-500/55 bg-[hsl(270_30%_6%/0.72)] text-foreground/95 shadow-[0_8px_32px_rgba(0,0,0,0.35)] backdrop-blur-xl",
+              msg.role === "assistant" &&
+                !assistantDisplay.signatureBeat &&
+                !luxury &&
+                "border border-white/[0.11] bg-[hsl(280_24%_7%/0.94)] text-foreground/95 rounded-bl-[0.55rem] backdrop-blur-md shadow-[0_2px_24px_rgba(0,0,0,0.32),0_0_50px_-12px_rgba(168,85,247,0.12),inset_0_1px_0_rgba(255,255,255,0.04)]",
             )}
           >
             {msg.imageUrl ? (
@@ -291,7 +324,14 @@ export function ChatMessageThread({
           </div>
 
           {msg.role === "user" ? (
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-cyan-500/15 bg-black/50 text-[11px] font-semibold text-foreground shadow-[0_0_20px_hsl(190_100%_50%_/_0.1)]">
+            <div
+              className={cn(
+                "flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border text-[11px] font-semibold text-foreground",
+                luxury
+                  ? "border-fuchsia-500/20 bg-black/60 shadow-[0_0_14px_rgba(192,38,211,0.15)]"
+                  : "border-cyan-500/15 bg-black/50 shadow-[0_0_20px_hsl(190_100%_50%_/_0.1)]",
+              )}
+            >
               {userAvatarUrl ? (
                 <img src={userAvatarUrl} alt="" className="h-full w-full object-cover" />
               ) : (

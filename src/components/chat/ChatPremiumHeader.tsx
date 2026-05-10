@@ -6,6 +6,8 @@ import type { Companion } from "@/data/companions";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
+export type ChatPremiumHeaderVariant = "default" | "luxurySlim";
+
 type Props = {
   companion: Companion;
   mood: string;
@@ -27,6 +29,10 @@ type Props = {
   showHeroInLeftColumn?: boolean;
   /** Tighter header + hide bond bar / footer links — mobile chat shell. */
   mobileCompact?: boolean;
+  /** Ultra-slim cyber-luxury strip (~56px) with avatar ring + status dot. */
+  variant?: ChatPremiumHeaderVariant;
+  /** Portrait / still URL for the glowing avatar ring (luxurySlim). */
+  companionImageUrl?: string | null;
 };
 
 /**
@@ -51,6 +57,8 @@ export function ChatPremiumHeader({
   toyStatusLabel,
   showHeroInLeftColumn = true,
   mobileCompact = false,
+  variant = "default",
+  companionImageUrl = null,
 }: Props) {
   const tier = Math.min(5, Math.max(1, affectionTier));
   const max = Math.max(1, affectionProgressMax);
@@ -58,7 +66,108 @@ export function ChatPremiumHeader({
   const pct = tier >= 5 ? 100 : Math.round((prog / max) * 100);
   const rarity = normalizeCompanionRarity(companion.rarity);
 
-  const compact = mobileCompact;
+  const compact = mobileCompact || variant === "luxurySlim";
+
+  if (variant === "luxurySlim") {
+    return (
+      <header
+        className="shrink-0 border-b border-fuchsia-500/[0.12] bg-[#050308]/80 shadow-[0_8px_40px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
+        style={{ paddingTop: "max(0.2rem, env(safe-area-inset-top))" }}
+      >
+        <div className="flex min-h-[56px] max-h-[60px] items-center gap-1.5 px-2 py-1 sm:gap-2 sm:px-3">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/[0.06] text-muted-foreground transition-colors hover:border-fuchsia-500/25 hover:bg-white/[0.04] hover:text-foreground"
+            title="Back"
+            aria-label="Back"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+
+          <div className="relative shrink-0">
+            <div
+              className="absolute -inset-0.5 rounded-full bg-gradient-to-tr from-fuchsia-600/50 via-purple-600/40 to-cyan-400/30 opacity-80 blur-[6px]"
+              aria-hidden
+            />
+            <div className="relative h-9 w-9 overflow-hidden rounded-full ring-2 ring-fuchsia-500/45 ring-offset-2 ring-offset-[#050308] shadow-[0_0_18px_rgba(236,72,153,0.45)]">
+              {companionImageUrl ? (
+                <img src={companionImageUrl} alt="" className="h-full w-full object-cover object-top" width={36} height={36} />
+              ) : (
+                <div
+                  className="flex h-full w-full items-center justify-center text-[11px] font-gothic font-bold text-white"
+                  style={{
+                    background: `linear-gradient(135deg, ${companion.gradientFrom}, ${companion.gradientTo})`,
+                  }}
+                >
+                  {companion.name.charAt(0)}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="min-w-0 flex-1 text-left">
+            <div className="flex items-center gap-1.5">
+              <h1
+                className="truncate font-gothic text-[0.95rem] font-semibold tracking-[0.02em] text-white/95 sm:text-base"
+                title={companion.name}
+              >
+                {companion.name}
+              </h1>
+              <span className="relative flex h-2 w-2 shrink-0" title="Online">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/40 opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.85)]" />
+              </span>
+            </div>
+            <p className="truncate text-[9px] font-medium uppercase tracking-[0.22em] text-fuchsia-200/55" title={mood}>
+              {mood}
+            </p>
+          </div>
+
+          <div className="flex max-w-[min(38vw,9.5rem)] shrink-0 items-center gap-0.5 overflow-x-auto py-0.5 sm:max-w-[13rem] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="flex shrink-0 scale-[0.92] items-center gap-1 origin-right sm:scale-100">{sessionControls}</div>
+          </div>
+
+          {onOpenGallery && showMobileGalleryButton ? (
+            <button
+              type="button"
+              onClick={onOpenGallery}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/[0.08] text-fuchsia-300/90 transition-colors hover:border-fuchsia-500/35 hover:bg-fuchsia-500/10 md:hidden"
+              title="Gallery"
+              aria-label="Open gallery"
+            >
+              <Images className="h-4 w-4" />
+            </button>
+          ) : null}
+
+          <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+            {rightSlot}
+            <div className="inline-flex items-center gap-0.5 rounded-full border border-white/[0.08] bg-black/50 px-1.5 py-0.5 text-[9px] backdrop-blur-md sm:px-2 sm:text-[10px]">
+              <Flame className="h-2.5 w-2.5 shrink-0 text-fuchsia-400" />
+              <span
+                className={cn(
+                  "max-w-[2.75rem] truncate font-semibold tabular-nums sm:max-w-[3.25rem]",
+                  !isAdminUser && tokensBalance < 100 ? "text-rose-300" : "text-white/90",
+                )}
+                title={isAdminUser ? "Admin" : `Forge credits: ${tokensBalance}`}
+              >
+                {isAdminUser ? "∞" : tokensBalance.toLocaleString()}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={onEmergencyStop}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-rose-500/15 text-rose-400/90 transition-colors hover:bg-rose-500/10"
+              title="Emergency stop (same as your safe word)"
+              aria-label="Emergency stop all activity"
+            >
+              <AlertOctagon className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header

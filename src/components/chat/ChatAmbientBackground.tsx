@@ -6,13 +6,15 @@ type Props = {
   /** Bumps a subtle “pulse” (grid / glow) when the thread changes — e.g. new messages. */
   activityKey: number;
   className?: string;
+  /** Faint horizontal scanlines over the thread (luxury mobile / desktop column). */
+  luxuryScanlines?: boolean;
 };
 
 /**
  * Faint cyber-goth atmosphere: moving gradient orbs, soft grid, occasional lightning.
  * Stays at very low contrast so it never competes with message text.
  */
-export function ChatAmbientBackground({ activityKey, className }: Props) {
+export function ChatAmbientBackground({ activityKey, className, luxuryScanlines = false }: Props) {
   const [flash, setFlash] = useState(0);
   useEffect(() => {
     if (activityKey <= 0) return;
@@ -24,6 +26,15 @@ export function ChatAmbientBackground({ activityKey, className }: Props) {
       className={cn("pointer-events-none absolute inset-0 z-0 select-none overflow-hidden", className)}
       aria-hidden
     >
+      {luxuryScanlines ? (
+        <div
+          className="absolute inset-0 opacity-[0.07] mix-blend-soft-light"
+          style={{
+            backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(168, 85, 247, 0.12) 2px, rgba(168, 85, 247, 0.12) 3px)`,
+          }}
+        />
+      ) : null}
+
       {/* Film grain / texture — ultra subtle */}
       <div
         className="absolute inset-0 opacity-[0.035] mix-blend-overlay"

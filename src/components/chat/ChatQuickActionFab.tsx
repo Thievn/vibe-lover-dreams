@@ -31,13 +31,22 @@ type Props = {
   onAction: (id: FabActionId) => void;
   /** Per-action disable (e.g. no toy connected). */
   isActionDisabled?: (id: FabActionId) => boolean;
+  /** Softer, smaller control — matches luxury chat chrome. */
+  luxury?: boolean;
 };
 
-export function ChatQuickActionFab({ onAction, isActionDisabled }: Props) {
+export function ChatQuickActionFab({ onAction, isActionDisabled, luxury = false }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-[calc(14.5rem+env(safe-area-inset-bottom))] left-3 z-40 sm:bottom-[calc(12.5rem+env(safe-area-inset-bottom))] sm:left-5 md:left-8">
+    <div
+      className={cn(
+        "fixed z-40",
+        luxury
+          ? "bottom-[calc(13rem+env(safe-area-inset-bottom))] left-2.5 opacity-90 sm:bottom-[calc(11rem+env(safe-area-inset-bottom))] sm:left-4 md:left-6"
+          : "bottom-[calc(14.5rem+env(safe-area-inset-bottom))] left-3 sm:bottom-[calc(12.5rem+env(safe-area-inset-bottom))] sm:left-5 md:left-8",
+      )}
+    >
       <AnimatePresence>
         {open ? (
           <motion.div
@@ -95,9 +104,10 @@ export function ChatQuickActionFab({ onAction, isActionDisabled }: Props) {
         whileTap={{ scale: 0.94 }}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center shadow-lg border border-primary/40",
-          "bg-gradient-to-br from-[#FF2D7B] to-[hsl(280_45%_32%)] text-white",
-          "hover:shadow-[0_0_28px_rgba(255,45,123,0.45)] transition-shadow",
+          "flex items-center justify-center rounded-full border shadow-lg transition-shadow",
+          luxury
+            ? "h-10 w-10 border-fuchsia-500/25 bg-black/55 text-fuchsia-100 backdrop-blur-md hover:shadow-[0_0_22px_rgba(236,72,153,0.28)] sm:h-11 sm:w-11"
+            : "h-12 w-12 border-primary/40 bg-gradient-to-br from-[#FF2D7B] to-[hsl(280_45%_32%)] text-white hover:shadow-[0_0_28px_rgba(255,45,123,0.45)] sm:h-14 sm:w-14",
         )}
         aria-expanded={open}
         aria-label={open ? "Close quick actions" : "Quick actions — toys, praise, gallery"}
@@ -108,7 +118,11 @@ export function ChatQuickActionFab({ onAction, isActionDisabled }: Props) {
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.18 }}
         >
-          {open ? <X className="h-6 w-6 sm:h-7 sm:w-7" /> : <Sparkles className="h-6 w-6 sm:h-7 sm:w-7" />}
+          {open ? (
+            <X className={cn(luxury ? "h-4 w-4 sm:h-[1.15rem] sm:w-[1.15rem]" : "h-6 w-6 sm:h-7 sm:w-7")} />
+          ) : (
+            <Sparkles className={cn(luxury ? "h-4 w-4 sm:h-[1.15rem] sm:w-[1.15rem]" : "h-6 w-6 sm:h-7 sm:w-7")} />
+          )}
         </motion.span>
       </motion.button>
     </div>

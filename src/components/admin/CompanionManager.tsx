@@ -12,7 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Search, Save, RefreshCw, Plus, Eye, EyeOff, ChevronDown, ChevronUp,
-  Loader2, X, ImageIcon, Palette, ArrowLeft, Sparkles, Trash2, Waves, Video, ExternalLink,
+  Loader2, X, ImageIcon, ArrowLeft, Sparkles, Trash2, Waves, Video, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { withAsyncTimeout } from "@/lib/withAsyncTimeout";
@@ -1469,18 +1469,6 @@ const CompanionManager = () => {
               </div>
               <TextArea label="Appearance" value={createData.appearance} onChange={(v) => setCreateData(p => ({ ...p, appearance: v }))} rows={4} placeholder="Physical description..." />
               <TextArea label="Image Prompt" value={createData.image_prompt || ""} onChange={(v) => setCreateData(p => ({ ...p, image_prompt: v }))} rows={3} placeholder="Image generation prompt..." />
-              <div className="flex items-center gap-4">
-                <Palette className="h-4 w-4 text-muted-foreground" />
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-muted-foreground">From:</label>
-                  <input type="color" value={createData.gradient_from} onChange={(e) => setCreateData(p => ({ ...p, gradient_from: e.target.value }))} className="w-8 h-8 rounded border border-border cursor-pointer" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-muted-foreground">To:</label>
-                  <input type="color" value={createData.gradient_to} onChange={(e) => setCreateData(p => ({ ...p, gradient_to: e.target.value }))} className="w-8 h-8 rounded border border-border cursor-pointer" />
-                </div>
-                <div className="w-20 h-8 rounded" style={{ background: `linear-gradient(135deg, ${createData.gradient_from}, ${createData.gradient_to})` }} />
-              </div>
             </div>
           </div>
 
@@ -1647,34 +1635,18 @@ const CompanionManager = () => {
               </div>
 
               {/* Portrait — same frame stack as public profile (2:3 + frame bleed when loop MP4 is on). */}
-              <div className="flex items-start gap-4">
-                <div className="w-full max-w-[min(100%,11rem)] shrink-0">
-                  <AdminCompanionPortraitPreview
-                    name={companion.name}
-                    stillSrc={adminStillPreview}
-                    animatedSrc={adminAnimPreview}
-                    profileLoopEnabled={adminLoopPreviewEnabled}
-                    rarity={editRarity}
-                    isAbyssal={editRarity === "abyssal"}
-                    gradientFrom={String(val("gradient_from"))}
-                    gradientTo={String(val("gradient_to"))}
-                    overlayUrl={adminOverlayPreview}
-                  />
-                </div>
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center gap-4">
-                    <Palette className="h-4 w-4 text-muted-foreground" />
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-muted-foreground">From:</label>
-                      <input type="color" value={val("gradient_from") as string} onChange={(e) => setField(companion.id, "gradient_from", e.target.value)} className="w-8 h-8 rounded border border-border cursor-pointer" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-muted-foreground">To:</label>
-                      <input type="color" value={val("gradient_to") as string} onChange={(e) => setField(companion.id, "gradient_to", e.target.value)} className="w-8 h-8 rounded border border-border cursor-pointer" />
-                    </div>
-                  </div>
-                  <div className="w-full h-6 rounded" style={{ background: `linear-gradient(135deg, ${val("gradient_from")}, ${val("gradient_to")})` }} />
-                </div>
+              <div className="mx-auto w-full max-w-[min(100%,11rem)] sm:mx-0">
+                <AdminCompanionPortraitPreview
+                  name={companion.name}
+                  stillSrc={adminStillPreview}
+                  animatedSrc={adminAnimPreview}
+                  profileLoopEnabled={adminLoopPreviewEnabled}
+                  rarity={editRarity}
+                  isAbyssal={editRarity === "abyssal"}
+                  gradientFrom={String(val("gradient_from"))}
+                  gradientTo={String(val("gradient_to"))}
+                  overlayUrl={adminOverlayPreview}
+                />
               </div>
 
               {/* Appearance */}

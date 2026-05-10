@@ -7,8 +7,6 @@ import { ChatMessageThread } from "@/components/chat/ChatMessageThread";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatAmbientBackground } from "@/components/chat/ChatAmbientBackground";
 import { ChatLeftHeroPanel } from "@/components/chat/ChatLeftHeroPanel";
-import { ChatFloatingActionDock } from "@/components/chat/ChatFloatingActionDock";
-import { ChatMobilePortraitSpotlight } from "@/components/chat/ChatMobilePortraitSpotlight";
 import { ChatQuickActionFab } from "@/components/chat/ChatQuickActionFab";
 import { ChatSmartReplies } from "@/components/chat/ChatSmartReplies";
 import { ChatDevicesCollapsible } from "@/components/chat/ChatDevicesCollapsible";
@@ -25,6 +23,7 @@ import { setChatSessionMode as persistChatSessionMode } from "@/lib/chatSessionM
 import { CHAT_IMAGE_LEWD_FC, CHAT_IMAGE_NUDE_FC } from "@/lib/forgeEconomy";
 import { DailyFreeMessagesBar } from "@/components/chat/DailyFreeMessagesBar";
 import { CHAT_VIDEO_TOKEN_COST, FAB_SELFIE, setChatAutoSpendImages } from "@/lib/chatImageSettings";
+import { resolveBreedingRitualPartnerB } from "@/lib/breedingRitualPartner";
 import { cn } from "@/lib/utils";
 import type { UseChatSessionControllerReturn } from "./useChatSessionController";
 
@@ -32,6 +31,8 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
   if (!props.companion) return null;
   const {
     companion,
+    dbCompDisplay,
+    breedingPartnerDb,
     heartBursts,
     mood,
     affectionTier,
@@ -111,8 +112,6 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
     prepareToyForRamp,
     liveVoiceStopTick,
     setVoiceSettingsOpen,
-    goLiveCallFromChat,
-    handleRampPill,
     draftMediaRoute,
     imageSubmitTitle,
     videoSubmitTitle,
@@ -145,7 +144,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
   } = props;
 
   return (
-    <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,hsl(300_35%_12%/0.5),hsl(280_32%_4%))] text-foreground">
+    <div className="relative flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#030208] text-foreground [color-scheme:dark]">
       <FloatingHeartsLayer bursts={heartBursts} />
 
       <ChatPremiumHeader
@@ -236,30 +235,9 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
             hasGalleryUser={Boolean(user)}
           />
 
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <ChatMobilePortraitSpotlight
-              companion={companion}
-              imageUrl={portraitStillUrl}
-              headerAnimated={headerAnimated}
-              onVoiceClick={() => setVoiceSettingsOpen(true)}
-            />
-            <div className="z-30 shrink-0 border-b border-white/[0.06] bg-black/35 py-0.5">
-              <ChatFloatingActionDock
-                companionId={companion.id}
-                onLiveCall={goLiveCallFromChat}
-                onRamp={handleRampPill}
-                hideRampButton={sessionMode === "live_voice"}
-                micro
-                onGallery={() => (user ? setGalleryOpen(true) : void navigate("/auth", { state: { from: location.pathname } }))}
-                onVoiceOptions={() => setVoiceSettingsOpen(true)}
-                safeWord={safeWord}
-                onEmergencyStop={() => void handleEmergencyStopFromUi()}
-                rampAvailable={Boolean(user)}
-                rampActive={sessionMode === "live_voice" && rampModeActive}
-                disabled={false}
-              />
-            </div>
+          <div className="relative mx-auto flex min-h-0 min-w-0 w-full max-w-md flex-1 flex-col xl:my-3 xl:mr-5 xl:max-w-lg xl:rounded-2xl xl:border xl:border-fuchsia-500/[0.12] xl:bg-[#050308]/40 xl:shadow-[0_0_80px_rgba(0,0,0,0.55)] xl:backdrop-blur-sm">
             <ChatDevicesCollapsible
+              className="border-b border-fuchsia-500/[0.08] bg-[#050308]/55 backdrop-blur-xl"
               companionName={companion.name}
               connectedCount={connectedToys.length}
               activeCount={activeToys.length}
@@ -293,7 +271,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
             )}
 
             <div className="relative z-0 flex min-h-0 flex-1 flex-col">
-              <ChatAmbientBackground activityKey={messages.length} />
+              <ChatAmbientBackground activityKey={messages.length} luxuryScanlines />
               <ChatMessageThread
                 messages={messages}
                 companion={companion}
@@ -319,13 +297,14 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
                 toyDriveActive={toyDriveActive}
                 onStopToyDrive={() => void stopSustainedToy()}
                 compactThread={sessionMode === "live_voice"}
+                visualVariant="luxury"
               />
             </div>
 
             <div
               className={cn(
-                "z-20 shrink-0 bg-gradient-to-t from-black/80 to-transparent px-2 sm:px-3",
-                sessionMode === "live_voice" ? "pb-0" : "pb-1",
+                "z-20 shrink-0 bg-gradient-to-t from-[#030208]/95 to-transparent px-2 sm:px-3",
+                sessionMode === "live_voice" ? "pb-0" : "pb-0.5",
               )}
             >
               <ChatSmartReplies
@@ -333,6 +312,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
                 disabled={false}
                 loading={loading}
                 compact={sessionMode === "live_voice"}
+                visualVariant="luxury"
                 onPick={(s) => {
                   setInput(s);
                   void sendMessage(s);
@@ -371,16 +351,17 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
             <div
               className={
                 sessionMode === "live_voice"
-                  ? "z-20 shrink-0 bg-gradient-to-t from-black/90 to-black/50 pb-[max(0.15rem,env(safe-area-inset-bottom))]"
+                  ? "z-20 shrink-0 bg-gradient-to-t from-[#030208] to-black/50 pb-[max(0.15rem,env(safe-area-inset-bottom))]"
                   : "z-20 shrink-0"
               }
             >
-              <div className={sessionMode === "live_voice" ? "px-2 pb-0.5 sm:px-3" : "px-2 pb-1.5 sm:px-3"}>
+              <div className={sessionMode === "live_voice" ? "px-2 pb-0.5 sm:px-3" : "px-2 pb-1 sm:px-3"}>
                 <DailyFreeMessagesBar
                   visible={Boolean(user)}
                   remainingFree={chatDailyQuotaUi.remainingFree}
                   nextLineFc={chatDailyQuotaUi.nextMessageFc}
                   isAdminUser={isAdminUser}
+                  className="border-fuchsia-500/12 bg-black/35 py-1.5 text-[9px] shadow-none sm:text-[10px]"
                 />
               </div>
               <ChatComposer
@@ -429,6 +410,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
                 userLoggedIn={Boolean(user)}
                 photoDockLayout={sessionMode === "live_voice" ? "live_voice" : "full"}
                 onGalleryClipRequest={(p) => void generateChatVideoClip({ mood: p.mood, motionHint: p.motionHint })}
+                visualVariant="luxury"
               />
             </div>
           </div>
@@ -436,6 +418,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
       </div>
 
       <ChatQuickActionFab
+        luxury
         onAction={handleFabAction}
         isActionDisabled={(actionId) =>
           actionId === "vibration" && (!hasDevice || vibrationPatterns.length === 0)
@@ -484,12 +467,14 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
         />
       ) : null}
 
-      {showBreedingRitual && companion && (
+      {showBreedingRitual && companion && dbCompDisplay && (
         <BreedingRitual
-          companionId={companion.id}
-          companionName={companion.name}
+          parentA={dbCompDisplay}
+          parentB={resolveBreedingRitualPartnerB(dbCompDisplay, breedingPartnerDb)}
           onClose={() => setShowBreedingRitual(false)}
           onComplete={handleBreedingComplete}
+          userId={user?.id}
+          hasConnectedToys={connectedToys.length > 0}
         />
       )}
     </div>

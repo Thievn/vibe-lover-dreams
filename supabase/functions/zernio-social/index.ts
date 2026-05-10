@@ -683,7 +683,7 @@ Deno.serve(async (req) => {
 
         let name = "Companion";
         let tagline = "";
-        let profilePath = `/companions/${cid}`;
+        const profilePath = `/companions/${cid}`;
 
         if (cid.startsWith("cc-")) {
           const uuid = cid.slice(3);

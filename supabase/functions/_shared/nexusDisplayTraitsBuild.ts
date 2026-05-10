@@ -76,7 +76,7 @@ export function buildNexusDisplayTraitRows(input: {
   const a = parseParentTraits(input.parentA.display_traits);
   const b = parseParentTraits(input.parentB.display_traits);
   const inter = a.filter((id) => b.includes(id));
-  let inherited: string[] = inter.length
+  const inherited: string[] = inter.length
     ? pickK(inter, seed, Math.min(3, target - 1), "inter")
     : pickK(
       [...new Set([...a, ...b])].filter((id) => ROLL.has(id)),

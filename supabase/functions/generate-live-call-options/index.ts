@@ -56,7 +56,7 @@ function normalizeOptions(raw: RawOption[]): {
     const instructionAugment = String(r.instructionAugment ?? "").trim();
     if (!title || !subtitle || !moodTag || !instructionAugment) continue;
 
-    let baseSlug = slugifyBase(String(r.slug ?? "").trim() || title);
+    const baseSlug = slugifyBase(String(r.slug ?? "").trim() || title);
     let slug = baseSlug;
     let n = 2;
     while (usedSlugs.has(slug)) {

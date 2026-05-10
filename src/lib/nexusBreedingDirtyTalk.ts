@@ -123,11 +123,8 @@ function pickFrom<T extends readonly string[]>(pool: T, avoid: Set<string>): str
   return pick[Math.floor(Math.random() * pick.length)]!;
 }
 
-/** Returns which parent "speaks" (0 = first/parent A slot, 1 = second) and the line. */
-export function nextNexusBreedingUtterance(
-  weights: NexusBreedingPoolWeights,
-  recent: Set<string>,
-): { speaker: 0 | 1; text: string } {
+/** Draw one explicit line and register it in `recent` (caps size). */
+export function pickNexusBreedingLine(weights: NexusBreedingPoolWeights, recent: Set<string>): string {
   const r = Math.random();
   let pool: readonly string[];
   if (r < weights.wPussy) pool = NEXUS_DIRTY_POOL_PUSSY;
@@ -139,6 +136,29 @@ export function nextNexusBreedingUtterance(
     recent.clear();
   }
   recent.add(text);
+  return text;
+}
 
+/** Returns which parent "speaks" (0 = first/parent A slot, 1 = second) and the line. */
+export function nextNexusBreedingUtterance(
+  weights: NexusBreedingPoolWeights,
+  recent: Set<string>,
+): { speaker: 0 | 1; text: string } {
+  const text = pickNexusBreedingLine(weights, recent);
   return { speaker: Math.random() < 0.5 ? 0 : 1, text };
+}
+
+/** Biases toward alternating speakers so the thread reads like a back-and-forth. */
+export function nextNexusBreedingUtteranceConversational(
+  weights: NexusBreedingPoolWeights,
+  recent: Set<string>,
+  lastSpeaker: 0 | 1 | null,
+): { speaker: 0 | 1; text: string } {
+  const text = pickNexusBreedingLine(weights, recent);
+  if (lastSpeaker === null) {
+    return { speaker: Math.random() < 0.5 ? 0 : 1, text };
+  }
+  const alternate = lastSpeaker === 0 ? 1 : 0;
+  const speaker = Math.random() < 0.82 ? alternate : lastSpeaker;
+  return { speaker, text };
 }

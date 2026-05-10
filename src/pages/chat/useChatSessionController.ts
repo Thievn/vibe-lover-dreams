@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCompanions, dbToCompanion } from "@/hooks/useCompanions";
+import { useCompanions, dbToCompanion, type DbCompanion } from "@/hooks/useCompanions";
 import { useForgeCompanionOverlay } from "@/hooks/useForgeCompanionOverlay";
 import { useCompanionDisplayOverride } from "@/hooks/useCompanionDisplayOverride";
 import { mergeCompanionDisplayWithUserOverride } from "@/lib/mergeCompanionDisplayOverride";
@@ -144,6 +144,17 @@ export function useChatSessionController() {
     [dbCompStripped, displayOverride],
   );
   const companion = dbCompDisplay ? dbToCompanion(dbCompDisplay) : null;
+
+  const breedingPartnerDb = useMemo((): DbCompanion | null => {
+    if (!dbComp || !dbCompanions?.length) return null;
+    const others = dbCompanions.filter((c) => c.id !== dbComp.id);
+    if (others.length === 0) return null;
+    if (user?.id) {
+      const mine = others.filter((c) => c.user_id === user.id);
+      if (mine.length > 0) return mine[Math.floor(Math.random() * mine.length)]!;
+    }
+    return others[Math.floor(Math.random() * others.length)]!;
+  }, [dbComp, dbCompanions, user?.id]);
   const basePortraitUrl = useMemo(() => galleryStaticPortraitUrl(dbCompDisplay, id), [dbCompDisplay, id]);
   const headerAnimated = useMemo(() => {
     const raw = profileAnimatedPortraitUrl(dbCompDisplay);
@@ -1390,17 +1401,16 @@ export function useChatSessionController() {
           const idx = Math.min(ttsWords.length - 1, Math.floor((a.currentTime / d) * ttsWords.length));
           setTtsWordHighlight({ messageId: msg.id, wordIndex: idx });
         };
-        let detach: () => void;
-        const onEnded = () => {
+        function detach() {
+          a.removeEventListener("timeupdate", onTime);
+          a.removeEventListener("ended", onEnded);
+        }
+        function onEnded() {
           detach();
           ttsAudioListenerDetachRef.current = null;
           setTtsPlayingId(null);
           endTtsLovenseIfLinked();
-        };
-        detach = () => {
-          a.removeEventListener("timeupdate", onTime);
-          a.removeEventListener("ended", onEnded);
-        };
+        }
         a.addEventListener("timeupdate", onTime);
         a.addEventListener("ended", onEnded);
         ttsAudioListenerDetachRef.current = detach;
@@ -2531,6 +2541,8 @@ export function useChatSessionController() {
     forgeLookupBusy,
     companion,
     dbComp,
+    dbCompDisplay,
+    breedingPartnerDb,
     basePortraitUrl,
     headerAnimated,
     messages,

@@ -305,7 +305,7 @@ function buildStyleSourcePayload(args: {
     push("Speech style", String(c.speechStyle ?? ""));
     push("Relationship vibe", String(c.relationshipVibe ?? ""));
     push("Sexual energy", String(c.sexualEnergy ?? ""));
-    if (Boolean(c.isNexusHybrid)) {
+    if (c.isNexusHybrid) {
       const lineage = Array.isArray(c.lineageParentIds)
         ? (c.lineageParentIds as unknown[]).map((x) => String(x)).filter(Boolean).slice(0, 3).join(", ")
         : "";
