@@ -3,8 +3,8 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1
 export type CompanionUnlockResult = { ok: true } | { ok: false; message: string };
 
 /**
- * Discover / catalog spend gate: user must have an FC `card_purchase` row for this companion id,
- * OR own the forge row (`custom_characters.user_id`).
+ * Discover / catalog spend gate: user must have this companion in `user_discover_pins` (all unlock paths,
+ * including free Common — no ledger row) **or** an FC `card_purchase` row, OR own the forge row (`custom_characters.user_id`).
  * Skips when id is empty or `forge-preview` (Forge studio / non-roster).
  */
 export async function assertUserUnlockedCompanionForSpend(
@@ -25,6 +25,18 @@ export async function assertUserUnlockedCompanionForSpend(
     const owner = String(row?.user_id ?? "").trim();
     if (owner && owner === userId) return { ok: true };
   }
+
+  const { data: pinRow, error: pinErr } = await svc
+    .from("user_discover_pins")
+    .select("companion_id")
+    .eq("user_id", userId)
+    .eq("companion_id", cid)
+    .maybeSingle();
+  if (pinErr) {
+    console.error("requireCompanionFcUnlock: user_discover_pins", pinErr.message);
+    return { ok: false, message: "Could not verify companion access." };
+  }
+  if (pinRow?.companion_id === cid) return { ok: true };
 
   const { data: purchases, error: pErr } = await svc
     .from("user_transactions")

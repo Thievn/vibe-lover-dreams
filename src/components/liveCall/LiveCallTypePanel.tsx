@@ -18,6 +18,8 @@ import { stashLiveCallOption } from "@/lib/liveCallSessionStorage";
 type Props = {
   companion: Companion;
   className?: string;
+  /** When true (e.g. Discover card not acquired), show themes but block starting a call. */
+  spendLocked?: boolean;
 };
 
 function optionsEqual(a: LiveCallOption[], b: LiveCallOption[]): boolean {
@@ -29,7 +31,7 @@ function optionsEqual(a: LiveCallOption[], b: LiveCallOption[]): boolean {
  * Inline call-type picker (profile “Live call” tab).
  * Shows tappable themes immediately (cache or offline fallbacks), then upgrades from Grok when ready.
  */
-export function LiveCallTypePanel({ companion, className }: Props) {
+export function LiveCallTypePanel({ companion, className, spendLocked }: Props) {
   const navigate = useNavigate();
   const skippedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -54,6 +56,12 @@ export function LiveCallTypePanel({ companion, className }: Props) {
     const fallback = getLiveCallPresetsFallback(c);
     const cached = readLiveCallOptionsSessionCache(c.id);
     setOptions(cached?.length ? cached : fallback);
+
+    if (spendLocked) {
+      setUpgrading(false);
+      return;
+    }
+
     setUpgrading(true);
 
     let alive = true;
@@ -74,7 +82,7 @@ export function LiveCallTypePanel({ companion, className }: Props) {
       alive = false;
       ctrl.abort();
     };
-  }, [companion.id]);
+  }, [companion.id, spendLocked]);
 
   const skipPersonalization = useCallback(() => {
     skippedRef.current = true;
@@ -85,6 +93,12 @@ export function LiveCallTypePanel({ companion, className }: Props) {
   }, [companion]);
 
   const pick = (opt: LiveCallOption) => {
+    if (spendLocked) {
+      toast.message("Acquire this card first", {
+        description: "Unlock this companion from Discover to start a live call.",
+      });
+      return;
+    }
     void ensureCompanionCallNotifications();
     if (needsInstallForIosWebPush()) {
       dispatchRequestInstallHint();
@@ -99,7 +113,15 @@ export function LiveCallTypePanel({ companion, className }: Props) {
   const gTo = companion.gradientTo || "#FF2D7B";
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn("space-y-4", spendLocked && "opacity-90", className)}>
+      {spendLocked ? (
+        <div className="rounded-xl border border-primary/35 bg-primary/10 px-3 py-2.5 text-[11px] leading-snug text-primary/95">
+          <p className="font-semibold text-foreground/95">Preview only</p>
+          <p className="mt-1 text-muted-foreground">
+            Acquire this card to start a live session — you can still browse call styles below.
+          </p>
+        </div>
+      ) : null}
       {needsInstallForIosWebPush() ? (
         <div className="rounded-xl border border-amber-500/35 bg-amber-950/25 px-3 py-2.5 text-[11px] leading-snug text-amber-100/95 backdrop-blur-sm">
           <p className="font-semibold text-amber-50/95">Call alerts work best from the installed app</p>
@@ -162,12 +184,15 @@ export function LiveCallTypePanel({ companion, className }: Props) {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.04 }}
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
+              whileHover={spendLocked ? undefined : { scale: 1.01 }}
+              whileTap={spendLocked ? undefined : { scale: 0.99 }}
+              disabled={spendLocked}
               onClick={() => pick(opt)}
               className={cn(
                 "relative min-h-[88px] overflow-hidden rounded-2xl border border-white/[0.1] p-4 text-left shadow-lg transition-colors",
-                "hover:border-primary/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 active:scale-[0.99]",
+                spendLocked
+                  ? "cursor-not-allowed opacity-60 border-white/[0.06]"
+                  : "hover:border-primary/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 active:scale-[0.99]",
               )}
               style={{
                 background: `linear-gradient(135deg, ${gFrom}22, ${gTo}18), rgba(0,0,0,0.45)`,

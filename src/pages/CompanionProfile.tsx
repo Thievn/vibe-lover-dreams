@@ -224,7 +224,7 @@ const CompanionProfile = () => {
   const isOwnForge = Boolean(
     user?.id && dbComp?.user_id === user.id && companion?.id?.startsWith("cc-"),
   );
-  /** Vault / Discover: chat and spend features require owning the card (unless own forge row). */
+  /** Vault / Discover: paid features require owning the card (unless own forge row). */
   const vaultLocked = Boolean(
     companion &&
       !isDropLanding &&
@@ -234,11 +234,10 @@ const CompanionProfile = () => {
   /** Global pre-launch: block spend features for everyone except platform admin. */
   const teaserConsumeLocked = Boolean(companion && isCompanionProfileTeaserMode() && !isAdminUser);
   /**
-   * Teaser pre-launch: only non-admins are blocked from spend features.
-   * Discover / catalog vault: **everyone** (including platform admins) must acquire the card —
-   * so Discover testing matches a real shopper.
+   * Locks **actions** (chat, live call start, Lovense send, gallery spend, fantasy starters) — not the profile itself.
+   * Teaser pre-launch: non-admins blocked. Discover catalog: must acquire card (pins + `card_purchase` both count).
    */
-  const profileFeatureLocked = Boolean(companion && (teaserConsumeLocked || vaultLocked));
+  const consumeFeatureLocked = Boolean(companion && (teaserConsumeLocked || vaultLocked));
 
   useEffect(() => {
     if (!user?.id || !id) {
@@ -270,14 +269,14 @@ const CompanionProfile = () => {
     const st = location.state as { profileTab?: "profile" | "gallery" | "live"; discoverPreview?: boolean } | null;
     const tab = st?.profileTab;
     if (tab === "gallery") {
-      if (!profileFeatureLocked) setGalleryOpen(true);
+      if (!consumeFeatureLocked) setGalleryOpen(true);
       setProfileTab("profile");
       return;
     }
     if (tab !== "profile" && tab !== "live") return;
-    if (profileFeatureLocked && tab !== "profile") return;
+    if (teaserConsumeLocked && !isAdminUser && tab !== "profile") return;
     setProfileTab(tab);
-  }, [location.state, location.search, profileFeatureLocked]);
+  }, [location.state, location.search, consumeFeatureLocked, teaserConsumeLocked, isAdminUser]);
   const vibeTraits = useMemo(
     () => (companion ? resolveDisplayTraitsForCompanion(companion) : []),
     [companion],
@@ -330,12 +329,12 @@ const CompanionProfile = () => {
       return `Preview mode — ${companion.name} is here for you to explore. Chat, live voice, gallery, and device features are coming soon at launch.`;
     }
     if (isSharedProfileLink) {
-      return `A friend shared this LustForge card — meet ${companion.name}. Browse everything below, then acquire the card to unlock chat, live voice, your gallery, and Lovense patterns.`;
+      return `A friend shared this LustForge card — meet ${companion.name}. Full profile below; acquire the card to unlock chat, live voice, gallery tools, and Lovense.`;
     }
     if (discoverPreview) {
-      return "Preview from Discover — browse everything below. Acquire this card to unlock chat, live calls, your gallery, and Lovense patterns.";
+      return "Preview from Discover — full profile below (traits, bio, patterns). Acquire this card to unlock chat, live calls, gallery tools, and Lovense.";
     }
-    return "Preview — browse everything below. Acquire this card to unlock chat, live calls, your gallery, and Lovense patterns.";
+    return "Full profile below — acquire this card to unlock chat, live calls, gallery tools, and Lovense.";
   }, [companion, isSharedProfileLink, discoverPreview, isAdminUser]);
 
   useEffect(() => {
@@ -493,7 +492,7 @@ const CompanionProfile = () => {
   }, [stopSustainedToy]);
 
   const triggerProfileVibration = async (row: CompanionVibrationPatternRow) => {
-    if (profileFeatureLocked) {
+    if (consumeFeatureLocked) {
       toast.message("A card must be acquired first", {
         description: "Acquire this card to use Lovense patterns with your toys.",
       });
@@ -603,9 +602,9 @@ const CompanionProfile = () => {
   }, [user?.id]);
 
   useEffect(() => {
-    if (!profileFeatureLocked) return;
+    if (!teaserConsumeLocked || isAdminUser) return;
     setProfileTab((t) => (t !== "profile" ? "profile" : t));
-  }, [profileFeatureLocked]);
+  }, [teaserConsumeLocked, isAdminUser]);
 
   useEffect(() => {
     if (!isDropLanding || !weeklyDropId || dropClickTracked) return;
@@ -670,7 +669,8 @@ const CompanionProfile = () => {
         if (error) throw error;
         setPinned(true);
       }
-      void queryClient.invalidateQueries({ queryKey: VAULT_COLLECTION_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: [...VAULT_COLLECTION_QUERY_KEY, user.id] });
+      void queryClient.invalidateQueries({ queryKey: [...PURCHASED_COMPANION_IDS_QUERY_KEY, user.id] });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Could not update collection.");
     } finally {
@@ -734,7 +734,7 @@ const CompanionProfile = () => {
   }
 
   const handleStartChat = (starterPrompt?: string, starterTitle?: string) => {
-    if (profileFeatureLocked) {
+    if (consumeFeatureLocked) {
       toast.message("A card must be acquired first", {
         description: "Acquire this card to unlock chat and fantasies.",
       });
@@ -757,7 +757,7 @@ const CompanionProfile = () => {
   };
 
   const handleQuickLiveCall = () => {
-    if (profileFeatureLocked) {
+    if (consumeFeatureLocked) {
       toast.message("A card must be acquired first", {
         description: "Acquire this card to unlock live voice.",
       });
@@ -934,7 +934,7 @@ const CompanionProfile = () => {
             </motion.button>
           ) : null}
         </div>
-        {user && companion && !profileFeatureLocked && !isDropLanding && id ? (
+        {user && companion && !consumeFeatureLocked && !isDropLanding && id ? (
           <div className="mt-3 w-full min-w-0 border-t border-white/[0.06] pt-3 space-y-2">
             <ProfileLoopingVideoUpsell
               companionId={companion.id}
@@ -1077,7 +1077,7 @@ const CompanionProfile = () => {
       <main
         className={cn(
           "relative z-10 flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 pt-[max(5.25rem,calc(3.25rem+env(safe-area-inset-top,0px)))] sm:pt-[max(5.5rem,calc(3.5rem+env(safe-area-inset-top,0px)))]",
-          user && !profileFeatureLocked && !isDropLanding
+          user && !consumeFeatureLocked && !isDropLanding
             ? "max-md:pb-[max(9.25rem,calc(5.75rem+env(safe-area-inset-bottom,0px)+3.25rem))] md:pb-20"
             : user
               ? "pb-mobile-nav md:pb-20"
@@ -1187,26 +1187,28 @@ const CompanionProfile = () => {
                 </div>
               </PortraitViewLightbox>
             </TierHaloPortraitFrame>
-            {profileFeatureLocked ? (
+            {consumeFeatureLocked ? (
               <div className="mt-4 rounded-2xl border border-primary/35 bg-gradient-to-br from-primary/15 via-black/40 to-fuchsia-950/25 px-4 py-3 space-y-2 shadow-[0_0_28px_rgba(255,45,123,0.12)]">
                 <p className="text-[11px] text-muted-foreground leading-relaxed">{lockedPreviewBannerText}</p>
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => {
-                    if (!user) {
-                      navigate("/auth", { state: { from: `/companions/${companion.id}` } });
-                      return;
-                    }
-                    setBuyConfirmProfileOpen(true);
-                  }}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-primary/50 bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25"
-                >
-                  <Crown className="h-4 w-4 shrink-0" />
-                  Acquire card · {discoverEffectiveFc <= 0 ? "FREE" : `${discoverListFc} FC`}
-                  <Gem className="h-4 w-4 shrink-0 opacity-90" />
-                </motion.button>
+                {vaultLocked && !isOwnForge ? (
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      if (!user) {
+                        navigate("/auth", { state: { from: `/companions/${companion.id}` } });
+                        return;
+                      }
+                      setBuyConfirmProfileOpen(true);
+                    }}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-primary/50 bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25"
+                  >
+                    <Crown className="h-4 w-4 shrink-0" />
+                    Acquire card · {discoverEffectiveFc <= 0 ? "FREE" : `${discoverListFc} FC`}
+                    <Gem className="h-4 w-4 shrink-0 opacity-90" />
+                  </motion.button>
+                ) : null}
               </div>
             ) : null}
             {vibeTraits.length > 0 ? (
@@ -1307,7 +1309,7 @@ const CompanionProfile = () => {
               </p>
             </div>
 
-            {user && companion && !profileFeatureLocked ? (
+            {user && companion && !consumeFeatureLocked ? (
               <ChatAutoSpendImagesToggle
                 variant="profile"
                 enabled={autoSpendChatImages}
@@ -1342,15 +1344,15 @@ const CompanionProfile = () => {
               <button
                 type="button"
                 disabled={isDropLanding}
-                title={profileFeatureLocked ? "Acquire this card for live calls" : undefined}
+                title={
+                  vaultLocked && !isOwnForge
+                    ? "Acquire this card to start a live call"
+                    : teaserConsumeLocked && !isAdminUser
+                      ? "Live calls unlock at launch"
+                      : undefined
+                }
                 onClick={() => {
                   if (isDropLanding) return;
-                  if (profileFeatureLocked) {
-                    toast.message("A card must be acquired first", {
-                      description: "Acquire this card to unlock live voice.",
-                    });
-                    return;
-                  }
                   if (!user) {
                     navigate("/auth", { state: { from: `/companions/${companion.id}` } });
                     return;
@@ -1390,7 +1392,7 @@ const CompanionProfile = () => {
                     icon={<Images className="h-4 w-4 shrink-0" />}
                   />
                 </>
-              ) : profileFeatureLocked ? (
+              ) : consumeFeatureLocked ? (
                 <>
                   <PremiumDisabledButton
                     label="Start chat"
@@ -1527,7 +1529,7 @@ const CompanionProfile = () => {
               <section className="rounded-2xl border border-white/[0.1] bg-black/45 backdrop-blur-xl p-5 sm:p-6 ring-1 ring-primary/15">
                 <h2 className="text-xs font-bold uppercase tracking-[0.25em] text-primary mb-1">Live call</h2>
                 {user ? (
-                  <LiveCallTypePanel companion={companion} className="mt-2" />
+                  <LiveCallTypePanel companion={companion} className="mt-2" spendLocked={consumeFeatureLocked} />
                 ) : (
                   <p className="mt-4 text-sm text-muted-foreground py-6 text-center border border-dashed border-white/15 rounded-xl">
                     <Link to="/auth" state={{ from: `/companions/${companion.id}` }} className="text-primary font-semibold hover:underline">
@@ -1650,14 +1652,14 @@ const CompanionProfile = () => {
                       Lovense patterns
                     </p>
                     <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-                      {profileFeatureLocked
-                        ? "Acquire this card to send patterns to your toy."
+                      {consumeFeatureLocked
+                        ? "Preview every pattern below — acquire the card to send them to a linked toy."
                         : hasLovenseToy
                           ? `Tap to send ${companion.name}'s curated patterns to your linked toy.`
                           : "Tap Pair toy to scan the QR, or use Settings → Device connection."}
                     </p>
                   </div>
-                  {profileFeatureLocked ? null : !hasLovenseToy ? (
+                  {!hasLovenseToy ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -1684,7 +1686,7 @@ const CompanionProfile = () => {
                 ) : (
                   <VibrationPatternButtons
                     patterns={vibrationPatterns}
-                    disabled={!hasLovenseToy || profileFeatureLocked}
+                    disabled={!hasLovenseToy || consumeFeatureLocked}
                     sendingId={sendingVibrationId}
                     activePatternId={livePatternId}
                     onTrigger={(row) => void triggerProfileVibration(row)}
@@ -1725,7 +1727,7 @@ const CompanionProfile = () => {
                   whileTap={{ scale: 0.99 }}
                   onClick={() => {
                     if (isDropLanding) return;
-                    if (profileFeatureLocked) {
+                    if (consumeFeatureLocked) {
                       toast.message("A card must be acquired first", {
                         description: "Acquire this card to begin this fantasy in chat.",
                       });
@@ -1738,7 +1740,7 @@ const CompanionProfile = () => {
                     "group relative overflow-hidden rounded-2xl border border-white/[0.1] bg-gradient-to-br from-card/90 via-card/70 to-black/40 p-5 sm:p-6 text-left shadow-lg shadow-black/30 ring-1 ring-white/[0.04] backdrop-blur-xl transition-[border-color,box-shadow] touch-manipulation",
                     isDropLanding
                       ? "cursor-not-allowed opacity-65"
-                      : profileFeatureLocked
+                      : consumeFeatureLocked
                         ? "opacity-80 hover:border-primary/35"
                         : "hover:border-primary/45 hover:shadow-[0_0_36px_rgba(255,45,123,0.18)]",
                   )}
@@ -1759,7 +1761,7 @@ const CompanionProfile = () => {
                     <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-primary/60 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                   </div>
                   <span className="relative mt-4 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-primary/80">
-                    {isDropLanding ? "Feature preview" : profileFeatureLocked ? "Unlock to begin" : "Begin this fantasy"}
+                    {isDropLanding ? "Feature preview" : consumeFeatureLocked ? "Unlock to begin" : "Begin this fantasy"}
                     <Sparkles className="h-3.5 w-3.5" />
                   </span>
                   {isDropLanding ? (
@@ -1789,7 +1791,7 @@ const CompanionProfile = () => {
         </>
         ) : null}
 
-        {user && !profileFeatureLocked && !isDropLanding && companion ? (
+        {user && !consumeFeatureLocked && !isDropLanding && companion ? (
           <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[55] md:hidden px-3 pt-2 pb-[max(5.75rem,calc(4.75rem+env(safe-area-inset-bottom,0px)))] bg-gradient-to-t from-black via-black/90 to-transparent">
             <div className="pointer-events-auto mx-auto max-w-lg">
               <motion.button
