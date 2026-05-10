@@ -81,7 +81,9 @@ export function ChatLeftHeroPanel({
     <aside
       className={cn(
         "relative hidden h-full min-h-0 min-w-0 flex-col border-r border-white/[0.08] bg-[hsl(280_28%_6%)] md:flex",
-        expanded ? "w-[min(44vw,26rem)] max-w-lg flex-[0_0_min(44vw,26rem)]" : "w-12 flex-[0_0_3rem]",
+        expanded
+          ? "w-[min(30vw,19rem)] max-w-sm flex-[0_0_min(30vw,19rem)] xl:w-[min(24vw,17rem)] xl:max-w-[17rem] xl:flex-[0_0_min(24vw,17rem)]"
+          : "w-12 flex-[0_0_3rem]",
         className,
       )}
     >

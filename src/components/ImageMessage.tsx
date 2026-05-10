@@ -29,7 +29,7 @@ export const ImageMessage = ({
       {/* Natural aspect ratio — no forced crop (avoids cut-off heads). Max height keeps thread readable. */}
       <div
         onClick={onImageClick}
-        className="relative group cursor-pointer rounded-2xl overflow-hidden bg-black/40 hover:ring-2 hover:ring-primary transition-all duration-300 w-full max-w-[min(92vw,28rem)]"
+        className="relative group w-full max-w-full cursor-pointer overflow-hidden rounded-2xl bg-black/40 transition-all duration-300 hover:ring-2 hover:ring-primary"
       >
         <img
           src={imageUrl}

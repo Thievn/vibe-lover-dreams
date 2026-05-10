@@ -256,7 +256,10 @@ export function ChatComposer({
           : "border-white/[0.07] bg-gradient-to-t from-black/95 via-black/80 to-black/40",
         liveDock
           ? "px-2.5 pt-2 pb-[max(0.65rem,env(safe-area-inset-bottom))] sm:px-3 sm:pt-2"
-          : "px-3 pt-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] sm:px-4 sm:pt-3.5",
+          : luxury
+            ? "px-2.5 pt-2 pb-[max(0.65rem,env(safe-area-inset-bottom))] sm:px-3 sm:pt-2.5"
+            : "px-3 pt-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] sm:px-4 sm:pt-3.5",
+        luxury && !liveDock && "mx-auto w-full max-w-[min(100%,26.5rem)]",
       )}
     >
       {userLoggedIn ? (
@@ -282,12 +285,16 @@ export function ChatComposer({
           e.preventDefault();
           onSubmit();
         }}
-        className={liveDock ? "space-y-1.5" : "space-y-2.5"}
+        className={liveDock ? "space-y-1.5" : luxury ? "space-y-2" : "space-y-2.5"}
       >
         <div
           className={cn(
             "flex items-stretch gap-2 rounded-[1.15rem] border p-1.5 transition-[box-shadow,background,border-color]",
-            liveDock ? "min-h-[3.35rem] sm:min-h-[3.5rem]" : "min-h-[3.75rem] sm:min-h-16",
+            liveDock
+              ? "min-h-[3.35rem] sm:min-h-[3.5rem]"
+              : luxury
+                ? "min-h-[3.35rem] sm:min-h-[3.5rem]"
+                : "min-h-[3.75rem] sm:min-h-16",
             luxury &&
               focused &&
               "border-fuchsia-400/40 bg-[hsl(280_35%_8%/0.75)] shadow-[inset_0_0_0_1px_rgba(192,38,211,0.35),0_0_0_1px_rgba(168,85,247,0.2),0_0_48px_rgba(147,51,234,0.18)]",
@@ -327,8 +334,13 @@ export function ChatComposer({
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder={placeholder}
-            rows={liveDock ? 2 : 3}
-            className="min-h-[5.25rem] min-w-0 flex-1 resize-y border-0 bg-transparent py-2.5 pr-1 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/65 focus:outline-none focus:ring-0 sm:min-h-[6rem] sm:py-3 sm:text-[16px]"
+            rows={liveDock ? 2 : luxury ? 2 : 3}
+            className={cn(
+              "min-w-0 flex-1 resize-y border-0 bg-transparent pr-1 leading-relaxed text-foreground placeholder:text-muted-foreground/65 focus:outline-none focus:ring-0",
+              liveDock || luxury
+                ? "min-h-[4.5rem] py-2 text-[14px] sm:min-h-[5rem] sm:text-[15px]"
+                : "min-h-[5.25rem] py-2.5 text-[15px] sm:min-h-[6rem] sm:py-3 sm:text-[16px]",
+            )}
             disabled={disabled}
             autoComplete="off"
             aria-label={`Message ${companionName}`}

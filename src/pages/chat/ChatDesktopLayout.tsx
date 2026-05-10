@@ -217,7 +217,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
       />
 
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex min-h-0 flex-1">
+        <div className="mx-auto flex min-h-0 w-full max-w-[1920px] flex-1">
           <ChatLeftHeroPanel
             companion={companion}
             imageUrl={portraitStillUrl}
@@ -235,7 +235,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
             hasGalleryUser={Boolean(user)}
           />
 
-          <div className="relative mx-auto flex min-h-0 min-w-0 w-full max-w-md flex-1 flex-col xl:my-3 xl:mr-5 xl:max-w-lg xl:rounded-2xl xl:border xl:border-fuchsia-500/[0.12] xl:bg-[#050308]/40 xl:shadow-[0_0_80px_rgba(0,0,0,0.55)] xl:backdrop-blur-sm">
+          <div className="relative z-[1] mx-auto flex min-h-0 min-w-0 w-full max-w-md flex-1 flex-col sm:max-w-lg xl:my-3 xl:max-w-xl xl:rounded-2xl xl:border xl:border-fuchsia-500/[0.12] xl:bg-[#050308]/40 xl:shadow-[0_0_80px_rgba(0,0,0,0.55)] xl:backdrop-blur-sm 2xl:max-w-2xl">
             <ChatDevicesCollapsible
               className="border-b border-fuchsia-500/[0.08] bg-[#050308]/55 backdrop-blur-xl"
               companionName={companion.name}

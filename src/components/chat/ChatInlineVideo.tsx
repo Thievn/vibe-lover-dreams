@@ -48,7 +48,7 @@ export function ChatInlineVideo({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <div className="relative mx-auto w-full max-w-[min(92vw,280px)] aspect-[9/16] overflow-hidden rounded-xl bg-black">
+      <div className="relative mx-auto aspect-[9/16] w-full max-w-full overflow-hidden rounded-xl bg-black sm:max-w-[min(100%,22rem)] md:max-w-[min(100%,28rem)]">
         {inner}
         <button
           type="button"
