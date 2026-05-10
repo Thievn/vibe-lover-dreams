@@ -204,6 +204,32 @@ export async function fetchForgeNameExclusions(supabase: SupabaseClient, userId:
 }
 
 /**
+ * Distinct display names for the user's forged companions (for Grok collision hints).
+ * Capped for prompt size; order is not guaranteed.
+ */
+export async function fetchForgeTakenDisplayNames(
+  supabase: SupabaseClient,
+  userId: string | null | undefined,
+  max = 400,
+): Promise<string[]> {
+  if (!userId) return [];
+  const { data, error } = await supabase.from("custom_characters").select("name").eq("user_id", userId);
+  if (error || !data) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const r of data) {
+    const raw = typeof r.name === "string" ? r.name.trim() : "";
+    if (!raw) continue;
+    const k = normalizeNameKey(raw);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(raw.slice(0, 120));
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/**
  * Picks a unique forge name from an already-merged exclusion set (normalized keys).
  * Call after `fetchForgeNameExclusions` (optionally wrapped in `withAsyncTimeout`) so Create never depends on an extra unbounded DB round-trip inside name picking.
  */

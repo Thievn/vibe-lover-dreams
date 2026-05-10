@@ -66,7 +66,7 @@ function moodNsfwClauses(m: FabSelfieTier): string {
     return "Artistic intimate nude (Grok Imagine): fine-art boudoir or editorial silhouette — sensual, graceful, soft light; **no** crude anatomy, graphic acts, or pornographic staging. **One** consistent individual per CHARACTER APPEARANCE (face, eyes, lips, hair, hands, legs, skin, build); **do not change facial features**; believable photoreal body. Prefer mirror, tripod, or sheet-drape framing — **no smartphone in hand**. Wardrobe absent only when the scene calls for nude; do not default to swimwear unless USER SCENE is beach/pool.";
   }
   if (m === "lewd") {
-    return "Tasteful lewd: lingerie, sheer layers, short shorts, tanks, wet fabric with coverage, silk sheets, silhouette, teasing poses — premium editorial / perfume-ad heat, **not** explicit porn staging. Same **identity** (face, eyes, lips, hair, hands, legs, skin, build) as CHARACTER APPEARANCE — **do not change facial features**; **wardrobe, pose, and room** only from USER SCENE / menu framing. **Forbidden:** nudity, visible genitals, explicit sexual acts, phone in hand or visible smartphone. No generic bikini unless the scene calls for it.";
+    return "Tasteful lewd: lingerie, sheer clothing, silk sheets, wet T-shirt with coverage, short shorts, tanks, seductive editorial poses — perfume-ad heat only, **not** porn staging. **Identity:** obey CHARACTER REFERENCE + written profile first (face, hair, eyes, skin tone, body type, tattoos) — **do not change facial features**; **wardrobe, pose, room** only from USER SCENE / menu. **Forbidden:** no nudity, no visible genitals, no explicit sexual acts, no phone or smartphone visible, no deformed anatomy. No generic bikini unless the scene calls for it.";
   }
   return "SFW — flirty, romantic, or cute; fully clothed for public-safe framing. Same individual as the **written** character description (face, eyes, lips, hair, hands, legs, body type); **do not change facial features**. Outfit must fit THIS preset and USER SCENE.";
 }
@@ -318,6 +318,8 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
         CHARACTER_REFERENCE_INTRO_LINES,
         "",
         coreLook.slice(0, 2000),
+        "",
+        "Keep the exact same face, hair, eyes, body type, skin tone, and distinctive features.",
         "",
         "---",
         "",

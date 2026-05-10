@@ -8,8 +8,8 @@ export const IMAGINE_QUALITY_NEGATIVE_LINE =
 
 export const CHARACTER_REFERENCE_INTRO_LINES = [
   "CHARACTER REFERENCE (read first — identity lock):",
-  "Use this exact character's face, hair, body type, eyes, skin, and all distinctive features exactly.",
-  "Do not change facial features. Do not swap ethnicity, age read, or species away from this description.",
+  "Use this exact character's physical appearance as strong reference (the paragraph below).",
+  "Do not swap models, do not invent a new face, do not change ethnicity or species away from this lock.",
 ].join("\n");
 
 export function enrichImaginePromptUniversal(o: {
@@ -18,20 +18,25 @@ export function enrichImaginePromptUniversal(o: {
 }): string {
   const ref = o.characterReference?.replace(/\s+/g, " ").trim() ?? "";
   const body = o.corePrompt.replace(/\s+\n/g, "\n").trim();
+  const skipDuplicateRefLock =
+    ref.length > 0 &&
+    (/\bCHARACTER REFERENCE \(READ FIRST/i.test(body) ||
+      /\bUse this exact character's physical appearance as strong reference\b/i.test(body));
   const hasQualityStem =
     /\b8k\b/i.test(body) && /\bmasterpiece\b/i.test(body) && /\bultra\s+detailed\b/i.test(body);
   const head = hasQualityStem ? "" : `${IMAGINE_QUALITY_POSITIVE_LINE}.\n\n`;
-  const lock = ref
-    ? `${CHARACTER_REFERENCE_INTRO_LINES}
+  const lock =
+    ref && !skipDuplicateRefLock
+      ? `${CHARACTER_REFERENCE_INTRO_LINES}
 
 ${ref}
 
-Maintain identical face, hair, eyes, body type, and all distinctive features.
+Keep the exact same face, hair, eyes, body type, skin tone, and distinctive features.
 
 Now generate this new scene:
 
 `
-    : "";
+      : "";
   const hasNeg =
     /\bnegative\s+prompt\b/i.test(body) ||
     (/\bmissing\s+limbs\b/i.test(body) && /\bwatermark\b/i.test(body));

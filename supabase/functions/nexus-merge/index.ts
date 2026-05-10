@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { grokChatCompletionRaw } from "../_shared/xaiGrokChatRaw.ts";
+import { generateAppearanceReferenceText } from "../_shared/generateAppearanceReferenceText.ts";
 import { renderPortraitToStorage } from "../_shared/renderCompanionPortrait.ts";
 import { requireAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
 import { mergeTcgForNexusChild } from "../_shared/tcgStatsGenerate.ts";
@@ -821,6 +822,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
     }
 
     let portraitOk = false;
+    let portraitPublicUrl = "";
     let portraitError: string | null = null;
     const imagePromptRaw = String(fields.image_prompt || "").trim();
     const imagePromptBase =
@@ -840,6 +842,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
             target: { kind: "forge", uuid: fusionUuid },
             contentTier: "forge_preview_sfw",
           });
+          portraitPublicUrl = String(publicUrl ?? "").trim();
           const { error: portraitUpdErr } = await supabase
             .from("custom_characters")
             .update({
@@ -877,6 +880,35 @@ Output ONLY via the nexus_merge_companion tool call.`;
       if (coolErr) {
         console.error("nexus-merge cooldown update", coolErr);
       }
+    }
+
+    try {
+      const getEnv = (n: string) => Deno.env.get(n);
+      const refText = await generateAppearanceReferenceText(getEnv, {
+        publicImageUrl: portraitOk && portraitPublicUrl.startsWith("http") ? portraitPublicUrl : "",
+        gender: String(fields.gender || ""),
+        identityAnatomyDetail: undefined,
+        appearanceDraft: String(fields.appearance || ""),
+      });
+      const trimmed = refText.replace(/\s+/g, " ").trim();
+      if (trimmed.length >= 12) {
+        const patch: Record<string, unknown> = {
+          appearance_reference: trimmed,
+          character_reference: trimmed,
+        };
+        let { error: refUpdErr } = await supabase.from("custom_characters").update(patch).eq("id", fusionUuid);
+        if (refUpdErr && /character_reference|PGRST204/i.test(refUpdErr.message ?? "")) {
+          refUpdErr = (await supabase
+            .from("custom_characters")
+            .update({ appearance_reference: trimmed })
+            .eq("id", fusionUuid)).error;
+        }
+        if (refUpdErr) {
+          console.warn("nexus-merge character_reference update", refUpdErr.message);
+        }
+      }
+    } catch (e) {
+      console.warn("nexus-merge character_reference generation skipped", e);
     }
 
     return new Response(

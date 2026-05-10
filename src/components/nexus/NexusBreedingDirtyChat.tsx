@@ -125,7 +125,7 @@ export function NexusBreedingDirtyChat({
         {isRitual
           ? "Whispered weave · vanishes when the rite ends"
           : isMergeWeave
-            ? "Twin-thread weave · dissolves when the merge lands"
+            ? "Veil chatter only here · your ascendant saves on the server"
             : "Private thread · vanishes when the merge ends"}
       </p>
       <div

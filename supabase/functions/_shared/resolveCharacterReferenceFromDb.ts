@@ -17,7 +17,7 @@ export async function resolveCharacterReferenceForImagine(
     trimRef(characterData.characterReference) ||
     trimRef(characterData.appearance_reference) ||
     trimRef(characterData.appearanceReference);
-  if (fromClient.length >= 20) return fromClient;
+  if (fromClient.length >= 12) return fromClient;
 
   const cid = (companionId || "").trim() || trimRef(characterData.companionId) || trimRef(characterData.companion_id);
   if (!cid || cid === "forge-preview") return fromClient || null;
@@ -34,7 +34,7 @@ export async function resolveCharacterReferenceForImagine(
       const r = data as Record<string, unknown>;
       const out =
         trimRef(r.character_reference) || trimRef(r.appearance_reference) || fromClient;
-      return out.length >= 20 ? out : null;
+      return out.length >= 12 ? out : null;
     }
     const { data } = await supabase
       .from("companions")
@@ -44,7 +44,7 @@ export async function resolveCharacterReferenceForImagine(
     if (!data) return fromClient || null;
     const r = data as Record<string, unknown>;
     const out = trimRef(r.character_reference) || trimRef(r.appearance_reference) || fromClient;
-    return out.length >= 20 ? out : null;
+    return out.length >= 12 ? out : null;
   } catch (e) {
     console.warn("resolveCharacterReferenceForImagine:", e);
     return fromClient || null;

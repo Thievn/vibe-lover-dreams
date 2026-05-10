@@ -74,6 +74,7 @@ import {
 import { clearForgeSessionDraft, loadForgeSessionDraft, saveForgeSessionDraft } from "@/lib/forgeSessionDraft";
 import { invokeGenerateImage } from "@/lib/invokeGenerateImage";
 import { invokeSyncAppearanceReference } from "@/lib/invokeSyncAppearanceReference";
+import { buildForgeCharacterReferenceFallback } from "@/lib/forgeCharacterReferenceFallback";
 import { invokeParseCompanionPrompt } from "@/lib/invokeParseCompanionPrompt";
 import { withAsyncTimeout } from "@/lib/withAsyncTimeout";
 import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
@@ -82,13 +83,8 @@ import { fallbackForgeDisplayName } from "@/lib/forgeRandomName";
 import { FORGE_ACCENT_TRAIT_POOL, FORGE_ACCENT_TRAIT_SET } from "@/lib/forgeAccentTraits";
 import { forgeStashPayloadFromDbCompanion } from "@/lib/forgeHydrateFromDbCompanion";
 import { pickOne, pickRandom, randomTraitCount } from "@/lib/forgeRandomSeeds";
-import {
-  fetchForgeNameExclusions,
-  generateForgeName,
-  generateUniqueForgeName,
-  generateUniqueForgeNameFromMergedExclusions,
-  normalizeNameKey,
-} from "@/lib/forgeNameEngine";
+import { fetchForgeNameExclusions, normalizeNameKey } from "@/lib/forgeNameEngine";
+import { pickGrokForgeCompanionName, pickLocalForgeCompanionName } from "@/lib/grokForgeCompanionName";
 import {
   DEFAULT_FORGE_PERSONALITY,
   type ForgePersonalityKey,
@@ -503,7 +499,7 @@ function buildForgeDesignLabSeedPrompt(o: {
     ? `- **MANDATORY display name (use this EXACT string in the "name" field, bio, backstory, starters, system prompt — the character's one true name):** ${o.mandatoryDisplayName.trim()}`
     : "";
   const nameRule1 = o.mandatoryDisplayName?.trim()
-    ? `1) name: MUST be exactly: "${o.mandatoryDisplayName.trim()}" — the forge already locked a culturally-appropriate name from the Personalities matrix. Do not substitute a gothic, cyberpunk, or stock-romance alias.`
+    ? `1) name: MUST be exactly: "${o.mandatoryDisplayName.trim()}" — the forge already locked this display name (Grok or your inscription). Do not substitute a different alias.`
     : `1) name: Match the Personalities matrix (time period + all five picks). Avoid recycled dark-romance catalog names ("Velvet / Storm / Night / Vale") unless Dark Fantasy. NEVER Forge-*, Temp-*, UUIDs. **One true name** in backstory, bio, fantasy_starters, and system_prompt.`;
   const artLane = (o.effectiveArtStyle ?? o.artStyle).trim() || o.artStyle;
   const digestTrim = (o.forgeThemeDigest ?? "").trim();
@@ -1550,39 +1546,41 @@ User flavor notes: ${extraNotes || "none"}`;
     setNameGenBusy(true);
     try {
       if (userId) {
-        const n = await withAsyncTimeout(
-          (async () => {
-            const ex = await fetchForgeNameExclusions(supabase, userId);
-            for (const k of nameGenSessionReserved.current) ex.add(k);
-            return generateUniqueForgeName(
-              supabase,
-              userId,
-              { gender, forgePersonality },
-              nameGenSessionReserved.current,
-              { preloadedExclusions: ex },
-            );
-          })(),
+        const ex = await withAsyncTimeout(
+          fetchForgeNameExclusions(supabase, userId),
           FORGE_NAME_LIST_TIMEOUT_MS,
-          "Reserve forge display name",
+          "Loading existing forge names",
         );
-        nameGenSessionReserved.current.add(normalizeNameKey(n));
-        setName(n);
-        toast.success("A new true name surfaced from your mix — the field stays yours to edit.");
-      } else {
-        const n = generateForgeName({
+        for (const k of nameGenSessionReserved.current) ex.add(k);
+        const { name: n, source } = await pickGrokForgeCompanionName({
+          supabase,
+          userId,
           gender,
           forgePersonality,
-          exclude: nameGenSessionReserved.current,
+          reservedNormalizedKeys: ex,
+        });
+        nameGenSessionReserved.current.add(normalizeNameKey(n));
+        setName(n);
+        toast.success(
+          source === "grok"
+            ? "Grok sealed a new name — the field stays yours to edit."
+            : "A fallback name spun up — try again for a Grok name when the veil is clear.",
+        );
+      } else {
+        const n = pickLocalForgeCompanionName({
+          gender,
+          forgePersonality,
+          reservedNormalizedKeys: nameGenSessionReserved.current,
         });
         nameGenSessionReserved.current.add(normalizeNameKey(n));
         setName(n);
         toast.success("A new true name from your mix — sign in later to vow it against your vault, too.");
       }
     } catch {
-      const n = generateForgeName({
+      const n = pickLocalForgeCompanionName({
         gender,
         forgePersonality,
-        exclude: nameGenSessionReserved.current,
+        reservedNormalizedKeys: nameGenSessionReserved.current,
       });
       nameGenSessionReserved.current.add(normalizeNameKey(n));
       setName(n);
@@ -1634,16 +1632,27 @@ User flavor notes: ${extraNotes || "none"}`;
           "Loading existing forge names",
         );
         for (const k of nameGenSessionReserved.current) ex.add(k);
-        lockedName = generateUniqueForgeNameFromMergedExclusions({ gender: g, forgePersonality: fp }, ex);
+        const picked = await pickGrokForgeCompanionName({
+          supabase,
+          userId,
+          gender: g,
+          forgePersonality: fp,
+          reservedNormalizedKeys: ex,
+        });
+        lockedName = picked.name;
         nameGenSessionReserved.current.add(normalizeNameKey(lockedName));
         setName(lockedName);
       } catch {
-        lockedName = generateForgeName({ gender: g, forgePersonality: fp, exclude: nameGenSessionReserved.current });
+        lockedName = pickLocalForgeCompanionName({
+          gender: g,
+          forgePersonality: fp,
+          reservedNormalizedKeys: nameGenSessionReserved.current,
+        });
         nameGenSessionReserved.current.add(normalizeNameKey(lockedName));
         setName(lockedName);
       }
     } else {
-      lockedName = generateForgeName({ gender: g, forgePersonality: fp });
+      lockedName = pickLocalForgeCompanionName({ gender: g, forgePersonality: fp });
       setName(lockedName);
     }
 
@@ -1974,17 +1983,35 @@ User flavor notes: ${extraNotes || "none"}`;
             "Loading existing forge names",
           );
           for (const k of nameGenSessionReserved.current) ex.add(k);
-          bumpCreate("Choosing a name the hall hasn’t spoken yet…");
-          const invented = generateUniqueForgeNameFromMergedExclusions({ gender, forgePersonality }, ex);
+          bumpCreate("Grok is naming your companion…");
+          const { name: invented, source } = await pickGrokForgeCompanionName({
+            supabase,
+            userId,
+            gender,
+            forgePersonality,
+            reservedNormalizedKeys: ex,
+            bumpProgress: bumpCreate,
+          });
           nameGenSessionReserved.current.add(normalizeNameKey(invented));
           forgeName = invented;
           setName(invented);
-          bumpCreate("A true name surfaced from your mix and vault echoes — still yours to rewrite.");
+          bumpCreate(
+            source === "grok"
+              ? "Grok sealed a name — still yours to rewrite before the bind."
+              : "A fallback name sealed — still yours to rewrite before the bind.",
+          );
+          if (source === "local") {
+            toast.warning(
+              isAdmin
+                ? "Grok naming fell back to local ink — glance Character management for echoes you may want to break."
+                : "Grok naming hushed — local name for now; you may rename once she’s bound.",
+            );
+          }
         } catch {
-          const fb = generateForgeName({
+          const fb = pickLocalForgeCompanionName({
             gender,
             forgePersonality,
-            exclude: nameGenSessionReserved.current,
+            reservedNormalizedKeys: nameGenSessionReserved.current,
           });
           nameGenSessionReserved.current.add(normalizeNameKey(fb));
           forgeName = fb;
@@ -2358,7 +2385,15 @@ User flavor notes: ${extraNotes || "none"}`;
         batchFirstNames.push(forgeName);
       } else {
         for (let j = 0; j < batchCount; j++) {
-          const nm = generateUniqueForgeNameFromMergedExclusions({ gender, forgePersonality }, nameReserve);
+          bumpCreate(`Grok is naming companion ${j + 1} of ${batchCount}…`);
+          const { name: nm } = await pickGrokForgeCompanionName({
+            supabase,
+            userId,
+            gender,
+            forgePersonality,
+            reservedNormalizedKeys: nameReserve,
+            bumpProgress: bumpCreate,
+          });
           const nk = normalizeNameKey(nm);
           nameReserve.add(nk);
           nameGenSessionReserved.current.add(nk);
@@ -2405,6 +2440,23 @@ User flavor notes: ${extraNotes || "none"}`;
       }
 
       const rows = [];
+      const characterRefPersistBase =
+        (appearanceReferenceOut?.trim() ||
+          buildForgeCharacterReferenceFallback({
+            displayName: forgeName,
+            gender,
+            bodyType: effectiveBodyType,
+            ethnicityLabel: isOpenEthnicityChoice(ethnicity) ? undefined : normalizeForgeEthnicity(ethnicity),
+            narrativeAppearance: portraitAppearanceForRow || effectiveNarrative || appearanceBlurb || "",
+          })) ||
+        buildForgeCharacterReferenceFallback({
+          displayName: forgeName,
+          gender,
+          bodyType: effectiveBodyType,
+          ethnicityLabel: isOpenEthnicityChoice(ethnicity) ? undefined : normalizeForgeEthnicity(ethnicity),
+          narrativeAppearance: `${forgeName} is a ${gender.toLowerCase()} companion (${effectiveBodyType}).`,
+        });
+
       for (let i = 0; i < batchCount; i++) {
         const rowFirst = batchFirstNames[i] ?? forgeName;
         const displayName = namePrefix.trim() ? `${namePrefix.trim()} ${rowFirst}`.trim() : rowFirst;
@@ -2457,9 +2509,8 @@ User flavor notes: ${extraNotes || "none"}`;
           gradient_to: NEON,
           image_url: portraitUrl,
           image_prompt: imagePromptOut,
-          ...(appearanceReferenceOut
-            ? { appearance_reference: appearanceReferenceOut, character_reference: appearanceReferenceOut }
-            : {}),
+          appearance_reference: characterRefPersistBase,
+          character_reference: characterRefPersistBase,
           is_public: isAdmin && forcePrivateForgeRef.current ? false : isAdmin ? true : goPublic,
           approved: isAdmin && forcePrivateForgeRef.current ? false : isAdmin ? true : goPublic,
           ...(isAdmin
@@ -4209,7 +4260,7 @@ User flavor notes: ${extraNotes || "none"}`;
                     </div>
                     {isAdmin && (
                       <p className="text-[10px] text-muted-foreground mb-2 leading-relaxed">
-                        Admin forge: leave the name empty and the forge engine picks a unique name from the Personalities matrix
+                        Admin forge: leave the name empty and Grok names them (local engine only if Grok cannot answer)
                         (and your existing companions) at create time.
                       </p>
                     )}

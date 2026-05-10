@@ -9,6 +9,7 @@ import {
 } from "@/lib/chatLikenessAnchors";
 import {
   CHARACTER_REFERENCE_INTRO_LINES,
+  CHAT_LEWD_SAFE_IMAGINE_NEGATIVE_LINE,
   IMAGINE_QUALITY_NEGATIVE_LINE,
   IMAGINE_QUALITY_POSITIVE_LINE,
 } from "@/lib/characterReferenceImagePrompt";
@@ -59,12 +60,12 @@ export function incrementFreeNsfwImagesUsed(userId: string, companionId: string)
 export { CHAT_SHORT_VIDEO_FC as CHAT_VIDEO_TOKEN_COST } from "@/lib/forgeEconomy";
 
 /** Binding for every FAB / gallery still that reads as a “selfie” — keeps Grok from painting a phone in hand. */
-export const CHAT_IMAGINE_SELFIE_NO_PHONE_BLOCK = `**Natural selfie (binding — no phone):** Front-camera energy: eyes to lens, **arm-extended POV**, mirror reflection, tripod/remote timer, or partner-held frame. **Do not** show a smartphone, mobile phone, screen bezel, or phone case in the subject’s hands or as a foreground prop.`;
+export const CHAT_IMAGINE_SELFIE_NO_PHONE_BLOCK = `**Natural selfie (binding — no phone):** natural selfie, arm extended POV, mirror selfie, tripod timer, or partner-held camera — **do NOT** show a phone in hand; **no phone visible at all** (no smartphone, screen, bezel, case, or selfie stick). Eyes to lens; believable candid energy.`;
 
 /** Lewd tier: suggestive wardrobe / editorial heat; strict negatives (matches product-safe Imagine band). */
-export const CHAT_IMAGINE_LEWD_TASTEFUL_BLOCK = `**Lewd tier — editorial thirst (binding):** lingerie, sheer layers, short shorts, tank tops, wet-look fabric **with coverage**, silk sheets, open blouse, side silhouette — premium perfume-ad heat, **not** pornographic staging.
+export const CHAT_IMAGINE_LEWD_TASTEFUL_BLOCK = `**Lewd tier — editorial thirst (binding):** lingerie, sheer clothing, silk sheets, wet T-shirt with coverage, short shorts, tank tops, open blouse, steam/sheer silhouette, seductive poses — premium perfume-ad / editorial heat only; **not** pornographic staging.
 
-**Strong negative (binding):** no nudity, no visible genitals, no explicit sexual acts, no phone in hand or visible smartphone.`;
+**Strong negative (binding):** ${CHAT_LEWD_SAFE_IMAGINE_NEGATIVE_LINE}.`;
 
 /** Quick Action Buttons for image requests in chat */
 export const FAB_SELFIE = {
@@ -78,7 +79,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "SFW natural selfie: **must be this exact roster companion** — same face, eyes, lips, hair, ears, hands, legs, skin, and body proportions as CHARACTER APPEARANCE + portrait likeness (not a generic model). **Do not change facial features.** **New outfit and backdrop** for this shot (do not paste their roster/catalog swimsuit or costume unless this scene is explicitly swim/beach). Fully clothed, flattering light, camera-aware pose — not nude or lingerie. **Pose families:** front smile, three-quarter, tasteful over-shoulder (clothed), mirror fit-check — vary which you pick per generation.",
+      "SFW natural selfie: **must be this exact roster companion** — obey CHARACTER REFERENCE + portrait first for face, eyes, lips, hair, skin, body proportions (not a generic model). **Do not change facial features.** **New outfit and backdrop** for this shot (do not paste their roster/catalog swimsuit or costume unless this scene is explicitly swim/beach). Fully clothed, flattering light, camera-aware pose — not nude or lingerie. Natural selfie: arm-extended POV or mirror — **no phone visible**. **Pose families:** front smile, three-quarter, tasteful over-shoulder (clothed), mirror fit-check — vary which you pick per generation.",
   },
 
   lewd: {
@@ -91,7 +92,9 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Tasteful lewd natural selfie: **must be this exact roster companion** — lock identity (face, eyes, lips, hair, ears, hands, legs, skin, body type, tattoos); **do not change facial features**; not a different attractive woman. Wardrobe: lingerie, sheer layers, short shorts, tanks, wet-look fabric with coverage, silk sheets — **editorial / perfume-ad** glamour only; no crude or pornographic staging. Do not default to roster swimsuit when the scene implies something else. **Pose families:** tasteful backshot with fabric-aware curves, mirror tease, seated lean, silhouette through steam/sheer — never hardcore staging.",
+      "Tasteful lewd natural selfie: **must be this exact roster companion** — obey CHARACTER REFERENCE / portrait first for face, hair, eyes, skin tone, body type, tattoos; **do not change facial features**; not a different model. Wardrobe: lingerie, sheer layers, short shorts, tanks, wet fabric with coverage, silk sheets, editorial tease — **never** hardcore staging. Natural selfie: arm-extended or mirror shot — **no phone visible**. **Strong negative:** " +
+      CHAT_LEWD_SAFE_IMAGINE_NEGATIVE_LINE +
+      ". **Pose families:** fabric-aware curves, mirror tease, seated lean, steam/sheer silhouette — vary each generation.",
   },
 
   nude: {
@@ -118,6 +121,8 @@ export const CHAT_STILL_MENU_QUALITY_AND_ANATOMY = `**Generation quality (bindin
 **Negative prompt (avoid):** ${IMAGINE_QUALITY_NEGATIVE_LINE}
 
 **Likeness vs scene (binding):** strongly match the companion reference for **face, eyes, lips, hair, hands, legs, skin, species marks, and body-type scale** — **outfit, pose, background, props, and lighting** only from this menu line plus the chat scenario; do not remaster the roster packshot layout or copy its wardrobe or backdrop.
+
+${CHAT_IMAGINE_SELFIE_NO_PHONE_BLOCK}
 
 ${CHAT_LIKENESS_STILL_MENU_IDENTITY_TAIL}`;
 
@@ -388,7 +393,7 @@ function wrapFabSceneWithAppearanceLock(inner: string, identityReference: string
     "",
     ref,
     "",
-    "Maintain identical face, hair, eyes, body type, skin, species marks, and all distinctive features.",
+    "Keep the exact same face, hair, eyes, body type, skin tone, and distinctive features.",
     "",
     "Now generate this new scene:",
     "",
@@ -444,7 +449,10 @@ export function resolveChatImageGenerationPrompt(args: {
   const raw = args.messageText.trim();
   if (!raw) return raw;
 
-  const wrapFreeform = (body: string) => `${CHAT_LIKENESS_FREEFORM_IDENTITY_LEAD}\n\n${body.trim()}`.trim();
+  const wrapFreeform = (body: string) => {
+    const inner = `${CHAT_LIKENESS_FREEFORM_IDENTITY_LEAD}\n\n${body.trim()}`.trim();
+    return appearanceRef ? wrapFabSceneWithAppearanceLock(inner, appearanceRef) : inner;
+  };
 
   const inferred = inferChatImageGenerationPrompt(raw);
   if (!inferred) return wrapFreeform(raw);

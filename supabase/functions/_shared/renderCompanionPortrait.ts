@@ -119,7 +119,7 @@ export async function renderPortraitToStorage(opts: {
     "";
   const finalPrompt = enrichImaginePromptUniversal({
     corePrompt: rawFinal,
-    characterReference: ref.length >= 20 ? ref : null,
+    characterReference: ref.length >= 12 ? ref : null,
   });
 
   const apiKey = resolveXaiApiKey(getEnv);

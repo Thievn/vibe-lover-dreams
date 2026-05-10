@@ -14,11 +14,11 @@ export function NexusMergeRitualOverlay({
   parentB: DbCompanion;
   mergeSubphase: "fusion" | "video";
 }) {
-  const phaseTitle = mergeSubphase === "fusion" ? "Fusion pulse" : "Loop imprint";
+  const phaseTitle = mergeSubphase === "fusion" ? "Twinned veil" : "Living circuit";
   const phaseSubtitle =
     mergeSubphase === "fusion"
-      ? "The Nexus braids both threads — the ascendant stays veiled until the forge finishes."
-      : "Portrait locked — weaving motion into the ascendant shell.";
+      ? "The forge drinks two silhouettes down to one spark — nothing surfaces until the weave is sealed."
+      : "Still heat wakes into motion — her loop stitches itself to skin under violet glass.";
 
   return (
     <motion.div
@@ -29,7 +29,7 @@ export function NexusMergeRitualOverlay({
       role="alertdialog"
       aria-live="polite"
       aria-busy="true"
-      aria-label="Nexus merge in progress"
+      aria-label="Nexus forge merge in progress"
     >
       <div className="pointer-events-none absolute inset-0 bg-[#030208]/92 backdrop-blur-sm" />
       <NexusRealmBackdrop className="pointer-events-none absolute inset-0 opacity-[0.97]" />
@@ -37,7 +37,7 @@ export function NexusMergeRitualOverlay({
       <div className="relative z-[2] mx-auto w-full max-w-6xl space-y-4 sm:space-y-5">
         <div className="rounded-2xl border border-cyan-500/10 border-b-fuchsia-500/15 bg-[#050308]/72 px-4 py-3 shadow-[0_24px_80px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:px-6 sm:py-4">
           <div className="space-y-1.5 text-center">
-            <p className="text-[9px] font-medium uppercase tracking-[0.32em] text-cyan-200/45 sm:text-[10px]">The Nexus · weave gate</p>
+            <p className="text-[9px] font-medium uppercase tracking-[0.32em] text-cyan-200/45 sm:text-[10px]">Nexus forge · twin hunger</p>
             <h3 className="font-gothic text-xl text-white/95 sm:text-2xl md:text-3xl">
               <span className="bg-gradient-to-r from-cyan-200/95 via-white to-fuchsia-200/90 bg-clip-text text-transparent">
                 {phaseTitle}
@@ -48,7 +48,7 @@ export function NexusMergeRitualOverlay({
         </div>
 
         <div className="grid items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,480px)] lg:gap-8">
-          <div className="flex min-h-0 flex-col items-center justify-center rounded-2xl border border-white/[0.06] bg-black/30 px-2 py-4 backdrop-blur-md sm:px-4 sm:py-5">
+          <div className="flex min-h-0 flex-col items-center justify-center rounded-2xl border border-white/[0.06] bg-black/30 px-2 py-5 backdrop-blur-md sm:px-4 sm:py-6">
             <NexusMergeWeaveHero parentA={parentA} parentB={parentB} mergeSubphase={mergeSubphase} />
           </div>
 
@@ -65,10 +65,12 @@ export function NexusMergeRitualOverlay({
 
         <p
           className={cn(
-            "px-2 text-center text-[9px] uppercase tracking-[0.32em] text-muted-foreground/70 sm:text-[10px]",
+            "mx-auto max-w-2xl px-2 text-center text-[10px] font-normal normal-case leading-relaxed tracking-normal text-muted-foreground/80 sm:text-[11px]",
           )}
         >
-          Keep this tab awake · leaving can fray the weave
+          This weave runs on the server — lock your phone, lose signal, or step away. When it finishes, your ascendant
+          appears in your vault; if the forge cannot close the weave, your Forge Coins refund automatically the next time
+          you open Nexus or your vault refreshes.
         </p>
       </div>
     </motion.div>

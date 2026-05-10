@@ -430,16 +430,6 @@ export default function TheNexus({
   }, []);
 
   useEffect(() => {
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!busy || phase !== "merging") return;
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [busy, phase]);
-
-  useEffect(() => {
     if (recoverAttemptedRef.current) return;
     recoverAttemptedRef.current = true;
     const rawPending = localStorage.getItem(NEXUS_PENDING_MERGE_KEY);
