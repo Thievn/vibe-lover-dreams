@@ -25,6 +25,7 @@ import {
   ChevronsUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
+import type { DbCompanion } from "@/hooks/useCompanions";
 import { supabase } from "@/integrations/supabase/client";
 import ParticleBackground from "@/components/ParticleBackground";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -78,6 +79,8 @@ import { withAsyncTimeout } from "@/lib/withAsyncTimeout";
 import { invokeGenerateLiveCallOptions } from "@/lib/invokeGenerateLiveCallOptions";
 import { formatSupabaseError } from "@/lib/supabaseError";
 import { fallbackForgeDisplayName } from "@/lib/forgeRandomName";
+import { FORGE_ACCENT_TRAIT_POOL, FORGE_ACCENT_TRAIT_SET } from "@/lib/forgeAccentTraits";
+import { forgeStashPayloadFromDbCompanion } from "@/lib/forgeHydrateFromDbCompanion";
 import { pickOne, pickRandom, randomTraitCount } from "@/lib/forgeRandomSeeds";
 import {
   fetchForgeNameExclusions,
@@ -236,6 +239,16 @@ export interface CompanionCreatorProps {
   embedded?: boolean;
   /** Admin: called after a successful forge so parent can switch tabs (e.g. Character management). */
   onForged?: () => void;
+  /**
+   * Admin Character management: hydrate the full user-style forge from a `cc-…` row (theme tabs, look lab, etc.).
+   * Use `key={companion.id}` on the parent so switching rows remounts cleanly.
+   */
+  adminHydrateFromCompanion?: DbCompanion | null;
+  /**
+   * When set with `mode="admin"`, **Bind** updates this `custom_characters.id` (no `cc-` prefix) instead of inserting.
+   * Used with `adminHydrateFromCompanion` in the embedded forge studio.
+   */
+  adminEmbeddedUpdateCcUuid?: string | null;
 }
 
 /** Imperative admin hooks (embedded forge + scheduled panel). */
@@ -264,38 +277,9 @@ const GENDERS = [
   "Alien / Otherworldly",
 ] as const;
 
-const TRAITS = [
-  "Tattoos",
-  "Horns",
-  "Glowing eyes",
-  "Wings",
-  "Fangs",
-  "Piercings",
-  "Cybernetic implants",
-  "Animal ears",
-  "Tail",
-  "Scars (aesthetic)",
-  "Heterochromia",
-  "Freckles",
-  "Vitiligo",
-  "Body glitter",
-  "Latex / PVC accent",
-  "Collar & leash aesthetic",
-  "Third eye motif",
-  "Bioluminescent markings",
-  "Runic markings",
-  "Mechanical halo",
-  "Crystalline growths",
-  "Living shadow aura",
-  "Golden skin cracks",
-  "Floral vine tattoos",
-  "Celestial freckles",
-  "Elemental glow veins",
-] as const;
-
 const SPECIAL_FEATURE_SET = new Set<string>(FORGE_SPECIAL_FEATURES as readonly string[]);
-const TRAIT_SET = new Set<string>(TRAITS as readonly string[]);
-const APPEARANCE_ACCENT_OPTIONS = Array.from(new Set<string>([...FORGE_SPECIAL_FEATURES, ...TRAITS]));
+const TRAIT_SET = FORGE_ACCENT_TRAIT_SET;
+const APPEARANCE_ACCENT_OPTIONS = Array.from(new Set<string>([...FORGE_SPECIAL_FEATURES, ...FORGE_ACCENT_TRAIT_POOL]));
 
 const ORIENTATIONS = [
   "Pansexual",
@@ -570,7 +554,7 @@ ${forgeCompactStatureInstruction(o.bodyType)}${nameRule1}
 }
 
 const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProps>(function CompanionCreator(
-  { mode = "user", embedded = false, onForged },
+  { mode = "user", embedded = false, onForged, adminHydrateFromCompanion = null, adminEmbeddedUpdateCcUuid = null },
   ref,
 ) {
   const navigate = useNavigate();
@@ -594,7 +578,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     normalizeForgeScene("No Background / Transparent"),
   );
   const [bodyType, setBodyType] = useState<string>(() => normalizeForgeBodyType(pickOne(FORGE_BODY_TYPES)));
-  const [traits, setTraits] = useState<string[]>(() => pickRandom(TRAITS, randomTraitCount()));
+  const [traits, setTraits] = useState<string[]>(() => pickRandom(FORGE_ACCENT_TRAIT_POOL, randomTraitCount()));
   const [orientation, setOrientation] = useState<string>(() => pickOne(ORIENTATIONS));
   const [ethnicity, setEthnicity] = useState<string>(() => FORGE_ETHNICITY_ANY_LABEL);
   const [extraNotes, setExtraNotes] = useState("");
@@ -693,7 +677,7 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     setArtStyle(normalizeForgeArtStyle(d.artStyle));
     setSceneAtmosphere(normalizeForgeScene(d.sceneAtmosphere));
     setBodyType(normalizeForgeBodyType(d.bodyType));
-    setTraits(d.traits?.length ? d.traits : pickRandom(TRAITS, randomTraitCount()));
+    setTraits(d.traits?.length ? d.traits : pickRandom(FORGE_ACCENT_TRAIT_POOL, randomTraitCount()));
     setOrientation(d.orientation);
     setExtraNotes(d.extraNotes ?? "");
     setReferenceNotes(d.referenceNotes?.trim() ?? "");
@@ -986,6 +970,8 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     if (!userId || loadingProfile || forgeRestoreRanRef.current) return;
     forgeRestoreRanRef.current = true;
     const mode = isAdmin ? "admin" : "user";
+    const embeddedAdminRow =
+      embedded && isAdmin && adminHydrateFromCompanion?.id.startsWith("cc-") ? adminHydrateFromCompanion : null;
     let cancelled = false;
 
     const mergeAndSetHistory = async (localHist: ForgePreviewHistoryEntry[]) => {
@@ -1001,6 +987,13 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     };
 
     void (async () => {
+      if (embeddedAdminRow) {
+        hydrateForgeFromPayload(forgeStashPayloadFromDbCompanion(embeddedAdminRow));
+        await mergeAndSetHistory([]);
+        if (!cancelled) setForgeSessionHydrated(true);
+        return;
+      }
+
       const draft = loadForgeSessionDraft(userId, mode);
       if (draft) {
         hydrateForgeFromPayload(draft);
@@ -1055,7 +1048,20 @@ const CompanionCreator = forwardRef<CompanionCreatorHandle, CompanionCreatorProp
     return () => {
       cancelled = true;
     };
-  }, [userId, isAdmin, loadingProfile, hydrateForgeFromPayload]);
+  }, [userId, isAdmin, loadingProfile, hydrateForgeFromPayload, embedded, adminHydrateFromCompanion]);
+
+  /** Match Discover / tier controls to the row loaded into embedded admin forge. */
+  useEffect(() => {
+    if (!adminHydrateFromCompanion?.id.startsWith("cc-")) return;
+    const r = normalizeCompanionRarity(adminHydrateFromCompanion.rarity ?? "common");
+    if (r === "abyssal") {
+      setAdminAbyssalForge(true);
+      setAdminForgeRarity("epic");
+    } else {
+      setAdminAbyssalForge(false);
+      setAdminForgeRarity(r as Exclude<CompanionRarity, "abyssal">);
+    }
+  }, [adminHydrateFromCompanion]);
 
   /** Auto-save full session (debounced) so a paid preview and copy survive navigation. */
   useEffect(() => {
@@ -2391,6 +2397,13 @@ User flavor notes: ${extraNotes || "none"}`;
       const kinksOut = rosterKinks.length ? rosterKinks.slice(0, 16) : [];
       const imagePromptOut = effectivePackshot || rowImagePrompt;
 
+      const embeddedUpdateUuid =
+        typeof adminEmbeddedUpdateCcUuid === "string" ? adminEmbeddedUpdateCcUuid.replace(/^cc-/, "").trim() : "";
+      if (embeddedUpdateUuid && isAdmin && batchCount !== 1) {
+        toast.error("Updating an existing forge card requires batch count set to 1.");
+        return;
+      }
+
       const rows = [];
       for (let i = 0; i < batchCount; i++) {
         const rowFirst = batchFirstNames[i] ?? forgeName;
@@ -2469,57 +2482,125 @@ User flavor notes: ${extraNotes || "none"}`;
       }
 
       // Omit gallery_credit_name on insert: older DBs without that column (PGRST204) still work.
-      const insertRes = await withAsyncTimeout(
-        (async () => {
-          let attemptRows = rows as Record<string, unknown>[];
-          let res = await supabase.from("custom_characters").insert(attemptRows).select("id");
-          if (res.error) {
-            const msg = formatSupabaseError(res.error);
-            if (/personality_archetypes|vibe_theme_selections|personality_forge|PGRST204/i.test(msg)) {
-              attemptRows = attemptRows.map((r) => {
-                const { personality_archetypes: _a, vibe_theme_selections: _v, personality_forge: _p, ...rest } = r;
-                return rest;
-              });
-              res = await supabase.from("custom_characters").insert(attemptRows).select("id");
+      let insertedRows: { id: string }[] | null = null;
+      let persistError: unknown = null;
+
+      if (embeddedUpdateUuid && isAdmin && batchCount === 1) {
+        const patchBase: Record<string, unknown> = { ...(rows[0] as Record<string, unknown>) };
+        delete patchBase.user_id;
+        for (const k of [
+          "is_public",
+          "approved",
+          "exclude_from_personal_vault",
+          "rarity",
+          "gradient_from",
+          "gradient_to",
+          "gallery_credit_name",
+        ] as const) {
+          delete patchBase[k];
+        }
+
+        const updateRes = await withAsyncTimeout(
+          (async () => {
+            let attempt = { ...patchBase };
+            let res = await supabase.from("custom_characters").update(attempt).eq("id", embeddedUpdateUuid).select("id");
+            if (res.error) {
+              const msg = formatSupabaseError(res.error);
+              if (/personality_archetypes|vibe_theme_selections|personality_forge|PGRST204/i.test(msg)) {
+                const { personality_archetypes: _a, vibe_theme_selections: _v, personality_forge: _p, ...rest } = attempt;
+                attempt = rest;
+                res = await supabase.from("custom_characters").update(attempt).eq("id", embeddedUpdateUuid).select("id");
+              }
             }
-          }
-          if (res.error) {
-            const msg = formatSupabaseError(res.error);
-            if (/exclude_from_personal_vault|rarity|PGRST204/i.test(msg)) {
-              attemptRows = attemptRows.map((r) => {
-                const { exclude_from_personal_vault: _e, rarity: _r, ...rest } = r;
-                return rest;
-              });
-              res = await supabase.from("custom_characters").insert(attemptRows).select("id");
+            if (res.error) {
+              const msg = formatSupabaseError(res.error);
+              if (/exclude_from_personal_vault|rarity|PGRST204/i.test(msg)) {
+                const { exclude_from_personal_vault: _e, rarity: _r, ...rest } = attempt;
+                attempt = rest;
+                res = await supabase.from("custom_characters").update(attempt).eq("id", embeddedUpdateUuid).select("id");
+              }
             }
-          }
-          if (res.error) {
-            const msg = formatSupabaseError(res.error);
-            if (/identity_anatomy_detail|PGRST204/i.test(msg)) {
-              attemptRows = attemptRows.map((r) => {
-                const { identity_anatomy_detail: _i, ...rest } = r;
-                return rest;
-              });
-              res = await supabase.from("custom_characters").insert(attemptRows).select("id");
+            if (res.error) {
+              const msg = formatSupabaseError(res.error);
+              if (/identity_anatomy_detail|PGRST204/i.test(msg)) {
+                const { identity_anatomy_detail: _i, ...rest } = attempt;
+                attempt = rest;
+                res = await supabase.from("custom_characters").update(attempt).eq("id", embeddedUpdateUuid).select("id");
+              }
             }
-          }
-          if (res.error) {
-            const msg = formatSupabaseError(res.error);
-            if (/appearance_reference|PGRST204/i.test(msg)) {
-              attemptRows = attemptRows.map((r) => {
-                const { appearance_reference: _ar, ...rest } = r;
-                return rest;
-              });
-              res = await supabase.from("custom_characters").insert(attemptRows).select("id");
+            if (res.error) {
+              const msg = formatSupabaseError(res.error);
+              if (/appearance_reference|PGRST204/i.test(msg)) {
+                const { appearance_reference: _ar, ...rest } = attempt;
+                attempt = rest;
+                res = await supabase.from("custom_characters").update(attempt).eq("id", embeddedUpdateUuid).select("id");
+              }
             }
-          }
-          return res;
-        })(),
-        FORGE_DB_INSERT_TIMEOUT_MS,
-        "Saving companion (database insert)",
-      );
-      const { data: insertedRows, error } = insertRes;
-      if (error) {
+            return res;
+          })(),
+          FORGE_DB_INSERT_TIMEOUT_MS,
+          "Saving companion (database update)",
+        );
+        const { data, error } = updateRes;
+        if (error) persistError = error;
+        else insertedRows = data?.length ? data : [{ id: embeddedUpdateUuid }];
+      } else {
+        const insertRes = await withAsyncTimeout(
+          (async () => {
+            let attemptRows = rows as Record<string, unknown>[];
+            let res = await supabase.from("custom_characters").insert(attemptRows).select("id");
+            if (res.error) {
+              const msg = formatSupabaseError(res.error);
+              if (/personality_archetypes|vibe_theme_selections|personality_forge|PGRST204/i.test(msg)) {
+                attemptRows = attemptRows.map((r) => {
+                  const { personality_archetypes: _a, vibe_theme_selections: _v, personality_forge: _p, ...rest } = r;
+                  return rest;
+                });
+                res = await supabase.from("custom_characters").insert(attemptRows).select("id");
+              }
+            }
+            if (res.error) {
+              const msg = formatSupabaseError(res.error);
+              if (/exclude_from_personal_vault|rarity|PGRST204/i.test(msg)) {
+                attemptRows = attemptRows.map((r) => {
+                  const { exclude_from_personal_vault: _e, rarity: _r, ...rest } = r;
+                  return rest;
+                });
+                res = await supabase.from("custom_characters").insert(attemptRows).select("id");
+              }
+            }
+            if (res.error) {
+              const msg = formatSupabaseError(res.error);
+              if (/identity_anatomy_detail|PGRST204/i.test(msg)) {
+                attemptRows = attemptRows.map((r) => {
+                  const { identity_anatomy_detail: _i, ...rest } = r;
+                  return rest;
+                });
+                res = await supabase.from("custom_characters").insert(attemptRows).select("id");
+              }
+            }
+            if (res.error) {
+              const msg = formatSupabaseError(res.error);
+              if (/appearance_reference|PGRST204/i.test(msg)) {
+                attemptRows = attemptRows.map((r) => {
+                  const { appearance_reference: _ar, ...rest } = r;
+                  return rest;
+                });
+                res = await supabase.from("custom_characters").insert(attemptRows).select("id");
+              }
+            }
+            return res;
+          })(),
+          FORGE_DB_INSERT_TIMEOUT_MS,
+          "Saving companion (database insert)",
+        );
+        const { data, error } = insertRes;
+        if (error) persistError = error;
+        else insertedRows = data;
+      }
+
+      if (persistError) {
+        const error = persistError;
         if (!isAdmin && userCharged && !userRefunded) {
           const ref = await withAsyncTimeout(
             creditForgeCoins(
@@ -2566,10 +2647,17 @@ User flavor notes: ${extraNotes || "none"}`;
 
         if (isAdmin) {
           setLastForgedCcId(ccFull);
-          pushForgeOp(
-            `Bound as ${ccFull}. Open her card to judge the art, or chat to feel her voice. Looping profile motion waits in Character management or the block below.`,
-            "ok",
-          );
+          if (embeddedUpdateUuid && batchCount === 1) {
+            pushForgeOp(
+              `Remastered ${ccFull} — theme, look lab, and vault prose are written back. Portrait URLs follow your bind.`,
+              "ok",
+            );
+          } else {
+            pushForgeOp(
+              `Bound as ${ccFull}. Open her card to judge the art, or chat to feel her voice. Looping profile motion waits in Character management or the block below.`,
+              "ok",
+            );
+          }
         }
       }
       if (isAdmin && userId) {
@@ -2637,7 +2725,7 @@ User flavor notes: ${extraNotes || "none"}`;
       runCelebrityParody: (celebritySeed: string, opts?: { grotesqueGpk?: boolean }) =>
         runCelebrityParodyFromAdmin(celebritySeed, opts),
     }),
-    [isAdmin, runCelebrityParodyFromAdmin],
+    [isAdmin, runCelebrityParodyFromAdmin, runFinalCreate],
   );
 
   const panelClass =
@@ -2794,7 +2882,7 @@ User flavor notes: ${extraNotes || "none"}`;
     setArtStyle(normalizeForgeArtStyle(p.artStyle));
     setSceneAtmosphere(normalizeForgeScene(p.sceneAtmosphere));
     setBodyType(normalizeForgeBodyType(p.bodyType));
-    setTraits(p.traits?.length ? p.traits : pickRandom(TRAITS, randomTraitCount()));
+    setTraits(p.traits?.length ? p.traits : pickRandom(FORGE_ACCENT_TRAIT_POOL, randomTraitCount()));
     setOrientation(p.orientation);
     setExtraNotes(p.extraNotes ?? "");
     setReferenceNotes(p.referenceNotes?.trim() ?? "");

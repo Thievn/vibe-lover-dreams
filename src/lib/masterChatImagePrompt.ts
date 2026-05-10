@@ -23,6 +23,7 @@ import { buildCompanionVisualIdentityCapsule } from "@/lib/buildCompanionVisualI
 import {
   CHAT_LIKENESS_SCENE_FORBIDDEN_INLINE,
   CHAT_LIKENESS_SUBJECT_FEATURES_INLINE,
+  chatLikenessSameSubjectMandate,
 } from "@/lib/chatLikenessAnchors";
 
 function resolvePersonalityMatrix(companion: Companion): ForgePersonalityProfile {
@@ -239,6 +240,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
 
   const identity = [
     "— IDENTITY (TEXT BIBLE — ROSTER PORTRAIT = LIKENESS ONLY IF SUPPLIED) —",
+    chatLikenessSameSubjectMandate(companion.name),
     `**Prose-first bible.** When a roster portrait HTTPS URL is supplied to the image step, use it **only** for ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE} — **never** import ${CHAT_LIKENESS_SCENE_FORBIDDEN_INLINE}. Do not duplicate, remaster, or “match pixels” to a **catalog composition**. Build **one** believable person who fits **CHARACTER APPEARANCE** and forge metadata — eyes, lips, hands, legs, hair, skin, face shape, age read, species, and body type must read consistently with that prose.`,
     menuSceneLock
       ? "— MENU PRESET LOCK — The **Requested framing (from menu)** section is the **sole** authority for **environment, wardrobe, pose, props, lighting, and camera**. Use the written profile (and optional portrait URL) **only** for **face, eyes, lips, hair, hands, legs, skin, species, and body proportions** — not for background, outfit, or pose from any implied catalog/portrait shot."

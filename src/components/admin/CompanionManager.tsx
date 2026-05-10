@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAdminCompanions, mapSupabaseCustomCharacterRow, type DbCompanion } from "@/hooks/useCompanions";
@@ -45,6 +45,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import CompanionCreator from "@/components/CompanionCreator";
 
 type ViewMode = "list" | "edit" | "create";
 
@@ -78,6 +79,7 @@ const emptyCompanion: Omit<DbCompanion, "created_at" | "updated_at"> = {
   rarity: "common",
   backstory: "",
   static_image_url: null,
+  discover_tile_image_url: null,
   animated_image_url: null,
   profile_loop_video_enabled: false,
   rarity_border_overlay_url: null,
@@ -146,6 +148,7 @@ const CUSTOM_CHARACTER_UPDATE_KEYS = new Set([
   "image_url",
   "avatar_url",
   "static_image_url",
+  "discover_tile_image_url",
   "animated_image_url",
   "profile_loop_video_enabled",
   "rarity_border_overlay_url",
@@ -156,6 +159,7 @@ const CUSTOM_CHARACTER_UPDATE_KEYS = new Set([
   "personality_archetypes",
   "personality_forge",
   "vibe_theme_selections",
+  "appearance_reference",
 ]);
 
 function adminStockNeedsLoopVideo(c: DbCompanion): boolean {
@@ -484,7 +488,7 @@ const CompanionManager = () => {
       const { data, error: qErr } = await supabase
         .from("custom_characters")
         .select(
-          "id,name,user_id,is_public,approved,created_at,image_url,avatar_url,static_image_url,animated_image_url,profile_loop_video_enabled,tagline,rarity,gradient_from,gradient_to,rarity_border_overlay_url",
+          "id,name,user_id,is_public,approved,created_at,image_url,avatar_url,static_image_url,discover_tile_image_url,animated_image_url,profile_loop_video_enabled,tagline,rarity,gradient_from,gradient_to,rarity_border_overlay_url",
         )
         .order("created_at", { ascending: false })
         .limit(80);
@@ -514,7 +518,7 @@ const CompanionManager = () => {
   );
   const { data: adminAllGenImages = [], isFetching: adminGenImagesLoading } = useQuery({
     queryKey: ["admin-hall-all-generated-images", adminHallEditCompanionId],
-    enabled: Boolean(adminHallEditCompanionId?.startsWith("cc-")),
+    enabled: Boolean(adminHallEditCompanionId),
     queryFn: async () => {
       const { data, error: qErr } = await supabase
         .from("generated_images")
@@ -536,6 +540,7 @@ const CompanionManager = () => {
   const [loreBusyId, setLoreBusyId] = useState<string | null>(null);
   const [repairVibBusy, setRepairVibBusy] = useState(false);
   const [bulkLoopBusy, setBulkLoopBusy] = useState(false);
+  const [discoverTileBusyRowId, setDiscoverTileBusyRowId] = useState<string | null>(null);
   /** When set, edit view uses this row (e.g. full forge profile) instead of catalog list lookup. */
   const [editOverride, setEditOverride] = useState<DbCompanion | null>(null);
   const [forgeEditLoadingId, setForgeEditLoadingId] = useState<string | null>(null);
@@ -603,6 +608,15 @@ const CompanionManager = () => {
       setViewMode("edit");
     }
   }, [searchParams, viewMode, openForgeAdminEdit]);
+
+  /** Merged forge row + unsaved admin edits — feeds embedded Companion forge hydrate. */
+  const forgeStudioCompanion = useMemo((): DbCompanion | null => {
+    if (viewMode !== "edit" || !editingId || !editingId.startsWith("cc-")) return null;
+    const c = editOverride ?? companions?.find((x) => x.id === editingId);
+    if (!c?.id.startsWith("cc-")) return null;
+    const ch = editData[c.id] || {};
+    return { ...c, ...ch } as DbCompanion;
+  }, [viewMode, editingId, editOverride, companions, editData]);
 
   if (isLoading) {
     return (
@@ -820,6 +834,47 @@ const CompanionManager = () => {
       toast.error("Save failed: " + err.message);
     } finally {
       setSaving((prev) => ({ ...prev, [companion.id]: false }));
+    }
+  };
+
+  /** Writes only `discover_tile_image_url` so Discover can differ from main portrait / packshot. */
+  const applyDiscoverTileFromGalleryRow = async (
+    companion: DbCompanion,
+    row: { id: string; image_url: string; is_video?: boolean | null },
+  ) => {
+    if (row.is_video || isVideoPortraitUrl(row.image_url)) {
+      toast.error("Choose a still image for the Discover tile, not a video.");
+      return;
+    }
+    const trimmed = row.image_url.trim();
+    if (!trimmed) return;
+    setDiscoverTileBusyRowId(row.id);
+    try {
+      if (companion.id.startsWith("cc-")) {
+        const { error } = await supabase
+          .from("custom_characters")
+          .update({ discover_tile_image_url: trimmed })
+          .eq("id", companion.id.slice(3));
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("companions")
+          .update({ discover_tile_image_url: trimmed })
+          .eq("id", companion.id);
+        if (error) throw error;
+      }
+      setEditData((prev) => ({
+        ...prev,
+        [companion.id]: { ...prev[companion.id], discover_tile_image_url: trimmed },
+      }));
+      void queryClient.invalidateQueries({ queryKey: ["admin-companions"] });
+      void queryClient.invalidateQueries({ queryKey: ["companions"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
+      toast.success("Discover tile image updated.");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Update failed");
+    } finally {
+      setDiscoverTileBusyRowId(null);
     }
   };
 
@@ -1678,51 +1733,63 @@ const CompanionManager = () => {
                   void queryClient.invalidateQueries({ queryKey: ["admin-hall-all-generated-images", companion.id] });
                 }}
               />
-              {companion.id.startsWith("cc-") ? (
-                <div className="rounded-lg border border-border/80 bg-black/30 p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wide text-primary/90">
-                      All accounts — gallery &amp; clips
-                    </h4>
-                    {adminGenImagesLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : null}
-                  </div>
-                  <p className="text-[10px] leading-relaxed text-muted-foreground">
-                    Every <code className="text-[9px]">generated_images</code> row for this companion id (each
-                    user&apos;s vault stays private to them on the site; here you see the combined audit trail).
-                  </p>
-                  <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-                    {(adminAllGenImages as { id: string; user_id: string; image_url: string; prompt: string; created_at: string; is_video?: boolean | null }[]).map((row) => (
-                      <div
-                        key={row.id}
-                        className="flex gap-2 rounded-md border border-border/60 bg-background/40 p-2 text-[10px]"
-                      >
-                        <a
-                          href={row.image_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="relative h-14 w-10 shrink-0 overflow-hidden rounded border border-border/70 bg-black/40"
-                        >
-                          {row.is_video ? (
-                            <video src={row.image_url} className="h-full w-full object-cover" muted playsInline />
-                          ) : (
-                            <img src={row.image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
-                          )}
-                        </a>
-                        <div className="min-w-0 flex-1 space-y-0.5">
-                          <p className="font-mono text-[9px] text-muted-foreground truncate" title={row.user_id}>
-                            {row.user_id}
-                          </p>
-                          <p className="text-[9px] text-muted-foreground/90 line-clamp-2">{row.prompt}</p>
-                          <p className="text-[9px] text-muted-foreground/70">{new Date(row.created_at).toLocaleString()}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {!adminGenImagesLoading && adminAllGenImages.length === 0 ? (
-                    <p className="text-[10px] text-muted-foreground">No generated_images rows for this id yet.</p>
-                  ) : null}
+              <div className="rounded-lg border border-border/80 bg-black/30 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wide text-primary/90">
+                    Saved gallery &amp; clips (audit)
+                  </h4>
+                  {adminGenImagesLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : null}
                 </div>
-              ) : null}
+                <p className="text-[10px] leading-relaxed text-muted-foreground">
+                  <code className="text-[9px]">generated_images</code> for this companion id. Stills: use{" "}
+                  <span className="text-foreground/90 font-medium">Discover tile</span> to set the public Discover still
+                  without changing the main portrait URL.
+                </p>
+                <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                  {(adminAllGenImages as { id: string; user_id: string; image_url: string; prompt: string; created_at: string; is_video?: boolean | null }[]).map((row) => (
+                    <div
+                      key={row.id}
+                      className="flex gap-2 rounded-md border border-border/60 bg-background/40 p-2 text-[10px]"
+                    >
+                      <a
+                        href={row.image_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="relative h-14 w-10 shrink-0 overflow-hidden rounded border border-border/70 bg-black/40"
+                      >
+                        {row.is_video ? (
+                          <video src={row.image_url} className="h-full w-full object-cover" muted playsInline />
+                        ) : (
+                          <img src={row.image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                        )}
+                      </a>
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <p className="font-mono text-[9px] text-muted-foreground truncate" title={row.user_id}>
+                          {row.user_id}
+                        </p>
+                        <p className="text-[9px] text-muted-foreground/90 line-clamp-2">{row.prompt}</p>
+                        <p className="text-[9px] text-muted-foreground/70">{new Date(row.created_at).toLocaleString()}</p>
+                        {!row.is_video && !isVideoPortraitUrl(row.image_url) ? (
+                          <button
+                            type="button"
+                            disabled={discoverTileBusyRowId === row.id}
+                            onClick={() => void applyDiscoverTileFromGalleryRow(companion, row)}
+                            className="mt-1 inline-flex items-center gap-1 rounded border border-sky-500/40 bg-sky-500/15 px-2 py-0.5 text-[9px] font-semibold text-sky-100 hover:bg-sky-500/25 disabled:opacity-50"
+                          >
+                            {discoverTileBusyRowId === row.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : null}
+                            Discover tile
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {!adminGenImagesLoading && adminAllGenImages.length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground">No generated_images rows for this id yet.</p>
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -1862,6 +1929,15 @@ const CompanionManager = () => {
             </div>
             <AdminToyPatternsSection companionId={companion.id} />
             <Field label="Static portrait URL" value={(val("static_image_url") as string) || ""} onChange={(v) => setField(companion.id, "static_image_url", v || null)} />
+            <Field
+              label="Discover tile image URL (optional — still only)"
+              value={(val("discover_tile_image_url") as string) || ""}
+              onChange={(v) => setField(companion.id, "discover_tile_image_url", v || null)}
+            />
+            <p className="text-[10px] text-muted-foreground -mt-2">
+              When set, the Discover grid uses this HTTPS still instead of the main portrait. Leave empty to fall back to
+              static / image_url. Does not change profile portraits unless you also update those fields.
+            </p>
             {discoverTemplate ? (
               <p className="text-[10px] leading-relaxed text-amber-200/90 border border-amber-500/25 rounded-lg bg-amber-500/10 px-3 py-2">
                 Discover-listed forge card: looping MP4 is stored on <strong>your</strong> staff portrait override, not
@@ -1943,6 +2019,38 @@ const CompanionManager = () => {
             </div>
           </div>
         </div>
+
+        {companion.id.startsWith("cc-") && forgeStudioCompanion?.id === companion.id ? (
+          <div className="rounded-xl border border-fuchsia-500/25 bg-black/40 overflow-hidden">
+            <div className="border-b border-white/10 bg-fuchsia-950/30 px-4 py-3">
+              <h3 className="text-sm font-bold text-fuchsia-100">Forge studio (same controls as user forge)</h3>
+              <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                Theme tabs, shared look lab, deep randomize / roulette, literary draft, portrait preview, outfit and
+                aesthetic — all here. Bind writes this row ({companion.id}) in place (no duplicate). Discover
+                visibility, tier colors from the form above, and staff-only tools are unchanged.
+              </p>
+            </div>
+            <div className="min-h-[32rem] max-h-[min(85vh,1200px)] overflow-y-auto">
+              <CompanionCreator
+                key={`admin-forge-${forgeStudioCompanion.id}-${forgeStudioCompanion.updated_at}`}
+                mode="admin"
+                embedded
+                adminHydrateFromCompanion={forgeStudioCompanion}
+                adminEmbeddedUpdateCcUuid={companion.id.replace(/^cc-/, "")}
+                onForged={async () => {
+                  setEditData((prev) => {
+                    const next = { ...prev };
+                    delete next[companion.id];
+                    return next;
+                  });
+                  await openForgeAdminEdit(companion.id.replace(/^cc-/, ""));
+                  void queryClient.invalidateQueries({ queryKey: ["companions"] });
+                  void queryClient.invalidateQueries({ queryKey: ["admin-custom-characters"] });
+                }}
+              />
+            </div>
+          </div>
+        ) : null}
 
         {/* Actions */}
         <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-border">

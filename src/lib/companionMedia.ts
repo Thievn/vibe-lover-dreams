@@ -30,6 +30,35 @@ const DEFAULT_PUBLIC_SITE = "https://lustforge.app";
  * - Applies {@link stablePortraitDisplayUrl} (e.g. Supabase signed → public).
  * - Prefixes root-relative Vite assets (`/assets/...`) with `VITE_SITE_URL` so production is `https://lustforge.app/...`.
  */
+/**
+ * Best HTTPS still for xAI Imagine **edits** / likeness: tries portrait URL, then DB stills, then bundled catalog art.
+ * Skips video URLs. Returns `undefined` if nothing resolves to `https://`.
+ */
+export function resolveChatLikenessReferenceHttpsUrl(input: {
+  portraitUrl?: string | null;
+  db?: PortraitDbFields | null;
+  companionId?: string;
+}): string | undefined {
+  const candidates: (string | null | undefined)[] = [];
+  if (input.portraitUrl?.trim()) candidates.push(input.portraitUrl);
+  const fromDb = galleryStaticPortraitUrl(input.db ?? undefined, input.companionId);
+  if (fromDb) candidates.push(fromDb);
+  if (input.companionId && companionImages[input.companionId]) {
+    candidates.push(companionImages[input.companionId]);
+  }
+  const seen = new Set<string>();
+  for (const raw of candidates) {
+    const s = stablePortraitDisplayUrl(raw ?? undefined) ?? String(raw ?? "").trim();
+    if (!s || isVideoPortraitUrl(s)) continue;
+    const dedupe = (s.split("?")[0] ?? s).trim();
+    if (seen.has(dedupe)) continue;
+    seen.add(dedupe);
+    const https = resolveLikenessReferenceImageUrlForImagine(s);
+    if (https) return https;
+  }
+  return undefined;
+}
+
 export function resolveLikenessReferenceImageUrlForImagine(portraitUrl: string | null | undefined): string | undefined {
   const stable = stablePortraitDisplayUrl(portraitUrl ?? undefined) ?? portraitUrl?.trim() ?? "";
   let u = stable.trim();
@@ -62,15 +91,29 @@ export function portraitUrlsEquivalent(a: string | null | undefined, b: string |
   }
 }
 
-/** Gallery + chat avatar: still image only. */
+/** First candidate that is a still (never use MP4/WebM/MOV as the gallery portrait URL). */
+function firstStableStillFromCandidates(...candidates: (string | null | undefined)[]): string | undefined {
+  for (const raw of candidates) {
+    const u = stablePortraitDisplayUrl(raw ?? undefined);
+    if (!u?.trim()) continue;
+    if (isVideoPortraitUrl(u)) continue;
+    return u;
+  }
+  return undefined;
+}
+
+/** Gallery + chat avatar: still image only (skips video URLs in static/image columns). */
 export function galleryStaticPortraitUrl(db: PortraitDbFields | undefined, id: string | undefined): string | undefined {
   if (!db && id) {
     const staticAsset = companionImages[id];
     return staticAsset ? stablePortraitDisplayUrl(staticAsset) : undefined;
   }
   if (!db) return undefined;
-  const raw = db.static_image_url || db.image_url || (id ? companionImages[id] : undefined) || undefined;
-  return stablePortraitDisplayUrl(raw ?? undefined);
+  return firstStableStillFromCandidates(
+    db.static_image_url,
+    db.image_url,
+    id ? companionImages[id] : undefined,
+  );
 }
 
 /** Profile hero: animated asset when configured. */

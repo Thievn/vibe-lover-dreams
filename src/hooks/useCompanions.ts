@@ -35,6 +35,8 @@ export interface DbCompanion {
   rarity: string;
   backstory: string;
   static_image_url: string | null;
+  /** Optional still for Discover grid only; in-app portrait still uses static/image_url unless you align them. */
+  discover_tile_image_url?: string | null;
   animated_image_url: string | null;
   /** When true and animated_image_url is MP4, profile/chat can show looping video */
   profile_loop_video_enabled: boolean;
@@ -103,6 +105,7 @@ function coerceStockRow(row: Record<string, unknown>): DbCompanion {
     rarity: normalizeCompanionRarity((row.rarity as string | undefined) ?? undefined),
     backstory: (row.backstory as string | undefined) ?? "",
     static_image_url: (row.static_image_url as string | null | undefined) ?? null,
+    discover_tile_image_url: (row.discover_tile_image_url as string | null | undefined) ?? null,
     animated_image_url: (row.animated_image_url as string | null | undefined) ?? null,
     profile_loop_video_enabled: Boolean(row.profile_loop_video_enabled),
     rarity_border_overlay_url: (row.rarity_border_overlay_url as string | null | undefined) ?? null,
@@ -163,6 +166,7 @@ export function mapSupabaseCustomCharacterRow(row: Record<string, unknown>): DbC
     rarity: normalizeCompanionRarity((row.rarity as string | undefined) ?? undefined),
     backstory: (row.backstory as string | undefined) ?? "",
     static_image_url: (row.static_image_url as string | null | undefined) ?? null,
+    discover_tile_image_url: (row.discover_tile_image_url as string | null | undefined) ?? null,
     animated_image_url: (row.animated_image_url as string | null | undefined) ?? null,
     profile_loop_video_enabled: Boolean(row.profile_loop_video_enabled),
     rarity_border_overlay_url: (row.rarity_border_overlay_url as string | null | undefined) ?? null,
@@ -280,6 +284,7 @@ function staticListToDb(): DbCompanion[] {
     rarity: getStaticRarityForCatalog(c.id),
     backstory: c.backstory ?? "",
     static_image_url: null,
+    discover_tile_image_url: null,
     animated_image_url: null,
     profile_loop_video_enabled: false,
     rarity_border_overlay_url: null,

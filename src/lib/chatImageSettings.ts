@@ -1,6 +1,9 @@
 /** Per-companion: skip "Generate image" confirmation and spend immediately. */
 import {
+  CHAT_LIKENESS_FREEFORM_IDENTITY_LEAD,
+  CHAT_LIKENESS_MENU_PRESET_IDENTITY_LEAD,
   CHAT_LIKENESS_SCENE_PRIMACY_FOOTER,
+  CHAT_LIKENESS_STILL_MENU_IDENTITY_TAIL,
   CHAT_LIKENESS_SUBJECT_ANCHOR,
   CHAT_LIKENESS_WRAP_KEEP_LINE,
 } from "@/lib/chatLikenessAnchors";
@@ -62,7 +65,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "SFW phone selfie: same face, eyes, lips, hair, hands, legs, skin, and body proportions as the character — **new outfit and backdrop** for this shot (do not paste their roster/catalog swimsuit or costume unless this scene is explicitly swim/beach). Fully clothed, flattering light, camera-aware pose — not nude or lingerie. **Pose families:** front smile, three-quarter, tasteful over-shoulder (clothed), mirror fit-check — vary which you pick per generation.",
+      "SFW phone selfie: **must be this exact roster companion** — same face, eyes, lips, hair, ears, hands, legs, skin, and body proportions as CHARACTER APPEARANCE + portrait likeness (not a generic model). **New outfit and backdrop** for this shot (do not paste their roster/catalog swimsuit or costume unless this scene is explicitly swim/beach). Fully clothed, flattering light, camera-aware pose — not nude or lingerie. **Pose families:** front smile, three-quarter, tasteful over-shoulder (clothed), mirror fit-check — vary which you pick per generation.",
   },
 
   lewd: {
@@ -75,7 +78,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Tasteful lewd phone selfie: lock identity (face, eyes, lips, hair, hands, legs, skin, body type) — lingerie, sheer or wet fabric, sensual silhouette, tasteful implied or partial nude; **editorial / perfume-ad** glamour only — no crude or pornographic staging. Do not default to roster swimsuit when the scene implies something else. **Pose families:** tasteful backshot with fabric-aware curves, mirror tease, seated lean, silhouette through steam/sheer — never hardcore staging.",
+      "Tasteful lewd phone selfie: **must be this exact roster companion** — lock identity (face, eyes, lips, hair, ears, hands, legs, skin, body type, tattoos); not a different attractive woman. Lingerie, sheer or wet fabric, sensual silhouette, tasteful implied or partial nude; **editorial / perfume-ad** glamour only — no crude or pornographic staging. Do not default to roster swimsuit when the scene implies something else. **Pose families:** tasteful backshot with fabric-aware curves, mirror tease, seated lean, silhouette through steam/sheer — never hardcore staging.",
   },
 
   nude: {
@@ -88,7 +91,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Artistic nude phone selfie: fine-art boudoir framing — same person (face, eyes, lips, hair, hands, legs, identity lock); believable photoreal body if reference is stylized. Soft cinematic light, graceful pose, elegant sensuality — **no** graphic anatomy, explicit acts, or obscene angles. Natural or studio light; editorial mood. **Pose families:** draped sheet, profile line, seated twist, modest silhouette — vary set and lens each generation.",
+      "Artistic nude phone selfie: **must be this exact roster companion** — fine-art boudoir framing; same person (face, eyes, lips, hair, ears, hands, legs, identity lock); believable photoreal body if reference is stylized. Soft cinematic light, graceful pose, elegant sensuality — **no** graphic anatomy, explicit acts, or obscene angles. Natural or studio light; editorial mood. **Pose families:** draped sheet, profile line, seated twist, modest silhouette — vary set and lens each generation.",
   },
 } as const;
 
@@ -99,7 +102,9 @@ export const CHAT_STILL_MENU_QUALITY_AND_ANATOMY = `**Generation quality (bindin
 
 **Anti-artifact / anatomy (binding — humans and fantasy):** one coherent subject; **two arms and two legs** unless CHARACTER APPEARANCE explicitly describes a different limb count (insectoid extras, naga lower body, canon amputation, etc.); **human hands: exactly five fingers per hand** unless the written species explicitly calls for another digit count; no fused, duplicated, or melted fingers; no extra arms or legs, no phantom mirrored limbs; **at most one tail** unless appearance text explicitly describes multiple tails; no duplicate faces or stacked heads; avoid low-res blur, heavy JPEG wreckage, and warped perspective.
 
-**Likeness vs scene (binding):** strongly match the companion reference for **face, eyes, lips, hair, hands, legs, skin, species marks, and body-type scale** — **outfit, pose, background, props, and lighting** only from this menu line plus the chat scenario; do not remaster the roster packshot layout or copy its wardrobe or backdrop.`;
+**Likeness vs scene (binding):** strongly match the companion reference for **face, eyes, lips, hair, hands, legs, skin, species marks, and body-type scale** — **outfit, pose, background, props, and lighting** only from this menu line plus the chat scenario; do not remaster the roster packshot layout or copy its wardrobe or backdrop.
+
+${CHAT_LIKENESS_STILL_MENU_IDENTITY_TAIL}`;
 
 /**
  * Resolves chat line for + menu selfies: random line from `display` when it is an array
@@ -279,7 +284,7 @@ export function inferChatImageGenerationPrompt(text: string): string | undefined
   if (beachSwim) {
     return [
       "SFW swim editorial inferred from the user's words: honor **their** beach/coast geography and **their** swim silhouette (colors, cover-ups, rash guard, sarong, hat) — do **not** substitute the roster card bikini as the default wardrobe.",
-      "Same face, hair, skin, and body as the portrait reference; believable adult proportions; flattering sun + fill; candid vacation energy.",
+      "**Same roster companion identity** as CHARACTER APPEARANCE + portrait likeness (face, hair, ears, skin, body, tattoos) — not a different model; believable adult proportions; flattering sun + fill; candid vacation energy.",
       FAB_SELFIE.sfw.imagePrompt,
     ].join(" ");
   }
@@ -370,7 +375,7 @@ export function resolveChatImageGenerationPrompt(args: {
   const styled = args.styledSceneExtension?.trim();
   const appearanceRef = args.appearanceReference?.trim() ?? "";
   if (menu) {
-    const subjectAnchor = `${CHAT_LIKENESS_SUBJECT_ANCHOR}\n\n`;
+    const subjectAnchor = `${CHAT_LIKENESS_MENU_PRESET_IDENTITY_LEAD}\n\n${CHAT_LIKENESS_SUBJECT_ANCHOR}\n\n`;
     const lewdLighting =
       menu === FAB_SELFIE.lewd.imagePrompt
         ? "\n\n**Lighting accent (lewd tier):** seductive editorial / key-art lighting — keep the **face sharp and readable**, not blown out by bloom."
@@ -395,14 +400,16 @@ export function resolveChatImageGenerationPrompt(args: {
   const raw = args.messageText.trim();
   if (!raw) return raw;
 
+  const wrapFreeform = (body: string) => `${CHAT_LIKENESS_FREEFORM_IDENTITY_LEAD}\n\n${body.trim()}`.trim();
+
   const inferred = inferChatImageGenerationPrompt(raw);
-  if (!inferred) return raw;
+  if (!inferred) return wrapFreeform(raw);
 
   const userExplicit = isExplicitImageRequest(raw);
   const inferredExplicit = isExplicitImageRequest(inferred);
-  if (userExplicit && !inferredExplicit) return raw;
+  if (userExplicit && !inferredExplicit) return wrapFreeform(raw);
 
-  return inferred;
+  return wrapFreeform(inferred);
 }
 
 export {

@@ -127,6 +127,7 @@ export type Database = {
           rarity_border_overlay_url: string | null
           role: string
           static_image_url: string | null
+          discover_tile_image_url: string | null
           system_prompt: string
           tagline: string
           tags: string[]
@@ -159,6 +160,7 @@ export type Database = {
           rarity_border_overlay_url?: string | null
           role?: string
           static_image_url?: string | null
+          discover_tile_image_url?: string | null
           system_prompt?: string
           tagline?: string
           tags?: string[]
@@ -191,6 +193,7 @@ export type Database = {
           rarity_border_overlay_url?: string | null
           role?: string
           static_image_url?: string | null
+          discover_tile_image_url?: string | null
           system_prompt?: string
           tagline?: string
           tags?: string[]
@@ -237,6 +240,7 @@ export type Database = {
           rarity_border_overlay_url: string | null
           role: string
           static_image_url: string | null
+          discover_tile_image_url: string | null
           system_prompt: string
           tagline: string
           tags: string[]
@@ -283,6 +287,7 @@ export type Database = {
           rarity_border_overlay_url?: string | null
           role?: string
           static_image_url?: string | null
+          discover_tile_image_url?: string | null
           system_prompt?: string
           tagline?: string
           tags?: string[]
@@ -329,6 +334,7 @@ export type Database = {
           rarity_border_overlay_url?: string | null
           role?: string
           static_image_url?: string | null
+          discover_tile_image_url?: string | null
           system_prompt?: string
           tagline?: string
           tags?: string[]

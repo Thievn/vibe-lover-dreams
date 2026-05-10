@@ -31,7 +31,7 @@ import {
   normalizeLikenessReferenceForXai,
   resolveCompanionLikenessUrlFromDb,
 } from "../_shared/likenessReferenceUrl.ts";
-import { CHAT_LIKENESS_SUBJECT_FEATURES_INLINE } from "../_shared/chatLikenessAnchors.ts";
+import { CHAT_LIKENESS_EDGE_SAME_SUBJECT, CHAT_LIKENESS_SUBJECT_FEATURES_INLINE } from "../_shared/chatLikenessAnchors.ts";
 import { publicApiTeaserGuardResponse } from "../_shared/publicApiTeaserGate.ts";
 
 const corsHeaders = {
@@ -301,6 +301,7 @@ serve(async (req) => {
       const executionHead = useLikenessEdit
         ? [
             "[EXECUTION — IDENTITY-LOCKED NEW SCENE — READ FIRST]",
+            CHAT_LIKENESS_EDGE_SAME_SUBJECT,
             "A **still profile portrait** is supplied to the **edit** API as an **identity anchor only** — preserve **the same person**: " +
               CHAT_LIKENESS_SUBJECT_FEATURES_INLINE +
               " plus tattoos, piercings, and species marks so they clearly match that individual.",
@@ -309,9 +310,10 @@ serve(async (req) => {
           ].join("\n\n")
         : [
             "[EXECUTION — NOT A PORTRAIT REMASTER — READ FIRST]",
+            CHAT_LIKENESS_EDGE_SAME_SUBJECT,
             "Render the **Requested framing (from menu)** block **literally**: named **location**, **body configuration / pose**, **wardrobe or undress state**, **props**, and **camera relationship** as written.",
             "**Forbidden default:** facing-camera standing glam bust, neutral catalog three-quarter, phone-mirror bathroom headshot, or “same silhouette as a roster card” unless the menu text explicitly demands that.",
-            "**No profile-JPEG continuity:** Do not match pixels, palette, outfit, or composition to an imagined roster/portrait image — text identity only, **new** photograph in the menu scenario.",
+            "**Likeness:** The subject must be the **same individual** as CHARACTER APPEARANCE and any roster portrait URL in Character Details — **not** a substitute model. Output is a **new** photograph in the menu scenario; do not copy the portrait’s backdrop, wardrobe, or crop.",
           ].join("\n\n");
       const anatomyHead = anatomyDirective
         ? `ANATOMY_POLICY (must obey — do not contradict in the image):\n${anatomyDirective}`

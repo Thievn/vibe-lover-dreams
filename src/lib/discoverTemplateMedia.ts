@@ -1,4 +1,5 @@
 import type { DbCompanion } from "@/hooks/useCompanions";
+import { galleryStaticPortraitUrl, isVideoPortraitUrl, stablePortraitDisplayUrl } from "@/lib/companionMedia";
 
 /**
  * Discover-listed forge cards (`custom_characters` public + approved) share one canonical row.
@@ -28,4 +29,18 @@ export function discoverListingPortraitDbSlice(db: DbCompanion): DbCompanion {
     animated_image_url: null,
     profile_loop_video_enabled: false,
   };
+}
+
+/**
+ * Still image for Discover tiles: optional admin `discover_tile_image_url`, else canonical stills
+ * (never inherits MP4 from `image_url` / `static_image_url`).
+ */
+export function discoverListingTileImageUrl(db: DbCompanion, id: string): string | null {
+  const explicit = db.discover_tile_image_url?.trim();
+  if (explicit) {
+    const s = stablePortraitDisplayUrl(explicit) ?? explicit;
+    if (!isVideoPortraitUrl(s)) return s;
+  }
+  const slice = discoverListingPortraitDbSlice(db);
+  return galleryStaticPortraitUrl(slice, id) ?? null;
 }

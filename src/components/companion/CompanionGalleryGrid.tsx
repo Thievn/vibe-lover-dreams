@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ImageIcon, Loader2, Sparkles, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import type { CompanionGalleryRow } from "@/hooks/useCompanionGeneratedImages";
-import { portraitUrlsEquivalent, stablePortraitDisplayUrl } from "@/lib/companionMedia";
+import { isVideoPortraitUrl, portraitUrlsEquivalent, stablePortraitDisplayUrl } from "@/lib/companionMedia";
 import { CANONICAL_PORTRAIT_GALLERY_ID_PREFIX } from "@/lib/companionGalleryWithCanonical";
 import { ZoomableImageViewport } from "@/components/ZoomableImageViewport";
 import { loadImageNaturalSize } from "@/lib/chatImageSettings";
@@ -24,6 +24,12 @@ type Props = {
 
 type GalleryFilter = "all" | "stills" | "clips";
 
+/** True when row is a motion clip: DB flag or URL looks like MP4/WebM/MOV. */
+export function companionGalleryRowIsClip(r: CompanionGalleryRow): boolean {
+  const u = stablePortraitDisplayUrl(r.image_url) ?? r.image_url;
+  return Boolean(r.is_video) || isVideoPortraitUrl(u);
+}
+
 export function CompanionGalleryGrid({
   companionName,
   images,
@@ -41,8 +47,8 @@ export function CompanionGalleryGrid({
   const normalizedCurrent = currentPortraitUrl ? stablePortraitDisplayUrl(currentPortraitUrl) : null;
 
   const { stills, clips, showFilterTabs, filtered } = useMemo(() => {
-    const st = images.filter((r) => !r.is_video);
-    const cl = images.filter((r) => Boolean(r.is_video));
+    const st = images.filter((r) => !companionGalleryRowIsClip(r));
+    const cl = images.filter((r) => companionGalleryRowIsClip(r));
     const tabs = Boolean(compact && images.length > 6 && (cl.length > 0 || images.length > 10));
     let list = images as CompanionGalleryRow[];
     if (filter === "stills") list = st;
@@ -51,7 +57,7 @@ export function CompanionGalleryGrid({
   }, [images, compact, filter]);
 
   const handleSetPortrait = async (row: CompanionGalleryRow) => {
-    if (row.is_video) {
+    if (companionGalleryRowIsClip(row)) {
       toast.error("Videos can’t be used as profile portraits. Pick a still image.");
       return;
     }
@@ -140,7 +146,7 @@ export function CompanionGalleryGrid({
     >
       {filtered.map((row, i) => {
           const display = stablePortraitDisplayUrl(row.image_url) ?? row.image_url;
-          const isVideo = Boolean(row.is_video);
+          const isVideo = companionGalleryRowIsClip(row);
           const isActive =
             !isVideo &&
             Boolean(normalizedCurrent) &&
@@ -215,8 +221,9 @@ export function CompanionGalleryGrid({
                     "absolute right-1.5 top-1.5 z-[2] rounded-full border border-violet-400/45 bg-violet-950/70 font-semibold uppercase tracking-wider text-violet-100/95",
                     compact ? "px-1.5 py-0.5 text-[8px]" : "top-2 right-2 px-2 py-0.5 text-[10px]",
                   )}
+                  title="This still is the source frame for generating a profile loop clip"
                 >
-                  Loop
+                  Clip src
                 </span>
               ) : null}
               <div
@@ -228,7 +235,11 @@ export function CompanionGalleryGrid({
                 {onSelectForLoop && !isVideo && !row.id.startsWith(CANONICAL_PORTRAIT_GALLERY_ID_PREFIX) ? (
                   <button
                     type="button"
-                    title={selectedLoopSourceId === row.id ? "Clear loop video source" : "Use this still for loop video"}
+                    title={
+                      selectedLoopSourceId === row.id
+                        ? "Clear profile clip source"
+                        : "Use this still as the frame to generate a profile loop clip (separate from portrait)"
+                    }
                     onClick={(e) => {
                       e.stopPropagation();
                       onSelectForLoop(selectedLoopSourceId === row.id ? null : row);
@@ -242,7 +253,13 @@ export function CompanionGalleryGrid({
                     )}
                   >
                     <Video className={cn("shrink-0", compact ? "h-3 w-3" : "h-3.5 w-3.5")} />
-                    {compact ? (selectedLoopSourceId === row.id ? "Clear" : "Loop") : selectedLoopSourceId === row.id ? "Clear loop source" : "Use for loop video"}
+                    {compact
+                      ? selectedLoopSourceId === row.id
+                        ? "Clear"
+                        : "Clip"
+                      : selectedLoopSourceId === row.id
+                        ? "Clear clip source"
+                        : "Use for profile clip"}
                   </button>
                 ) : null}
                 <button
@@ -323,7 +340,7 @@ export function CompanionGalleryGrid({
                 <X className="h-5 w-5" />
               </button>
               <div className="w-full rounded-2xl border border-white/10 bg-black/30 overflow-hidden max-h-[min(78vh,800px)]">
-                {lightbox.is_video ? (
+                {companionGalleryRowIsClip(lightbox) ? (
                   <video
                     src={stablePortraitDisplayUrl(lightbox.image_url) ?? lightbox.image_url}
                     controls
@@ -339,7 +356,7 @@ export function CompanionGalleryGrid({
                   />
                 )}
               </div>
-              {lightbox.is_video ? (
+              {companionGalleryRowIsClip(lightbox) ? (
                 <p className="text-[10px] text-center text-muted-foreground/90">Native video controls</p>
               ) : (
                 <p className="text-[10px] text-center text-muted-foreground/90">

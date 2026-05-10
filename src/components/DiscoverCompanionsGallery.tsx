@@ -9,8 +9,7 @@ import { useCompanions, dbToCompanion, type DbCompanion } from "@/hooks/useCompa
 import { cn } from "@/lib/utils";
 import type { CompanionRarity } from "@/lib/companionRarity";
 import { COMPANION_RARITIES, normalizeCompanionRarity, rarityTierCaptionColor } from "@/lib/companionRarity";
-import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
-import { discoverListingPortraitDbSlice } from "@/lib/discoverTemplateMedia";
+import { discoverListingPortraitDbSlice, discoverListingTileImageUrl } from "@/lib/discoverTemplateMedia";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { CompanionVibeTraitStrip } from "@/components/traits/CompanionVibeTraitStrip";
 import { resolveDisplayTraitsForCompanion } from "@/lib/vibeDisplayTraits";
@@ -35,7 +34,7 @@ function rowsFromDb(dbList: DbCompanion[]): CommunityGalleryRow[] {
   return dbList.map((db) => {
     const slice = discoverListingPortraitDbSlice(db);
     const c = dbToCompanion(slice);
-    const imageUrl = galleryStaticPortraitUrl(slice, slice.id) ?? null;
+    const imageUrl = discoverListingTileImageUrl(db, slice.id);
     return {
       ...c,
       rarity: normalizeCompanionRarity(db.rarity),

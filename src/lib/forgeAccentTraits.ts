@@ -1,0 +1,31 @@
+/** Accent traits shown in Companion forge (shared with DB hydrate + roulette). */
+export const FORGE_ACCENT_TRAIT_POOL = [
+  "Tattoos",
+  "Horns",
+  "Glowing eyes",
+  "Wings",
+  "Fangs",
+  "Piercings",
+  "Cybernetic implants",
+  "Animal ears",
+  "Tail",
+  "Scars (aesthetic)",
+  "Heterochromia",
+  "Freckles",
+  "Vitiligo",
+  "Body glitter",
+  "Latex / PVC accent",
+  "Collar & leash aesthetic",
+  "Third eye motif",
+  "Bioluminescent markings",
+  "Runic markings",
+  "Mechanical halo",
+  "Crystalline growths",
+  "Living shadow aura",
+  "Golden skin cracks",
+  "Floral vine tattoos",
+  "Celestial freckles",
+  "Elemental glow veins",
+] as const;
+
+export const FORGE_ACCENT_TRAIT_SET = new Set<string>(FORGE_ACCENT_TRAIT_POOL as readonly string[]);
