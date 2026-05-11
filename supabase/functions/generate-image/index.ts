@@ -262,6 +262,8 @@ serve(async (req) => {
       cd.suppress_forge_style_dna_for_chat_menu_preset === true;
     const chatMenuSceneLock =
       cd.chatMenuSceneLock === true || cd.chat_menu_scene_lock === true;
+    /** Menu tiles must follow PRIMARY SCENE; `/v1/images/edits` anchors on the portrait and often preserves bed/crop/pose. */
+    const menuSceneLockEffective = chatMenuSceneLock && isChatSessionStill;
     const likenessHint = String(
       cd.likeness_reference_image_url ?? cd.likenessReferenceImageUrl ?? "",
     ).trim();
@@ -280,6 +282,7 @@ serve(async (req) => {
     }
     /** Public HTTPS portrait so xAI `/v1/images/edits` can fetch it — identity without remastering the card. */
     const useLikenessEdit = isChatSessionStill && !isPortrait && likenessForImagine.startsWith("https://");
+    const useLikenessEditForImagine = useLikenessEdit && !menuSceneLockEffective;
     const tabForAnime = cd.selectedForgeTab ?? cd.selected_forge_tab ?? cd.activeForgeTab;
     const isAnime = isAnimeTemptationForgeTabId(tabForAnime);
     const tierRewrite = effectiveTier === "forge_preview_sfw" ? "preview" : "full";
@@ -314,7 +317,7 @@ serve(async (req) => {
        * the execution block last — at 7600 chars the anti–“catalog portrait” directives were often **truncated away**,
        * so Imagine fell back to the same standing / card-style shot. Head must be: execution → anatomy → brief.
        */
-      const executionHead = useLikenessEdit
+      const executionHead = useLikenessEditForImagine
         ? [
             "[EXECUTION — IDENTITY-LOCKED NEW SCENE — READ FIRST]",
             CHAT_LIKENESS_EDGE_SAME_SUBJECT,
@@ -392,7 +395,7 @@ serve(async (req) => {
     const portraitLock = String(characterData.portraitConsistencyLock ?? characterData.portrait_consistency_lock ?? "").trim();
     const portraitLockLine = portraitLock
       ? isChatSessionStill
-        ? useLikenessEdit
+        ? useLikenessEditForImagine
           ? `- **Identity anchor (HTTPS profile still + written bible):** The model receives the roster **portrait URL** for **likeness only** (${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE}; tattoos / piercings / species marks). **Wardrobe, pose, set, background, props, and lighting** = PRIMARY SCENE / menu — **not** the still’s room, crop, or costume. Written lock: ${portraitLock}`
           : chatMenuSceneLock
             ? `- **Character bible (written identity — no HTTPS portrait for this request):** Mine roster text **only** for ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE}; scene from menu. ${portraitLock}`
@@ -407,7 +410,6 @@ serve(async (req) => {
       ? `Pose that clearly sells the forge body type — correct limbs, tail, wings, hybrid junction, or non-human mass as implied; same character identity from the text profile.`
       : "seductive and provocative pose";
 
-    const menuSceneLockEffective = chatMenuSceneLock && isChatSessionStill;
     const menuSceneClothingLine =
       "**PRIMARY SCENE + menu preset only:** every garment, fabric state, coverage, jewelry, and prop worn or held must match the user’s chosen gallery category — **not** the roster/profile card outfit, **not** a generic bikini/studio wrap unless the menu text explicitly calls for it.";
     const menuScenePoseLine =
@@ -482,7 +484,7 @@ serve(async (req) => {
     const subjectTag = [subName || "the companion", subGender || "adult presenting"].join(" · ");
     const imagingSubjectDescription =
       menuSceneLockEffective && effectiveTier === "full_adult_art" && isChatSessionStill
-        ? `Single subject — ${subjectTag}${subBody ? ` · body type: ${subBody}` : ""}. **Chat gallery menu still:** ${useLikenessEdit ? "**Likeness** = same person as the **HTTPS profile still** (face, hair, eyes, skin, tattoos, species) plus written bible — **not** a remaster of that photo. " : ""}CHARACTER DETAILS = **identity** (read the bible; **ignore** card outfit/room/pose embedded in prose when they conflict PRIMARY SCENE). **Do not** match swimsuit, beach, marketing-still palette, or catalog framing unless PRIMARY SCENE demands it. **PRIMARY SCENE** = sole wardrobe, set, pose, props, lens.`
+        ? `Single subject — ${subjectTag}${subBody ? ` · body type: ${subBody}` : ""}. **Chat gallery menu still:** ${useLikenessEditForImagine ? "**Likeness** = same person as the **HTTPS profile still** (face, hair, eyes, skin, tattoos, species) plus written bible — **not** a remaster of that photo. " : ""}CHARACTER DETAILS = **identity** (read the bible; **ignore** card outfit/room/pose embedded in prose when they conflict PRIMARY SCENE). **Do not** match swimsuit, beach, marketing-still palette, or catalog framing unless PRIMARY SCENE demands it. **PRIMARY SCENE** = sole wardrobe, set, pose, props, lens.`
         : baseDescription;
 
     const finalPromptRaw = effectiveTier === "forge_preview_sfw"
@@ -513,10 +515,10 @@ ${adultUniversalBase}
         const adultVisualRules = `Visual rules:
 - No legible logos, watermarks, UI chrome, fake app branding, or readable product/store signage in-frame.
 - **Tasteful adult:** sensual nude, lingerie, and strong tease are in-bounds; avoid hardcore pornographic depiction, graphic penetration, or obscene gynecological close-ups — premium boudoir / editorial tone.
-- **Likeness vs outfit:** Keep **one consistent individual** per Character Details / character bible — face, hair, skin, and body type${useLikenessEdit ? " — when a **profile still URL** is supplied, **match that person’s** features and marks while still obeying PRIMARY SCENE for **everything wearable and environmental**" : " from the **written** profile"} — but **do not** invent wardrobe from an imaginary “card photo.” When PRIMARY SCENE describes lingerie, gym, rain, bed, nude, etc., **invent** scene-accurate clothing or undress per PRIMARY SCENE (no default bikini paste).
-${isChatSessionStill && useLikenessEdit ? "- **Likeness edit mode:** An **HTTPS profile still** is sent to the image **edit** endpoint as an **identity anchor** — same person (face, hair, eyes, skin, build, tattoos, species marks). **Wardrobe, pose, room, props, light, and crop** come **only** from PRIMARY SCENE / menu — output must **not** read as the same photo with a filter.\n" : ""}
-${isChatSessionStill && !useLikenessEdit && !menuSceneLockEffective ? "- **Chat still / gallery preset:** There is **no input reference image** — PRIMARY SCENE + the character’s **appearance paragraph and forge prompt anchors** guide look and styling. Each generation should read as a **new** shot when the user asks for variety.\n" : ""}
-${isChatSessionStill && !useLikenessEdit && menuSceneLockEffective ? "- **Gallery menu still:** **No visual reference input.** Identity = **face, hair, skin, species, body type** from the character bible only. **Wardrobe, pose, room, props, light, and crop** = PRIMARY SCENE / menu only — **not** a static marketing still, **not** forge packshot prose as a shot list.\n" : ""}
+- **Likeness vs outfit:** Keep **one consistent individual** per Character Details / character bible — face, hair, skin, and body type${useLikenessEditForImagine ? " — when a **profile still URL** is supplied, **match that person’s** features and marks while still obeying PRIMARY SCENE for **everything wearable and environmental**" : " from the **written** profile"} — but **do not** invent wardrobe from an imaginary “card photo.” When PRIMARY SCENE describes lingerie, gym, rain, bed, nude, etc., **invent** scene-accurate clothing or undress per PRIMARY SCENE (no default bikini paste).
+${isChatSessionStill && useLikenessEditForImagine ? "- **Likeness edit mode:** An **HTTPS profile still** is sent to the image **edit** endpoint as an **identity anchor** — same person (face, hair, eyes, skin, build, tattoos, species marks). **Wardrobe, pose, room, props, light, and crop** come **only** from PRIMARY SCENE / menu — output must **not** read as the same photo with a filter.\n" : ""}
+${isChatSessionStill && !useLikenessEditForImagine && !menuSceneLockEffective ? "- **Chat still / gallery preset:** There is **no input reference image** — PRIMARY SCENE + the character’s **appearance paragraph and forge prompt anchors** guide look and styling. Each generation should read as a **new** shot when the user asks for variety.\n" : ""}
+${isChatSessionStill && !useLikenessEditForImagine && menuSceneLockEffective ? "- **Gallery menu still:** **No visual reference input.** Identity = **face, hair, skin, species, body type** from the character bible only. **Wardrobe, pose, room, props, light, and crop** = PRIMARY SCENE / menu only — **not** a static marketing still, **not** forge packshot prose as a shot list.\n" : ""}
 ${chatMenuSceneLock && isChatSessionStill ? "- **Gallery menu lock:** PRIMARY SCENE must realize the **menu category’s** location and action — **not** a head-and-shoulders glam reskin. If PRIMARY SCENE names a bed, car, tub, desk, beach, shower, gym, etc., the **environment and body–world interaction** must clearly show that place.\n" : ""}
 ${
             isAnime
@@ -573,7 +575,7 @@ ${safeRewritten}`.trim();
         prompt: finalPrompt,
         getEnv: (n) => Deno.env.get(n),
         aspectRatio: "2:3",
-        likenessEditSourceUrl: useLikenessEdit ? likenessForImagine : undefined,
+        likenessEditSourceUrl: useLikenessEditForImagine ? likenessForImagine : undefined,
       });
       imageDataUrl = dataUrl;
     } catch (imgErr) {
