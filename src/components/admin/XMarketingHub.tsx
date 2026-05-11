@@ -928,12 +928,14 @@ export default function XMarketingHub() {
   const composePreviewChars = composePreviewFull.length;
 
   const composePreviewMedia = useMemo(() => {
-    if (!heroVisual) return null;
     if (selected) {
       const plainLoopPreview = !framedModeOn && preferLoopForX && loopVideoPublicUrl;
       if (plainLoopPreview) {
         return (
-          <div className="w-full max-w-[min(100%,280px)] mx-auto">
+          <div
+            key={loopVideoPublicUrl}
+            className="w-full max-w-[min(100%,280px)] mx-auto"
+          >
             <div className="relative rounded-xl overflow-hidden border border-[#2f3336] bg-black aspect-[2/3] max-h-[min(56vh,520px)]">
               <video
                 src={loopVideoPublicUrl}
@@ -948,8 +950,12 @@ export default function XMarketingHub() {
           </div>
         );
       }
+      if (!heroVisual) return null;
       return (
-        <div className="w-full max-w-[min(100%,280px)] mx-auto">
+        <div
+          key={`${selected.id}-${heroVisual}-${preferLoopForX ? loopVideoPublicUrl ?? "" : "still"}`}
+          className="w-full max-w-[min(100%,280px)] mx-auto"
+        >
           <XMarketingHeroCard
             companion={selected}
             mediaUrl={heroVisual}
@@ -959,10 +965,12 @@ export default function XMarketingHub() {
         </div>
       );
     }
+    if (!heroVisual) return null;
     if (isVideoPortraitUrl(heroVisual)) {
       return (
         <div className="relative w-full max-w-md mx-auto bg-black rounded-lg overflow-hidden">
           <video
+            key={heroVisual}
             src={heroVisual}
             className="w-full max-h-[min(320px,45vh)] object-contain object-top"
             autoPlay

@@ -141,12 +141,21 @@ export function resolvePublicLoopPortraitVideoUrlForX(db: {
 }): string | null {
   const raw = db.animated_image_url?.trim();
   if (!raw) return null;
-  const hasVideoExt = isVideoPortraitUrl(raw);
-  const trustedLoop = Boolean(db.profile_loop_video_enabled && /^https?:\/\//i.test(raw));
+  let resolved = (stablePortraitDisplayUrl(raw) ?? raw).trim();
+  if (resolved.startsWith("/") && !resolved.startsWith("//")) {
+    const origin = (
+      typeof import.meta !== "undefined" && import.meta.env?.VITE_SITE_URL
+        ? String(import.meta.env.VITE_SITE_URL).trim()
+        : ""
+    ).replace(/\/$/, "") || DEFAULT_PUBLIC_SITE.replace(/\/$/, "");
+    resolved = `${origin}${resolved}`;
+  }
+  resolved = (resolved.split("?")[0] ?? resolved).trim();
+  const hasVideoExt = isVideoPortraitUrl(resolved);
+  const trustedLoop = Boolean(db.profile_loop_video_enabled && /^https?:\/\//i.test(resolved));
   if (!hasVideoExt && !trustedLoop) return null;
-  const loopUrl = stablePortraitDisplayUrl(raw)?.split("?")[0];
-  if (loopUrl && /^https?:\/\//i.test(loopUrl)) return loopUrl;
-  return null;
+  if (!/^https?:\/\//i.test(resolved)) return null;
+  return resolved;
 }
 
 /** Interior URL is video by extension, or operator enabled loop + remote URL (extensionless storage). */
