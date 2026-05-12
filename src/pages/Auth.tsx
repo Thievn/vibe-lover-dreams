@@ -14,6 +14,7 @@ import {
   stripLeadingAtForLoginIdentifier,
 } from "@/config/auth";
 import { trackEvent } from "@/lib/analytics";
+import { formatSupabaseError } from "@/lib/supabaseError";
 
 const NEON = "#FF2D7B";
 
@@ -126,7 +127,17 @@ export default function Auth() {
         },
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        const msg = formatSupabaseError(authError);
+        const smtpHint = /email|smtp|mail|confirmation|delivery|send/i.test(msg);
+        toast.error(msg, {
+          duration: smtpHint ? 14_000 : 6_000,
+          description: smtpHint
+            ? "Supabase Auth could not send mail via your SMTP settings. Dashboard → Authentication → SMTP: check host, port (587), credentials, and that the sender address uses a domain verified at your provider (e.g. Resend)."
+            : undefined,
+        });
+        return;
+      }
 
       trackEvent("sign_up", { method: "email" });
 
@@ -160,7 +171,7 @@ export default function Auth() {
         });
       }
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Sign up failed");
+      toast.error(formatSupabaseError(error));
     } finally {
       setLoading(false);
     }
@@ -198,7 +209,7 @@ export default function Auth() {
       trackEvent("login", { method: "password" });
       navigate("/dashboard");
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Sign in failed");
+      toast.error(formatSupabaseError(error));
     } finally {
       setLoading(false);
     }
