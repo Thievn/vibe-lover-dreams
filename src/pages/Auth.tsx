@@ -122,6 +122,7 @@ export default function Auth() {
         password: data.password,
         options: {
           data: { username: data.username, full_name: data.username },
+          emailRedirectTo: `${window.location.origin}/auth`,
         },
       });
 
