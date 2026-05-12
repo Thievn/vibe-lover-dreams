@@ -30,7 +30,13 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "").trim();
-    const ALLOWED_EMAIL = "thievnsden@gmail.com";
+    const allowRaw = (Deno.env.get("CREATE_USER_ALLOWED_EMAILS") ?? "thievnsden@gmail.com").trim();
+    const allowedEmails = new Set(
+      allowRaw
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean),
+    );
 
     if (!email || !password) {
       return new Response(JSON.stringify({ error: "Email and password are required." }), {
@@ -39,11 +45,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (email !== ALLOWED_EMAIL) {
-      return new Response(JSON.stringify({ error: "Access restricted to admin only. This is a private waitlist." }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!allowedEmails.has(email)) {
+      return new Response(
+        JSON.stringify({ error: "This email is not allowed to use the invite create-user endpoint." }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const headers = {
@@ -126,43 +135,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      const roleResponse = await fetch(`${SUPABASE_URL}/rest/v1/user_roles`, {
-        method: "POST",
-        headers: {
-          ...headers,
-          Prefer: "return=minimal",
-        },
-        body: JSON.stringify([{ user_id: existingUser.id, role: "admin" }]),
-      });
-
-      if (!roleResponse.ok && roleResponse.status !== 409) {
-        const roleErrorText = await roleResponse.text();
-        console.error("Failed to insert admin role:", roleErrorText);
-        return new Response(JSON.stringify({ error: "Failed to assign admin role." }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      return new Response(JSON.stringify({ user: existingUser }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const roleResponse = await fetch(`${SUPABASE_URL}/rest/v1/user_roles`, {
-      method: "POST",
-      headers: {
-        ...headers,
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify([{ user_id: createUserData.id, role: "admin" }]),
-    });
-
-    if (!roleResponse.ok) {
-      const roleErrorText = await roleResponse.text();
-      console.error("Failed to insert admin role:", roleErrorText);
-      return new Response(JSON.stringify({ error: "Failed to assign admin role." }), {
-        status: 500,
+      return new Response(JSON.stringify({ user: existingUser, passwordUpdated: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

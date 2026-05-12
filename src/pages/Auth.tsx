@@ -7,7 +7,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { User, Lock, Mail, Eye, EyeOff, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { isPublicSignUpEnabled, stripLeadingAtForLoginIdentifier } from "@/config/auth";
+import {
+  canEmailRegisterWithPassword,
+  isPublicSignUpEnabled,
+  isSignUpOfferedInAuthUi,
+  stripLeadingAtForLoginIdentifier,
+} from "@/config/auth";
 import { trackEvent } from "@/lib/analytics";
 
 const NEON = "#FF2D7B";
@@ -38,6 +43,7 @@ type SignInFormData = z.infer<typeof signInSchema>;
 export default function Auth() {
   const navigate = useNavigate();
   const publicSignup = isPublicSignUpEnabled();
+  const signUpOffered = isSignUpOfferedInAuthUi();
   const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -87,12 +93,16 @@ export default function Auth() {
   }, [rememberMe, signInForm]);
 
   useEffect(() => {
-    if (!publicSignup && mode === "signUp") setMode("signIn");
-  }, [publicSignup, mode]);
+    if (!signUpOffered && mode === "signUp") setMode("signIn");
+  }, [signUpOffered, mode]);
 
   const onSubmitSignUp = async (data: SignUpFormData) => {
-    if (!publicSignup) {
-      toast.error("New registrations are not open.");
+    if (!canEmailRegisterWithPassword(data.email)) {
+      toast.error(
+        publicSignup
+          ? "This email cannot register right now."
+          : "New registrations are closed — only invite-listed emails can sign up.",
+      );
       return;
     }
     setLoading(true);
@@ -120,7 +130,10 @@ export default function Auth() {
       trackEvent("sign_up", { method: "email" });
 
       const uid = signUpData.user?.id;
-      if (uid) {
+      const session = signUpData.session;
+      // With a session, RLS allows the upsert; without one (email confirmation pending), the
+      // `handle_new_user` trigger writes `display_name` from sign-up metadata.
+      if (uid && session) {
         const { error: profileError } = await supabase.from("profiles").upsert(
           {
             user_id: uid,
@@ -138,13 +151,13 @@ export default function Auth() {
         }
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
       if (session) {
         navigate("/dashboard");
+      } else if (signUpData.user) {
+        toast.info("Confirm your email, then sign in.", {
+          description: "We sent a link to your inbox (check spam). Your username is saved for sign-in after you confirm.",
+        });
       }
-      // No email confirmation toast — check inbox / spam if sign-in fails after sign-up.
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Sign up failed");
     } finally {
@@ -228,7 +241,7 @@ export default function Auth() {
           <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Access your empire</p>
         </div>
 
-        {publicSignup ? (
+        {signUpOffered ? (
           <div className="flex mb-6 p-1 rounded-2xl bg-black/40 border border-white/10">
             <button
               type="button"
@@ -277,6 +290,12 @@ export default function Auth() {
             Supabase → Authentication → Providers.
           </p>
         )}
+        {!publicSignup && signUpOffered ? (
+          <p className="mb-4 -mt-2 text-center text-[11px] text-muted-foreground/95 leading-relaxed px-1 border border-white/10 rounded-xl py-2 bg-black/30">
+            Invite-only sign-up: only listed QA addresses can create an account. Everyone else can sign in if they already
+            have an account.
+          </p>
+        ) : null}
 
         {mode === "signIn" ? (
           <form onSubmit={signInForm.handleSubmit(onSubmitSignIn)} className="space-y-4">

@@ -120,6 +120,43 @@ export function isPublicSignUpEnabled(): boolean {
   return raw !== "false" && raw !== "0" && raw !== "off";
 }
 
+/** QA inbox — may self-register when public signup is off (same row as `VITE_INVITE_SIGNUP_EMAILS`). */
+const QA_INVITE_SIGNUP_EMAIL = normalizeAuthEmailForCompare("thievnsden@gmail.com");
+
+/**
+ * Normalized emails allowed to use the Sign up form when `VITE_PUBLIC_SIGNUP` is off.
+ * Merge of `VITE_INVITE_SIGNUP_EMAILS` (comma-separated) plus the fixed QA inbox above.
+ */
+export function inviteOnlySignupEmailSet(): Set<string> {
+  const out = new Set<string>();
+  if (QA_INVITE_SIGNUP_EMAIL) out.add(QA_INVITE_SIGNUP_EMAIL);
+  const raw = (import.meta.env.VITE_INVITE_SIGNUP_EMAILS as string | undefined)?.trim();
+  if (raw) {
+    for (const part of raw.split(",")) {
+      const n = normalizeAuthEmailForCompare(part.trim());
+      if (n) out.add(n);
+    }
+  }
+  return out;
+}
+
+/** Show Sign up tab: public signup on, or at least one invite-only address configured. */
+export function isSignUpOfferedInAuthUi(): boolean {
+  return isPublicSignUpEnabled() || inviteOnlySignupEmailSet().size > 0;
+}
+
+/** That email may complete `signUp` when invite-only mode applies. */
+export function canInviteOnlySelfRegister(email: string | null | undefined): boolean {
+  const n = normalizeAuthEmailForCompare(email);
+  return Boolean(n && inviteOnlySignupEmailSet().has(n));
+}
+
+/** Whether this email is allowed to register (public gate OR invite list). */
+export function canEmailRegisterWithPassword(email: string | null | undefined): boolean {
+  if (isPublicSignUpEnabled()) return true;
+  return canInviteOnlySelfRegister(email);
+}
+
 export const EMAIL_ADDRESSES = {
   auth: import.meta.env.VITE_AUTH_EMAIL_FROM ?? "donotreply@lustforge.app",
   welcome: import.meta.env.VITE_WELCOME_EMAIL ?? "hello@lustforge.app",
