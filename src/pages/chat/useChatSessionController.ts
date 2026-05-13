@@ -70,7 +70,12 @@ import {
   uxVoiceToXaiVoice,
   type TtsUxVoiceId,
 } from "@/lib/ttsVoicePresets";
-import { CHAT_IMAGE_LEWD_FC, CHAT_IMAGE_NUDE_FC, CHAT_MESSAGE_FC, CHAT_MESSAGE_FC_AFTER_DAILY_FREE } from "@/lib/forgeEconomy";
+import {
+  CHAT_IMAGE_LEWD_FC,
+  CHAT_IMAGE_NUDE_FC,
+  CHAT_MESSAGE_FC_AFTER_DAILY_FREE,
+  DAILY_FREE_CHAT_MESSAGES,
+} from "@/lib/forgeEconomy";
 import { consumeChatMessageQuota, spendForgeCoins } from "@/lib/forgeCoinsClient";
 import { nextTextMessageFc, remainingFreeMessages } from "@/lib/chatDailyQuota";
 import { LIVE_CALL_CREDITS_PER_MINUTE } from "@/lib/liveCallBilling";
@@ -2094,12 +2099,23 @@ export function useChatSessionController() {
         : requestingVideo
           ? "video generation"
           : "messaging";
-      toast.error(`Not enough FC for ${tokenType}. You need ${requiredTokens} FC but only have ${balanceNow}.`, {
-        action: {
-          label: "Buy FC",
-          onClick: () => navigate("/buy-credits"),
+      const freeLeft = remainingFreeMessages(chatDailyQuotaDate, chatDailyQuotaUsed);
+      const dailyTextPoolExhausted =
+        !requestingImage &&
+        !requestingVideo &&
+        freeLeft === 0 &&
+        nextTextMsgFc === CHAT_MESSAGE_FC_AFTER_DAILY_FREE;
+      toast.error(
+        dailyTextPoolExhausted
+          ? `You've used today's ${DAILY_FREE_CHAT_MESSAGES} free text lines (resets at UTC midnight). Further lines cost ${CHAT_MESSAGE_FC_AFTER_DAILY_FREE} FC each — you have ${balanceNow} FC.`
+          : `Not enough FC for ${tokenType}. You need ${requiredTokens} FC but only have ${balanceNow}.`,
+        {
+          action: {
+            label: "Buy FC",
+            onClick: () => navigate("/buy-credits"),
+          },
         },
-      });
+      );
       return;
     }
 

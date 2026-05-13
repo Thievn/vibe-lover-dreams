@@ -56,6 +56,7 @@ export default function DiscoverCompanionsGallery() {
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [fcBalance, setFcBalance] = useState<number | null>(null);
   const [freeCommonClaimed, setFreeCommonClaimed] = useState<boolean | null>(null);
+  const [welcomeGiftBannerDismissed, setWelcomeGiftBannerDismissed] = useState(false);
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const [buyConfirmFor, setBuyConfirmFor] = useState<CommunityGalleryRow | null>(null);
 
@@ -86,6 +87,15 @@ export default function DiscoverCompanionsGallery() {
   useEffect(() => {
     void refreshSessionWallet();
   }, [refreshSessionWallet]);
+
+  useEffect(() => {
+    if (!sessionUserId || typeof window === "undefined") {
+      setWelcomeGiftBannerDismissed(false);
+      return;
+    }
+    const k = `lustforge_dismiss_discover_welcome_gift:${sessionUserId}`;
+    setWelcomeGiftBannerDismissed(localStorage.getItem(k) === "1");
+  }, [sessionUserId]);
 
   const [search, setSearch] = useState("");
   const [gender, setGender] = useState<string | null>(null);
@@ -190,6 +200,8 @@ export default function DiscoverCompanionsGallery() {
   const hasFilters = search || gender || rarity || vibe;
   const showFilterEmpty = filtered.length === 0 && pool.length > 0;
   const showDataEmpty = !isLoading && pool.length === 0;
+  const hideWelcomeGiftStripe =
+    Boolean(sessionUserId) && freeCommonClaimed === true && welcomeGiftBannerDismissed;
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-7xl space-y-8 overflow-x-hidden pb-8">
@@ -220,6 +232,7 @@ export default function DiscoverCompanionsGallery() {
         </div>
       </div>
 
+      {!hideWelcomeGiftStripe && (
       <div
         id="discover-free-common-cta"
         className="relative overflow-hidden rounded-[1.5rem] border border-white/[0.1] bg-gradient-to-br from-fuchsia-950/45 via-black/55 to-cyan-950/25 px-5 py-5 sm:px-7 sm:py-6 shadow-[0_0_48px_rgba(255,45,123,0.14),inset_0_1px_0_rgba(255,255,255,0.06)]"
@@ -254,9 +267,24 @@ export default function DiscoverCompanionsGallery() {
                 Syncing wallet…
               </div>
             ) : freeCommonClaimed ? (
-              <div className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-950/35 px-5 py-3.5 text-sm font-semibold text-emerald-100/95">
-                <BadgeCheck className="h-4 w-4 shrink-0 text-emerald-300" aria-hidden />
-                Claimed
+              <div className="flex items-center gap-1 sm:gap-1.5">
+                <div className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-950/35 px-5 py-3.5 text-sm font-semibold text-emerald-100/95">
+                  <BadgeCheck className="h-4 w-4 shrink-0 text-emerald-300" aria-hidden />
+                  Claimed
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!sessionUserId) return;
+                    const k = `lustforge_dismiss_discover_welcome_gift:${sessionUserId}`;
+                    localStorage.setItem(k, "1");
+                    setWelcomeGiftBannerDismissed(true);
+                  }}
+                  className="shrink-0 rounded-full p-1 text-muted-foreground/55 hover:bg-white/10 hover:text-foreground transition touch-manipulation"
+                  aria-label="Hide welcome gift banner"
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={2.25} />
+                </button>
               </div>
             ) : (
               <button
@@ -280,6 +308,7 @@ export default function DiscoverCompanionsGallery() {
           </div>
         </div>
       </div>
+      )}
 
       <div className="rounded-2xl border border-border/70 bg-card/30 backdrop-blur-xl p-4 sm:p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
         <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
