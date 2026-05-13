@@ -78,7 +78,7 @@ export function ChatMessageThread({
     <div
       className={cn(
         "relative z-[1] mx-auto min-h-0 w-full min-w-0 max-w-full flex-1 overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch]",
-        luxury && !compactThread && "space-y-5 scroll-pb-28 px-2.5 py-4 sm:px-5 md:space-y-6 md:py-6",
+        luxury && !compactThread && "space-y-5 scroll-pb-16 px-2.5 py-3 sm:px-5 md:space-y-6 md:py-5",
         !luxury &&
           (compactThread
             ? "space-y-3 scroll-pb-20 px-2.5 py-2 sm:px-4 md:space-y-4 md:py-3"

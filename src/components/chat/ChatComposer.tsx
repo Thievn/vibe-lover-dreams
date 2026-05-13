@@ -257,9 +257,9 @@ export function ChatComposer({
         liveDock
           ? "px-2.5 pt-2 pb-[max(0.65rem,env(safe-area-inset-bottom))] sm:px-3 sm:pt-2"
           : luxury
-            ? "px-2.5 pt-2 pb-[max(0.65rem,env(safe-area-inset-bottom))] sm:px-3 sm:pt-2.5"
+            ? "px-2.5 pt-1.5 pb-[max(0.55rem,env(safe-area-inset-bottom))] sm:px-3 sm:pt-2"
             : "px-3 pt-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] sm:px-4 sm:pt-3.5",
-        luxury && !liveDock && "mx-auto w-full max-w-[min(100%,26.5rem)]",
+        luxury && !liveDock && "mx-auto w-full max-w-full",
       )}
     >
       {userLoggedIn ? (
@@ -285,7 +285,7 @@ export function ChatComposer({
           e.preventDefault();
           onSubmit();
         }}
-        className={liveDock ? "space-y-1.5" : luxury ? "space-y-2" : "space-y-2.5"}
+        className={liveDock ? "space-y-1.5" : luxury ? "space-y-1.5" : "space-y-2.5"}
       >
         <div
           className={cn(
@@ -293,7 +293,7 @@ export function ChatComposer({
             liveDock
               ? "min-h-[3.35rem] sm:min-h-[3.5rem]"
               : luxury
-                ? "min-h-[3.35rem] sm:min-h-[3.5rem]"
+                ? "min-h-[3rem] sm:min-h-[3.15rem]"
                 : "min-h-[3.75rem] sm:min-h-16",
             luxury &&
               focused &&
@@ -338,7 +338,7 @@ export function ChatComposer({
             className={cn(
               "min-w-0 flex-1 resize-y border-0 bg-transparent pr-1 leading-relaxed text-foreground placeholder:text-muted-foreground/65 focus:outline-none focus:ring-0",
               liveDock || luxury
-                ? "min-h-[4.5rem] py-2 text-[14px] sm:min-h-[5rem] sm:text-[15px]"
+                ? "min-h-[2.85rem] py-1.5 text-[14px] sm:min-h-[3.1rem] sm:text-[15px]"
                 : "min-h-[5.25rem] py-2.5 text-[15px] sm:min-h-[6rem] sm:py-3 sm:text-[16px]",
             )}
             disabled={disabled}
@@ -347,7 +347,7 @@ export function ChatComposer({
           />
         </div>
 
-        <div className="flex items-center justify-end gap-2 pt-0.5">
+        <div className="flex items-center justify-end gap-2 pt-0">
           <motion.button
             type="submit"
             whileTap={{ scale: 0.99 }}
@@ -355,7 +355,7 @@ export function ChatComposer({
             className={cn(
               "inline-flex items-center justify-center text-primary-foreground transition-opacity disabled:opacity-30",
               luxury
-                ? "h-12 min-w-[3.25rem] rounded-full bg-gradient-to-br from-fuchsia-600 via-primary to-purple-900 px-5 shadow-[0_0_28px_rgba(236,72,153,0.45),0_4px_20px_rgba(0,0,0,0.4)] sm:h-[3.25rem] sm:min-w-[3.5rem]"
+                ? "h-10 min-w-[2.85rem] rounded-full bg-gradient-to-br from-fuchsia-600 via-primary to-purple-900 px-4 shadow-[0_0_22px_rgba(236,72,153,0.4),0_4px_16px_rgba(0,0,0,0.35)] sm:h-11 sm:min-w-[3.1rem]"
                 : "h-14 min-w-14 rounded-2xl bg-gradient-to-br from-primary to-fuchsia-700 shadow-[0_4px_24px_hsl(320_85%_50%_/_0.35),0_0_40px_hsl(320_85%_50%_/_0.2)] sm:min-w-[3.75rem] sm:px-2",
             )}
             title={submitTitle}
@@ -374,7 +374,7 @@ export function ChatComposer({
       <p
         className={cn(
           "flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[9px] leading-relaxed text-center px-0.5 sm:text-[10px]",
-          luxury ? "mt-1.5 text-muted-foreground/55" : cn("text-muted-foreground/85", liveDock ? "mt-1.5" : "mt-2"),
+          luxury ? "mt-1 text-muted-foreground/55" : cn("text-muted-foreground/85", liveDock ? "mt-1.5" : "mt-2"),
         )}
       >
         {userLoggedIn ? (

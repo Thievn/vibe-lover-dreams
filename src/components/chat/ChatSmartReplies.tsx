@@ -15,7 +15,7 @@ export function ChatSmartReplies({ suggestions, onPick, disabled, loading, compa
   if (!suggestions.length) return null;
   const luxury = visualVariant === "luxury";
   return (
-    <div className={cn("flex min-w-0 flex-wrap px-1", compact ? "gap-1 pb-0.5" : luxury ? "gap-1.5 pb-1" : "gap-2 pb-2")}>
+    <div className={cn("flex min-w-0 flex-wrap px-1", compact ? "gap-1 pb-0.5" : luxury ? "gap-1 pb-0.5" : "gap-2 pb-2")}>
       {suggestions.map((s, i) => (
         <button
           key={`${i}-${s.slice(0, 12)}`}
@@ -32,7 +32,7 @@ export function ChatSmartReplies({ suggestions, onPick, disabled, loading, compa
               (compact
                 ? "min-h-8 px-2 py-1 text-[10px] sm:rounded-full sm:px-2.5"
                 : "min-h-12 px-3 py-2 text-xs sm:rounded-full sm:px-4"),
-            luxury && !compact && "min-h-10 px-3.5 py-2 text-xs",
+            luxury && !compact && "min-h-8 px-3 py-1.5 text-[10px] sm:text-[11px]",
             luxury && compact && "min-h-8 px-2.5 py-1 text-[10px]",
           )}
         >

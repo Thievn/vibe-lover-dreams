@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronLeft, ImageIcon, Loader2, Maximize2, MessageSquarePlus, Sparkles, Volume2 } from "lucide-react";
 import { toast } from "sonner";
 import { PortraitViewLightbox } from "@/components/PortraitViewLightbox";
@@ -50,7 +50,20 @@ export function ChatLeftHeroPanel({
   const [expanded, setExpanded] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const normalizedCurrent = currentPortraitUrl ? stablePortraitDisplayUrl(currentPortraitUrl) : null;
-  const recent = hasGalleryUser ? images.filter((r) => !r.is_video).slice(0, 10) : [];
+  /** Hero already shows the live portrait — omit that same asset from “Recent” so we don’t duplicate it. */
+  const recent = useMemo(() => {
+    if (!hasGalleryUser) return [];
+    const heroNorm = imageUrl ? stablePortraitDisplayUrl(imageUrl) ?? imageUrl : null;
+    const heroBase = heroNorm ? heroNorm.split("?")[0] : null;
+    return images
+      .filter((r) => !r.is_video)
+      .filter((r) => {
+        if (!heroBase) return true;
+        const rowNorm = stablePortraitDisplayUrl(r.image_url) ?? r.image_url;
+        return rowNorm.split("?")[0] !== heroBase;
+      })
+      .slice(0, 10);
+  }, [hasGalleryUser, images, imageUrl]);
 
   const handleSetPortrait = async (row: CompanionGalleryRow) => {
     if (row.is_video) {
@@ -109,7 +122,7 @@ export function ChatLeftHeroPanel({
         <div className="flex min-h-0 flex-1 flex-col gap-2 p-2">
           <div
             className="relative w-full shrink-0 overflow-hidden rounded-[1.65rem] border border-white/[0.12] bg-black/50 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05),0_20px_56px_-12px_rgba(0,0,0,0.55),0_0_64px_-16px_rgba(168,85,247,0.22)]"
-            style={{ height: "min(58vh, 36rem)" }}
+            style={{ height: "min(50vh, 30rem)" }}
           >
             <PortraitViewLightbox
               alt={companion.name}
@@ -161,7 +174,7 @@ export function ChatLeftHeroPanel({
             </p>
           </div>
 
-          <div className="min-h-0 flex flex-[0_1_45%] flex-col border-t border-white/[0.06] pt-1">
+          <div className="flex min-h-0 flex-1 flex-col border-t border-white/[0.06] pt-1">
             <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Recent</p>
             <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch] pr-0.5">
               {loading && hasGalleryUser ? (

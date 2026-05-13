@@ -235,7 +235,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
             hasGalleryUser={Boolean(user)}
           />
 
-          <div className="relative z-[1] mx-auto flex min-h-0 min-w-0 w-full max-w-md flex-1 flex-col sm:max-w-lg xl:my-3 xl:max-w-xl xl:rounded-2xl xl:border xl:border-fuchsia-500/[0.12] xl:bg-[#050308]/40 xl:shadow-[0_0_80px_rgba(0,0,0,0.55)] xl:backdrop-blur-sm 2xl:max-w-2xl">
+          <div className="relative z-[1] mx-auto flex min-h-0 min-w-0 w-full max-w-lg flex-1 flex-col sm:max-w-xl xl:my-3 xl:max-w-2xl xl:rounded-2xl xl:border xl:border-fuchsia-500/[0.12] xl:bg-[#050308]/40 xl:shadow-[0_0_80px_rgba(0,0,0,0.55)] xl:backdrop-blur-sm 2xl:max-w-[44rem]">
             <ChatDevicesCollapsible
               className="border-b border-fuchsia-500/[0.08] bg-[#050308]/55 backdrop-blur-xl"
               companionName={companion.name}
@@ -304,7 +304,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
             <div
               className={cn(
                 "z-20 shrink-0 bg-gradient-to-t from-[#030208]/95 to-transparent px-2 sm:px-3",
-                sessionMode === "live_voice" ? "pb-0" : "pb-0.5",
+                sessionMode === "live_voice" ? "pb-0" : "pb-0 pt-0.5",
               )}
             >
               <ChatSmartReplies
@@ -355,13 +355,13 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
                   : "z-20 shrink-0"
               }
             >
-              <div className={sessionMode === "live_voice" ? "px-2 pb-0.5 sm:px-3" : "px-2 pb-1 sm:px-3"}>
+              <div className={sessionMode === "live_voice" ? "px-2 pb-0.5 sm:px-3" : "px-2 pb-0.5 sm:px-3"}>
                 <DailyFreeMessagesBar
                   visible={Boolean(user)}
                   remainingFree={chatDailyQuotaUi.remainingFree}
                   nextLineFc={chatDailyQuotaUi.nextMessageFc}
                   isAdminUser={isAdminUser}
-                  className="border-fuchsia-500/12 bg-black/35 py-1.5 text-[9px] shadow-none sm:text-[10px]"
+                  className="border-fuchsia-500/12 bg-black/35 py-1 text-[9px] shadow-none sm:text-[10px]"
                 />
               </div>
               <ChatComposer
