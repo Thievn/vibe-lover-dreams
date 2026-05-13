@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "").trim();
-    const allowRaw = (Deno.env.get("CREATE_USER_ALLOWED_EMAILS") ?? "lustforgeapp@gmail.com,thievnsden@gmail.com").trim();
+    const allowRaw = (Deno.env.get("CREATE_USER_ALLOWED_EMAILS") ?? "lustforgeapp@gmail.com,thievnsden@gmail.com,deanoneill69@gmail.com").trim();
     const allowedEmails = new Set(
       allowRaw
         .split(",")

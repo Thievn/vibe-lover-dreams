@@ -123,28 +123,21 @@ export function isPublicSignUpEnabled(): boolean {
   return raw === "true" || raw === "1" || raw === "on";
 }
 
-/** Beta / default: only these normalized addresses may self-serve password sign-up (unless public signup is on). */
-const BETA_SIGNUP_EMAILS = [
+/**
+ * Closed-beta inboxes that may use password sign-up on /auth when public registration is off.
+ * (Same list is enforced server-side if you enable the `auth_hook_beta_signup_allowlist` Auth hook in the Dashboard.)
+ */
+export const BETA_PASSWORD_SIGNUP_EMAILS: readonly string[] = [
   normalizeAuthEmailForCompare("lustforgeapp@gmail.com"),
   normalizeAuthEmailForCompare("thievnsden@gmail.com"),
-].filter(Boolean);
+  normalizeAuthEmailForCompare("deanoneill69@gmail.com"),
+].filter((e): e is string => Boolean(e));
 
-const BETA_SIGNUP_EMAIL_SET = new Set(BETA_SIGNUP_EMAILS);
+const BETA_SIGNUP_EMAIL_SET = new Set(BETA_PASSWORD_SIGNUP_EMAILS);
 
-/**
- * Emails allowed to use Sign up when not in open-public mode. Merge of fixed beta inboxes plus
- * `VITE_INVITE_SIGNUP_EMAILS` (comma-separated, normalized).
- */
+/** Emails allowed to use Sign up when not in open-public mode (fixed list only). */
 export function inviteOnlySignupEmailSet(): Set<string> {
-  const out = new Set<string>(BETA_SIGNUP_EMAIL_SET);
-  const raw = (import.meta.env.VITE_INVITE_SIGNUP_EMAILS as string | undefined)?.trim();
-  if (raw) {
-    for (const part of raw.split(",")) {
-      const n = normalizeAuthEmailForCompare(part.trim());
-      if (n) out.add(n);
-    }
-  }
-  return out;
+  return new Set(BETA_SIGNUP_EMAIL_SET);
 }
 
 /** Show Sign up tab when open signup is on, or when the invite/beta list is non-empty. */
