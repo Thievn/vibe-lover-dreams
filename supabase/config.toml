@@ -131,7 +131,7 @@ otp_expiry = 3600
 # Apply to hosted project with: supabase config push
 # Or copy HTML from supabase/templates/ into Dashboard → Authentication → Email Templates.
 [auth.email.template.confirmation]
-subject = "Seal the pact — confirm your LustForge account"
+subject = "Confirm your LustForge email"
 content_path = "./supabase/templates/auth_confirmation.html"
 
 [auth.email.template.recovery]

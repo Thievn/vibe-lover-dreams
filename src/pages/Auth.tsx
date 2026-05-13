@@ -102,7 +102,7 @@ export default function Auth() {
       toast.error(
         publicSignup
           ? "This email cannot register right now."
-          : "New registrations are closed — only invite-listed emails can sign up.",
+          : "Limited beta — only invited addresses can create an account.",
       );
       return;
     }
@@ -304,8 +304,7 @@ export default function Auth() {
         )}
         {!publicSignup && signUpOffered ? (
           <p className="mb-4 -mt-2 text-center text-[11px] text-muted-foreground/95 leading-relaxed px-1 border border-white/10 rounded-xl py-2 bg-black/30">
-            Invite-only sign-up: only listed QA addresses can create an account. Everyone else can sign in if they already
-            have an account.
+            Limited beta: new accounts are only for invited addresses. Already have an account? Use Sign in.
           </p>
         ) : null}
 

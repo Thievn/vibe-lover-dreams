@@ -23,7 +23,7 @@ export function normalizeAuthEmailForCompare(email: string | null | undefined): 
 /** Founder mailbox — always merged into `VITE_ADMIN_EMAIL` so a single extra env address cannot lock the Gmail operator out. */
 const DEFAULT_PLATFORM_ADMIN_EMAIL = normalizeAuthEmailForCompare("lustforgeapp@gmail.com");
 
-/** Strip leading @ and lowercase — for display handle / admin handle checks. */
+/** Strip leading `@` and lowercase — for display handle / admin handle checks. */
 export function normalizeForgeDisplayHandle(raw: string | null | undefined): string {
   if (!raw) return "";
   let s = raw.trim();
@@ -114,22 +114,29 @@ export function isPlatformAdmin(
   );
 }
 
-/** When false (env `VITE_PUBLIC_SIGNUP` = false / 0 / off), the auth page hides Sign up. Also turn off signups in Supabase Dashboard → Authentication. */
+/**
+ * Open signup: **any** email may use the Sign up form. Requires env explicitly set to true / 1 / on.
+ * When unset or false, only `inviteOnlySignupEmailSet()` may register (beta).
+ */
 export function isPublicSignUpEnabled(): boolean {
   const raw = (import.meta.env.VITE_PUBLIC_SIGNUP as string | undefined)?.trim().toLowerCase();
-  return raw !== "false" && raw !== "0" && raw !== "off";
+  return raw === "true" || raw === "1" || raw === "on";
 }
 
-/** QA inbox — may self-register when public signup is off (same row as `VITE_INVITE_SIGNUP_EMAILS`). */
-const QA_INVITE_SIGNUP_EMAIL = normalizeAuthEmailForCompare("thievnsden@gmail.com");
+/** Beta / default: only these normalized addresses may self-serve password sign-up (unless public signup is on). */
+const BETA_SIGNUP_EMAILS = [
+  normalizeAuthEmailForCompare("lustforgeapp@gmail.com"),
+  normalizeAuthEmailForCompare("thievnsden@gmail.com"),
+].filter(Boolean);
+
+const BETA_SIGNUP_EMAIL_SET = new Set(BETA_SIGNUP_EMAILS);
 
 /**
- * Normalized emails allowed to use the Sign up form when `VITE_PUBLIC_SIGNUP` is off.
- * Merge of `VITE_INVITE_SIGNUP_EMAILS` (comma-separated) plus the fixed QA inbox above.
+ * Emails allowed to use Sign up when not in open-public mode. Merge of fixed beta inboxes plus
+ * `VITE_INVITE_SIGNUP_EMAILS` (comma-separated, normalized).
  */
 export function inviteOnlySignupEmailSet(): Set<string> {
-  const out = new Set<string>();
-  if (QA_INVITE_SIGNUP_EMAIL) out.add(QA_INVITE_SIGNUP_EMAIL);
+  const out = new Set<string>(BETA_SIGNUP_EMAIL_SET);
   const raw = (import.meta.env.VITE_INVITE_SIGNUP_EMAILS as string | undefined)?.trim();
   if (raw) {
     for (const part of raw.split(",")) {
@@ -140,18 +147,18 @@ export function inviteOnlySignupEmailSet(): Set<string> {
   return out;
 }
 
-/** Show Sign up tab: public signup on, or at least one invite-only address configured. */
+/** Show Sign up tab when open signup is on, or when the invite/beta list is non-empty. */
 export function isSignUpOfferedInAuthUi(): boolean {
   return isPublicSignUpEnabled() || inviteOnlySignupEmailSet().size > 0;
 }
 
-/** That email may complete `signUp` when invite-only mode applies. */
+/** That email may complete `signUp` when invite-only / beta mode applies. */
 export function canInviteOnlySelfRegister(email: string | null | undefined): boolean {
   const n = normalizeAuthEmailForCompare(email);
   return Boolean(n && inviteOnlySignupEmailSet().has(n));
 }
 
-/** Whether this email is allowed to register (public gate OR invite list). */
+/** Whether this email may register with email+password on /auth. */
 export function canEmailRegisterWithPassword(email: string | null | undefined): boolean {
   if (isPublicSignUpEnabled()) return true;
   return canInviteOnlySelfRegister(email);
