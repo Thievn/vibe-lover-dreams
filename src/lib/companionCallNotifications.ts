@@ -1,4 +1,6 @@
+import { supabase } from "@/integrations/supabase/client";
 import { invokeWebPushSend } from "@/lib/invokeWebPushSend";
+import { isWithinCallNotifyWindow, type CallNotifyWindowRow } from "@/lib/callNotifyWindow";
 
 const MSG_TYPE = "LUSTFORGE_NAVIGATE" as const;
 
@@ -13,6 +15,35 @@ export function isCompanionCallNavigateMessage(data: unknown): data is Companion
   );
 }
 
+export const INCOMING_CALL_PUSH_EVENT = "lustforge-incoming-call-push" as const;
+
+export const INCOMING_CALL_PUSH_MSG_TYPE = "LUSTFORGE_INCOMING_CALL_PUSH" as const;
+
+export type IncomingCallPushSwMessage = {
+  type: typeof INCOMING_CALL_PUSH_MSG_TYPE;
+  title: string;
+  body: string;
+  url: string;
+  tag?: string;
+};
+
+export type IncomingCallPushDetail = {
+  title: string;
+  body: string;
+  url: string;
+  tag?: string;
+};
+
+export function isIncomingCallPushSwMessage(data: unknown): data is IncomingCallPushSwMessage {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    (data as { type?: unknown }).type === INCOMING_CALL_PUSH_MSG_TYPE &&
+    typeof (data as { url?: unknown }).url === "string" &&
+    typeof (data as { title?: unknown }).title === "string"
+  );
+}
+
 /** Ask once (e.g. when user taps “Start call”) so ringing can surface a real notification. */
 export async function ensureCompanionCallNotifications(): Promise<boolean> {
   if (typeof window === "undefined" || !("Notification" in window)) return false;
@@ -20,6 +51,19 @@ export async function ensureCompanionCallNotifications(): Promise<boolean> {
   if (Notification.permission === "denied") return false;
   const r = await Notification.requestPermission();
   return r === "granted";
+}
+
+async function fetchCallNotifyWindowRow(): Promise<CallNotifyWindowRow | null> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.user) return null;
+  const { data } = await supabase
+    .from("profiles")
+    .select("call_notify_window_enabled, call_notify_tz, call_notify_start_min, call_notify_end_min")
+    .eq("user_id", session.user.id)
+    .maybeSingle();
+  return (data ?? null) as CallNotifyWindowRow | null;
 }
 
 function absoluteUrl(path: string): string {
@@ -40,6 +84,9 @@ export async function showCompanionIncomingCallNotification(p: {
   companionId: string;
   callSlug: string;
 }): Promise<void> {
+  const row = await fetchCallNotifyWindowRow();
+  if (!isWithinCallNotifyWindow(new Date(), row)) return;
+
   const title = `${p.companionName} is calling you right now 💕`;
   const body = "Tap to answer";
   const icon = absoluteUrl("/og-image.png");
@@ -81,6 +128,9 @@ export async function notifyIncomingCallWithFallback(p: {
   companionId: string;
   callSlug: string;
 }): Promise<void> {
+  const row = await fetchCallNotifyWindowRow();
+  if (!isWithinCallNotifyWindow(new Date(), row)) return;
+
   const title = `${p.companionName} is calling you right now 💕`;
   const body = "Tap to answer";
   const url = absoluteUrl(`/live-call/${encodeURIComponent(p.companionId)}?call=${encodeURIComponent(p.callSlug)}`);

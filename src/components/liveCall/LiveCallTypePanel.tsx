@@ -127,7 +127,7 @@ export function LiveCallTypePanel({ companion, className, spendLocked }: Props) 
           <p className="font-semibold text-amber-50/95">Call alerts work best from the installed app</p>
           <p className="mt-1 text-amber-100/80">
             On iPhone, add LustForge to your <strong className="text-amber-50">Home Screen</strong>, then enable{" "}
-            <strong className="text-amber-50">Voice call alerts</strong> in Settings. Otherwise the browser may not
+            <strong className="text-amber-50">Voice call alerts</strong> in Preferences. Otherwise the browser may not
             ring you when the tab is in the background.
           </p>
           <button

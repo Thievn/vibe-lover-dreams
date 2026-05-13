@@ -36,6 +36,8 @@ import {
   type LiveCallQuickActionId,
 } from "@/lib/liveCallQuickActions";
 
+const LIVE_CALL_SILENCE_MS = 60_000;
+
 type LocationState = { callOption?: LiveCallOption };
 
 function pickPrimaryToy(toys: LovenseToy[]): LovenseToy | null {
@@ -119,7 +121,8 @@ const LiveCallPage = () => {
   const userIdRef = useRef<string | null>(null);
   const liveAtRef = useRef<number | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
-  const ringNotifiedRef = useRef(false);
+  const ringResolveRef = useRef<((v: boolean) => void) | null>(null);
+  const lastDuplexMsRef = useRef(Date.now());
 
   useEffect(() => {
     userIdRef.current = userId;
@@ -228,26 +231,12 @@ const LiveCallPage = () => {
       toyId: primaryToy.id,
       toyName: primaryToy.name,
       onToyUiDial: (dial: string) => {
+        lastDuplexMsRef.current = Date.now();
         if (phaseRef.current !== "live") return;
         sendUserTextRef.current(dial);
       },
     };
   }, [userId, primaryToy]);
-
-  useEffect(() => {
-    ringNotifiedRef.current = false;
-  }, [id, activeCallOption?.slug]);
-
-  useEffect(() => {
-    if (phase !== "ringing" || !companion || !id || !activeCallOption) return;
-    if (ringNotifiedRef.current) return;
-    ringNotifiedRef.current = true;
-    void notifyIncomingCallWithFallback({
-      companionName: companion.name,
-      companionId: id,
-      callSlug: activeCallOption.slug,
-    });
-  }, [phase, companion, id, activeCallOption]);
 
   const hangUp = useCallback(() => {
     const billSec =
@@ -283,6 +272,30 @@ const LiveCallPage = () => {
     if (id) navigate(`/companions/${id}`, { replace: true });
   }, [id, navigate]);
 
+  const hangUpRef = useRef(hangUp);
+  hangUpRef.current = hangUp;
+
+  useEffect(() => {
+    if (phase !== "live") return;
+    lastDuplexMsRef.current = Date.now();
+    const tick = window.setInterval(() => {
+      if (phaseRef.current !== "live") return;
+      if (Date.now() - lastDuplexMsRef.current >= LIVE_CALL_SILENCE_MS) {
+        toast.message("We ended the call after a quiet stretch so FC wouldn’t keep draining.");
+        hangUpRef.current();
+      }
+    }, 4000);
+    return () => window.clearInterval(tick);
+  }, [phase]);
+
+  const handleAcceptIncoming = useCallback(() => {
+    ringResolveRef.current?.(true);
+  }, []);
+
+  const handleDeclineIncoming = useCallback(() => {
+    ringResolveRef.current?.(false);
+  }, []);
+
   const applyCallVoice = useCallback(
     async (v: TtsUxVoiceId) => {
       setCallVoice(v);
@@ -294,7 +307,7 @@ const LiveCallPage = () => {
         return;
       }
       if (profileTtsGlobal) {
-        toast.info("A global voice override in Settings is active; relationship preset not saved.");
+        toast.info("A global voice override in Preferences is active; relationship preset not saved.");
         return;
       }
       setSaveVoicePending(true);
@@ -412,9 +425,27 @@ const LiveCallPage = () => {
 
       setPhase("ringing");
       setStatusLine("Incoming call…");
-      const ringMs = 1500 + Math.floor(Math.random() * 1000);
-      await new Promise((r) => setTimeout(r, ringMs));
+      void notifyIncomingCallWithFallback({
+        companionName: companion.name,
+        companionId: id,
+        callSlug: activeCallOption.slug,
+      });
+
+      const accepted = await new Promise<boolean>((resolve) => {
+        ringResolveRef.current = (v: boolean) => {
+          ringResolveRef.current = null;
+          resolve(v);
+        };
+      });
+
       if (cancelled) return;
+      if (!accepted) {
+        sessionStartedFor.current = null;
+        if (id) clearStashedLiveCallOption(id);
+        setPhase("ended");
+        if (id) navigate(`/companions/${id}`, { replace: true });
+        return;
+      }
 
       setPhase("connecting");
       setStatusLine("Connecting…");
@@ -429,6 +460,9 @@ const LiveCallPage = () => {
         clientSecret: sec.value,
         instructions,
         voice,
+        onDuplexActivity: () => {
+          lastDuplexMsRef.current = Date.now();
+        },
         onStatus: (s) => {
           setStatusLine(s);
           if (s.includes("Live")) {
@@ -470,6 +504,8 @@ const LiveCallPage = () => {
 
     return () => {
       cancelled = true;
+      ringResolveRef.current?.(false);
+      ringResolveRef.current = null;
       void sustainedToySessionRef.current?.stop();
       sustainedToySessionRef.current = null;
       try {
@@ -499,6 +535,7 @@ const LiveCallPage = () => {
     const row = LIVE_CALL_QUICK_ACTIONS.find((a) => a.id === actionId);
     if (!row) return;
     const text = `${row.prompt}\n\n${LIVE_CALL_QUICK_TAP_BREVITY}`.trim();
+    lastDuplexMsRef.current = Date.now();
     sendUserTextRef.current(text);
   }, []);
 
@@ -555,6 +592,8 @@ const LiveCallPage = () => {
       callMood={callMood}
       onCallMoodChange={setCallMood}
       onQuickAction={onQuickAction}
+      onAcceptIncoming={handleAcceptIncoming}
+      onDeclineIncoming={handleDeclineIncoming}
     />
   );
 };

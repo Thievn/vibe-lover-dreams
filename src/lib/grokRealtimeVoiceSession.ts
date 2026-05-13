@@ -41,6 +41,8 @@ export type GrokRealtimeVoiceOptions = {
   onAssistantTranscriptDelta?: (delta: string, accumulated: string) => void;
   /** Final user speech-to-text (Live mode) — use to trigger chat actions (e.g. image requests). */
   onUserTranscriptDone?: (text: string) => void;
+  /** User spoke or assistant audio is playing — for idle hang-up / billing safety. */
+  onDuplexActivity?: () => void;
 };
 
 function sessionUpdatePayload(instructions: string, voice: XaiVoiceId) {
@@ -249,6 +251,7 @@ export function startGrokRealtimeVoiceSession(opts: GrokRealtimeVoiceOptions): {
             (typeof event.delta === "string" && event.delta) ||
             (typeof event.audio === "string" && event.audio) ||
             "";
+          if (raw) opts.onDuplexActivity?.();
           if (!raw) return;
           try {
             const pcm = base64ToInt16(raw);
@@ -260,6 +263,7 @@ export function startGrokRealtimeVoiceSession(opts: GrokRealtimeVoiceOptions): {
 
         if (type === "response.output_audio_transcript.delta") {
           const d = typeof event.delta === "string" ? event.delta : "";
+          if (d) opts.onDuplexActivity?.();
           transcriptBuf += d;
           opts.onAssistantTranscriptDelta?.(d, transcriptBuf);
         }
@@ -274,6 +278,7 @@ export function startGrokRealtimeVoiceSession(opts: GrokRealtimeVoiceOptions): {
 
         const userLine = extractUserTranscriptFromRealtimeEvent(event);
         if (userLine) {
+          opts.onDuplexActivity?.();
           try {
             opts.onUserTranscriptDone?.(userLine);
           } catch (e) {

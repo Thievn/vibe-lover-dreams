@@ -172,7 +172,7 @@ export default function Account() {
           Back to dashboard
         </Link>
 
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex items-center gap-3">
             <div
               className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 shadow-lg"
@@ -188,28 +188,36 @@ export default function Account() {
               <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mt-1">Vault & identity</p>
             </div>
           </div>
-          <div className="flex gap-1 rounded-2xl border border-white/10 bg-black/40 p-1">
-            <button
-              type="button"
-              onClick={() => setAccountTab("account")}
-              className={cn(
-                "px-3 py-1.5 rounded-xl text-xs font-medium transition-colors",
-                accountTab === "account" ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground",
-              )}
+          <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <Link
+              to="/settings"
+              className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2 text-xs font-semibold text-white/90 transition hover:border-[#FF2D7B]/40 hover:bg-[#FF2D7B]/10"
             >
-              Settings
-            </button>
-            <button
-              type="button"
-              onClick={() => setAccountTab("history")}
-              className={cn(
-                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors",
-                accountTab === "history" ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <History className="h-3.5 w-3.5" />
-              Transaction history
-            </button>
+              Preferences
+            </Link>
+            <div className="flex gap-1 rounded-2xl border border-white/10 bg-black/40 p-1">
+              <button
+                type="button"
+                onClick={() => setAccountTab("account")}
+                className={cn(
+                  "px-3 py-1.5 rounded-xl text-xs font-medium transition-colors",
+                  accountTab === "account" ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Profile
+              </button>
+              <button
+                type="button"
+                onClick={() => setAccountTab("history")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors",
+                  accountTab === "history" ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <History className="h-3.5 w-3.5" />
+                Transaction history
+              </button>
+            </div>
           </div>
         </div>
 

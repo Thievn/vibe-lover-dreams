@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import ParticleBackground from "@/components/ParticleBackground";
 import { motion } from "framer-motion";
-import { Save, Trash2, Shield, Loader2, Wifi, WifiOff, QrCode, Volume2, Bell } from "lucide-react";
+import { Save, Trash2, Shield, Loader2, Wifi, WifiOff, QrCode, Volume2, Bell, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { disconnectToy, getToys, type LovenseToy } from "@/lib/lovense";
 import { useLovensePairing } from "@/hooks/useLovensePairing";
@@ -17,6 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { TTS_UX_LABELS, TTS_UX_VOICE_IDS, resolveUxVoiceId } from "@/lib/ttsVoicePresets";
 import { dispatchRequestInstallHint, getVapidPublicKey, needsInstallForIosWebPush } from "@/lib/pwaCallAlerts";
 import {
@@ -24,6 +26,7 @@ import {
   subscribeCurrentDeviceToWebPush,
   unsubscribeCurrentDeviceWebPush,
 } from "@/lib/webPushUserRegistration";
+import { minutesToTimeInputValue, timeInputValueToMinutes } from "@/lib/callNotifyWindow";
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -33,10 +36,12 @@ const Settings = () => {
   const [deviceUid, setDeviceUid] = useState("");
   /** Empty = no global override (each companion / relationship voice applies). */
   const [ttsGlobalVoice, setTtsGlobalVoice] = useState("");
-  /** Legacy profile column — main chat/forge stills use Grok Imagine on the Edge function, not Together. */
-  const [togetherImageModel, setTogetherImageModel] = useState("");
-  /** Legacy — reserved for a future non-Grok video slug if wired. */
-  const [togetherVideoModel, setTogetherVideoModel] = useState("");
+  const [callNotifyWindowEnabled, setCallNotifyWindowEnabled] = useState(false);
+  const [callNotifyStartMin, setCallNotifyStartMin] = useState(540);
+  const [callNotifyEndMin, setCallNotifyEndMin] = useState(1320);
+  const [callNotifyTz, setCallNotifyTz] = useState(() =>
+    typeof window !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC",
+  );
   const [saving, setSaving] = useState(false);
   const [linkedToys, setLinkedToys] = useState<LovenseToy[]>([]);
   const [pushCount, setPushCount] = useState(0);
@@ -54,17 +59,34 @@ const Settings = () => {
   const loadProfileSettings = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("device_uid, tts_voice_global_override, together_image_model, together_video_model")
+      .select(
+        "device_uid, tts_voice_global_override, call_notify_window_enabled, call_notify_tz, call_notify_start_min, call_notify_end_min",
+      )
       .eq("user_id", userId)
       .single();
     if (data?.device_uid) setDeviceUid(data.device_uid);
     else setDeviceUid("");
     const g = data?.tts_voice_global_override;
     setTtsGlobalVoice(typeof g === "string" && g.trim() ? resolveUxVoiceId(g) : "");
-    const tim = data?.together_image_model;
-    setTogetherImageModel(typeof tim === "string" ? tim.trim() : "");
-    const tvm = data?.together_video_model;
-    setTogetherVideoModel(typeof tvm === "string" ? tvm.trim() : "");
+    setCallNotifyWindowEnabled(Boolean(data?.call_notify_window_enabled));
+    setCallNotifyStartMin(
+      typeof data?.call_notify_start_min === "number" && Number.isFinite(data.call_notify_start_min)
+        ? data.call_notify_start_min
+        : 540,
+    );
+    setCallNotifyEndMin(
+      typeof data?.call_notify_end_min === "number" && Number.isFinite(data.call_notify_end_min)
+        ? data.call_notify_end_min
+        : 1320,
+    );
+    const tz = data?.call_notify_tz;
+    setCallNotifyTz(
+      typeof tz === "string" && tz.trim()
+        ? tz.trim()
+        : typeof window !== "undefined"
+          ? Intl.DateTimeFormat().resolvedOptions().timeZone
+          : "UTC",
+    );
   }, []);
 
   const {
@@ -124,7 +146,7 @@ const Settings = () => {
   const handleEnableCallPush = async () => {
     if (!user) return;
     if (!getVapidPublicKey()) {
-      toast.error("Web Push is not configured (missing VITE_VAPID_PUBLIC_KEY on this build).");
+      toast.error("Call alerts aren’t available in this build yet.");
       return;
     }
     if (needsInstallForIosWebPush()) {
@@ -179,18 +201,22 @@ const Settings = () => {
       localStorage.setItem("lustforge-safeword", safeWord);
       localStorage.setItem("lustforge-intensity", intensityLimit.toString());
       const override = ttsGlobalVoice.trim() ? resolveUxVoiceId(ttsGlobalVoice) : null;
-      const tim = togetherImageModel.trim() || null;
-      const tvm = togetherVideoModel.trim() || null;
+      const tzSave =
+        callNotifyWindowEnabled && !callNotifyTz.trim()
+          ? Intl.DateTimeFormat().resolvedOptions().timeZone
+          : callNotifyTz.trim() || null;
       const { error } = await supabase
         .from("profiles")
         .update({
           tts_voice_global_override: override,
-          together_image_model: tim,
-          together_video_model: tvm,
+          call_notify_window_enabled: callNotifyWindowEnabled,
+          call_notify_tz: tzSave,
+          call_notify_start_min: callNotifyStartMin,
+          call_notify_end_min: callNotifyEndMin,
         })
         .eq("user_id", user.id);
       if (error) throw error;
-      toast.success("Settings saved");
+      toast.success("Preferences saved");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Could not save settings");
     } finally {
@@ -209,13 +235,13 @@ const Settings = () => {
 
     if (error) {
       toast.error("Failed to clear history");
+    } else {
+      toast.success("Chat history cleared");
     }
   };
 
-  const handleResetAgeGate = () => {
-    localStorage.removeItem("lustforge-age-verified");
-    navigate("/");
-  };
+  const vapidConfigured = Boolean(getVapidPublicKey());
+  const callAlertsOnDevice = pushCount > 0;
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -224,7 +250,10 @@ const Settings = () => {
 
       <div className="max-w-2xl mx-auto px-4 py-8 pb-mobile-nav relative z-10">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="font-gothic text-3xl font-bold text-foreground mb-8">Settings</h1>
+          <h1 className="font-gothic text-3xl font-bold text-foreground mb-2">Preferences</h1>
+          <p className="text-sm text-muted-foreground mb-8">
+            Safety, voice, call alerts, toys, and privacy — keep your vault tuned the way you like.
+          </p>
 
           {/* Safety */}
           <div className="rounded-xl border border-border bg-card p-6 mb-6">
@@ -303,100 +332,117 @@ const Settings = () => {
             </Select>
           </div>
 
-          {/* Legacy Together overrides — optional FLUX slug if a custom fork still reads profiles.together_image_model */}
+          {/* Your models — coming soon */}
           <div className="rounded-xl border border-border bg-card p-6 mb-6">
-            <h2 className="font-gothic text-lg font-bold text-foreground mb-2">Legacy image model overrides</h2>
-            <p className="text-xs leading-relaxed text-muted-foreground mb-4">
-              LustForge stills (forge preview, chat, gallery, portraits) use{" "}
-              <strong className="text-foreground/90">Grok Imagine</strong> via the{" "}
-              <code className="text-[10px] text-foreground/90">generate-image</code> Edge function (
-              <code className="text-[10px] text-foreground/90">XAI_API_KEY</code> /{" "}
-              <code className="text-[10px] text-foreground/90">GROK_API_KEY</code>
-              ). These fields are stored on your profile for compatibility only — they do{" "}
-              <em>not</em> change Grok Imagine today unless you run a fork that reads them.
+            <h2 className="font-gothic text-lg font-bold text-foreground mb-2 flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Your models
+            </h2>
+            <p className="text-xs leading-relaxed text-muted-foreground mb-3">
+              Soon you&apos;ll be able to plug in your own LLMs and creative stacks for a truly custom forge. For now,
+              LustForge runs on our tuned companion stack — sit tight.
             </p>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-foreground mb-1">Together image model (legacy)</label>
-                <input
-                  type="text"
-                  value={togetherImageModel}
-                  onChange={(e) => setTogetherImageModel(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-muted border border-border text-foreground text-sm font-mono focus:outline-none focus:border-primary transition-colors"
-                  placeholder="black-forest-labs/FLUX.2-dev"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-foreground mb-1">Together video model (legacy)</label>
-                <p className="text-[11px] text-muted-foreground mb-2">
-                  Not used by production video today — Grok / other pipelines use Edge secrets. Kept for future wiring.
-                </p>
-                <input
-                  type="text"
-                  value={togetherVideoModel}
-                  onChange={(e) => setTogetherVideoModel(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-muted border border-border text-foreground text-sm font-mono focus:outline-none focus:border-primary transition-colors"
-                  placeholder="Future: e.g. a Together video slug when supported"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-              </div>
-            </div>
+            <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Coming soon
+            </span>
           </div>
 
-          {/* Web Push — voice call alerts */}
+          {/* Voice call alerts */}
           <div id="voice-call-alerts" className="rounded-xl border border-border bg-card p-6 mb-6 scroll-mt-24">
             <h2 className="font-gothic text-lg font-bold text-foreground mb-2 flex items-center gap-2">
               <Bell className="h-5 w-5 text-primary" />
               Voice call alerts
             </h2>
             <p className="text-xs leading-relaxed text-muted-foreground mb-4">
-              Register this device so an <strong className="text-foreground/90">incoming companion call</strong> can
-              reach you through the system even when LustForge is in the background. Uses standard browser Web Push
-              (VAPID) — no extra paid service.
+              Receive seductive voice calls and notifications from your companions even when LustForge is in the
+              background.
             </p>
-            {!getVapidPublicKey() ? (
-              <p className="text-xs text-amber-200/90 rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-2">
-                Not available on this deployment yet: add{" "}
-                <code className="text-[10px] text-foreground/90">VITE_VAPID_PUBLIC_KEY</code> to the build and VAPID
-                secrets on Edge Functions (see <code className="text-[10px]">.env.example</code>).
+
+            {!vapidConfigured ? (
+              <p className="text-xs text-muted-foreground rounded-lg border border-white/10 bg-muted/30 px-3 py-2">
+                Call alerts aren&apos;t available in this build yet.
               </p>
             ) : (
-              <div className="space-y-3">
-                <p className="text-[11px] text-muted-foreground">
-                  Status:{" "}
-                  <span className="font-medium text-foreground">
-                    {pushCount > 0 ? `${pushCount} saved device subscription(s)` : "Not registered on this device"}
-                  </span>
-                </p>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <button
-                    type="button"
+              <div className="space-y-5">
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3">
+                  <div className="min-w-0 space-y-0.5">
+                    <Label htmlFor="call-alerts-toggle" className="text-sm font-medium text-foreground cursor-pointer">
+                      Let companions reach me anytime
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      {callAlertsOnDevice ? "This device is registered for alerts." : "This device is not registered."}
+                    </p>
+                  </div>
+                  <Switch
+                    id="call-alerts-toggle"
+                    checked={callAlertsOnDevice}
                     disabled={pushBusy}
-                    onClick={() => void handleEnableCallPush()}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-95 disabled:opacity-50"
-                  >
-                    {pushBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
-                    Enable on this device
-                  </button>
-                  <button
-                    type="button"
-                    disabled={pushBusy}
-                    onClick={() => void handleDisableCallPush()}
-                    className="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted/50 disabled:opacity-40"
-                  >
-                    Remove alerts
-                  </button>
+                    onCheckedChange={(on) => {
+                      if (on) void handleEnableCallPush();
+                      else void handleDisableCallPush();
+                    }}
+                  />
                 </div>
+
+                <div className="rounded-xl border border-white/[0.06] bg-black/15 px-4 py-3 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground">Only alert me during these hours</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Outside this window we won&apos;t ring your devices — you can still open the app anytime.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={callNotifyWindowEnabled}
+                      onCheckedChange={(v) => {
+                        setCallNotifyWindowEnabled(v);
+                        if (v && !callNotifyTz.trim()) {
+                          setCallNotifyTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
+                        }
+                      }}
+                    />
+                  </div>
+                  {callNotifyWindowEnabled ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">From</Label>
+                        <input
+                          type="time"
+                          className="mt-1 w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm"
+                          value={minutesToTimeInputValue(callNotifyStartMin)}
+                          onChange={(e) => {
+                            const m = timeInputValueToMinutes(e.target.value);
+                            if (m != null) setCallNotifyStartMin(m);
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Until</Label>
+                        <input
+                          type="time"
+                          className="mt-1 w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm"
+                          value={minutesToTimeInputValue(callNotifyEndMin)}
+                          onChange={(e) => {
+                            const m = timeInputValueToMinutes(e.target.value);
+                            if (m != null) setCallNotifyEndMin(m);
+                          }}
+                        />
+                      </div>
+                      <p className="sm:col-span-2 text-[11px] text-muted-foreground">
+                        Times use <span className="text-foreground/90 font-medium">{callNotifyTz}</span>. Tap save
+                        below after changing the window.
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+
                 {needsInstallForIosWebPush() ? (
                   <button
                     type="button"
                     onClick={() => dispatchRequestInstallHint()}
                     className="text-xs text-primary font-medium hover:underline"
                   >
-                    Show “Add to Home Screen” steps (iPhone)
+                    Best on iPhone: add LustForge to your Home Screen (tap for steps)
                   </button>
                 ) : null}
               </div>
@@ -507,12 +553,6 @@ const Settings = () => {
                 <Trash2 className="h-4 w-4" />
                 Clear All Chat History
               </button>
-              <button
-                onClick={handleResetAgeGate}
-                className="w-full flex items-center gap-2 px-4 py-3 rounded-xl border border-border text-muted-foreground text-sm hover:bg-muted transition-colors"
-              >
-                Reset Age Verification
-              </button>
             </div>
           </div>
 
@@ -522,7 +562,7 @@ const Settings = () => {
             className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold glow-pink hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Save Settings
+            Save preferences
           </button>
         </motion.div>
       </div>

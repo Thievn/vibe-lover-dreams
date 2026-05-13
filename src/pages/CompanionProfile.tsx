@@ -1656,7 +1656,7 @@ const CompanionProfile = () => {
                         ? "Preview every pattern below — acquire the card to send them to a linked toy."
                         : hasLovenseToy
                           ? `Tap to send ${companion.name}'s curated patterns to your linked toy.`
-                          : "Tap Pair toy to scan the QR, or use Settings → Device connection."}
+                          : "Tap Pair toy to scan the QR, or use Preferences → Device connection."}
                     </p>
                   </div>
                   {!hasLovenseToy ? (

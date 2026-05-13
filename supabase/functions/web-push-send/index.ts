@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import webpush from "npm:web-push@3.6.7";
 import { requireSessionUser } from "../_shared/requireSessionUser.ts";
+import { isWithinCallNotifyWindow, type CallNotifyWindowRow } from "../_shared/callNotifyWindow.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -76,6 +77,19 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseAnon, {
     global: { headers: { Authorization: `Bearer ${bearer}` } },
   });
+
+  const { data: prof } = await supabase
+    .from("profiles")
+    .select("call_notify_window_enabled, call_notify_tz, call_notify_start_min, call_notify_end_min")
+    .eq("user_id", session.user.id)
+    .maybeSingle();
+
+  if (!isWithinCallNotifyWindow(new Date(), prof as CallNotifyWindowRow | null)) {
+    return new Response(JSON.stringify({ ok: true, sent: 0, skipped: "outside_call_notify_window" }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   const { data: rows, error: qErr } = await supabase
     .from("web_push_subscriptions")

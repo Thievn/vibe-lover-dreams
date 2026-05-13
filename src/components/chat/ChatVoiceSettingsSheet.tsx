@@ -22,7 +22,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   companionName: string;
   effectiveLabel: string;
-  /** When set, Account → Voice overrides per-companion picks for every chat. */
+  /** When set, Preferences → Voice overrides per-companion picks for every chat. */
   globalVoiceActive: boolean;
   globalVoiceLabel: string | null;
   relationshipPreset: TtsUxVoiceId;
@@ -67,16 +67,16 @@ export function ChatVoiceSettingsSheet({
               <span className="font-medium text-primary">Account default is on.</span> Every chat uses{" "}
               <span className="font-medium">{globalVoiceLabel ?? "your chosen voice"}</span>. Turn that off in{" "}
               <Link to="/settings" className="text-primary underline-offset-4 hover:underline">
-                Account → Voice
+                Preferences
               </Link>{" "}
-              if you want this companion&apos;s voice below to apply here instead.
+              (Voice section) if you want this companion&apos;s voice below to apply here instead.
             </div>
           ) : (
             <p className="text-sm leading-relaxed text-muted-foreground">
               This companion uses the voice you pick below. Optional: set one voice for{" "}
               <em>all</em> chats in{" "}
               <Link to="/settings" className="text-primary underline-offset-4 hover:underline">
-                Account → Voice
+                Preferences
               </Link>
               .
             </p>

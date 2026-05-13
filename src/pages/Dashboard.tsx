@@ -1330,7 +1330,7 @@ function ToyControlView({
           Toy control
         </h2>
         <p className="text-muted-foreground mt-2 text-sm">
-          Same Lovense link as <strong className="text-foreground/90">Settings → Device connection</strong> and the
+          Same Lovense link as <strong className="text-foreground/90">Preferences → Device connection</strong> and the
           profile menu — pair once; chat, dashboard, and patterns all use it.
         </p>
       </div>
@@ -1353,7 +1353,7 @@ function ToyControlView({
         >
           {connected
             ? `Linked${label ? ` — ${label}` : ""}. Session commands will route in real time.`
-            : "No toy linked yet. Pair with the QR code in Settings (or dashboard profile → Connect Lovense), then refresh here."}
+            : "No toy linked yet. Pair with the QR code in Preferences (or dashboard profile → Connect Lovense), then refresh here."}
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
           <button
@@ -1361,7 +1361,7 @@ function ToyControlView({
             onClick={onOpenDeviceSettings}
             className="flex-1 py-3 rounded-xl font-semibold border border-accent/40 bg-accent/10 text-accent hover:bg-accent/15 transition-colors"
           >
-            Pair in Settings
+            Pair in Preferences
           </button>
           <button
             type="button"
@@ -1413,7 +1413,7 @@ function ChatHistoryView({ onOpenChat }: { onOpenChat: () => void }) {
         ))}
       </ul>
       <p className="text-xs text-muted-foreground text-center italic">
-        Full transcripts stay private to your device whenever local-only mode is enabled in Settings.
+        Full transcripts stay private to your device whenever local-only mode is enabled in Preferences.
       </p>
     </div>
   );

@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, useEffect, useCallback, Component, ReactNode 
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { MobileNavGate } from "@/components/mobile/MobileNavGate";
 import { MobileToaster } from "@/components/mobile/MobileToaster";
+import { IncomingCallPushBanner } from "@/components/calls/IncomingCallPushBanner";
 import { supabase } from "@/integrations/supabase/client";
 import { initAnalytics, trackPageView } from "@/lib/analytics";
 import AgeGate from "./components/AgeGate";
@@ -184,6 +185,7 @@ function App() {
       <ErrorBoundary>
         <div className="min-h-screen bg-background text-foreground font-sans relative overflow-x-hidden before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:z-0 before:h-[min(48vh,520px)] before:bg-gradient-to-b before:from-primary/[0.055] before:to-transparent motion-safe:before:animate-lf-vignette-breathe">
           <AnalyticsTracker />
+          <IncomingCallPushBanner />
           {!ageConfirmed && <AgeGate onConfirm={handleAgeConfirm} />}
           <Suspense fallback={<RouteFallback />}>
             <Routes>

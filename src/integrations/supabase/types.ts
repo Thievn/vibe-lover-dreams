@@ -729,6 +729,10 @@ export type Database = {
       }
       profiles: {
         Row: {
+          call_notify_end_min: number
+          call_notify_start_min: number
+          call_notify_tz: string | null
+          call_notify_window_enabled: boolean
           chat_daily_quota_date: string | null
           chat_daily_quota_used: number
           created_at: string
@@ -747,6 +751,10 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          call_notify_end_min?: number
+          call_notify_start_min?: number
+          call_notify_tz?: string | null
+          call_notify_window_enabled?: boolean
           chat_daily_quota_date?: string | null
           chat_daily_quota_used?: number
           created_at?: string
@@ -765,6 +773,10 @@ export type Database = {
           user_id: string
         }
         Update: {
+          call_notify_end_min?: number
+          call_notify_start_min?: number
+          call_notify_tz?: string | null
+          call_notify_window_enabled?: boolean
           chat_daily_quota_date?: string | null
           chat_daily_quota_used?: number
           created_at?: string

@@ -39,7 +39,7 @@ export function ChatSignatureMovesDropdown({
 
   const trigger = (row: CompanionVibrationPatternRow) => {
     if (!hasDevice) {
-      toast.message("Link a Lovense toy in Settings to feel signature moves.");
+      toast.message("Link a Lovense toy in Preferences to feel signature moves.");
       return;
     }
     onTriggerPattern(row);

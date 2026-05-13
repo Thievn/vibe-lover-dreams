@@ -54,6 +54,9 @@ type Props = {
   callMood: LiveCallMoodId | null;
   onCallMoodChange: (m: LiveCallMoodId) => void;
   onQuickAction: (id: LiveCallQuickActionId) => void;
+  /** Ringing only — user must accept to connect realtime. */
+  onAcceptIncoming?: () => void;
+  onDeclineIncoming?: () => void;
 };
 
 /**
@@ -78,6 +81,8 @@ export function LiveCallPhoneShell({
   callMood,
   onCallMoodChange,
   onQuickAction,
+  onAcceptIncoming,
+  onDeclineIncoming,
 }: Props) {
   const gFrom = companion.gradientFrom || "#7B2D8E";
   const gTo = companion.gradientTo || "#FF2D7B";
@@ -85,7 +90,34 @@ export function LiveCallPhoneShell({
   const live = phase === "live";
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  const timeLabel = useMemo(() => formatMMSS(phase === "live" ? liveElapsedSec : 0), [phase, liveElapsedSec]);
+  const incomingTease = useMemo(() => {
+    const g = companion.gender.toLowerCase();
+    const female = g.includes("female") || g.includes("woman");
+    const male = g.includes("male") && !g.includes("female");
+    const pool = female
+      ? [
+          "She’s thinking about you…",
+          "She wants to hear your voice…",
+          "She’s waiting for you to answer…",
+        ]
+      : male
+        ? [
+            "He’s thinking about you…",
+            "He wants to hear your voice…",
+            "He’s waiting for you to answer…",
+          ]
+        : [
+            "They’re thinking about you…",
+            "They want to hear your voice…",
+            "They’re waiting for you to answer…",
+          ];
+    return pool[Math.floor(Math.random() * pool.length)];
+  }, [companion.gender, companion.id]);
+
+  const timeLabel = useMemo(() => {
+    if (ringing) return "···";
+    return formatMMSS(phase === "live" ? liveElapsedSec : 0);
+  }, [ringing, phase, liveElapsedSec]);
   const voiceLine = TTS_UX_LABELS[callVoiceId];
 
   return (
@@ -110,7 +142,9 @@ export function LiveCallPhoneShell({
       >
         <div className="mx-auto flex w-full max-w-md items-center justify-between gap-2 text-sm">
           <div className="flex min-w-0 items-baseline gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/38">On call</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/38">
+              {ringing ? "Incoming" : "On call"}
+            </span>
             <motion.span
               className="font-mono text-lg font-semibold tabular-nums text-white/95"
               aria-live="polite"
@@ -191,9 +225,15 @@ export function LiveCallPhoneShell({
         <p className="mb-1 line-clamp-2 max-w-md break-words px-1 text-center text-[11px] text-white/60 sm:text-xs">
           {option.title}
         </p>
-        <p className="mb-4 line-clamp-1 text-center text-[10px] text-pink-200/55" title={voiceLine}>
-          Voice · {voiceLine}
-        </p>
+        {ringing ? (
+          <p className="mb-4 line-clamp-2 max-w-md px-2 text-center text-sm font-medium text-pink-100/90 sm:text-base">
+            {incomingTease}
+          </p>
+        ) : (
+          <p className="mb-4 line-clamp-1 text-center text-[10px] text-pink-200/55" title={voiceLine}>
+            Voice · {voiceLine}
+          </p>
+        )}
 
         <AnimatePresence>
           {live ? (
@@ -297,52 +337,73 @@ export function LiveCallPhoneShell({
         </div>
       </div>
 
-      {/* Bottom dock — subtle glass capsule */}
-      <div
-        className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-2"
-        style={{
-          background: "linear-gradient(to top, rgba(5,6,12,0.92) 0%, rgba(5,6,12,0.55) 55%, transparent 100%)",
-        }}
-      >
-        <div className="flex items-center gap-2.5 rounded-full border border-white/[0.1] bg-black/50 px-2.5 py-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-          {toyBar ? (
-            <LiveCallToyBar
-              userId={toyBar.userId}
-              toyId={toyBar.toyId}
-              toyName={toyBar.toyName}
-              onToyUiDial={toyBar.onToyUiDial}
-            />
+      {/* Bottom dock */}
+        <div
+          className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-2"
+          style={{
+            background: "linear-gradient(to top, rgba(5,6,12,0.92) 0%, rgba(5,6,12,0.55) 55%, transparent 100%)",
+          }}
+        >
+          {ringing && onAcceptIncoming && onDeclineIncoming ? (
+            <div className="flex w-full max-w-md flex-col gap-3 px-1">
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={onDeclineIncoming}
+                  className="flex-1 min-h-[52px] touch-manipulation rounded-2xl border border-white/20 bg-white/[0.06] py-3 text-sm font-semibold text-white/85 backdrop-blur-md transition hover:bg-white/10 active:scale-[0.99]"
+                >
+                  Decline
+                </button>
+                <button
+                  type="button"
+                  onClick={onAcceptIncoming}
+                  className="flex-1 min-h-[52px] touch-manipulation rounded-2xl border border-pink-400/40 bg-gradient-to-br from-pink-500 via-fuchsia-600 to-pink-600 py-3 text-sm font-bold text-white shadow-[0_0_36px_rgba(236,72,153,0.45)] transition hover:brightness-110 active:scale-[0.99]"
+                >
+                  Accept
+                </button>
+              </div>
+            </div>
           ) : (
-            <div
-              className="flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full border border-dashed border-white/10 text-white/25"
-              title="No linked device"
-              aria-hidden
-            >
-              <Sparkles className="h-4 w-4" />
+            <div className="flex items-center gap-2.5 rounded-full border border-white/[0.1] bg-black/50 px-2.5 py-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+              {toyBar ? (
+                <LiveCallToyBar
+                  userId={toyBar.userId}
+                  toyId={toyBar.toyId}
+                  toyName={toyBar.toyName}
+                  onToyUiDial={toyBar.onToyUiDial}
+                />
+              ) : (
+                <div
+                  className="flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full border border-dashed border-white/10 text-white/25"
+                  title="No linked device"
+                  aria-hidden
+                >
+                  <Sparkles className="h-4 w-4" />
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                className="flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.06] text-white/90 transition hover:border-cyan-400/35 hover:bg-cyan-500/10 active:scale-[0.97]"
+                aria-label="Voice & preview"
+              >
+                <Mic className="h-5 w-5" strokeWidth={1.75} />
+              </button>
+
+              <div className="mx-0.5 h-8 w-px bg-white/10" aria-hidden />
+
+              <button
+                type="button"
+                onClick={onHangUp}
+                className="flex h-14 w-14 shrink-0 touch-manipulation items-center justify-center rounded-full border border-red-500/25 bg-gradient-to-br from-red-600/95 to-red-900/90 text-white shadow-[0_8px_28px_rgba(220,38,38,0.35)] transition hover:brightness-110 active:scale-[0.96]"
+                aria-label="End call"
+              >
+                <PhoneOff className="h-6 w-6" strokeWidth={1.75} />
+              </button>
             </div>
           )}
-
-          <button
-            type="button"
-            onClick={() => setPickerOpen(true)}
-            className="flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.06] text-white/90 transition hover:border-cyan-400/35 hover:bg-cyan-500/10 active:scale-[0.97]"
-            aria-label="Voice & preview"
-          >
-            <Mic className="h-5 w-5" strokeWidth={1.75} />
-          </button>
-
-          <div className="mx-0.5 h-8 w-px bg-white/10" aria-hidden />
-
-          <button
-            type="button"
-            onClick={onHangUp}
-            className="flex h-14 w-14 shrink-0 touch-manipulation items-center justify-center rounded-full border border-red-500/25 bg-gradient-to-br from-red-600/95 to-red-900/90 text-white shadow-[0_8px_28px_rgba(220,38,38,0.35)] transition hover:brightness-110 active:scale-[0.96]"
-            aria-label="End call"
-          >
-            <PhoneOff className="h-6 w-6" strokeWidth={1.75} />
-          </button>
         </div>
-      </div>
 
       <LiveCallVoicePickerDialog
         open={pickerOpen}

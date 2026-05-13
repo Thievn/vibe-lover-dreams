@@ -146,7 +146,7 @@ const Navbar = () => {
                       onClick={() => setMobileOpen(false)}
                       className={sheetLinkClass}
                     >
-                      Settings
+                      Preferences
                     </Link>
                     {isAdmin && (
                       <Link

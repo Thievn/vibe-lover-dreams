@@ -45,14 +45,43 @@ self.addEventListener("push", function (event) {
   var url = String(payload.url || "/");
   var tag = String(payload.tag || "lf-push");
   var icon = payload.icon ? String(payload.icon) : self.location.origin + "/og-image.png";
+  var isIncomingCall = tag.indexOf("lf-incoming-") === 0;
+
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: body,
-      icon: icon,
-      badge: self.location.origin + "/og-image.png",
-      tag: tag,
-      renotify: true,
-      data: { url: url },
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (clientList) {
+      if (isIncomingCall) {
+        var hasVisible = clientList.some(function (c) {
+          return c.visibilityState === "visible";
+        });
+        if (hasVisible && clientList.length > 0) {
+          var posted = false;
+          for (var k = 0; k < clientList.length; k++) {
+            try {
+              clientList[k].postMessage({
+                type: "LUSTFORGE_INCOMING_CALL_PUSH",
+                title: title,
+                body: body,
+                url: url,
+                tag: tag,
+              });
+              posted = true;
+            } catch (e2) {
+              /* ignore */
+            }
+          }
+          if (posted) {
+            return Promise.resolve();
+          }
+        }
+      }
+      return self.registration.showNotification(title, {
+        body: body,
+        icon: icon,
+        badge: self.location.origin + "/og-image.png",
+        tag: tag,
+        renotify: true,
+        data: { url: url },
+      });
     }),
   );
 });
