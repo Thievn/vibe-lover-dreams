@@ -126,3 +126,26 @@ secure_password_change = false
 max_frequency = "1m0s"
 otp_length = 8
 otp_expiry = 3600
+
+# LustForge-themed Auth emails. Paths are relative to the repo root (where the CLI is run).
+# Apply to hosted project with: supabase config push
+# Or copy HTML from supabase/templates/ into Dashboard → Authentication → Email Templates.
+[auth.email.template.confirmation]
+subject = "Seal the pact — confirm your LustForge account"
+content_path = "./supabase/templates/auth_confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Forged access — reset your LustForge password"
+content_path = "./supabase/templates/auth_recovery.html"
+
+[auth.email.template.magic_link]
+subject = "Velvet rope — your LustForge magic link"
+content_path = "./supabase/templates/auth_magic_link.html"
+
+[auth.email.template.email_change]
+subject = "Bless this address — confirm your new LustForge inbox"
+content_path = "./supabase/templates/auth_email_change.html"
+
+[auth.email.template.invite]
+subject = "Private invite — you’re summoned to LustForge"
+content_path = "./supabase/templates/auth_invite.html"
