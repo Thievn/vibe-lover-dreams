@@ -956,7 +956,7 @@ function DashboardHome({
           </h3>
         </div>
         <p className="mt-1.5 text-[11px] sm:text-xs text-muted-foreground leading-relaxed max-w-2xl">
-          Classic text uses a shared daily pool (UTC). After it runs out, each line bills Forge Coins at the rate shown
+          Classic text uses a shared daily pool (resets 3 AM Eastern). After it runs out, each line bills Forge Coins at the rate shown
           below.
         </p>
         {isAdminUser ? (

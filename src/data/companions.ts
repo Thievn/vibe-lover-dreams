@@ -45,6 +45,8 @@ export interface Companion {
   nexusCooldownUntil?: string | null;
   /** Parent forge UUIDs as `cc-…` app ids. */
   lineageParentIds?: string[] | null;
+  /** Nexus veilborn: parent display names aligned with `lineageParentIds` (same order). */
+  lineageParentNames?: [string, string] | null;
   /** TCG ascendant stats — exactly four keys from the global pool. */
   tcgStats?: TcgStatBlock | null;
   /** Forge Personalities matrix (custom_characters); drives voice-consistent chat & Live Call. */

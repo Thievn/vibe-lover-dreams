@@ -70,6 +70,8 @@ type Props = {
   placeholder: string;
   mediaDraftKind: ChatMediaRoute;
   isAdminUser: boolean;
+  /** When false, FC-derived footer / upsell waits for profile `tokens_balance` (avoids flash on first paint). */
+  forgeBalanceReady?: boolean;
   tokensBalance: number;
   tokenCost: number;
   imageTokenCost: number;
@@ -94,7 +96,7 @@ type Props = {
   userLoggedIn: boolean;
   /** Live Voice: slimmer photo row (galleries only) to leave room for chat. */
   photoDockLayout?: "full" | "live_voice";
-  /** Free text lines left today (UTC); footer copy when drafting plain text. */
+  /** Free text lines left in the current Eastern (3 AM boundary) quota day; footer copy when drafting plain text. */
   textQuotaRemaining?: number | null;
   visualVariant?: ChatVisualVariant;
 };
@@ -119,6 +121,7 @@ export function ChatComposer({
   placeholder,
   mediaDraftKind,
   isAdminUser,
+  forgeBalanceReady = true,
   tokensBalance,
   tokenCost,
   imageTokenCost,
@@ -397,7 +400,7 @@ export function ChatComposer({
           <>
             {mediaDraftKind === "text" && textQuotaRemaining != null ? (
               <span>
-                {textQuotaRemaining} free text left today (UTC) · next line{" "}
+                {textQuotaRemaining} free text left today · resets 3 AM Eastern · next line{" "}
                 {tokenCost <= 0 ? "0 FC" : `${CHAT_MESSAGE_FC_AFTER_DAILY_FREE} FC`} ·{" "}
               </span>
             ) : mediaDraftKind === "text" && tokenCost > 0 ? (
@@ -414,7 +417,7 @@ export function ChatComposer({
           </>
         )}
         18+ only · {CHAT_VIDEO_FOOTER_SECONDARY_NOTE}
-        {!isAdminUser && tokensBalance <= 0 ? (
+        {!isAdminUser && userLoggedIn && forgeBalanceReady && tokensBalance <= 0 ? (
           <>
             {" "}
             <Link to="/buy-credits" className="text-primary underline">

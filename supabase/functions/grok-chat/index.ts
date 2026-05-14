@@ -27,6 +27,15 @@ function json(obj: Record<string, unknown>, status = 200) {
   });
 }
 
+/** Stable per `(userId, companionId)` for xAI prompt-cache affinity (`x-grok-conv-id`). */
+async function grokConversationCacheId(userId: string, companionId: string): Promise<string> {
+  const raw = new TextEncoder().encode(`${userId}:${companionId}`);
+  const digest = await crypto.subtle.digest("SHA-256", raw);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 function extractJsonObject(text: string): unknown {
   const t = text.trim();
   const start = t.indexOf("{");
@@ -153,7 +162,7 @@ Each string max 72 characters. Match thread energy: flirty, playful, or explicit
       const systemContent = `${lustforgeChatServerSystemPrefix()}\n${scopeBlock}${systemRaw}`.trim();
       messages = [
         { role: "system", content: systemContent.slice(0, 120_000) },
-        ...threadRaw.slice(-40).map((m) => {
+        ...threadRaw.slice(-100).map((m) => {
           const role = m.role === "assistant" ? ("assistant" as const) : ("user" as const);
           return { role, content: String(m.content ?? "").slice(0, 24_000) };
         }),
@@ -165,7 +174,7 @@ Each string max 72 characters. Match thread energy: flirty, playful, or explicit
         `${GROK_VOICE_UNCENSORED_SYSTEM_PREFIX}${lustforgeChatServerSystemPrefix()}\n${scopeBlock}${systemRaw}`.trim();
       messages = [
         { role: "system", content: systemContent.slice(0, 120_000) },
-        ...threadRaw.slice(-40).map((m) => {
+        ...threadRaw.slice(-100).map((m) => {
           const role = m.role === "assistant" ? ("assistant" as const) : ("user" as const);
           return { role, content: String(m.content ?? "").slice(0, 24_000) };
         }),
@@ -174,12 +183,17 @@ Each string max 72 characters. Match thread energy: flirty, playful, or explicit
 
     const model = defaultGrokProductChatModel((n) => Deno.env.get(n));
 
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    };
+    if (companionIdForGate) {
+      headers["x-grok-conv-id"] = await grokConversationCacheId(sessionUser.id, companionIdForGate);
+    }
+
     const res = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify({
         model,
         messages,

@@ -23,6 +23,11 @@ export type LiveCallInstructionOpts = {
   hasLinkedToy: boolean;
   /** In-call vibe steering (session instructions). */
   callMood?: LiveCallMoodId | null;
+  /**
+   * Pre-formatted recent Classic / Live Voice thread (same `chat_messages` row space).
+   * Injected after the charter; do not repeat verbatim unless the user picks it up.
+   */
+  recentDialogue?: string;
 };
 
 export const LIVE_CALL_MOOD_GUIDANCE: Record<LiveCallMoodId, string> = {
@@ -99,5 +104,10 @@ export function buildLiveCallRealtimeInstructions(
   const voiceRegister = buildVoiceRegisterThemeBlock(companion, "spoken");
   const voiceDirection = buildAdaptiveVoiceDirectionBlock(companion, "live_call_realtime");
 
-  return `${GROK_VOICE_UNCENSORED_SYSTEM_PREFIX}${core}\n\n${voiceRegister}\n\n${voiceDirection}\n\n--- Session rules ---\n${rules}${toyAppendix}${mood}`;
+  const recent = (extra?.recentDialogue ?? "").trim();
+  const recentBlock = recent
+    ? `\n\n--- Recent messages with them (same ongoing thread as text chat; reference naturally when it fits) ---\n${recent}\n`
+    : "";
+
+  return `${GROK_VOICE_UNCENSORED_SYSTEM_PREFIX}${core}${recentBlock}\n\n${voiceRegister}\n\n${voiceDirection}\n\n--- Session rules ---\n${rules}${toyAppendix}${mood}`;
 }

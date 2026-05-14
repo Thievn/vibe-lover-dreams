@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DAILY_FREE_CHAT_MESSAGES } from "@/lib/forgeEconomy";
-import { formatCountdown, msUntilUtcMidnight } from "@/lib/chatDailyQuota";
+import { formatCountdown, msUntilNextEasternChatQuotaReset } from "@/lib/chatDailyQuota";
 
 type Props = {
   remainingFree: number;
@@ -14,7 +14,7 @@ type Props = {
 };
 
 /**
- * Compact strip: daily free text pool + UTC reset countdown + next-line FC after quota.
+ * Compact strip: daily free text pool + Eastern 3 AM reset countdown + next-line FC after quota.
  */
 export function DailyFreeMessagesBar({ remainingFree, nextLineFc, isAdminUser, className, visible }: Props) {
   const [tick, setTick] = useState(0);
@@ -24,7 +24,7 @@ export function DailyFreeMessagesBar({ remainingFree, nextLineFc, isAdminUser, c
     return () => window.clearInterval(id);
   }, [visible, isAdminUser]);
 
-  const resetLabel = useMemo(() => formatCountdown(msUntilUtcMidnight()), [tick]);
+  const resetLabel = useMemo(() => formatCountdown(msUntilNextEasternChatQuotaReset()), [tick]);
 
   if (!visible || isAdminUser) return null;
 
@@ -49,7 +49,8 @@ export function DailyFreeMessagesBar({ remainingFree, nextLineFc, isAdminUser, c
         </span>
       </span>
       <span className="shrink-0 tabular-nums text-muted-foreground/90">
-        Resets <span className="text-cyan-200/90">{resetLabel}</span> <span className="text-[9px] uppercase">UTC</span>
+        Resets <span className="text-cyan-200/90">{resetLabel}</span>{" "}
+        <span className="text-[9px] uppercase">3 AM Eastern</span>
       </span>
     </div>
   );

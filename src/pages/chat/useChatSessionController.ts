@@ -47,6 +47,7 @@ import {
 import { buildLiveVoiceSystemPrompt } from "@/lib/liveVoiceSystemPrompt";
 import { buildRampModeSystemAppend } from "@/lib/rampModePrompt";
 import type { RampPresetId } from "@/lib/rampModePresets";
+import { CHAT_SHARED_HISTORY_UI_LIMIT } from "@/lib/chatConversationHistory";
 import { RAMP_PRESET_IDS } from "@/lib/rampModePresets";
 import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
 import {
@@ -174,7 +175,7 @@ export function useChatSessionController() {
   const [tokensBalance, setTokensBalance] = useState<number>(0);
   /** False until first `fetchTokens` completes — avoids treating initial 0 as broke. */
   const [forgeBalanceReady, setForgeBalanceReady] = useState(false);
-  /** UTC date key from `profiles.chat_daily_quota_date` + raw used count (DB resets in `chat_consume_message_quota`). */
+  /** Eastern quota-period date from `profiles.chat_daily_quota_date` + used count (DB: `chat_consume_message_quota`). */
   const [chatDailyQuotaDate, setChatDailyQuotaDate] = useState<string | null>(null);
   const [chatDailyQuotaUsed, setChatDailyQuotaUsed] = useState(0);
   const [safeWord] = useState(() => localStorage.getItem("lustforge-safeword") || "RED");
@@ -749,13 +750,19 @@ export function useChatSessionController() {
     return { balance: bal, nextTextFc };
   };
 
+  /** Avoid FC gates while `tokens_balance` / daily quota are still the initial client defaults (race on first paint). */
+  const ensureForgeBalanceLoaded = useCallback(async () => {
+    if (isAdminUser || !user?.id) return;
+    if (!forgeBalanceReady) await fetchTokens(user.id);
+  }, [isAdminUser, user?.id, forgeBalanceReady]);
+
   const deductMessageForgeCoins = async (userId: string) => {
     if (isAdminUser) return;
     const r = await consumeChatMessageQuota();
     if (!r.ok) {
       if (r.err === "insufficient_funds") {
         toast.error(
-          `You've used today's 20 free messages. Each line is ${CHAT_MESSAGE_FC_AFTER_DAILY_FREE} FC — you have ${r.newBalance} FC.`,
+          `You've used today's ${DAILY_FREE_CHAT_MESSAGES} free text lines (Eastern quota). Each further line is ${CHAT_MESSAGE_FC_AFTER_DAILY_FREE} FC — you have ${r.newBalance} FC.`,
           { action: { label: "Buy FC", onClick: () => navigate("/buy-credits") } },
         );
       } else {
@@ -1117,7 +1124,7 @@ export function useChatSessionController() {
         .eq("user_id", userId)
         .eq("companion_id", id)
         .order("created_at", { ascending: true })
-        .limit(50);
+        .limit(CHAT_SHARED_HISTORY_UI_LIMIT);
 
       if (data && data.length > 0) {
         setMessages(
@@ -1683,8 +1690,9 @@ export function useChatSessionController() {
     const mood = opts?.mood ?? "lewd";
     const silent = opts?.silent ?? false;
     const cost = isAdminUser ? 0 : CHAT_VIDEO_TOKEN_COST;
-    if (!isAdminUser && tokensBalance < cost) {
-      toast.error(`Video clips cost ${cost} FC. You have ${tokensBalance} FC.`, {
+    if (!isAdminUser && user) await ensureForgeBalanceLoaded();
+    if (!isAdminUser && tokensBalanceRef.current < cost) {
+      toast.error(`Video clips cost ${cost} FC. You have ${tokensBalanceRef.current} FC.`, {
         action: { label: "Buy FC", onClick: () => navigate("/buy-credits") },
       });
       return;
@@ -1949,6 +1957,7 @@ export function useChatSessionController() {
 
   const confirmPendingImageGeneration = async () => {
     if (!imageGenPending || !user || !companion) return;
+    if (!isAdminUser) await ensureForgeBalanceLoaded();
     const { prompt, rawUserMessage, fromMenu, menuImagePrompt, lockSceneToMenuPreset } = imageGenPending;
     const explicit = isExplicitImageRequest(prompt) || isExplicitImageRequest(rawUserMessage);
     const freeUsed = getFreeNsfwImagesUsed(user.id, companion.id);
@@ -2016,6 +2025,7 @@ export function useChatSessionController() {
   const sendMessage = async (overrideText?: string, options?: SendMessageOptions) => {
     const messageText = overrideText?.trim() ?? input.trim();
     if (!messageText || !user || !companion) return;
+    if (!isAdminUser) await ensureForgeBalanceLoaded();
 
     if (matchesSafeWord(messageText, safeWord)) {
       setInput("");
@@ -2107,7 +2117,7 @@ export function useChatSessionController() {
         nextTextMsgFc === CHAT_MESSAGE_FC_AFTER_DAILY_FREE;
       toast.error(
         dailyTextPoolExhausted
-          ? `You've used today's ${DAILY_FREE_CHAT_MESSAGES} free text lines (resets at UTC midnight). Further lines cost ${CHAT_MESSAGE_FC_AFTER_DAILY_FREE} FC each — you have ${balanceNow} FC.`
+          ? `You've used today's ${DAILY_FREE_CHAT_MESSAGES} free text lines (pool resets 3 AM Eastern). Further lines cost ${CHAT_MESSAGE_FC_AFTER_DAILY_FREE} FC each — you have ${balanceNow} FC.`
           : `Not enough FC for ${tokenType}. You need ${requiredTokens} FC but only have ${balanceNow}.`,
         {
           action: {
@@ -2470,7 +2480,7 @@ export function useChatSessionController() {
       if (!isAdminUser && nextTextFc > 0 && bal < nextTextFc) {
         starterSentRef.current = false;
         toast.error(
-          `Not enough Forge Coins to begin this fantasy. You need ${nextTextFc} FC per line after your free daily messages — you have ${bal} FC.`,
+          `Not enough Forge Coins to begin this fantasy. You need ${nextTextFc} FC per line after your free daily messages (pool resets 3 AM Eastern) — you have ${bal} FC.`,
           { action: { label: "Buy FC", onClick: () => navigate("/buy-credits") } },
         );
         return;
@@ -2569,6 +2579,7 @@ export function useChatSessionController() {
     tokensBalance,
     chatDailyQuotaUi,
     forgeBalanceReady,
+    ensureForgeBalanceLoaded,
     safeWord,
     connectedToys,
     primaryToyUid,

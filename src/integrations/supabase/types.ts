@@ -24,6 +24,7 @@ export type Database = {
           image_prompt: string | null
           image_url: string | null
           lovense_command: Json | null
+          message_source: string
           role: string
           tts_audio_url: string | null
           user_id: string
@@ -38,6 +39,7 @@ export type Database = {
           image_prompt?: string | null
           image_url?: string | null
           lovense_command?: Json | null
+          message_source?: string
           role: string
           tts_audio_url?: string | null
           user_id: string
@@ -52,6 +54,7 @@ export type Database = {
           image_prompt?: string | null
           image_url?: string | null
           lovense_command?: Json | null
+          message_source?: string
           role?: string
           tts_audio_url?: string | null
           user_id?: string
@@ -235,6 +238,7 @@ export type Database = {
           is_public: boolean
           kinks: string[]
           lineage_parent_ids: string[] | null
+          lineage_parent_names: string[] | null
           merge_stats: Json | null
           name: string
           nexus_cooldown_until: string | null
@@ -283,6 +287,7 @@ export type Database = {
           is_public?: boolean
           kinks?: string[]
           lineage_parent_ids?: string[] | null
+          lineage_parent_names?: string[] | null
           merge_stats?: Json | null
           name: string
           nexus_cooldown_until?: string | null
@@ -331,8 +336,8 @@ export type Database = {
           is_public?: boolean
           kinks?: string[]
           lineage_parent_ids?: string[] | null
+          lineage_parent_names?: string[] | null
           merge_stats?: Json | null
-          name?: string
           nexus_cooldown_until?: string | null
           nude_tensor_render_group?: string | null
           orientation?: string

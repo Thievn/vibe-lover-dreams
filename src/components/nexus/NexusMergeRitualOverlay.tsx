@@ -58,6 +58,7 @@ export function NexusMergeRitualOverlay({
               parentB={parentB}
               active
               surface="nexus_merge"
+              estimatedDurationSec={300}
               className="max-h-[min(52vh,400px)] w-full lg:max-h-[min(56vh,440px)]"
             />
           </div>

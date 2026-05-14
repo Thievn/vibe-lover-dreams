@@ -781,6 +781,10 @@ Output ONLY via the nexus_merge_companion tool call.`;
       approved: false,
       is_nexus_hybrid: true,
       lineage_parent_ids: [idA, idB],
+      lineage_parent_names: [
+        String(pa.name ?? "").trim().slice(0, 120) || "Co-forge",
+        String(pb.name ?? "").trim().slice(0, 120) || "Co-forge",
+      ],
       merge_stats,
       rarity: childRarity,
       tcg_stats: childTcg,

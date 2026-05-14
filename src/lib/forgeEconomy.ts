@@ -14,7 +14,7 @@ export const FC_USD = 0.01;
  */
 export const CHAT_MESSAGE_FC = 0;
 
-/** User text lines (Classic + Live Voice) per UTC day before overage FC applies. */
+/** User text lines (Classic + Live Voice) per Eastern quota period (new period 3 AM America/New_York) before overage FC applies. */
 export const DAILY_FREE_CHAT_MESSAGES = 20;
 
 /** FC per text message after the daily free pool is exhausted (server: `chat_consume_message_quota`). */

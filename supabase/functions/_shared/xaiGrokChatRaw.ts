@@ -66,9 +66,9 @@ export function defaultGrokRewriteModel(getEnv: (name: string) => string | undef
   return getEnv("GROK_REWRITE_MODEL")?.trim() || getEnv("GROK_CHAT_MODEL")?.trim() || "grok-3";
 }
 
-/** In-app companion chat, smart replies, teasers — `GROK_CHAT_MODEL` (default grok-3). */
+/** In-app companion chat, smart replies, teasers — `GROK_CHAT_MODEL` (default grok-4.3). */
 export function defaultGrokProductChatModel(getEnv: (name: string) => string | undefined): string {
-  return (getEnv("GROK_CHAT_MODEL") ?? "grok-3").trim();
+  return (getEnv("GROK_CHAT_MODEL") ?? "grok-4.3").trim();
 }
 
 /** Default text model for admin Edge functions (companion chat, marketing, live-call options). */

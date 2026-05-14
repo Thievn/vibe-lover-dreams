@@ -35,6 +35,11 @@ import {
   LIVE_CALL_QUICK_TAP_BREVITY,
   type LiveCallQuickActionId,
 } from "@/lib/liveCallQuickActions";
+import {
+  fetchRecentChatMessages,
+  formatRecentDialogueForLiveCallInstructions,
+  persistLiveCallChatMessage,
+} from "@/lib/chatConversationHistory";
 
 const LIVE_CALL_SILENCE_MS = 60_000;
 
@@ -123,6 +128,8 @@ const LiveCallPage = () => {
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const ringResolveRef = useRef<((v: boolean) => void) | null>(null);
   const lastDuplexMsRef = useRef(Date.now());
+  /** Snapshot of shared thread text loaded at call connect (reused when call mood updates instructions). */
+  const liveCallSharedHistoryBlockRef = useRef("");
 
   useEffect(() => {
     userIdRef.current = userId;
@@ -450,9 +457,20 @@ const LiveCallPage = () => {
       setPhase("connecting");
       setStatusLine("Connecting…");
 
+      liveCallSharedHistoryBlockRef.current = "";
+      if (uid && id) {
+        try {
+          const turns = await fetchRecentChatMessages(uid, id);
+          liveCallSharedHistoryBlockRef.current = formatRecentDialogueForLiveCallInstructions(turns);
+        } catch {
+          liveCallSharedHistoryBlockRef.current = "";
+        }
+      }
+
       const instructions = buildLiveCallRealtimeInstructions(companion, activeCallOption, {
         hasLinkedToy: linked,
         callMood: null,
+        recentDialogue: liveCallSharedHistoryBlockRef.current || undefined,
       });
       const voice = uxVoiceToXaiVoice(callVoiceRef.current);
 
@@ -477,9 +495,19 @@ const LiveCallPage = () => {
           setStatusLine(e.message || "Voice error");
           sessionStartedFor.current = null;
         },
-        onAssistantTranscriptDone: (text) => {
-          const t = toyForSessionRef.current;
+        onUserTranscriptDone: (text) => {
           const u = userIdRef.current;
+          const cid = id;
+          if (!u || !cid) return;
+          void persistLiveCallChatMessage({ userId: u, companionId: cid, role: "user", content: text });
+        },
+        onAssistantTranscriptDone: (text) => {
+          const u = userIdRef.current;
+          const cid = id;
+          if (u && cid) {
+            void persistLiveCallChatMessage({ userId: u, companionId: cid, role: "assistant", content: text });
+          }
+          const t = toyForSessionRef.current;
           if (!t || !u) return;
           const cmd = liveCallToyCommandFromAssistantLine(String(text), { toyDeviceUid: t.id });
           if (!cmd) return;
@@ -527,6 +555,7 @@ const LiveCallPage = () => {
     const instructions = buildLiveCallRealtimeInstructions(companion, activeCallOption, {
       hasLinkedToy: linked,
       callMood,
+      recentDialogue: liveCallSharedHistoryBlockRef.current || undefined,
     });
     updateSessionRef.current?.({ instructions });
   }, [callMood, phase, companion, activeCallOption]);

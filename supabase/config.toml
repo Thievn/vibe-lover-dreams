@@ -50,6 +50,9 @@ verify_jwt = false
 [functions.nexus-merge]
 verify_jwt = false
 
+[functions.nexus-breeding-dialogue]
+verify_jwt = false
+
 [functions.grok-tts]
 verify_jwt = false
 

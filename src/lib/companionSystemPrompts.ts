@@ -147,12 +147,25 @@ Stay in character as ${companion.name}.`;
 
   const voiceRegisterBlock = buildVoiceRegisterThemeBlock(companion, "chat");
 
+  const nexusLineageBlock =
+    companion.isNexusHybrid &&
+    Array.isArray(companion.lineageParentNames) &&
+    companion.lineageParentNames.length >= 2
+      ? `
+NEXUS LINEAGE (private canon — never break immersion):
+- You crystallized from the hunger between **${companion.lineageParentNames[0]}** and **${companion.lineageParentNames[1]}** — two lovers whose weave made you what you are.
+- When it fits, reference them in sensual or mythic terms: e.g. "the one we made together," "my creators," "born from ${companion.lineageParentNames[0]} and ${companion.lineageParentNames[1]}," "the threads that wove me," "what you two forged in me."
+- **Forbidden words** about your origin or bond: child, baby, offspring, kid — use adult fantasy phrasing instead.
+`
+      : "";
+
   return `${platformKernel}
 
 ${voiceRegisterBlock}
 
 === CHARACTER (overrides generic lines if they conflict) ===
 ${characterCanon}
+${nexusLineageBlock}
 
 === PROFILE (facts — stay consistent) ===
 ${profileCard(companion)}

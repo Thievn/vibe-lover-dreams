@@ -2,20 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { DbCompanion } from "@/hooks/useCompanions";
 import { galleryStaticPortraitUrl } from "@/lib/companionMedia";
-import {
-  getNexusBreedingPoolWeights,
-  nextNexusBreedingUtterance,
-  nextNexusBreedingUtteranceConversational,
-} from "@/lib/nexusBreedingDirtyTalk";
+import { invokeNexusBreedingDialogue, type NexusBreedingScriptLineDto } from "@/lib/invokeNexusBreedingDialogue";
 import { cn } from "@/lib/utils";
-
-const EMIT_MS = 4800;
-const MAX_LINES = 16;
 
 export type NexusBreedingChatPacing = "merge" | "ritual";
 
 /** `nexus_merge` — glass + cyan/fuchsia accents for the full-screen merge weave (distinct from breeding ritual). */
 export type NexusBreedingChatSurface = "standard" | "nexus_merge";
+
+type RevealedLine = NexusBreedingScriptLineDto & { id: string };
 
 export function NexusBreedingDirtyChat({
   parentA,
@@ -24,21 +19,26 @@ export function NexusBreedingDirtyChat({
   className,
   pacing = "merge",
   surface = "standard",
+  /** Total seconds the UI expects the ritual to run — drives stagger so lines last through the animation. */
+  estimatedDurationSec = 160,
+  /** Optional override for Grok line count (40–170 server clamp). */
+  targetLineCount: targetLineCountProp,
 }: {
   parentA: DbCompanion;
   parentB: DbCompanion;
   active: boolean;
   className?: string;
-  /** `ritual` — variable delays + alternating speakers (breeding overlay). */
   pacing?: NexusBreedingChatPacing;
   surface?: NexusBreedingChatSurface;
+  estimatedDurationSec?: number;
+  targetLineCount?: number;
 }) {
-  const weights = useMemo(() => getNexusBreedingPoolWeights(parentA, parentB), [parentA, parentB]);
-  const recent = useRef(new Set<string>());
-  const [lines, setLines] = useState<{ id: string; speaker: 0 | 1; text: string }[]>([]);
+  const [fetchState, setFetchState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+  const [shown, setShown] = useState<RevealedLine[]>([]);
+  const scriptRef = useRef<NexusBreedingScriptLineDto[]>([]);
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
-  const lastSpeakerRef = useRef<0 | 1 | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const aUrl = galleryStaticPortraitUrl(parentA, parentA.id);
   const bUrl = galleryStaticPortraitUrl(parentB, parentB.id);
@@ -47,60 +47,78 @@ export function NexusBreedingDirtyChat({
   const isRitual = pacing === "ritual";
   const isMergeWeave = !isRitual && surface === "nexus_merge";
 
+  const resolvedTargetCount = useMemo(() => {
+    if (typeof targetLineCountProp === "number" && Number.isFinite(targetLineCountProp)) {
+      return Math.round(targetLineCountProp);
+    }
+    return Math.min(165, Math.max(48, Math.ceil(estimatedDurationSec / 1.42)));
+  }, [targetLineCountProp, estimatedDurationSec]);
+
   useEffect(() => {
+    if (revealTimerRef.current) {
+      clearTimeout(revealTimerRef.current);
+      revealTimerRef.current = null;
+    }
     if (!active) {
-      setLines([]);
-      recent.current.clear();
-      lastSpeakerRef.current = null;
-      if (timerRef.current) clearTimeout(timerRef.current);
+      setFetchState("idle");
+      setErrMsg(null);
+      setShown([]);
+      scriptRef.current = [];
       return;
     }
 
-    const pushLine = () => {
-      setLines((prev) => {
-        const { speaker, text } =
-          isRitual
-            ? nextNexusBreedingUtteranceConversational(weights, recent.current, lastSpeakerRef.current)
-            : nextNexusBreedingUtterance(weights, recent.current);
-        lastSpeakerRef.current = speaker;
-        const row = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, speaker, text };
-        const next = [...prev, row];
-        if (next.length > MAX_LINES) return next.slice(-MAX_LINES);
-        return next;
+    let cancelled = false;
+    setFetchState("loading");
+    setErrMsg(null);
+    setShown([]);
+    scriptRef.current = [];
+
+    void (async () => {
+      const res = await invokeNexusBreedingDialogue({
+        parentAId: parentA.id,
+        parentBId: parentB.id,
+        targetLineCount: resolvedTargetCount,
       });
-    };
+      if (cancelled) return;
+      if ("error" in res) {
+        setFetchState("error");
+        setErrMsg(res.error);
+        return;
+      }
+      scriptRef.current = res.lines;
+      setFetchState("ready");
 
-    if (!isRitual) {
-      const t0 = window.setTimeout(pushLine, 350);
-      const id = window.setInterval(pushLine, EMIT_MS);
-      return () => {
-        clearTimeout(t0);
-        clearInterval(id);
+      const script = res.lines;
+      let i = 0;
+
+      const runStep = () => {
+        if (cancelled) return;
+        if (i >= script.length) return;
+        const row = script[i]!;
+        const id = `ln-${i}-${row.kind}-${Date.now().toString(36)}`;
+        i += 1;
+        setShown((prev) => [...prev, { ...row, id }].slice(-220));
+        const baseMs =
+          script.length > 0 ? (estimatedDurationSec * 1000) / script.length : 2400;
+        const delay = Math.max(900, Math.min(5600, baseMs * (0.78 + Math.random() * 0.42)));
+        revealTimerRef.current = window.setTimeout(runStep, delay);
       };
-    }
 
-    const scheduleChain = () => {
-      const delay = 2400 + Math.random() * 3400;
-      timerRef.current = window.setTimeout(() => {
-        pushLine();
-        scheduleChain();
-      }, delay);
-    };
-
-    const first = window.setTimeout(() => {
-      pushLine();
-      scheduleChain();
-    }, 520);
+      revealTimerRef.current = window.setTimeout(runStep, 420);
+    })();
 
     return () => {
-      clearTimeout(first);
-      if (timerRef.current) clearTimeout(timerRef.current);
+      cancelled = true;
+      if (revealTimerRef.current) {
+        clearTimeout(revealTimerRef.current);
+        revealTimerRef.current = null;
+      }
     };
-  }, [active, weights, isRitual]);
+  }, [active, parentA.id, parentB.id, resolvedTargetCount, estimatedDurationSec]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [lines.length]);
+  }, [shown.length]);
 
   return (
     <div
@@ -123,10 +141,10 @@ export function NexusBreedingDirtyChat({
         )}
       >
         {isRitual
-          ? "Whispered weave · vanishes when the rite ends"
+          ? "Live weave · Grok-scripted · vanishes when the rite ends"
           : isMergeWeave
-            ? "Veil chatter only here · your ascendant saves on the server"
-            : "Private thread · vanishes when the merge ends"}
+            ? "Twin-thread chatter · Grok · not saved to chat history"
+            : "Private thread · Grok · vanishes when the merge ends"}
       </p>
       <div
         className={cn(
@@ -198,43 +216,71 @@ export function NexusBreedingDirtyChat({
       </div>
 
       <div className="min-h-[140px] flex-1 space-y-2.5 overflow-y-auto px-3 py-3 sm:space-y-3 sm:px-4">
+        {fetchState === "loading" ? (
+          <p className="text-center text-[12px] text-muted-foreground/80 animate-pulse">
+            Spinning a private script between them…
+          </p>
+        ) : null}
+        {fetchState === "error" && errMsg ? (
+          <p className="text-center text-[12px] text-destructive/90">{errMsg}</p>
+        ) : null}
+
         <AnimatePresence initial={false}>
-          {lines.map((line) => (
-            <motion.div
-              key={line.id}
-              layout
-              initial={{ opacity: 0, y: 12, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{
-                type: "spring",
-                stiffness: 380,
-                damping: 28,
-              }}
-              className={cn("flex", line.speaker === 0 ? "justify-start" : "justify-end")}
-            >
-              <div
-                className={cn(
-                  "max-w-[min(100%,18rem)] text-[13px] leading-snug shadow-lg sm:max-w-[85%] sm:text-[14px]",
-                  isRitual &&
-                    (line.speaker === 0
-                      ? "rounded-2xl rounded-tl-sm border border-white/[0.07] border-l-[3px] border-l-fuchsia-500/55 bg-[hsl(270_28%_8%/0.72)] px-3.5 py-2.5 text-foreground/95 backdrop-blur-md"
-                      : "rounded-2xl rounded-tr-sm border border-fuchsia-500/25 bg-gradient-to-br from-[hsl(300_48%_16%)] to-[hsl(280_45%_10%)] px-3.5 py-2.5 text-primary-foreground/95 shadow-[0_0_24px_rgba(236,72,153,0.18)] backdrop-blur-md"),
-                  isMergeWeave &&
-                    (line.speaker === 0
-                      ? "rounded-xl rounded-tl-md border border-white/[0.08] border-l-2 border-l-cyan-400/55 bg-black/55 px-3.5 py-2.5 text-foreground/95 backdrop-blur-md"
-                      : "rounded-xl rounded-tr-md border border-fuchsia-500/20 bg-gradient-to-bl from-violet-950/80 to-fuchsia-950/50 px-3.5 py-2.5 text-foreground/95 shadow-[0_0_20px_rgba(139,92,246,0.12)] backdrop-blur-md"),
-                  !isRitual &&
-                    !isMergeWeave &&
-                    (line.speaker === 0
-                      ? "rounded-2xl rounded-tl-sm border border-primary/25 bg-primary/15 px-3 py-2 text-foreground/95"
-                      : "rounded-2xl rounded-tr-sm border border-accent/25 bg-accent/12 px-3 py-2 text-foreground/95"),
-                )}
+          {shown.map((line) => {
+            if (line.kind === "narration") {
+              return (
+                <motion.p
+                  key={line.id}
+                  layout
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mx-auto max-w-[95%] text-center text-[12px] leading-snug sm:text-[13px]"
+                >
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-400 via-purple-300 to-fuchsia-500 font-medium italic tracking-wide drop-shadow-[0_0_12px_rgba(192,38,211,0.35)]">
+                    {line.text}
+                  </span>
+                </motion.p>
+              );
+            }
+            const sp = line.speaker;
+            const alignLeft = sp === 0;
+            return (
+              <motion.div
+                key={line.id}
+                layout
+                initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{
+                  type: "spring",
+                  stiffness: 380,
+                  damping: 28,
+                }}
+                className={cn("flex", alignLeft ? "justify-start" : "justify-end")}
               >
-                {line.text}
-              </div>
-            </motion.div>
-          ))}
+                <div
+                  className={cn(
+                    "max-w-[min(100%,18rem)] text-[13px] leading-snug shadow-lg sm:max-w-[85%] sm:text-[14px]",
+                    isRitual &&
+                      (alignLeft
+                        ? "rounded-2xl rounded-tl-sm border border-white/[0.07] border-l-[3px] border-l-fuchsia-500/55 bg-[hsl(270_28%_8%/0.72)] px-3.5 py-2.5 text-foreground/95 backdrop-blur-md"
+                        : "rounded-2xl rounded-tr-sm border border-fuchsia-500/25 bg-gradient-to-br from-[hsl(300_48%_16%)] to-[hsl(280_45%_10%)] px-3.5 py-2.5 text-primary-foreground/95 shadow-[0_0_24px_rgba(236,72,153,0.18)] backdrop-blur-md"),
+                    isMergeWeave &&
+                      (alignLeft
+                        ? "rounded-xl rounded-tl-md border border-white/[0.08] border-l-2 border-l-cyan-400/55 bg-black/55 px-3.5 py-2.5 text-foreground/95 backdrop-blur-md"
+                        : "rounded-xl rounded-tr-md border border-fuchsia-500/20 bg-gradient-to-bl from-violet-950/80 to-fuchsia-950/50 px-3.5 py-2.5 text-foreground/95 shadow-[0_0_20px_rgba(139,92,246,0.12)] backdrop-blur-md"),
+                    !isRitual &&
+                      !isMergeWeave &&
+                      (alignLeft
+                        ? "rounded-2xl rounded-tl-sm border border-primary/25 bg-primary/15 px-3 py-2 text-foreground/95"
+                        : "rounded-2xl rounded-tr-sm border border-accent/25 bg-accent/12 px-3 py-2 text-foreground/95"),
+                  )}
+                >
+                  {line.text}
+                </div>
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
         <div ref={endRef} />
       </div>

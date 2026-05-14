@@ -60,6 +60,7 @@ export interface DbCompanion {
   tts_voice_preset?: string | null;
   nexus_cooldown_until?: string | null;
   lineage_parent_ids?: string[] | null;
+  lineage_parent_names?: string[] | null;
   merge_stats?: Record<string, unknown> | null;
   is_nexus_hybrid?: boolean;
   tcg_stats?: Record<string, unknown> | null;
@@ -188,6 +189,9 @@ export function mapSupabaseCustomCharacterRow(row: Record<string, unknown>): DbC
     nexus_cooldown_until: (row.nexus_cooldown_until as string | null | undefined) ?? null,
     lineage_parent_ids: Array.isArray(row.lineage_parent_ids)
       ? (row.lineage_parent_ids as string[])
+      : null,
+    lineage_parent_names: Array.isArray(row.lineage_parent_names)
+      ? (row.lineage_parent_names as string[]).map((s) => String(s ?? "").trim()).filter(Boolean)
       : null,
     merge_stats:
       row.merge_stats && typeof row.merge_stats === "object"
@@ -340,6 +344,13 @@ export const dbToCompanion = (db: DbCompanion): Companion => ({
   lineageParentIds: db.lineage_parent_ids?.length
     ? db.lineage_parent_ids.map((id) => `cc-${id}`)
     : undefined,
+  lineageParentNames:
+    Array.isArray(db.lineage_parent_names) && db.lineage_parent_names.length >= 2
+      ? [
+          (db.lineage_parent_names[0] ?? "").trim() || "your co-forge",
+          (db.lineage_parent_names[1] ?? "").trim() || "your co-forge",
+        ]
+      : undefined,
   tcgStats: normalizeTcgStatBlock(db.tcg_stats as unknown) ?? undefined,
   personalityForge: db.personality_forge ? normalizeForgePersonality(db.personality_forge) : null,
   displayTraits: resolveDisplayTraitsForDb({

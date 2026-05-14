@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Baby, Heart, Sparkles, X } from "lucide-react";
+import { Heart, Sparkles, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { sendCommand, type LovenseCommand } from "@/lib/lovense";
@@ -38,10 +38,10 @@ const BREEDING_STAGES = [
   },
   {
     id: 3,
-    title: "Creation",
-    description: "Something new strains to be born",
+    title: "Ascendance",
+    description: "The third thread locks into shape — pulse and voice collapse into one name",
     duration: 30000,
-    icon: Baby,
+    icon: Sparkles,
     toyCommand: { command: "vibrate" as const, intensity: 15, duration: 30000, pattern: "wave" },
   },
 ];
@@ -242,6 +242,7 @@ export const BreedingRitual = ({
               parentB={parentB}
               active={isActive}
               pacing="ritual"
+              estimatedDurationSec={118}
               className="min-h-[200px] max-h-[min(42vh,380px)] border-fuchsia-500/12"
             />
 

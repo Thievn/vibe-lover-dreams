@@ -42,6 +42,8 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
     affectionTier,
     affectionProgress,
     affectionProgressMax,
+    forgeBalanceReady,
+    ensureForgeBalanceLoaded,
     tokensBalance,
     chatDailyQuotaUi,
     isAdminUser,
@@ -210,15 +212,20 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
             <ChatModeToggle
               mode={sessionMode}
               onChange={(m) => {
-                if (m === "live_voice" && !isAdminUser && tokensBalanceRef.current < LIVE_CALL_CREDITS_PER_MINUTE) {
-                  toast.error(
-                    `Live Voice bills ${LIVE_CALL_CREDITS_PER_MINUTE} FC per started minute (audio-first; same meter as full-screen Live Call). Classic includes 20 free text lines per UTC day — top up for live modes.`,
-                    { action: { label: "Buy FC", onClick: () => navigate("/buy-credits") } },
-                  );
-                  return;
-                }
-                setSessionMode(m);
-                persistChatSessionMode(m);
+                void (async () => {
+                  if (m === "live_voice" && !isAdminUser && user) {
+                    await ensureForgeBalanceLoaded();
+                    if (tokensBalanceRef.current < LIVE_CALL_CREDITS_PER_MINUTE) {
+                      toast.error(
+                        `Live Voice bills ${LIVE_CALL_CREDITS_PER_MINUTE} FC per started minute (audio-first; same meter as full-screen Live Call). Classic includes 20 free text lines per Eastern day (resets 3 AM ET) — top up for live modes.`,
+                        { action: { label: "Buy FC", onClick: () => navigate("/buy-credits") } },
+                      );
+                      return;
+                    }
+                  }
+                  setSessionMode(m);
+                  persistChatSessionMode(m);
+                })();
               }}
               disabled={!user}
             />
@@ -274,7 +281,7 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
           onTriggerPattern={(row) => void triggerCompanionVibration(row)}
         />
 
-        {!isAdminUser && tokensBalance < 100 && tokensBalance > 0 && (
+        {!isAdminUser && forgeBalanceReady && tokensBalance < 100 && tokensBalance > 0 && (
           <div className="shrink-0 border-b border-destructive/20 bg-destructive/10 px-3 py-2 text-center text-xs text-destructive">
             Low Forge Coins! You have {tokensBalance} FC.{" "}
             <Link to="/buy-credits" className="font-medium underline">
@@ -343,7 +350,7 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
           <div className="z-10 shrink-0 border-t border-white/[0.06] bg-gradient-to-b from-black/40 to-transparent px-2 pb-0">
             <LiveVoicePanel
               companionName={companion.name}
-              disabled={!isAdminUser && tokensBalance < LIVE_CALL_CREDITS_PER_MINUTE}
+              disabled={!isAdminUser && forgeBalanceReady && tokensBalance < LIVE_CALL_CREDITS_PER_MINUTE}
               busy={loading}
               creditsPerMinute={LIVE_CALL_CREDITS_PER_MINUTE}
               sessionElapsedSec={liveVoiceElapsedSec}
@@ -395,6 +402,7 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
             }
             mediaDraftKind={draftMediaRoute}
             isAdminUser={isAdminUser}
+            forgeBalanceReady={forgeBalanceReady}
             tokensBalance={tokensBalance}
             tokenCost={chatDailyQuotaUi.nextMessageFc}
             textQuotaRemaining={user ? chatDailyQuotaUi.remainingFree : null}
@@ -413,10 +421,10 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
                 imageRequestFromMenu: true,
               })
             }
-            mediaMenuDisabled={Boolean(user && !isAdminUser && tokensBalance < CHAT_IMAGE_LEWD_FC)}
+            mediaMenuDisabled={Boolean(user && !isAdminUser && forgeBalanceReady && tokensBalance < CHAT_IMAGE_LEWD_FC)}
             videoMenuDisabled={
               CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ||
-              Boolean(user && !isAdminUser && tokensBalance < CHAT_VIDEO_TOKEN_COST)
+              Boolean(user && !isAdminUser && forgeBalanceReady && tokensBalance < CHAT_VIDEO_TOKEN_COST)
             }
             chatImageLewdFc={CHAT_IMAGE_LEWD_FC}
             videoClipFc={CHAT_VIDEO_TOKEN_COST}
