@@ -294,7 +294,33 @@ serve(async (req) => {
     const sceneBlock = maybeAppendForgeStyleSceneBlock(String(prompt), cdScene);
     const promptHasAnimeLock = isAnime && FORGE_ANIME_STYLE_LOCK_REGEX.test(String(prompt));
     const animeRewriteLead = isAnime && !promptHasAnimeLock ? buildAnimeTemptationStyleLead(tierRewrite) : "";
-    const rawForRewrite = [animeRewriteLead, dnaPrefix, sceneBlock].filter((s) => String(s).trim()).join("\n\n");
+    const nexusHybrid =
+      cd.is_nexus_hybrid === true ||
+      cd.isNexusHybrid === true ||
+      cd.is_nexus_merge_child === true;
+    const artLabelForLead = String(cdScene.artStyleLabel ?? "").trim();
+    const chatPortraitConsistencyLead =
+      isChatSessionStill && !isPortrait
+        ? [
+            "[MAIN PORTRAIT CONSISTENCY — READ BEFORE STYLE DNA OR SCENE]",
+            "Use this exact character's face, hair style, eye color, body type, tattoos, piercings, species marks, and overall appearance exactly as reference.",
+            "Maintain 100% consistency with the main profile / roster portrait (HTTPS likeness in request when present) AND CHARACTER REFERENCE in Character Details — same person, same art style / rendering discipline.",
+            artLabelForLead
+              ? `**Art style lock:** match **${artLabelForLead}** and the roster portrait — do not drift into an unrelated medium, different face, or generic stock glamour.`
+              : "**Art style lock:** match the roster portrait and Character Details — do not drift into an unrelated medium or different face.",
+            "Only change pose, outfit, wardrobe state, background, environment, props, lighting, and camera per PRIMARY SCENE / menu — never replace the character.",
+            nexusHybrid
+              ? "**Nexus-forged companion:** EXTRA strict DNA lock — face, silhouette, species anatomy, and palette must read as the **same individual** as the portrait; if anything conflicts, the portrait + reference text override catalog poses and generic beauty defaults."
+              : "",
+            "---",
+            "",
+          ]
+            .filter(Boolean)
+            .join("\n")
+        : "";
+    const rawForRewrite = [chatPortraitConsistencyLead, animeRewriteLead, dnaPrefix, sceneBlock]
+      .filter((s) => String(s).trim())
+      .join("\n\n");
 
     const rewriteMode =
       effectiveTier === "forge_preview_sfw"

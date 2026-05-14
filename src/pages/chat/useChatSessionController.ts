@@ -872,6 +872,7 @@ export function useChatSessionController() {
         ...(forgeTabForImagine
           ? { activeForgeTab: forgeTabForImagine, selectedForgeTab: forgeTabForImagine }
           : {}),
+        ...(dbComp.is_nexus_hybrid ? { is_nexus_hybrid: true } : {}),
       };
 
       const { data, error } = await invokeGenerateImage({
@@ -986,6 +987,7 @@ export function useChatSessionController() {
         ...(rewardForgeTab
           ? { activeForgeTab: rewardForgeTab, selectedForgeTab: rewardForgeTab }
           : {}),
+        ...(dbComp.is_nexus_hybrid ? { is_nexus_hybrid: true } : {}),
       };
       const { data, error } = await invokeGenerateImage({
         prompt,

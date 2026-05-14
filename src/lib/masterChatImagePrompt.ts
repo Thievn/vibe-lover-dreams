@@ -231,6 +231,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
   const art = resolveChatArtStyleLabel(dbComp);
   const pack = (dbComp.image_prompt || "").trim().slice(0, 900);
   const mood = classifyChatImageMood({ rawUserMessage, menuBasePrompt: menuImagePrompt });
+  const nexusHybrid = Boolean(dbComp.is_nexus_hybrid);
   const nonPhotorealArtLane =
     /\b(anime|manga|cel[-\s]?shad|illustrat|chibi|pixel|watercolor|oil\s+painting|fantasy\s+illustration|comic|cartoon|digital\s+painting|ghibli|hentai|yaoi|yuri|graphic\s+novel|2d\b|stylized\s*\/\s*illustrated|painterly|low[-\s]?poly)\b/i.test(
       art,
@@ -332,7 +333,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
         "",
         coreLook.slice(0, 2000),
         "",
-        "Keep the exact same face, hair, eyes, body type, skin tone, and distinctive features.",
+        "Keep the exact same face, hair, eyes, body type, skin tone, distinctive marks, and rendering style as the main portrait and this reference — identity is not negotiable.",
         "",
         "---",
         "",
@@ -347,9 +348,23 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
 
   const appearanceStripForMenu = `**APPEARANCE-TEXT STRIP (gallery preset):** The CHARACTER APPEARANCE paragraph may repeat how she looks on a **roster / profile card**. For **this** render, mine it **only** for ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE}. **Discard** any sentences about catalog outfit, cape, swimsuit, jewelry, throne room, studio backdrop, or “icon pose” if they disagree with **Requested framing (from menu)** — the menu wins 100% on clothes, location, pose, props, and camera. **Demote** mood-only lines (heavy smoke, fog, haze, lens-flare poetry, club strobes) unless the **menu** explicitly asks for that vibe — they must not steal detail budget from a **clear face, hands, and figure**.`;
 
+  const strongPortraitLead = [
+    "— STRONG PORTRAIT & ART-STYLE LOCK (READ BEFORE ALL OTHER SECTIONS) —",
+    "Use this exact character's face, hair style, eye color, body type, tattoos, piercings, species marks, and overall appearance exactly as reference.",
+    "Maintain 100% consistency with the main profile / roster portrait (HTTPS likeness URL when supplied) AND the CHARACTER REFERENCE / CHARACTER APPEARANCE blocks in this brief.",
+    `Match the **same art style and rendering discipline** as that portrait (**${art}**) — do not drift to a different model, different ethnicity, different body silhouette, or a mismatched medium (e.g. photoreal wash on an anime subject). Generic catalog poses are forbidden when they contradict the reference.`,
+    "Only change pose, outfit, wardrobe state, background, environment, props, lighting, and camera per PRIMARY SCENE / menu or USER SCENE.",
+    nexusHybrid
+      ? "**Nexus Forge companion:** EXTRA strict DNA lock — face, hair, eyes, body, species anatomy, and palette must match the vault portrait; reference + portrait override generic glam defaults."
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
   const prompt = (
     menuSceneLock
       ? [
+          strongPortraitLead,
           characterRefPreamble,
           "LUSTFORGE MASTER BRIEF — in-session gallery-preset still (scene-first; subject likeness from CHARACTER APPEARANCE + optional roster portrait URL; scene from menu)",
           antiProfileRemaster,
@@ -362,6 +377,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
           appearanceStripForMenu,
         ]
       : [
+          strongPortraitLead,
           characterRefPreamble,
           "LUSTFORGE MASTER BRIEF — in-session generative still (likeness from CHARACTER APPEARANCE; scene from USER SCENE — not the card backdrop)",
           identity,
@@ -379,6 +395,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
     .slice(0, 12_000);
 
   const portraitConsistencyLock = [
+    `Use this exact character's face, hair style, eye color, body type, tattoos, piercings, species marks, and overall appearance exactly as reference. Maintain 100% consistency with the main portrait and CHARACTER APPEARANCE — only change pose, outfit, background, and scene per PRIMARY SCENE / menu.`,
     `CHARACTER LOCK for ${companion.name}: keep **${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE}** and **${bodyType}** consistent with CHARACTER APPEARANCE — do not invent a different person. **Face-first:** atmosphere (smoke, fog, particles, dramatic backlight) stays **subordinate** to a readable face unless the menu scene text explicitly demands that effect.`,
     menuSceneLock
       ? `Menu preset lock: **pose, outfit, background, props, and lighting** come only from PRIMARY SCENE / the **Requested framing (from menu)** block — not from forge packshots, packshot prose, or roster/profile portrait **environments**. **Ignore** the card photo as a **location or wardrobe** template.`

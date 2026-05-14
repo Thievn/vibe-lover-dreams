@@ -248,9 +248,9 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>, editor
 
 // ─── Profile **page** loop only (`generate-profile-loop-video`) ─────────────────
 
-/** Style and safety envelope for profile looping video (I2V). */
+/** Style and safety envelope for profile looping video (I2V). Always SFW — suggestive and elegant only. */
 export const PROFILE_PAGE_LOOP_STYLE_DIRECTIVE =
-  "Generate a beautiful, highly seductive, and artistic video loop using the reference portrait. The style should be sensual, cinematic, and tasteful. You may include artistic nudity and suggestive scenes, but keep everything elegant and high-class. Focus on sensuality, graceful movement, seductive expressions, and artistic beauty.";
+  "Generate a beautiful, artistic, SFW-but-seductive vertical loop from the reference portrait. **No nudity, no explicit sexual content, no visible genitals, no pornographic staging.** Stay fully clothed or modestly covered with tasteful sheer or silhouette only when the still already implies it — never escalate beyond elegant tease. The tone is sensual, cinematic, and high-class: graceful movement, smoldering eyes, slow fabric or hair motion, confident posture. Focus on artistic beauty and suggestion, not adult explicitness.";
 
 /** Blocked in **user-supplied** motion / custom instructions for profile loops (substring match, case-insensitive). */
 export const PROFILE_PAGE_LOOP_BLOCKED_SUBSTRINGS = [
@@ -292,13 +292,15 @@ export function buildProfilePageLoopVideoPrompt(
   const tagline = sliceStr(row.tagline, 140);
   const notes = (editorMotionNotes ?? "").trim();
   const notesBlock = notes
-    ? `ADDITIONAL CREATIVE DIRECTION (user request — stay tasteful, elegant, high-class; no graphic pornography):\n${
+    ? `ADDITIONAL CREATIVE DIRECTION (user request — **SFW only**: tasteful, elegant, suggestive; no nudity, no explicit acts, no graphic anatomy):\n${
         notes.length > 800 ? `${notes.slice(0, 800).trimEnd()}…` : notes
       }`
-    : "No additional user direction — derive subtle motion from the reference portrait only.";
+    : "No additional user direction — derive subtle motion from the reference portrait only (SFW, tasteful, suggestive).";
   return sanitizePromptForVideoApi(
     [
       PROFILE_PAGE_LOOP_STYLE_DIRECTIVE,
+      "",
+      "MANDATORY — SFW only: suggestive and artistic tease is allowed; **no nudity**, **no explicit sexual content**, **no visible genitals**; stay elegant, clothed, or modest silhouette only as already implied by the still.",
       "",
       notesBlock,
       "",
