@@ -5,6 +5,7 @@ import {
   CHAT_LIKENESS_SCENE_PRIMACY_FOOTER,
   CHAT_LIKENESS_STILL_MENU_IDENTITY_TAIL,
   CHAT_LIKENESS_SUBJECT_ANCHOR,
+  CHAT_LIKENESS_SUBJECT_FEATURES_INLINE,
   CHAT_LIKENESS_WRAP_KEEP_LINE,
 } from "@/lib/chatLikenessAnchors";
 import {
@@ -393,7 +394,7 @@ function wrapFabSceneWithAppearanceLock(inner: string, identityReference: string
     "",
     ref,
     "",
-    "Keep the exact same face, hair, eyes, body type, skin tone, and distinctive features.",
+    `Keep the exact same ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE} as in the character reference above — likeness only; **not** importing sofa, room, crop, or costume from any roster photo.`,
     "",
     "Now generate this new scene:",
     "",
@@ -432,7 +433,7 @@ export function resolveChatImageGenerationPrompt(args: {
     const coherence =
       "\n\n**FORGE_VISUAL_IDENTITY (in master prompt):** binding for **hair, eyes, lips, skin, hands, legs, species, body type, musculature/curves, and art style (anime vs photoreal vs creature)** — **not** for outfit, room, pose, or “smoke person” mood boards; those follow **Requested framing** (and FORGE_VISUAL_IDENTITY caps atmosphere vs face priority)." +
       `\n\n${CHAT_LIKENESS_SCENE_PRIMACY_FOOTER}` +
-      "\n\n**SHOT GEOMETRY (binding):** If the menu mentions lying, bent over, legs up, bathtub, beach, car, desk, bed, shower, silk sheets, lingerie, wall, workout, dress, kitchen, etc., the final image must **show that configuration and setting clearly** — not a substitute “same card, different angle” or “pretty subject standing at camera” shot.";
+      "\n\n**SHOT GEOMETRY (binding):** If the menu or user text mentions lying, bent over, legs up, bathtub, beach, snowy cabin, winter lodge, forest cabin, car, limousine, gym, office, desk, bed, shower, silk sheets, lingerie, wall, workout, dress, kitchen, etc., the final image must **show that configuration and setting clearly** — not a substitute “same card, different angle” or “pretty subject standing at camera” shot.";
     if (styled) {
       const fused = (
         `— Requested framing (from menu) —\n${subjectAnchor}${styled}\n\n${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}${tierRails}\n\n**Exposure / tone context (not the shot layout):**\n${menu}${coherence}`

@@ -299,9 +299,12 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
       ? "— USER-CHOSEN SCENE (EXECUTION PRIORITY #1 — NOT A PORTRAIT REMASTER) —"
       : "— USER SCENE (creative freedom inside identity lock) —",
     sceneRequest.trim() || "Flattering portrait-appropriate key art matching the matrix above.",
+    !menuSceneLock && rawUserMessage.trim()
+      ? `— USER MESSAGE (verbatim setting / pose / outfit — do not collapse to catalog sofa or roster backdrop) —\n${rawUserMessage.trim()}`
+      : "",
     menuSceneLock
       ? "Implement **Requested framing (from menu)** literally for **place, props, wardrobe, pose, camera distance, and light**. CHARACTER APPEARANCE (below) is **face, hair, skin, build, species only** — it must **not** pull pose, outfit, crop, or backdrop from any catalog/profile mental model."
-      : "Honor specific user asks (shower, beach, bed, etc.) with accurate environment — same described person.",
+      : "Honor specific user asks (shower, beach, snowy cabin, bed, etc.) with accurate environment — same described person; **never** substitute the roster portrait’s interior when the user named a different place.",
     shotVariation,
     moodNsfwClauses(mood),
     tierLine,
