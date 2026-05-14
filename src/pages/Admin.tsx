@@ -44,6 +44,7 @@ import {
   CalendarClock,
   MessageCircle,
   ShoppingBag,
+  Search,
   Trophy,
   ExternalLink,
   TrendingUp,
@@ -64,6 +65,7 @@ import XMarketingHub from "@/components/admin/XMarketingHub";
 import AdminTheNexus from "@/components/AdminTheNexus";
 import { getGaMeasurementId } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
 import { isPlatformAdmin, platformAdminEmailDisplay } from "@/config/auth";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
 const NEON = "#FF2D7B";
@@ -194,6 +196,9 @@ type CardStatsRow = {
 
 type CardStatsRange = "7d" | "30d" | "all";
 
+/** Admin → user Forge Coin grants (FC = `profiles.tokens_balance`). */
+const ADMIN_FC_PRESETS = [100, 250, 500, 1000, 2500, 5000, 10000] as const;
+
 const EMPTY_TREND_POINT: TrendPoint = {
   dateKey: "",
   name: "—",
@@ -248,6 +253,7 @@ function AdminShell() {
   const [waitlistLoading, setWaitlistLoading] = useState(false);
   const [selectedUser, setSelectedUser] = useState<ProfileRow | null>(null);
   const [grantAmount, setGrantAmount] = useState("500");
+  const pendingGrantFcScrollRef = useRef(false);
   const [grantLoading, setGrantLoading] = useState(false);
   const [userChars, setUserChars] = useState<{ id: string; name: string }[]>([]);
   const [charsLoading, setCharsLoading] = useState(false);
@@ -685,7 +691,8 @@ function AdminShell() {
     if (section === "cardstats") void loadCardStats(cardStatsRange);
   }, [authLoading, section, loadProfiles, loadWaitlist, loadWeeklyDrops, loadCardStats, cardStatsRange]);
 
-  const openUserPanel = async (p: ProfileRow) => {
+  const openUserPanel = async (p: ProfileRow, opts?: { scrollToGrantFc?: boolean }) => {
+    pendingGrantFcScrollRef.current = Boolean(opts?.scrollToGrantFc);
     setSelectedUser(p);
     setCharsLoading(true);
     setUserChars([]);
@@ -704,11 +711,26 @@ function AdminShell() {
     }
   };
 
+  useEffect(() => {
+    if (!selectedUser) return;
+    const shouldScroll = pendingGrantFcScrollRef.current;
+    pendingGrantFcScrollRef.current = false;
+    if (!shouldScroll) return;
+    const t = window.setTimeout(() => {
+      document.getElementById("admin-user-grant-fc")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 380);
+    return () => window.clearTimeout(t);
+  }, [selectedUser]);
+
   const grantTokens = async () => {
     if (!selectedUser) return;
     const n = parseInt(grantAmount, 10);
     if (!Number.isFinite(n) || n <= 0) {
       toast.error("Enter a positive number.");
+      return;
+    }
+    if (n > 9_999_999) {
+      toast.error("Amount too large (max 9,999,999 FC per grant).");
       return;
     }
     setGrantLoading(true);
@@ -723,6 +745,7 @@ function AdminShell() {
       setProfiles((prev) =>
         prev.map((r) => (r.user_id === selectedUser.user_id ? { ...r, tokens_balance: next } : r)),
       );
+      toast.success(`Granted ${n.toLocaleString()} FC — new balance ${next.toLocaleString()}.`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Update failed";
       toast.error(msg + " — add an admin UPDATE policy on profiles if needed.");
@@ -1090,8 +1113,8 @@ function AdminShell() {
                   <p>{selectedUser.display_name || "—"}</p>
                   <p className="text-xs text-muted-foreground mt-3">Tier</p>
                   <p className="capitalize">{selectedUser.tier}</p>
-                  <p className="text-xs text-muted-foreground mt-3">Tokens</p>
-                  <p className="font-gothic text-2xl text-accent">{selectedUser.tokens_balance}</p>
+                  <p className="text-xs text-muted-foreground mt-3">Forge Coins (FC)</p>
+                  <p className="font-gothic text-2xl text-accent">{selectedUser.tokens_balance.toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
@@ -1111,18 +1134,57 @@ function AdminShell() {
                     </ul>
                   )}
                 </div>
-                <div className="rounded-xl border border-accent/30 bg-accent/5 p-4 space-y-3">
+                <div
+                  id="admin-user-grant-fc"
+                  className="rounded-xl border border-accent/30 bg-accent/5 p-4 space-y-3 ring-1 ring-transparent scroll-mt-6"
+                >
                   <p className="text-sm font-medium flex items-center gap-2">
                     <Coins className="h-4 w-4 text-accent" />
-                    Grant tokens
+                    Grant Forge Coins
                   </p>
-                  <input
-                    type="number"
-                    min={1}
-                    value={grantAmount}
-                    onChange={(e) => setGrantAmount(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-black/40 px-3 py-2 text-sm"
-                  />
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    Adds to their FC balance immediately. Pick a preset or enter any positive amount.
+                  </p>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                      Quick amounts
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {ADMIN_FC_PRESETS.map((amt) => {
+                        const active = grantAmount === String(amt);
+                        return (
+                          <button
+                            key={amt}
+                            type="button"
+                            onClick={() => setGrantAmount(String(amt))}
+                            className={cn(
+                              "rounded-lg border px-3 py-1.5 text-xs font-semibold tabular-nums transition-colors",
+                              active
+                                ? "border-primary bg-primary/20 text-primary"
+                                : "border-border/80 bg-black/40 text-muted-foreground hover:border-primary/35 hover:text-foreground",
+                            )}
+                          >
+                            +{amt.toLocaleString()}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="admin-fc-custom" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Custom amount
+                    </label>
+                    <input
+                      id="admin-fc-custom"
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={grantAmount}
+                      onChange={(e) => setGrantAmount(e.target.value)}
+                      className="mt-1.5 w-full rounded-lg border border-border bg-black/40 px-3 py-2 text-sm tabular-nums"
+                      placeholder="e.g. 750"
+                    />
+                  </div>
                   <button
                     type="button"
                     disabled={grantLoading}
@@ -1130,7 +1192,7 @@ function AdminShell() {
                     className="w-full py-2.5 rounded-xl font-semibold text-primary-foreground glow-pink disabled:opacity-50"
                     style={{ backgroundColor: NEON }}
                   >
-                    {grantLoading ? "Applying…" : "Apply credit"}
+                    {grantLoading ? "Granting…" : "Grant Forge Coins"}
                   </button>
                 </div>
               </div>
@@ -1369,9 +1431,22 @@ function UsersSection({
 }: {
   profiles: ProfileRow[];
   loading: boolean;
-  onOpenUser: (p: ProfileRow) => void;
+  onOpenUser: (p: ProfileRow, opts?: { scrollToGrantFc?: boolean }) => void | Promise<void>;
   onExport: () => void;
 }) {
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return profiles;
+    return profiles.filter((p) => {
+      const name = (p.display_name ?? "").toLowerCase();
+      const uid = p.user_id.toLowerCase();
+      const id = p.id.toLowerCase();
+      return name.includes(q) || uid.includes(q) || id.includes(q);
+    });
+  }, [profiles, query]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1385,6 +1460,31 @@ function UsersSection({
           Export CSV
         </button>
       </div>
+
+      <div className="relative max-w-xl">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by display name or user ID…"
+          className={cn("pl-10 h-11 bg-black/30 border-border/80", query.trim() ? "pr-16" : "pr-3")}
+          aria-label="Search users"
+        />
+        {query.trim() ? (
+          <button
+            type="button"
+            onClick={() => setQuery("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-white/10 hover:text-foreground"
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
+      <p className="text-xs text-muted-foreground -mt-2">
+        Showing {filtered.length} of {profiles.length} users
+        {query.trim() ? ` matching "${query.trim()}"` : ""}.
+      </p>
+
       <div className="rounded-2xl border border-border/80 bg-card/40 backdrop-blur-md overflow-hidden">
         {loading ? (
           <div className="flex justify-center py-16">
@@ -1396,31 +1496,44 @@ function UsersSection({
               <thead>
                 <tr className="border-b border-border/60 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
                   <th className="p-4">User</th>
-                  <th className="p-4">Tokens</th>
+                  <th className="p-4">FC balance</th>
                   <th className="p-4">Tier</th>
                   <th className="p-4">Joined</th>
-                  <th className="p-4 w-24" />
+                  <th className="p-4 text-right min-w-[9rem]">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {profiles.map((p) => (
+                {filtered.map((p) => (
                   <tr key={p.id} className="border-b border-border/40 hover:bg-white/[0.03]">
                     <td className="p-4">
                       <p className="font-medium">{p.display_name || "—"}</p>
-                      <p className="text-[10px] font-mono text-muted-foreground truncate max-w-[200px]">{p.user_id}</p>
+                      <p className="text-[10px] font-mono text-muted-foreground truncate max-w-[220px] md:max-w-[280px]">
+                        {p.user_id}
+                      </p>
                     </td>
-                    <td className="p-4 tabular-nums text-accent font-semibold">{p.tokens_balance}</td>
+                    <td className="p-4 tabular-nums text-accent font-semibold">{p.tokens_balance.toLocaleString()}</td>
                     <td className="p-4 capitalize">{p.tier}</td>
                     <td className="p-4 text-muted-foreground text-xs">{new Date(p.created_at).toLocaleDateString()}</td>
                     <td className="p-4">
-                      <button
-                        type="button"
-                        onClick={() => onOpenUser(p)}
-                        className="text-xs font-semibold text-primary hover:underline"
-                        style={{ color: NEON }}
-                      >
-                        Manage
-                      </button>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void onOpenUser(p, { scrollToGrantFc: true })}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/35 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/20 transition-colors"
+                          title="Open user and jump to Grant FC"
+                        >
+                          <Coins className="h-3.5 w-3.5 shrink-0" />
+                          Grant FC
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void onOpenUser(p)}
+                          className="text-xs font-semibold text-primary hover:underline px-1"
+                          style={{ color: NEON }}
+                        >
+                          Manage
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1428,6 +1541,9 @@ function UsersSection({
             </table>
             {profiles.length === 0 && (
               <p className="text-center text-muted-foreground py-12 text-sm">No profiles returned — check admin RLS.</p>
+            )}
+            {profiles.length > 0 && filtered.length === 0 && (
+              <p className="text-center text-muted-foreground py-10 text-sm">No users match that search.</p>
             )}
           </div>
         )}

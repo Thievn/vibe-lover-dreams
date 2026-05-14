@@ -7,10 +7,14 @@ export const DEFAULT_GROK_VIDEO_MODEL = "grok-imagine-video";
 /** Same rules as Tensor TAMS: Supabase public/signed image URLs that xAI can fetch. */
 export function publicHttpsImageUrlForGrok(stored: string | null | undefined): string | null {
   if (!stored?.trim()) return null;
-  const u = stored.trim();
+  let u = stored.trim();
   if (u.startsWith("data:") || u.startsWith("blob:") || u.startsWith("/")) return null;
-  if (u.includes("/storage/v1/object/sign/")) {
-    return (u.split("#")[0] ?? u).trim() || null;
+  const signMatch = u.match(/^(https?:\/\/[^/]+)\/storage\/v1\/object\/sign\/([^/]+)\/([^?]+)/i);
+  if (signMatch) {
+    const [, origin, bucket, pathPart] = signMatch;
+    u = `${origin}/storage/v1/object/public/${bucket}/${pathPart}`;
+  } else if (u.includes("/storage/v1/object/sign/")) {
+    u = (u.split("#")[0] ?? u).trim();
   }
   if (u.includes("/object/public/")) {
     return (u.split("?")[0] ?? u).trim() || null;

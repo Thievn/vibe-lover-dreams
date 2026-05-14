@@ -231,6 +231,10 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
   const art = resolveChatArtStyleLabel(dbComp);
   const pack = (dbComp.image_prompt || "").trim().slice(0, 900);
   const mood = classifyChatImageMood({ rawUserMessage, menuBasePrompt: menuImagePrompt });
+  const nonPhotorealArtLane =
+    /\b(anime|manga|cel[-\s]?shad|illustrat|chibi|pixel|watercolor|oil\s+painting|fantasy\s+illustration|comic|cartoon|digital\s+painting|ghibli|hentai|yaoi|yuri|graphic\s+novel|2d\b|stylized\s*\/\s*illustrated|painterly|low[-\s]?poly)\b/i.test(
+      art,
+    );
   const seedStr =
     (variationSeed ?? "").trim() ||
     `${companion.id}:${sceneRequest.length}:${rawUserMessage.length}:${menuImagePrompt?.length ?? 0}`;
@@ -254,8 +258,15 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
     menuSceneLock
       ? "Ignore generic “vary the backdrop” or random alternate-set suggestions for this request — the menu preset already fixed the world. Tier/exposure lines are **tone band only**, not a second scene."
       : "USER SCENE / menu framing decides **location, outfit, pose, props, lighting, and camera**. The appearance text is **who** they are, not **which photograph** to recreate. Each still should feel like a **new** shoot, not a reskin of a catalog frame.",
-    "— STYLIZED / CHIBI LORE —",
-    "If the written profile or tags imply chibi, caricature, or non-photoreal marketing art, translate into **coherent photoreal** anatomy for this render unless USER SCENE explicitly asks for stylized output. Keep distinctive marks, hair, and vibe from the **words**.",
+    ...(nonPhotorealArtLane
+      ? ([
+          "— STYLIZED RENDERING LANES —",
+          `This character’s **art direction** is **${art}** — preserve authentic stylized / illustrated / anime discipline as implied by that label and CHARACTER APPEARANCE; **do not** flatten into unrelated photoreal unless USER SCENE explicitly demands a deliberate medium switch.`,
+        ] as const)
+      : ([
+          "— STYLIZED / CHIBI LORE —",
+          "If the written profile or tags imply chibi, caricature, or non-photoreal marketing art, translate into **coherent photoreal** anatomy for this render unless USER SCENE explicitly asks for stylized output. Keep distinctive marks, hair, and vibe from the **words**.",
+        ] as const)),
     "Likeness = continuity of **described** traits (face, eyes, lips, hair, hands, legs, skin, build, species). Not a new random model, not a generic influencer — but also **not** “copy the card photo’s scene or pose.”",
     "Forbidden: swapping ethnic appearance, face shape, or body type away from the written profile. Forbidden: de-aging, aging, or turning them into a different character.",
     menuSceneLock
@@ -306,7 +317,9 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
     menuSceneLock
       ? "Single-subject, vertical 2:3; match camera grammar implied by **Requested framing (from menu)** (natural selfie POV, mirror, tripod, environmental shot, etc.) — **avoid a visible smartphone in hand** — and the time period; premium lens, coherent depth of field."
       : "Single-subject, vertical 2:3 card-style natural selfie POV, mirror, tripod, or partner-held frame — **no phone visible** — matching the time period; premium lens, coherent depth of field.",
-    "Photographic realism; match art direction:" + ` ${art}. Body-type anchor: ${bodyType}.`,
+    nonPhotorealArtLane
+      ? `Match art direction: **${art}** — same rendering discipline and material read throughout the frame. Body-type anchor: ${bodyType}.`
+      : "Photographic realism; match art direction:" + ` ${art}. Body-type anchor: ${bodyType}.`,
     "No duplicate faces, no collage, no watermark, no app UI, no on-image text, no disembodied parts unless the user explicitly asked.",
   ].join(" ");
 

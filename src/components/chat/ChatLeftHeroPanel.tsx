@@ -23,7 +23,7 @@ type Props = {
   onOpenFullGallery: () => void;
   onAddReferenceLine: (line: string) => void;
   /** If set, the gallery “To chat” action runs a new still (similar heat) instead of only prepending a line. */
-  onRequestSimilarStill?: (imageUrl: string) => void;
+  onRequestSimilarStill?: (row: CompanionGalleryRow) => void;
   hasGalleryUser: boolean;
   className?: string;
 };
@@ -252,9 +252,8 @@ export function ChatLeftHeroPanel({
                               type="button"
                               className="rounded bg-white/15 px-1.5 py-0.5 text-[8px] font-bold uppercase text-white"
                               onClick={() => {
-                                const d = display.split("?")[0] || display;
                                 if (onRequestSimilarStill) {
-                                  onRequestSimilarStill(d);
+                                  onRequestSimilarStill(row);
                                 } else {
                                   onAddReferenceLine(
                                     `Let's go back to that look — the energy in that still.`,

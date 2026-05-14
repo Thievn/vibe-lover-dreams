@@ -640,8 +640,8 @@ export default function TheNexus({
             { headers: { Authorization: `Bearer ${token}` } },
           );
         } catch (ve) {
-          const vm = ve instanceof Error ? ve.message : "Loop video pending — open profile to finish.";
-          toast.message(`${vm.slice(0, 140)}${vm.length > 140 ? "…" : ""} — open profile to retry.`);
+          const vm = ve instanceof Error ? ve.message : "Loop video failed — open profile and tap Regenerate loop video.";
+          toast.error(vm.length > 220 ? `${vm.slice(0, 217)}…` : vm);
         }
       }
 

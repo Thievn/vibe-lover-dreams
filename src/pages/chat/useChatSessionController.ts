@@ -7,7 +7,7 @@ import { useCompanionDisplayOverride } from "@/hooks/useCompanionDisplayOverride
 import { mergeCompanionDisplayWithUserOverride } from "@/lib/mergeCompanionDisplayOverride";
 import { stripDiscoverForgeTemplateCanonicalLoop } from "@/lib/discoverTemplateMedia";
 import { prependCanonicalPortraitIfMissing } from "@/lib/companionGalleryWithCanonical";
-import { useCompanionGeneratedImages } from "@/hooks/useCompanionGeneratedImages";
+import { useCompanionGeneratedImages, type CompanionGalleryRow } from "@/hooks/useCompanionGeneratedImages";
 import {
   galleryStaticPortraitUrl,
   profileAnimatedPortraitUrl,
@@ -102,6 +102,7 @@ import {
   pickMenuImageTeaserLine,
 } from "@/lib/masterChatImagePrompt";
 import { resolveEffectiveCharacterReference } from "@/lib/characterReferenceImagePrompt";
+import { forgeActiveTabForImagine } from "@/lib/forgeActiveTabFromDbCompanion";
 import { chatLikenessSameSubjectMandate } from "@/lib/chatLikenessAnchors";
 import { fetchChatImageTeaserLine } from "@/lib/fetchChatImageTeaserLine";
 import { inferChatMediaRoute, inferClipMoodFromUserText, pickRandomVideoLoadingLine } from "@/lib/chatVisualRouting";
@@ -844,6 +845,7 @@ export function useChatSessionController() {
           ? `Single subject — ${companion.name} (${companion.gender}). **HTTPS portrait anchors likeness** (face, hair, body, marks); **scene** = PRIMARY SCENE and written profile. Written appearance: ${companion.appearance}.${forgeTail}`
           : `Single subject — ${companion.name} (${companion.gender}). Written appearance: ${companion.appearance}.${forgeTail}`;
       const baseDescription = `${idLock}\n\n${baseDescriptionRaw}`;
+      const forgeTabForImagine = forgeActiveTabForImagine(dbComp);
       const commonCharacterData = {
         companionId: companion.id,
         style: "chat-session" as const,
@@ -867,6 +869,9 @@ export function useChatSessionController() {
           : {}),
         ...(likenessRefUrl ? { likeness_reference_image_url: likenessRefUrl } : {}),
         ...(ar ? { character_reference: ar } : {}),
+        ...(forgeTabForImagine
+          ? { activeForgeTab: forgeTabForImagine, selectedForgeTab: forgeTabForImagine }
+          : {}),
       };
 
       const { data, error } = await invokeGenerateImage({
@@ -958,6 +963,7 @@ export function useChatSessionController() {
           ? `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Chat gallery preset (reward):** portrait URL anchors likeness; scene outfit pose set = PRIMARY SCENE only — not the companion’s static still remastered.`
           : `Single subject — ${companion.name} (${companion.gender}) · ${resolvedBodyType}. **Chat gallery preset (reward):** identity from CHARACTER APPEARANCE text only (face/hair/skin/build); scene outfit pose set = PRIMARY SCENE only — not the companion’s static still.`;
       const rewardBaseDescription = `${rewardLock}\n\n${rewardBaseDescriptionRaw}`;
+      const rewardForgeTab = forgeActiveTabForImagine(dbComp);
       const cd = {
         companionId: companion.id,
         style: "chat-session" as const,
@@ -977,6 +983,9 @@ export function useChatSessionController() {
         ...(visualIdentityCapsule?.trim() ? { visual_identity_capsule: visualIdentityCapsule.trim() } : {}),
         ...(rewardLikenessUrl ? { likeness_reference_image_url: rewardLikenessUrl } : {}),
         ...(arReward ? { character_reference: arReward } : {}),
+        ...(rewardForgeTab
+          ? { activeForgeTab: rewardForgeTab, selectedForgeTab: rewardForgeTab }
+          : {}),
       };
       const { data, error } = await invokeGenerateImage({
         prompt,
@@ -2366,15 +2375,27 @@ export function useChatSessionController() {
   sendMessageRef.current = sendMessage;
 
   const requestSimilarStillFromGallery = useCallback(
-    (imageUrl: string) => {
+    (row: CompanionGalleryRow) => {
       if (!user || !companion) {
         toast.error("Sign in to generate a new still.");
         return;
       }
+      if (row.is_video) {
+        toast.message("Similar still works on images — pick a still from the strip.");
+        return;
+      }
       const brief =
         "New in-session still: **same character** from CHARACTER APPEARANCE (face, hair, skin, build) — **invent a different outfit, pose, and room** than any roster/profile shot. Boudoir / tease energy, upper body or three-quarter OK, but **not** a remaster of the previous image’s composition or wardrobe.";
-      void sendMessage("New still with the same heat as that pick — upper body, lingerie or tease.", {
+      const promptSnip = (row.prompt || "").trim().slice(0, 2800);
+      const styledSceneExtension = [
+        "**User-selected gallery still (scene DNA — new shot, same companion identity):** Echo the prior still’s environment type, wardrobe energy, lighting temperature, camera distance, and mood from the excerpt below. Invent a **fresh** composition — not a pixel clone — while honoring these cues.",
+        promptSnip ? `**Stored prompt excerpt from that pick:**\n${promptSnip}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+      void sendMessage("New still with the same heat as that pick — match its vibe and setting, new angle.", {
         imageGenerationPrompt: brief,
+        styledSceneExtension,
         bypassImageConfirmation: true,
         imageRequestFromMenu: false,
       });

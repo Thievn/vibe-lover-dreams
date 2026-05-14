@@ -13,6 +13,7 @@ import {
   FORGE_THEME_TAB_IDS,
   resolveForgeThemeInnerForNexusMerge,
 } from "../_shared/nexusForgeThemeMerge.ts";
+import { mergeNexusChildVisualStyleTags } from "../_shared/nexusChildStyleTags.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -754,6 +755,15 @@ Output ONLY via the nexus_merge_companion tool call.`;
       pb as Record<string, unknown>,
     );
 
+    const grokTags = Array.isArray(fields.tags) ? fields.tags.map((x) => String(x)) : [];
+    const mergedTags = mergeNexusChildVisualStyleTags({
+      childTags: grokTags,
+      parentATags: pa.tags,
+      parentBTags: pb.tags,
+      mergedPersonalityForge,
+      maxTags: 16,
+    });
+
     const insertRow: Record<string, unknown> = {
       id: offspringUuid,
       user_id: userId,
@@ -762,7 +772,7 @@ Output ONLY via the nexus_merge_companion tool call.`;
       gender: String(fields.gender || "—").slice(0, 80),
       orientation: String(fields.orientation || "").slice(0, 80),
       role: String(fields.role || "Switch").slice(0, 80),
-      tags: Array.isArray(fields.tags) ? fields.tags.map((x) => String(x)).slice(0, 16) : [],
+      tags: mergedTags,
       kinks: Array.isArray(fields.kinks) ? fields.kinks.map((x) => String(x)).slice(0, 20) : [],
       appearance: String(fields.appearance || ""),
       personality: String(fields.personality || ""),

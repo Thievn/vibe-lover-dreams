@@ -349,51 +349,113 @@ Deno.serve(async (req) => {
       Boolean((row as { is_public?: unknown }).is_public) &&
       Boolean((row as { approved?: unknown }).approved);
 
-    /** Discover-listed forge cards must never store looping video on the shared row — only per-user overrides. */
-    if (adminUser && isDiscoverListedForgeTemplate) {
-      const { data: existingOv } = await svc
-        .from("user_companion_portrait_overrides")
-        .select("portrait_url")
-        .eq("user_id", sessionUser.id)
-        .eq("companion_id", companionId)
-        .maybeSingle();
-      let portraitStill =
-        (typeof existingOv?.portrait_url === "string" && existingOv.portrait_url.trim()) ||
-        (sourceGalleryStillUrl && sourceGalleryStillUrl.trim()) ||
-        "";
-      if (!portraitStill) {
-        const raw =
-          (typeof row.static_image_url === "string" && row.static_image_url) ||
-          (typeof row.image_url === "string" && row.image_url) ||
-          (typeof row.avatar_url === "string" && row.avatar_url);
-        portraitStill = typeof raw === "string" ? raw.trim() : "";
-      }
-      if (!portraitStill) {
-        if (tokensCharged) {
-          await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "could not resolve portrait still for override");
+    /**
+     * Discover-listed forge templates share one DB row — never write the MP4 on `custom_characters`
+     * (would leak to all viewers). Private forge rows (Nexus veilborn, drafts, vault-only) store the
+     * loop on the row so reveal/profile/chat all see `animated_image_url` without relying on overrides.
+     */
+    if (table === "custom_characters" && isDiscoverListedForgeTemplate) {
+      if (adminUser) {
+        const { data: existingOv } = await svc
+          .from("user_companion_portrait_overrides")
+          .select("portrait_url")
+          .eq("user_id", sessionUser.id)
+          .eq("companion_id", companionId)
+          .maybeSingle();
+        let portraitStill =
+          (typeof existingOv?.portrait_url === "string" && existingOv.portrait_url.trim()) ||
+          (sourceGalleryStillUrl && sourceGalleryStillUrl.trim()) ||
+          "";
+        if (!portraitStill) {
+          const raw =
+            (typeof row.static_image_url === "string" && row.static_image_url) ||
+            (typeof row.image_url === "string" && row.image_url) ||
+            (typeof row.avatar_url === "string" && row.avatar_url);
+          portraitStill = typeof raw === "string" ? raw.trim() : "";
         }
-        return jsonResponse({ error: "Could not resolve a still portrait for your private profile." }, 500);
-      }
-      const { error: ovErr } = await svc.from("user_companion_portrait_overrides").upsert(
-        {
-          user_id: sessionUser.id,
-          companion_id: companionId,
-          portrait_url: portraitStill,
-          animated_portrait_url: publicUrl,
-          profile_loop_video_enabled: true,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,companion_id" },
-      );
-      if (ovErr) {
-        if (tokensCharged) {
-          await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "override save failed");
+        if (!portraitStill) {
+          if (tokensCharged) {
+            await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "could not resolve portrait still for override");
+          }
+          return jsonResponse({ error: "Could not resolve a still portrait for your private profile." }, 500);
         }
-        return jsonResponse({ error: ovErr.message }, 500);
+        const { error: ovErr } = await svc.from("user_companion_portrait_overrides").upsert(
+          {
+            user_id: sessionUser.id,
+            companion_id: companionId,
+            portrait_url: portraitStill,
+            animated_portrait_url: publicUrl,
+            profile_loop_video_enabled: true,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,companion_id" },
+        );
+        if (ovErr) {
+          if (tokensCharged) {
+            await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "override save failed");
+          }
+          return jsonResponse({ error: ovErr.message }, 500);
+        }
+      } else {
+        const { data: existingOv } = await svc
+          .from("user_companion_portrait_overrides")
+          .select("portrait_url")
+          .eq("user_id", sessionUser.id)
+          .eq("companion_id", companionId)
+          .maybeSingle();
+        let portraitStill =
+          (typeof existingOv?.portrait_url === "string" && existingOv.portrait_url.trim()) ||
+          (sourceGalleryStillUrl && sourceGalleryStillUrl.trim()) ||
+          "";
+        if (!portraitStill) {
+          const raw =
+            (typeof row.static_image_url === "string" && row.static_image_url) ||
+            (typeof row.image_url === "string" && row.image_url) ||
+            (typeof row.avatar_url === "string" && row.avatar_url);
+          portraitStill = typeof raw === "string" ? raw.trim() : "";
+        }
+        if (!portraitStill) {
+          if (tokensCharged) {
+            await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "could not resolve portrait still for override");
+          }
+          return jsonResponse({ error: "Could not resolve a still portrait for your private profile." }, 500);
+        }
+        const { error: ovErr } = await svc.from("user_companion_portrait_overrides").upsert(
+          {
+            user_id: sessionUser.id,
+            companion_id: companionId,
+            portrait_url: portraitStill,
+            animated_portrait_url: publicUrl,
+            profile_loop_video_enabled: true,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,companion_id" },
+        );
+        if (ovErr) {
+          if (tokensCharged) {
+            await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "override save failed");
+          }
+          return jsonResponse({ error: ovErr.message }, 500);
+        }
       }
-    } else if (adminUser) {
+    } else if (table === "custom_characters") {
       const { error: upRow } = await svc
-        .from(table)
+        .from("custom_characters")
+        .update({
+          animated_image_url: publicUrl,
+          profile_loop_video_enabled: true,
+        })
+        .eq("id", rowPk);
+
+      if (upRow) {
+        if (tokensCharged) {
+          await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "database update failed");
+        }
+        return jsonResponse({ error: upRow.message }, 500);
+      }
+    } else if (adminUser && table === "companions") {
+      const { error: upRow } = await svc
+        .from("companions")
         .update({
           animated_image_url: publicUrl,
           profile_loop_video_enabled: true,
