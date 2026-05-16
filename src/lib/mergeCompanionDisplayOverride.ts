@@ -23,7 +23,9 @@ export function mergeCompanionDisplayWithUserOverride(
   const still = stillRaw ? stablePortraitDisplayUrl(stillRaw) ?? stillRaw : null;
   const animRaw = override.animated_portrait_url?.trim() || null;
   const anim = animRaw ? stablePortraitDisplayUrl(animRaw) ?? animRaw : null;
-  const overrideLoopOn = Boolean(override.profile_loop_video_enabled && anim);
+  const overrideLoopOn = Boolean(
+    anim && (override.profile_loop_video_enabled || isEligibleLoopPortraitVideoUrl(anim, true)),
+  );
 
   const baseAnimRaw = db.animated_image_url?.trim() || null;
   const baseAnim = baseAnimRaw ? stablePortraitDisplayUrl(baseAnimRaw) ?? baseAnimRaw : null;

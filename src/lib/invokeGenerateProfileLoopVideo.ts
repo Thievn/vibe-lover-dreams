@@ -1,31 +1,68 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/integrations/supabase/env";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
+import { syncProfileLoopVideoToProfile } from "@/lib/syncProfileLoopVideoToProfile";
 
 export type GenerateProfileLoopVideoBody = {
   companionId?: string;
   motionNotes?: string;
   tokenCost?: number;
   sourceGeneratedImageId?: string;
-  /** Returned from the first invoke; client polls with only `jobId` until the video is ready. */
   jobId?: string;
-  /** Server-only: re-attach latest gallery / job MP4 to profile (see syncProfileLoopVideoToProfile). */
   action?: "sync";
 };
 
 export type ProfileLoopPollStatus = "starting" | "rendering" | "saving" | "complete";
 
+export type ProfileLoopVideoResult = {
+  success: true;
+  publicUrl?: string;
+  durationSeconds?: number;
+};
+
 const PROFILE_LOOP_INVOKE_TIMEOUT_MS = 90_000;
 const PROFILE_LOOP_WALL_CLOCK_MS = 12 * 60_000;
 const PROFILE_LOOP_POLL_MAX = 150;
+
+type StoredProfileLoopJob = { jobId: string; companionId: string };
+
+/** One poll loop per companion — stops duplicate toasts and duplicate xAI status checks. */
+const inFlightByCompanion = new Map<string, Promise<ProfileLoopVideoResult>>();
+
+const resumeStartedGlobally = new Set<string>();
 
 export function profileLoopJobStorageKey(companionId: string): string {
   return `profile-loop-job:${companionId.trim()}`;
 }
 
-export function saveProfileLoopJobId(companionId: string, jobId: string): void {
+export function profileLoopToastId(companionId: string): string {
+  return `profile-loop-toast:${companionId.trim()}`;
+}
+
+function parseStoredJob(raw: string | null): StoredProfileLoopJob | null {
+  if (!raw?.trim()) return null;
   try {
-    sessionStorage.setItem(profileLoopJobStorageKey(companionId), jobId.trim());
+    const j = JSON.parse(raw) as { jobId?: string; companionId?: string };
+    const jobId = typeof j.jobId === "string" ? j.jobId.trim() : "";
+    const companionId = typeof j.companionId === "string" ? j.companionId.trim() : "";
+    if (jobId && companionId) return { jobId, companionId };
+  } catch {
+    /* legacy: plain jobId string */
+  }
+  const legacy = raw.trim();
+  if (/^[0-9a-f-]{36}$/i.test(legacy)) return null;
+  return null;
+}
+
+export function saveProfileLoopJobId(companionId: string, jobId: string): void {
+  const cid = companionId.trim();
+  const jid = jobId.trim();
+  if (!cid || !jid) return;
+  try {
+    sessionStorage.setItem(
+      profileLoopJobStorageKey(cid),
+      JSON.stringify({ jobId: jid, companionId: cid } satisfies StoredProfileLoopJob),
+    );
   } catch {
     /* ignore */
   }
@@ -33,23 +70,44 @@ export function saveProfileLoopJobId(companionId: string, jobId: string): void {
 
 export function clearProfileLoopJobId(companionId: string): void {
   try {
-    sessionStorage.removeItem(profileLoopJobStorageKey(companionId));
+    sessionStorage.removeItem(profileLoopJobStorageKey(companionId.trim()));
   } catch {
     /* ignore */
   }
 }
 
-export function loadProfileLoopJobId(companionId: string): string | null {
+export function loadProfileLoopJob(companionId: string): StoredProfileLoopJob | null {
   try {
-    const v = sessionStorage.getItem(profileLoopJobStorageKey(companionId))?.trim();
-    return v || null;
+    const raw = sessionStorage.getItem(profileLoopJobStorageKey(companionId.trim()));
+    const parsed = parseStoredJob(raw);
+    if (parsed) return parsed;
+    if (raw?.trim() && /^[0-9a-f-]{36}$/i.test(raw.trim())) {
+      return { jobId: raw.trim(), companionId: companionId.trim() };
+    }
   } catch {
-    return null;
+    /* ignore */
   }
+  return null;
+}
+
+export function loadProfileLoopJobId(companionId: string): string | null {
+  return loadProfileLoopJob(companionId)?.jobId ?? null;
 }
 
 export function hasPendingProfileLoopJob(companionId: string): boolean {
-  return Boolean(loadProfileLoopJobId(companionId));
+  return Boolean(loadProfileLoopJob(companionId));
+}
+
+/** Strict Mode / remount guard for auto-resume. */
+export function markProfileLoopResumeStarted(companionId: string): boolean {
+  const cid = companionId.trim();
+  if (!cid || resumeStartedGlobally.has(cid)) return false;
+  resumeStartedGlobally.add(cid);
+  return true;
+}
+
+export function clearProfileLoopResumeStarted(companionId: string): void {
+  resumeStartedGlobally.delete(companionId.trim());
 }
 
 function sleep(ms: number): Promise<void> {
@@ -152,35 +210,71 @@ async function invokeProfileLoopVideoOnce(
   }
 }
 
-/**
- * Invokes `generate-profile-loop-video`. Long xAI renders run as **async jobs** (short Edge invocations);
- * this helper polls until `phase === "complete"` or legacy `{ success, publicUrl }`.
- */
-export async function invokeGenerateProfileLoopVideo(
+async function finalizeProfileLoopSuccess(
+  companionId: string,
+  data: ProfileLoopVideoResult,
+): Promise<ProfileLoopVideoResult> {
+  clearProfileLoopJobId(companionId);
+  let publicUrl = data.publicUrl?.trim();
+  if (!publicUrl) {
+    try {
+      const synced = await syncProfileLoopVideoToProfile(companionId);
+      if (synced.publicUrl?.trim()) publicUrl = synced.publicUrl.trim();
+    } catch {
+      /* sync is best-effort */
+    }
+  }
+  return publicUrl ? { ...data, publicUrl } : data;
+}
+
+function resolveCompanionIdFromBody(body: GenerateProfileLoopVideoBody): string {
+  const fromBody = typeof body.companionId === "string" ? body.companionId.trim() : "";
+  if (fromBody) return fromBody;
+  const jobId = typeof body.jobId === "string" ? body.jobId.trim() : "";
+  if (!jobId) return "";
+  try {
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (!key?.startsWith("profile-loop-job:")) continue;
+      const cid = key.slice("profile-loop-job:".length);
+      const stored = loadProfileLoopJob(cid);
+      if (stored?.jobId === jobId) return stored.companionId;
+    }
+  } catch {
+    /* ignore */
+  }
+  return "";
+}
+
+async function runProfileLoopPoll(
   body: GenerateProfileLoopVideoBody,
   options?: {
     headers?: Record<string, string>;
     onPollStatus?: (status: ProfileLoopPollStatus) => void;
     signal?: AbortSignal;
   },
-): Promise<{ success: true; publicUrl?: string; durationSeconds?: number }> {
+): Promise<ProfileLoopVideoResult> {
   const onPollStatus = options?.onPollStatus;
   const signal = options?.signal;
   const startedAt = Date.now();
+
+  const resolvedCompanionId = resolveCompanionIdFromBody(body);
+
   let nextBody: Record<string, unknown> = { ...body };
   let pollPhase: ProfileLoopPollStatus = "starting";
-
-  const companionId = typeof body.companionId === "string" ? body.companionId.trim() : "";
 
   for (let i = 0; i < PROFILE_LOOP_POLL_MAX; i++) {
     if (signal?.aborted) {
       throw new Error("Profile loop video cancelled.");
     }
     if (Date.now() - startedAt > PROFILE_LOOP_WALL_CLOCK_MS) {
-      const jobId = typeof nextBody.jobId === "string" ? nextBody.jobId : loadProfileLoopJobId(companionId);
-      if (jobId && companionId) saveProfileLoopJobId(companionId, jobId);
+      const jobId =
+        typeof nextBody.jobId === "string"
+          ? nextBody.jobId
+          : loadProfileLoopJobId(resolvedCompanionId);
+      if (jobId && resolvedCompanionId) saveProfileLoopJobId(resolvedCompanionId, jobId);
       throw new Error(
-        "Profile loop video is still rendering after 12 minutes — reopen this profile to resume, or wait and tap Sync.",
+        "Profile loop video is still rendering after 12 minutes — reopen this profile to resume.",
       );
     }
 
@@ -191,51 +285,85 @@ export async function invokeGenerateProfileLoopVideo(
 
     if (profileLoopVideoResponseSucceeded(data)) {
       onPollStatus?.("complete");
-      if (companionId) clearProfileLoopJobId(companionId);
-      return data as { success: true; publicUrl?: string; durationSeconds?: number };
+      const result = data as ProfileLoopVideoResult;
+      if (resolvedCompanionId) {
+        return finalizeProfileLoopSuccess(resolvedCompanionId, result);
+      }
+      return result;
     }
 
     const d = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
     if (d && d.success === true && d.phase === "poll" && typeof d.jobId === "string") {
       nextBody = { jobId: d.jobId };
-      if (companionId) saveProfileLoopJobId(companionId, d.jobId);
-      pollPhase = i === 0 ? "starting" : pollPhase === "starting" ? "rendering" : "saving";
+      if (resolvedCompanionId) saveProfileLoopJobId(resolvedCompanionId, d.jobId);
+      if (i === 0) {
+        pollPhase = "starting";
+      } else if (pollPhase === "starting") {
+        pollPhase = "rendering";
+      } else if (pollPhase === "rendering") {
+        pollPhase = "saving";
+      }
       onPollStatus?.(pollPhase);
       const wait =
         typeof d.pollAfterMs === "number" && Number.isFinite(d.pollAfterMs) && d.pollAfterMs > 200
           ? Math.min(15_000, Math.floor(d.pollAfterMs))
           : 4000;
       await sleep(wait);
-      if (pollPhase === "starting") pollPhase = "rendering";
       continue;
     }
 
     if (error) {
       const jobId = typeof nextBody.jobId === "string" ? nextBody.jobId : null;
-      if (jobId && companionId && /timed out/i.test(error.message)) {
-        saveProfileLoopJobId(companionId, jobId);
-        throw new Error(
-          `${error.message} Reopen this profile to resume job ${jobId.slice(0, 8)}…`,
-        );
+      if (jobId && resolvedCompanionId && /timed out/i.test(error.message)) {
+        saveProfileLoopJobId(resolvedCompanionId, jobId);
+        throw new Error(`${error.message} Reopen this profile to resume.`);
       }
       throw new Error(await getEdgeFunctionInvokeMessage(error, data));
     }
     const errMsg = d?.error;
     if (typeof errMsg === "string" && errMsg.trim()) {
-      if (companionId) clearProfileLoopJobId(companionId);
+      if (resolvedCompanionId) clearProfileLoopJobId(resolvedCompanionId);
       throw new Error(errMsg.trim());
     }
     throw new Error("Profile loop video did not return success.");
   }
 
   const jobId = typeof nextBody.jobId === "string" ? nextBody.jobId : null;
-  if (jobId && companionId) saveProfileLoopJobId(companionId, jobId);
+  if (jobId && resolvedCompanionId) saveProfileLoopJobId(resolvedCompanionId, jobId);
   throw new Error(
-    "Profile loop video is still processing — reopen this companion profile to resume (the job may still complete server-side).",
+    "Profile loop video is still processing — reopen this companion profile to resume.",
   );
 }
 
-/** Resume polling a stored in-flight job (sessionStorage). Returns null if none. */
+/**
+ * Invokes `generate-profile-loop-video`. Long xAI renders run as async jobs; polls until complete.
+ * Only one poll loop runs per companion at a time (shared promise).
+ */
+export async function invokeGenerateProfileLoopVideo(
+  body: GenerateProfileLoopVideoBody,
+  options?: {
+    headers?: Record<string, string>;
+    onPollStatus?: (status: ProfileLoopPollStatus) => void;
+    signal?: AbortSignal;
+  },
+): Promise<ProfileLoopVideoResult> {
+  const companionId = resolveCompanionIdFromBody(body);
+
+  if (companionId) {
+    const existing = inFlightByCompanion.get(companionId);
+    if (existing) {
+      return existing;
+    }
+    const promise = runProfileLoopPoll(body, options).finally(() => {
+      inFlightByCompanion.delete(companionId);
+    });
+    inFlightByCompanion.set(companionId, promise);
+    return promise;
+  }
+
+  return runProfileLoopPoll(body, options);
+}
+
 export async function resumePendingProfileLoopJob(
   companionId: string,
   options?: {
@@ -243,15 +371,15 @@ export async function resumePendingProfileLoopJob(
     onPollStatus?: (status: ProfileLoopPollStatus) => void;
     signal?: AbortSignal;
   },
-): Promise<{ success: true; publicUrl?: string; durationSeconds?: number } | null> {
-  const jobId = loadProfileLoopJobId(companionId);
-  if (!jobId) return null;
-  return invokeGenerateProfileLoopVideo({ jobId }, options);
+): Promise<ProfileLoopVideoResult | null> {
+  const stored = loadProfileLoopJob(companionId);
+  if (!stored) return null;
+  return invokeGenerateProfileLoopVideo(
+    { jobId: stored.jobId, companionId: stored.companionId },
+    options,
+  );
 }
 
-/**
- * Starts profile loop generation and polls in the background (Nexus merge — do not await).
- */
 export function startProfileLoopVideoInBackground(
   body: GenerateProfileLoopVideoBody,
   options?: {

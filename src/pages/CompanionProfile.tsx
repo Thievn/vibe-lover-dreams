@@ -39,6 +39,7 @@ import {
   profileAnimatedPortraitUrl,
   profileStillPortraitUrl,
   isVideoPortraitUrl,
+  isEligibleLoopPortraitVideoUrl,
   shouldShowProfileLoopVideo,
   portraitUrlsEquivalent,
 } from "@/lib/companionMedia";
@@ -340,7 +341,7 @@ const CompanionProfile = () => {
   }, [user?.id, canonicalCardStillUrl, stillForProfile]);
 
   const loopVideoActive = Boolean(
-    showLoopVideo && animatedPortrait && isVideoPortraitUrl(animatedPortrait),
+    showLoopVideo && animatedPortrait && isEligibleLoopPortraitVideoUrl(animatedPortrait, true),
   );
   const portraitAspectClass = loopVideoActive
     ? PROFILE_LOOP_VIDEO_ASPECT_CLASS
@@ -968,7 +969,18 @@ const CompanionProfile = () => {
               onToggleGallery={() => setGalleryOpen((o) => !o)}
               sourceGeneratedImageId={loopFromGeneratedImageId}
               onClearLoopSource={() => setLoopFromGeneratedImageId(null)}
-              onSuccess={() => {
+              onSuccess={(result) => {
+                const loopUrl = result?.publicUrl?.trim();
+                if (loopUrl && user?.id && id) {
+                  queryClient.setQueryData(
+                    ["companion-display-override", user.id, id],
+                    (old: { portrait_url: string | null; animated_portrait_url: string | null; profile_loop_video_enabled: boolean } | null | undefined) => ({
+                      portrait_url: old?.portrait_url ?? stillForProfile ?? null,
+                      animated_portrait_url: loopUrl,
+                      profile_loop_video_enabled: true,
+                    }),
+                  );
+                }
                 void queryClient.invalidateQueries({ queryKey: ["companions"] });
                 void queryClient.invalidateQueries({ queryKey: ["companion-display-override", user?.id, id] });
                 if (user?.id && companion.id) {

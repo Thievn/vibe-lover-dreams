@@ -4,9 +4,10 @@ import { toast } from "sonner";
 import {
   hasPendingProfileLoopJob,
   invokeGenerateProfileLoopVideo,
+  markProfileLoopResumeStarted,
+  profileLoopToastId,
   resumePendingProfileLoopJob,
 } from "@/lib/invokeGenerateProfileLoopVideo";
-import { pickRandomVideoLoadingLine } from "@/lib/chatVisualRouting";
 import { PROFILE_LOOP_VIDEO_FC } from "@/lib/forgeEconomy";
 import { profileLoopMotionInvalidReason } from "@/lib/profileLoopVideoSafety";
 import { cn } from "@/lib/utils";
@@ -24,7 +25,7 @@ type Props = {
   disabled?: boolean;
   tokensBalance: number | null;
   isAdminUser: boolean;
-  onSuccess?: () => void;
+  onSuccess?: (result?: { publicUrl?: string }) => void;
   onBalanceMaybeChanged?: () => void;
   /** Opens / closes the inline gallery panel under this card. */
   onToggleGallery?: () => void;
@@ -52,7 +53,22 @@ export function ProfileLoopingVideoUpsell({
   const [open, setOpen] = useState(false);
   const [pendingJob, setPendingJob] = useState(() => hasPendingProfileLoopJob(companionId));
   const abortRef = useRef<AbortController | null>(null);
-  const resumeAttemptedRef = useRef(false);
+  const toastId = profileLoopToastId(companionId);
+
+  const pollStatusToast = useCallback(
+    (status: "starting" | "rendering" | "saving" | "complete") => {
+      const msg =
+        status === "starting"
+          ? "Starting loop video on Grok…"
+          : status === "rendering"
+            ? "Rendering motion (often 3–8 min)…"
+            : status === "saving"
+              ? "Saving loop to your profile…"
+              : "Loop ready.";
+      toast.loading(msg, { id: toastId });
+    },
+    [toastId],
+  );
 
   useEffect(() => {
     setPendingJob(hasPendingProfileLoopJob(companionId));
@@ -60,39 +76,29 @@ export function ProfileLoopingVideoUpsell({
 
   const runGeneration = useCallback(
     async (body: Record<string, unknown>) => {
-      const loadId = toast.loading(pickRandomVideoLoadingLine());
+      pollStatusToast("starting");
       const controller = new AbortController();
       abortRef.current = controller;
       setBusy(true);
       setPendingJob(true);
       try {
-        await invokeGenerateProfileLoopVideo(body, {
+        const result = await invokeGenerateProfileLoopVideo(body, {
           signal: controller.signal,
-          onPollStatus: (status) => {
-            const msg =
-              status === "starting"
-                ? "Starting loop video on Grok…"
-                : status === "rendering"
-                  ? "Rendering motion (often 3–8 min)…"
-                  : status === "saving"
-                    ? "Saving loop to your profile…"
-                    : "Loop ready.";
-            toast.loading(msg, { id: loadId });
-          },
+          onPollStatus: pollStatusToast,
         });
         toast.success(hasExistingLoopVideo ? "Loop video updated" : "Looping portrait video saved", {
-          id: loadId,
-          description: "Your profile portrait should update in a moment.",
+          id: toastId,
+          description: "Your profile portrait should update now.",
           duration: 6000,
         });
-        onSuccess?.();
+        onSuccess?.({ publicUrl: result.publicUrl });
         onBalanceMaybeChanged?.();
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "Generation failed";
         if (!/cancelled/i.test(msg)) {
-          toast.error(msg, { id: loadId });
+          toast.error(msg, { id: toastId });
         } else {
-          toast.dismiss(loadId);
+          toast.dismiss(toastId);
         }
       } finally {
         abortRef.current = null;
@@ -100,7 +106,7 @@ export function ProfileLoopingVideoUpsell({
         setPendingJob(hasPendingProfileLoopJob(companionId));
       }
     },
-    [companionId, hasExistingLoopVideo, onBalanceMaybeChanged, onSuccess],
+    [companionId, hasExistingLoopVideo, onBalanceMaybeChanged, onSuccess, pollStatusToast, toastId],
   );
 
   const run = async () => {
@@ -134,11 +140,11 @@ export function ProfileLoopingVideoUpsell({
   };
 
   useEffect(() => {
-    if (!companionId.trim() || disabled || resumeAttemptedRef.current) return;
+    if (!companionId.trim() || disabled) return;
     if (!hasPendingProfileLoopJob(companionId)) return;
-    resumeAttemptedRef.current = true;
+    if (!markProfileLoopResumeStarted(companionId)) return;
     setOpen(true);
-    const loadId = toast.loading("Resuming loop video render…");
+    pollStatusToast("starting");
     void (async () => {
       const controller = new AbortController();
       abortRef.current = controller;
@@ -146,39 +152,29 @@ export function ProfileLoopingVideoUpsell({
       try {
         const result = await resumePendingProfileLoopJob(companionId, {
           signal: controller.signal,
-          onPollStatus: (status) => {
-            const msg =
-              status === "starting"
-                ? "Resuming loop video…"
-                : status === "rendering"
-                  ? "Still rendering on Grok…"
-                  : status === "saving"
-                    ? "Saving loop to your profile…"
-                    : "Loop ready.";
-            toast.loading(msg, { id: loadId });
-          },
+          onPollStatus: pollStatusToast,
         });
         if (result) {
           toast.success("Looping portrait video saved", {
-            id: loadId,
-            description: "Your profile portrait should update in a moment.",
+            id: toastId,
+            description: "Your profile portrait should update now.",
           });
-          onSuccess?.();
+          onSuccess?.({ publicUrl: result.publicUrl });
           onBalanceMaybeChanged?.();
         } else {
-          toast.dismiss(loadId);
+          toast.dismiss(toastId);
         }
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "Resume failed";
-        if (!/cancelled/i.test(msg)) toast.error(msg, { id: loadId });
-        else toast.dismiss(loadId);
+        if (!/cancelled/i.test(msg)) toast.error(msg, { id: toastId });
+        else toast.dismiss(toastId);
       } finally {
         abortRef.current = null;
         setBusy(false);
         setPendingJob(hasPendingProfileLoopJob(companionId));
       }
     })();
-  }, [companionId, disabled, onBalanceMaybeChanged, onSuccess]);
+  }, [companionId, disabled, onBalanceMaybeChanged, onSuccess, pollStatusToast, toastId]);
 
   const costSuffix = isAdminUser ? "" : ` — ${PROFILE_LOOP_VIDEO_FC} FC`;
   const primaryCta = hasExistingLoopVideo
@@ -190,10 +186,6 @@ export function ProfileLoopingVideoUpsell({
       : `Generate loop video${costSuffix}`;
 
   const generateDisabled = busy || disabled || !companionId.trim();
-
-  useEffect(() => {
-    resumeAttemptedRef.current = false;
-  }, [companionId]);
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className={cn("min-w-0", className)}>
