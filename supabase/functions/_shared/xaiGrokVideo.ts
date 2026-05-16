@@ -30,6 +30,12 @@ type VideoStatusResponse = {
   message?: string;
 };
 
+export type GrokVideoPollResult =
+  | { status: "processing" }
+  | { status: "done"; videoUrl: string; duration?: number }
+  | { status: "failed"; message: string }
+  | { status: "expired" };
+
 function parseStartError(text: string, status: number): Error {
   try {
     const j = JSON.parse(text) as { error?: { message?: string }; message?: string };
@@ -41,30 +47,24 @@ function parseStartError(text: string, status: number): Error {
   return new Error(`Grok video start failed HTTP ${status}: ${text.slice(0, 400)}`);
 }
 
-/**
- * Image-to-video: `prompt` + `image` (public URL) per xAI video generation API.
- * Polls until `done`, `failed`, or `expired`.
- */
-export async function runGrokImagineImageToVideo(args: {
+type StartGrokVideoArgs = {
   apiKey: string;
-  /** Motion / scene direction. */
   prompt: string;
-  /** HTTPS URL xAI can fetch (e.g. Supabase public or signed, query stripped for public). */
   sourceImageUrl: string;
-  /** Clamped 1–15. */
   durationSeconds: number;
-  /** e.g. "2:3" for card-style portrait video */
   aspectRatio: string;
   resolution?: "480p" | "720p";
   model?: string;
-  pollIntervalMs?: number;
-  maxWaitMs?: number;
-}): Promise<{ videoUrl: string; duration?: number }> {
+};
+
+/**
+ * Starts image-to-video only (POST); returns `request_id` for out-of-band polling.
+ * Use when Edge wall clock is shorter than xAI render time (e.g. profile loop jobs).
+ */
+export async function startGrokImagineImageToVideo(args: StartGrokVideoArgs): Promise<{ requestId: string }> {
   const model = (args.model ?? DEFAULT_GROK_VIDEO_MODEL).trim() || DEFAULT_GROK_VIDEO_MODEL;
   const duration = Math.min(15, Math.max(1, Math.round(args.durationSeconds)));
   const resolution = args.resolution ?? "720p";
-  const pollIntervalMs = args.pollIntervalMs ?? 5_000;
-  const maxWaitMs = args.maxWaitMs ?? 20 * 60_000;
 
   const baseBody: Record<string, unknown> = {
     model,
@@ -86,7 +86,6 @@ export async function runGrokImagineImageToVideo(args: {
 
   let startText = await startRes.text();
 
-  // Some API revisions accept a plain string URL for `image`.
   if (!startRes.ok && startRes.status === 400) {
     const retryBody = {
       model,
@@ -123,37 +122,74 @@ export async function runGrokImagineImageToVideo(args: {
     throw new Error(`Grok video: no request_id in response: ${startText.slice(0, 300)}`);
   }
 
+  return { requestId };
+}
+
+/** Single GET to xAI video status (one Edge invocation should stay under Supabase wall clock). */
+export async function pollGrokVideoRequestOnce(
+  apiKey: string,
+  requestId: string,
+): Promise<GrokVideoPollResult> {
+  const pollRes = await fetch(`https://api.x.ai/v1/videos/${encodeURIComponent(requestId)}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  const pollText = await pollRes.text();
+  let data: VideoStatusResponse;
+  try {
+    data = JSON.parse(pollText) as VideoStatusResponse;
+  } catch {
+    return { status: "processing" };
+  }
+
+  if (data.status === "done" && data.video?.url) {
+    return { status: "done", videoUrl: data.video.url, duration: data.video.duration };
+  }
+  if (data.status === "expired") {
+    return { status: "expired" };
+  }
+  if (data.status === "failed") {
+    const em =
+      typeof data.error === "string"
+        ? data.error
+        : data.error && typeof data.error === "object" && "message" in data.error
+          ? String((data.error as { message?: string }).message)
+          : data.message;
+    return { status: "failed", message: em || "unknown" };
+  }
+  return { status: "processing" };
+}
+
+/**
+ * Image-to-video: `prompt` + `image` (public URL) per xAI video generation API.
+ * Polls until `done`, `failed`, or `expired`.
+ *
+ * **Note:** Supabase Edge has a short wall clock (often ~150s). For long renders, use
+ * {@link startGrokImagineImageToVideo} + {@link pollGrokVideoRequestOnce} across invocations instead.
+ */
+export async function runGrokImagineImageToVideo(
+  args: StartGrokVideoArgs & {
+    pollIntervalMs?: number;
+    maxWaitMs?: number;
+  },
+): Promise<{ videoUrl: string; duration?: number }> {
+  const pollIntervalMs = args.pollIntervalMs ?? 5_000;
+  const maxWaitMs = args.maxWaitMs ?? 20 * 60_000;
+
+  const { requestId } = await startGrokImagineImageToVideo(args);
+
   const started = Date.now();
   while (Date.now() - started < maxWaitMs) {
-    const pollRes = await fetch(`https://api.x.ai/v1/videos/${encodeURIComponent(requestId)}`, {
-      headers: { Authorization: `Bearer ${args.apiKey}` },
-    });
-    const pollText = await pollRes.text();
-    let data: VideoStatusResponse;
-    try {
-      data = JSON.parse(pollText) as VideoStatusResponse;
-    } catch {
-      await new Promise((r) => setTimeout(r, pollIntervalMs));
-      continue;
+    const r = await pollGrokVideoRequestOnce(args.apiKey, requestId);
+    if (r.status === "done") {
+      return { videoUrl: r.videoUrl, duration: r.duration };
     }
-
-    if (data.status === "done" && data.video?.url) {
-      return { videoUrl: data.video.url, duration: data.video.duration };
-    }
-    if (data.status === "expired") {
+    if (r.status === "expired") {
       throw new Error("Grok video: request expired before completion.");
     }
-    if (data.status === "failed") {
-      const em =
-        typeof data.error === "string"
-          ? data.error
-          : data.error && typeof data.error === "object" && "message" in data.error
-            ? String((data.error as { message?: string }).message)
-            : data.message;
-      throw new Error(`Grok video failed: ${em || "unknown"}`);
+    if (r.status === "failed") {
+      throw new Error(`Grok video failed: ${r.message}`);
     }
-
-    await new Promise((r) => setTimeout(r, pollIntervalMs));
+    await new Promise((res) => setTimeout(res, pollIntervalMs));
   }
 
   throw new Error("Grok video: timed out waiting for completion (try again).");

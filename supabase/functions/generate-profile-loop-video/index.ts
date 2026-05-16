@@ -1,7 +1,11 @@
 /**
  * Profile portrait loop — Grok Imagine image-to-video (`grok-imagine-video` via xAI).
  * Auth: `cc-…` owner; catalog: admin **or** paid user (75 FC) with relationship or discover pin.
- * Requires `XAI_API_KEY` or `GROK_API_KEY`. Optional: `GROK_VIDEO_MODEL`, `GROK_VIDEO_DURATION_SECONDS` (5–15, default 10).
+ * Requires `XAI_API_KEY` or `GROK_API_KEY`. Optional: `GROK_VIDEO_MODEL`, `GROK_VIDEO_DURATION_SECONDS` (5–15, default 8).
+ *
+ * **Async jobs:** xAI can take minutes; Supabase Edge wall clock is ~150s (free) / ~400s (paid). We start the
+ * render, store `request_id` in `profile_loop_video_jobs`, return `{ phase: "poll", jobId }`, and the client
+ * polls with `{ jobId }` until `{ phase: "complete", publicUrl }`.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { isLustforgeAdminUser, requireAdminUser, requireSessionUser } from "../_shared/requireSessionUser.ts";
@@ -9,14 +13,18 @@ import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import {
   DEFAULT_GROK_VIDEO_MODEL,
   publicHttpsImageUrlForGrok,
-  runGrokImagineImageToVideo,
+  pollGrokVideoRequestOnce,
+  startGrokImagineImageToVideo,
 } from "../_shared/xaiGrokVideo.ts";
 import {
   buildMinimalProfilePageLoopVideoPrompt,
   buildProfilePageLoopVideoPrompt,
-  profilePageLoopMotionNotesViolatePolicy,
   sanitizePromptForVideoApi,
 } from "../_shared/profileLoopVideoPrompt.ts";
+import {
+  profilePageLoopMotionNotesViolatePolicy,
+  sanitizeProfileLoopUserMotionNotes,
+} from "../_shared/profileLoopMotionPolicy.ts";
 import { recordFcTransaction } from "../_shared/recordFcTransaction.ts";
 import { publicApiTeaserGuardResponse } from "../_shared/publicApiTeaserGate.ts";
 
@@ -35,8 +43,8 @@ function jsonResponse(obj: Record<string, unknown>, status = 200) {
 }
 
 function profileVideoDurationSeconds(): number {
-  const n = Math.round(Number(Deno.env.get("GROK_VIDEO_DURATION_SECONDS") ?? "10"));
-  if (!Number.isFinite(n)) return 10;
+  const n = Math.round(Number(Deno.env.get("GROK_VIDEO_DURATION_SECONDS") ?? "8"));
+  if (!Number.isFinite(n)) return 8;
   return Math.max(5, Math.min(15, n));
 }
 
@@ -69,6 +77,482 @@ async function refundProfileLoopFc(
   }
 }
 
+type PersistArgs = {
+  svc: ReturnType<typeof createClient>;
+  sessionUser: { id: string };
+  companionId: string;
+  table: "companions" | "custom_characters";
+  rowPk: string;
+  row: Record<string, unknown>;
+  adminUser: boolean;
+  sourceGalleryStillUrl: string | null;
+  publicUrl: string;
+  tokensCharged: boolean;
+  chargedAmount: number;
+  motionNotes: string;
+  isDiscoverListedForgeTemplate: boolean;
+};
+
+/** DB + gallery updates after MP4 is in Storage (same paths as legacy single-shot flow). */
+async function persistProfileLoopAfterPublicUrl(args: PersistArgs): Promise<void> {
+  const {
+    svc,
+    sessionUser,
+    companionId,
+    table,
+    rowPk,
+    row,
+    adminUser,
+    sourceGalleryStillUrl,
+    publicUrl,
+    tokensCharged,
+    chargedAmount,
+    motionNotes,
+    isDiscoverListedForgeTemplate,
+  } = args;
+
+  if (table === "custom_characters" && isDiscoverListedForgeTemplate) {
+    if (adminUser) {
+      const { data: existingOv } = await svc
+        .from("user_companion_portrait_overrides")
+        .select("portrait_url")
+        .eq("user_id", sessionUser.id)
+        .eq("companion_id", companionId)
+        .maybeSingle();
+      let portraitStill =
+        (typeof existingOv?.portrait_url === "string" && existingOv.portrait_url.trim()) ||
+        (sourceGalleryStillUrl && sourceGalleryStillUrl.trim()) ||
+        "";
+      if (!portraitStill) {
+        const raw =
+          (typeof row.static_image_url === "string" && row.static_image_url) ||
+          (typeof row.image_url === "string" && row.image_url) ||
+          (typeof row.avatar_url === "string" && row.avatar_url);
+        portraitStill = typeof raw === "string" ? raw.trim() : "";
+      }
+      if (!portraitStill) {
+        if (tokensCharged) {
+          await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "could not resolve portrait still for override");
+        }
+        throw new Error("Could not resolve a still portrait for your private profile.");
+      }
+      const { error: ovErr } = await svc.from("user_companion_portrait_overrides").upsert(
+        {
+          user_id: sessionUser.id,
+          companion_id: companionId,
+          portrait_url: portraitStill,
+          animated_portrait_url: publicUrl,
+          profile_loop_video_enabled: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,companion_id" },
+      );
+      if (ovErr) {
+        if (tokensCharged) {
+          await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "override save failed");
+        }
+        throw new Error(ovErr.message);
+      }
+    } else {
+      const { data: existingOv } = await svc
+        .from("user_companion_portrait_overrides")
+        .select("portrait_url")
+        .eq("user_id", sessionUser.id)
+        .eq("companion_id", companionId)
+        .maybeSingle();
+      let portraitStill =
+        (typeof existingOv?.portrait_url === "string" && existingOv.portrait_url.trim()) ||
+        (sourceGalleryStillUrl && sourceGalleryStillUrl.trim()) ||
+        "";
+      if (!portraitStill) {
+        const raw =
+          (typeof row.static_image_url === "string" && row.static_image_url) ||
+          (typeof row.image_url === "string" && row.image_url) ||
+          (typeof row.avatar_url === "string" && row.avatar_url);
+        portraitStill = typeof raw === "string" ? raw.trim() : "";
+      }
+      if (!portraitStill) {
+        if (tokensCharged) {
+          await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "could not resolve portrait still for override");
+        }
+        throw new Error("Could not resolve a still portrait for your private profile.");
+      }
+      const { error: ovErr } = await svc.from("user_companion_portrait_overrides").upsert(
+        {
+          user_id: sessionUser.id,
+          companion_id: companionId,
+          portrait_url: portraitStill,
+          animated_portrait_url: publicUrl,
+          profile_loop_video_enabled: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,companion_id" },
+      );
+      if (ovErr) {
+        if (tokensCharged) {
+          await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "override save failed");
+        }
+        throw new Error(ovErr.message);
+      }
+    }
+  } else if (table === "custom_characters") {
+    const { error: upRow } = await svc
+      .from("custom_characters")
+      .update({
+        animated_image_url: publicUrl,
+        profile_loop_video_enabled: true,
+      })
+      .eq("id", rowPk);
+
+    if (upRow) {
+      if (tokensCharged) {
+        await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "database update failed");
+      }
+      throw new Error(upRow.message);
+    }
+  } else if (adminUser && table === "companions") {
+    const { error: upRow } = await svc
+      .from("companions")
+      .update({
+        animated_image_url: publicUrl,
+        profile_loop_video_enabled: true,
+      })
+      .eq("id", rowPk);
+
+    if (upRow) {
+      if (tokensCharged) {
+        await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "database update failed");
+      }
+      throw new Error(upRow.message);
+    }
+  } else {
+    const { data: existingOv } = await svc
+      .from("user_companion_portrait_overrides")
+      .select("portrait_url")
+      .eq("user_id", sessionUser.id)
+      .eq("companion_id", companionId)
+      .maybeSingle();
+    let portraitStill =
+      (typeof existingOv?.portrait_url === "string" && existingOv.portrait_url.trim()) ||
+      (sourceGalleryStillUrl && sourceGalleryStillUrl.trim()) ||
+      "";
+    if (!portraitStill) {
+      const raw =
+        companionId.startsWith("cc-")
+          ? (typeof row.static_image_url === "string" && row.static_image_url) ||
+            (typeof row.image_url === "string" && row.image_url) ||
+            (typeof row.avatar_url === "string" && row.avatar_url)
+          : (typeof row.static_image_url === "string" && row.static_image_url) ||
+            (typeof row.image_url === "string" && row.image_url);
+      portraitStill = typeof raw === "string" ? raw.trim() : "";
+    }
+    if (!portraitStill) {
+      if (tokensCharged) {
+        await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "could not resolve portrait still for override");
+      }
+      throw new Error("Could not resolve a still portrait for your private profile.");
+    }
+    const { error: ovErr } = await svc.from("user_companion_portrait_overrides").upsert(
+      {
+        user_id: sessionUser.id,
+        companion_id: companionId,
+        portrait_url: portraitStill,
+        animated_portrait_url: publicUrl,
+        profile_loop_video_enabled: true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,companion_id" },
+    );
+    if (ovErr) {
+      if (tokensCharged) {
+        await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "override save failed");
+      }
+      throw new Error(ovErr.message);
+    }
+  }
+
+  const galleryUserId =
+    adminUser && isDiscoverListedForgeTemplate && companionId.startsWith("cc-")
+      ? sessionUser.id
+      : companionId.startsWith("cc-")
+        ? (String((row as { user_id?: unknown }).user_id ?? "").trim() || sessionUser.id)
+        : sessionUser.id;
+  const galleryPrompt = [
+    "Profile loop video (Grok I2V)",
+    motionNotes ? motionNotes.slice(0, 400) : "Portrait-driven motion",
+  ].join(" · ");
+
+  try {
+    const { error: gErr } = await svc.from("generated_images").insert({
+      user_id: galleryUserId,
+      companion_id: companionId,
+      image_url: publicUrl,
+      prompt: galleryPrompt.slice(0, 2000),
+      is_video: true,
+      saved_to_companion_gallery: true,
+      saved_to_personal_gallery: false,
+    });
+    if (gErr) console.error("profile_loop gallery insert:", gErr.message);
+  } catch (e) {
+    console.error("profile_loop gallery insert", e);
+  }
+}
+
+async function uploadMp4FromXaiUrl(
+  svc: ReturnType<typeof createClient>,
+  xaiVideoUrl: string,
+  fileName: string,
+): Promise<{ error: { message: string } | null }> {
+  const vidRes = await fetch(xaiVideoUrl);
+  if (!vidRes.ok) {
+    return { error: { message: `Download from xAI video URL failed HTTP ${vidRes.status}` } };
+  }
+  const streamBody = vidRes.body;
+  let upErr: { message: string } | null = null;
+  if (streamBody) {
+    const r0 = await svc.storage.from("companion-images").upload(fileName, streamBody, {
+      contentType: "video/mp4",
+      upsert: true,
+    });
+    upErr = r0.error;
+  }
+  if (upErr || !streamBody) {
+    const vidRetry = streamBody && upErr ? await fetch(xaiVideoUrl) : vidRes;
+    if (!vidRetry.ok) {
+      return { error: { message: `Download from xAI video URL failed HTTP ${vidRetry.status}` } };
+    }
+    const buf = new Uint8Array(await vidRetry.arrayBuffer());
+    const r1 = await svc.storage.from("companion-images").upload(fileName, buf, {
+      contentType: "video/mp4",
+      upsert: true,
+    });
+    upErr = r1.error;
+  }
+  return { error: upErr };
+}
+
+async function handleProfileLoopJobPoll(args: {
+  svc: ReturnType<typeof createClient>;
+  sessionUser: { id: string };
+  xaiKey: string;
+  jobId: string;
+}): Promise<Response> {
+  const { svc, sessionUser, xaiKey, jobId } = args;
+
+  const { data: job, error: jobErr } = await svc
+    .from("profile_loop_video_jobs")
+    .select("*")
+    .eq("id", jobId)
+    .maybeSingle();
+  if (jobErr) return jsonResponse({ error: jobErr.message }, 500);
+  if (!job) return jsonResponse({ error: "Job not found" }, 404);
+  if (String(job.user_id ?? "") !== sessionUser.id) {
+    return jsonResponse({ error: "Forbidden" }, 403);
+  }
+
+  if (job.status === "complete" && typeof job.public_url === "string" && job.public_url.trim()) {
+    return jsonResponse({
+      success: true,
+      phase: "complete",
+      publicUrl: job.public_url.trim(),
+      durationSeconds: typeof job.duration_seconds === "number" ? job.duration_seconds : undefined,
+      source: "grok",
+    });
+  }
+  if (job.status === "failed") {
+    const em = typeof job.error_message === "string" && job.error_message.trim()
+      ? job.error_message.trim()
+      : "Profile loop video failed.";
+    return jsonResponse({ error: em }, 400);
+  }
+  if (job.status === "finalizing") {
+    return jsonResponse({
+      success: true,
+      phase: "poll",
+      jobId,
+      pollAfterMs: 2500,
+    });
+  }
+
+  const rid = String(job.xai_request_id ?? "").trim();
+  if (!rid) {
+    return jsonResponse({ error: "Invalid job state (missing xAI request id)." }, 500);
+  }
+
+  const pr = await pollGrokVideoRequestOnce(xaiKey, rid);
+  if (pr.status === "processing") {
+    await svc.from("profile_loop_video_jobs").update({ updated_at: new Date().toISOString() }).eq("id", jobId);
+    return jsonResponse({
+      success: true,
+      phase: "poll",
+      jobId,
+      pollAfterMs: 4500,
+    });
+  }
+
+  if (pr.status === "failed" || pr.status === "expired") {
+    const reason =
+      pr.status === "expired" ? "Grok video: request expired before completion." : `Grok video failed: ${pr.message}`;
+    const chargeFc = Math.max(0, Math.floor(Number(job.charge_fc ?? 0)));
+    const alreadyRefunded = Boolean(job.refunded);
+    if (chargeFc > 0 && !alreadyRefunded) {
+      await refundProfileLoopFc(svc, sessionUser.id, chargeFc, reason);
+    }
+    await svc
+      .from("profile_loop_video_jobs")
+      .update({
+        status: "failed",
+        refunded: chargeFc > 0 && !alreadyRefunded ? true : Boolean(job.refunded),
+        error_message: reason,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", jobId);
+    return jsonResponse({ error: reason }, 500);
+  }
+
+  const { data: claimed, error: claimErr } = await svc
+    .from("profile_loop_video_jobs")
+    .update({
+      status: "finalizing",
+      xai_video_url: pr.videoUrl,
+      duration_seconds: pr.duration ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", jobId)
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
+  if (claimErr) {
+    return jsonResponse({ error: claimErr.message }, 500);
+  }
+  if (!claimed?.id) {
+    const { data: again } = await svc
+      .from("profile_loop_video_jobs")
+      .select("status, public_url, duration_seconds")
+      .eq("id", jobId)
+      .maybeSingle();
+    if (again?.status === "complete" && typeof again.public_url === "string" && again.public_url.trim()) {
+      return jsonResponse({
+        success: true,
+        phase: "complete",
+        publicUrl: again.public_url.trim(),
+        durationSeconds: typeof again.duration_seconds === "number" ? again.duration_seconds : undefined,
+        source: "grok",
+      });
+    }
+    return jsonResponse({ success: true, phase: "poll", jobId, pollAfterMs: 2000 });
+  }
+
+  const ctx = (job.context ?? {}) as Record<string, unknown>;
+  const companionId = String(job.companion_id ?? "").trim();
+  const table = ctx.table === "custom_characters" ? "custom_characters" : "companions";
+  const rowPk = String(ctx.rowPk ?? "").trim();
+  const adminUser = Boolean(ctx.adminUser);
+  const chargedFc = Math.max(0, Math.floor(Number(job.charge_fc ?? 0)));
+  const tokensCharged = chargedFc > 0;
+  const isDiscoverListedForgeTemplate = Boolean(ctx.isDiscoverListedForgeTemplate);
+  const sourceGalleryStillUrl =
+    typeof ctx.sourceGalleryStillUrl === "string" && ctx.sourceGalleryStillUrl.trim()
+      ? ctx.sourceGalleryStillUrl.trim()
+      : null;
+  const motionNotes = String(ctx.motionNotesForGallery ?? "").trim();
+  const durationSec =
+    typeof job.duration_seconds === "number" && Number.isFinite(job.duration_seconds)
+      ? job.duration_seconds
+      : Math.round(Number(ctx.durationSeconds ?? 8)) || 8;
+
+  const { data: rowData, error: rowErr } = await svc.from(table).select("*").eq("id", rowPk).maybeSingle();
+  if (rowErr || !rowData) {
+    const msg = "Companion row missing — try generating again.";
+    if (tokensCharged && !job.refunded) {
+      await refundProfileLoopFc(svc, sessionUser.id, chargedFc, msg);
+    }
+    await svc
+      .from("profile_loop_video_jobs")
+      .update({
+        status: "failed",
+        refunded: tokensCharged ? true : Boolean(job.refunded),
+        error_message: msg,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", jobId);
+    return jsonResponse({ error: msg }, 500);
+  }
+  const row = rowData as Record<string, unknown>;
+
+  const safeId = companionId.replace(/[^a-zA-Z0-9-_]/g, "_").slice(0, 120);
+  const fileName = `profile-loops/${safeId}/${Date.now()}.mp4`;
+
+  const { error: upErr } = await uploadMp4FromXaiUrl(svc, pr.videoUrl, fileName);
+  if (upErr) {
+    if (tokensCharged && !job.refunded) {
+      await refundProfileLoopFc(svc, sessionUser.id, chargedFc, upErr.message);
+    }
+    await svc
+      .from("profile_loop_video_jobs")
+      .update({
+        status: "failed",
+        refunded: tokensCharged ? true : Boolean(job.refunded),
+        error_message: upErr.message,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", jobId);
+    return jsonResponse({ error: `Storage upload failed: ${upErr.message}` }, 500);
+  }
+
+  const publicUrl = svc.storage.from("companion-images").getPublicUrl(fileName).data.publicUrl;
+
+  try {
+    await persistProfileLoopAfterPublicUrl({
+      svc,
+      sessionUser,
+      companionId,
+      table,
+      rowPk,
+      row,
+      adminUser,
+      sourceGalleryStillUrl,
+      publicUrl,
+      tokensCharged,
+      chargedAmount: chargedFc,
+      motionNotes,
+      isDiscoverListedForgeTemplate,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (tokensCharged && !job.refunded) {
+      await refundProfileLoopFc(svc, sessionUser.id, chargedFc, msg);
+    }
+    await svc
+      .from("profile_loop_video_jobs")
+      .update({
+        status: "failed",
+        refunded: tokensCharged ? true : Boolean(job.refunded),
+        error_message: msg,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", jobId);
+    return jsonResponse({ error: msg }, 500);
+  }
+
+  await svc
+    .from("profile_loop_video_jobs")
+    .update({
+      status: "complete",
+      public_url: publicUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", jobId);
+
+  return jsonResponse({
+    success: true,
+    phase: "complete",
+    publicUrl,
+    source: "grok",
+    durationSeconds: durationSec,
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -98,23 +582,36 @@ Deno.serve(async (req) => {
     );
   }
 
-  let body: { companionId?: string; motionNotes?: string; tokenCost?: number; sourceGeneratedImageId?: string };
+  let body: {
+    companionId?: string;
+    motionNotes?: string;
+    tokenCost?: number;
+    sourceGeneratedImageId?: string;
+    jobId?: string;
+  };
   try {
     body = await req.json();
   } catch {
     return jsonResponse({ error: "Invalid JSON" }, 400);
   }
+
+  const svc = createClient(supabaseUrl, serviceKey);
+
+  const jobIdRaw = typeof body.jobId === "string" ? body.jobId.trim() : "";
+  if (jobIdRaw) {
+    return await handleProfileLoopJobPoll({ svc, sessionUser, xaiKey, jobId: jobIdRaw });
+  }
+
   const companionId = typeof body.companionId === "string" ? body.companionId.trim() : "";
   if (!companionId) {
     return jsonResponse({ error: "companionId required" }, 400);
   }
   const motionNotesRaw = typeof body.motionNotes === "string" ? body.motionNotes.trim() : "";
-  const motionNotes = motionNotesRaw.slice(0, 800);
-
-  const policyErr = profilePageLoopMotionNotesViolatePolicy(motionNotes);
+  const policyErr = profilePageLoopMotionNotesViolatePolicy(motionNotesRaw);
   if (policyErr) {
     return jsonResponse({ error: policyErr }, 400);
   }
+  const motionNotes = sanitizeProfileLoopUserMotionNotes(motionNotesRaw).trim().slice(0, 800);
 
   const adminUser = await isLustforgeAdminUser(sessionUser);
   const tokenCostRaw = (body as { tokenCost?: unknown }).tokenCost;
@@ -132,15 +629,12 @@ Deno.serve(async (req) => {
 
   const shouldCharge = !adminUser && tokenCostParsed === PAID_LOOP_FC;
 
-  const svc = createClient(supabaseUrl, serviceKey);
-
   const sourceGenId =
     typeof (body as { sourceGeneratedImageId?: unknown }).sourceGeneratedImageId === "string"
       ? String((body as { sourceGeneratedImageId: string }).sourceGeneratedImageId).trim()
       : "";
 
   let sourceOverrideUrl: string | null = null;
-  /** Original gallery still URL (for per-user override row when not mutating public cards). */
   let sourceGalleryStillUrl: string | null = null;
   if (sourceGenId) {
     const { data: genRow, error: genErr } = await svc
@@ -239,7 +733,6 @@ Deno.serve(async (req) => {
     }
   }
 
-  /** Paid / user paths: prefer this user’s private still override for I2V (does not change discover art). */
   if (!sourceOverrideUrl && !adminUser) {
     const { data: ov } = await svc
       .from("user_companion_portrait_overrides")
@@ -295,6 +788,11 @@ Deno.serve(async (req) => {
     });
   }
 
+  const isDiscoverListedForgeTemplate =
+    table === "custom_characters" &&
+    Boolean((row as { is_public?: unknown }).is_public) &&
+    Boolean((row as { approved?: unknown }).approved);
+
   try {
     const fullFromBuilder = buildProfilePageLoopVideoPrompt(row, motionNotes);
     const combined = sanitizePromptForVideoApi(fullFromBuilder);
@@ -308,246 +806,71 @@ Deno.serve(async (req) => {
     const videoModel = (Deno.env.get("GROK_VIDEO_MODEL") ?? DEFAULT_GROK_VIDEO_MODEL).trim() ||
       DEFAULT_GROK_VIDEO_MODEL;
 
-    const { videoUrl: xaiVideoUrl } = await runGrokImagineImageToVideo({
+    const { requestId } = await startGrokImagineImageToVideo({
       apiKey: xaiKey,
       prompt,
       sourceImageUrl: imageUrl,
       durationSeconds: durationSec,
       aspectRatio: "2:3",
-      resolution: "720p",
+      resolution: "480p",
       model: videoModel,
-      maxWaitMs: 20 * 60_000,
     });
 
-    const vidRes = await fetch(xaiVideoUrl);
-    if (!vidRes.ok) {
-      if (tokensCharged) {
-        await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "xAI video download failed");
-      }
-      return jsonResponse({ error: `Download from xAI video URL failed HTTP ${vidRes.status}` }, 502);
-    }
-    const buf = new Uint8Array(await vidRes.arrayBuffer());
-
-    const safeId = companionId.replace(/[^a-zA-Z0-9-_]/g, "_").slice(0, 120);
-    const fileName = `profile-loops/${safeId}/${Date.now()}.mp4`;
-    const storage = createClient(supabaseUrl, serviceKey);
-    const { error: upErr } = await storage.storage.from("companion-images").upload(fileName, buf, {
-      contentType: "video/mp4",
-      upsert: true,
-    });
-    if (upErr) {
-      if (tokensCharged) {
-        await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "storage upload failed");
-      }
-      return jsonResponse({ error: `Storage upload failed: ${upErr.message}` }, 500);
-    }
-
-    const publicUrl = storage.storage.from("companion-images").getPublicUrl(fileName).data.publicUrl;
-
-    const isDiscoverListedForgeTemplate =
-      table === "custom_characters" &&
-      Boolean((row as { is_public?: unknown }).is_public) &&
-      Boolean((row as { approved?: unknown }).approved);
-
-    /**
-     * Discover-listed forge templates share one DB row — never write the MP4 on `custom_characters`
-     * (would leak to all viewers). Private forge rows (Nexus veilborn, drafts, vault-only) store the
-     * loop on the row so reveal/profile/chat all see `animated_image_url` without relying on overrides.
-     */
-    if (table === "custom_characters" && isDiscoverListedForgeTemplate) {
-      if (adminUser) {
-        const { data: existingOv } = await svc
-          .from("user_companion_portrait_overrides")
-          .select("portrait_url")
-          .eq("user_id", sessionUser.id)
-          .eq("companion_id", companionId)
-          .maybeSingle();
-        let portraitStill =
-          (typeof existingOv?.portrait_url === "string" && existingOv.portrait_url.trim()) ||
-          (sourceGalleryStillUrl && sourceGalleryStillUrl.trim()) ||
-          "";
-        if (!portraitStill) {
-          const raw =
-            (typeof row.static_image_url === "string" && row.static_image_url) ||
-            (typeof row.image_url === "string" && row.image_url) ||
-            (typeof row.avatar_url === "string" && row.avatar_url);
-          portraitStill = typeof raw === "string" ? raw.trim() : "";
-        }
-        if (!portraitStill) {
-          if (tokensCharged) {
-            await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "could not resolve portrait still for override");
-          }
-          return jsonResponse({ error: "Could not resolve a still portrait for your private profile." }, 500);
-        }
-        const { error: ovErr } = await svc.from("user_companion_portrait_overrides").upsert(
-          {
-            user_id: sessionUser.id,
-            companion_id: companionId,
-            portrait_url: portraitStill,
-            animated_portrait_url: publicUrl,
-            profile_loop_video_enabled: true,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id,companion_id" },
-        );
-        if (ovErr) {
-          if (tokensCharged) {
-            await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "override save failed");
-          }
-          return jsonResponse({ error: ovErr.message }, 500);
-        }
-      } else {
-        const { data: existingOv } = await svc
-          .from("user_companion_portrait_overrides")
-          .select("portrait_url")
-          .eq("user_id", sessionUser.id)
-          .eq("companion_id", companionId)
-          .maybeSingle();
-        let portraitStill =
-          (typeof existingOv?.portrait_url === "string" && existingOv.portrait_url.trim()) ||
-          (sourceGalleryStillUrl && sourceGalleryStillUrl.trim()) ||
-          "";
-        if (!portraitStill) {
-          const raw =
-            (typeof row.static_image_url === "string" && row.static_image_url) ||
-            (typeof row.image_url === "string" && row.image_url) ||
-            (typeof row.avatar_url === "string" && row.avatar_url);
-          portraitStill = typeof raw === "string" ? raw.trim() : "";
-        }
-        if (!portraitStill) {
-          if (tokensCharged) {
-            await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "could not resolve portrait still for override");
-          }
-          return jsonResponse({ error: "Could not resolve a still portrait for your private profile." }, 500);
-        }
-        const { error: ovErr } = await svc.from("user_companion_portrait_overrides").upsert(
-          {
-            user_id: sessionUser.id,
-            companion_id: companionId,
-            portrait_url: portraitStill,
-            animated_portrait_url: publicUrl,
-            profile_loop_video_enabled: true,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id,companion_id" },
-        );
-        if (ovErr) {
-          if (tokensCharged) {
-            await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "override save failed");
-          }
-          return jsonResponse({ error: ovErr.message }, 500);
-        }
-      }
-    } else if (table === "custom_characters") {
-      const { error: upRow } = await svc
-        .from("custom_characters")
-        .update({
-          animated_image_url: publicUrl,
-          profile_loop_video_enabled: true,
-        })
-        .eq("id", rowPk);
-
-      if (upRow) {
-        if (tokensCharged) {
-          await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "database update failed");
-        }
-        return jsonResponse({ error: upRow.message }, 500);
-      }
-    } else if (adminUser && table === "companions") {
-      const { error: upRow } = await svc
-        .from("companions")
-        .update({
-          animated_image_url: publicUrl,
-          profile_loop_video_enabled: true,
-        })
-        .eq("id", rowPk);
-
-      if (upRow) {
-        if (tokensCharged) {
-          await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "database update failed");
-        }
-        return jsonResponse({ error: upRow.message }, 500);
-      }
-    } else {
-      const { data: existingOv } = await svc
-        .from("user_companion_portrait_overrides")
-        .select("portrait_url")
-        .eq("user_id", sessionUser.id)
-        .eq("companion_id", companionId)
-        .maybeSingle();
-      let portraitStill =
-        (typeof existingOv?.portrait_url === "string" && existingOv.portrait_url.trim()) ||
-        (sourceGalleryStillUrl && sourceGalleryStillUrl.trim()) ||
-        "";
-      if (!portraitStill) {
-        const raw =
-          companionId.startsWith("cc-")
-            ? (typeof row.static_image_url === "string" && row.static_image_url) ||
-              (typeof row.image_url === "string" && row.image_url) ||
-              (typeof row.avatar_url === "string" && row.avatar_url)
-            : (typeof row.static_image_url === "string" && row.static_image_url) ||
-              (typeof row.image_url === "string" && row.image_url);
-        portraitStill = typeof raw === "string" ? raw.trim() : "";
-      }
-      if (!portraitStill) {
-        if (tokensCharged) {
-          await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "could not resolve portrait still for override");
-        }
-        return jsonResponse({ error: "Could not resolve a still portrait for your private profile." }, 500);
-      }
-      const { error: ovErr } = await svc.from("user_companion_portrait_overrides").upsert(
-        {
-          user_id: sessionUser.id,
-          companion_id: companionId,
-          portrait_url: portraitStill,
-          animated_portrait_url: publicUrl,
-          profile_loop_video_enabled: true,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,companion_id" },
-      );
-      if (ovErr) {
-        if (tokensCharged) {
-          await refundProfileLoopFc(svc, sessionUser.id, chargedAmount, "override save failed");
-        }
-        return jsonResponse({ error: ovErr.message }, 500);
-      }
-    }
-
-    const galleryUserId =
-      adminUser && isDiscoverListedForgeTemplate && companionId.startsWith("cc-")
-        ? sessionUser.id
-        : companionId.startsWith("cc-")
-          ? (String((row as { user_id?: unknown }).user_id ?? "").trim() || sessionUser.id)
-          : sessionUser.id;
-    const galleryPrompt = [
-      "Profile loop video (Grok I2V)",
-      motionNotes ? motionNotes.slice(0, 400) : "Portrait-driven motion",
-    ].join(" · ");
-
-    try {
-      const { error: gErr } = await svc.from("generated_images").insert({
-        user_id: galleryUserId,
+    const { data: ins, error: insErr } = await svc
+      .from("profile_loop_video_jobs")
+      .insert({
+        user_id: sessionUser.id,
         companion_id: companionId,
-        image_url: publicUrl,
-        prompt: galleryPrompt.slice(0, 2000),
-        is_video: true,
-        saved_to_companion_gallery: true,
-        saved_to_personal_gallery: false,
-      });
-      if (gErr) console.error("profile_loop gallery insert:", gErr.message);
-    } catch (e) {
-      console.error("profile_loop gallery insert", e);
+        xai_request_id: requestId,
+        status: "pending",
+        charge_fc: chargedAmount,
+        refunded: false,
+        context: {
+          table,
+          rowPk,
+          adminUser,
+          isDiscoverListedForgeTemplate,
+          sourceGalleryStillUrl: sourceGalleryStillUrl ?? "",
+          sourceGenId,
+          motionNotesForGallery: motionNotes,
+          durationSeconds: durationSec,
+        },
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (insErr || !ins?.id) {
+      if (tokensCharged) {
+        await refundProfileLoopFc(
+          svc,
+          sessionUser.id,
+          chargedAmount,
+          insErr?.message ?? "could not create profile loop job (apply DB migration?)",
+        );
+      }
+      return jsonResponse(
+        {
+          error:
+            insErr?.message ??
+            "Could not create profile loop job. If you just deployed code, run the latest Supabase migration (profile_loop_video_jobs).",
+        },
+        500,
+      );
     }
 
-    return jsonResponse({ success: true, publicUrl, source: "grok", durationSeconds: durationSec });
+    return jsonResponse({
+      success: true,
+      phase: "poll",
+      jobId: ins.id,
+      pollAfterMs: 4000,
+    });
   } catch (e) {
     if (tokensCharged) {
       await refundProfileLoopFc(
         svc,
         sessionUser.id,
         chargedAmount,
-        e instanceof Error ? e.message : "profile loop video error",
+        e instanceof Error ? e.message : "profile loop video start error",
       );
     }
     const msg = e instanceof Error ? e.message : String(e);

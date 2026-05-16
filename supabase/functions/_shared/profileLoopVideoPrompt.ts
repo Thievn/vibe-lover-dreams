@@ -3,13 +3,14 @@ import {
   FORGE_ANIME_STYLE_LOCK_REGEX,
   isAnimeTemptationForgeTabId,
 } from "./forgeAnimeStyleDna.ts";
+import { sanitizeProfileLoopUserMotionNotes } from "./profileLoopMotionPolicy.ts";
 
 /**
  * Shared helpers for Grok Imagine image-to-video.
  *
  * - **Companion profile page loops** (`generate-profile-loop-video`): use
- *   {@link buildProfilePageLoopVideoPrompt} + {@link profilePageLoopMotionNotesViolatePolicy}
- *   (tasteful style lock + blocked-word filter on user notes only).
+ *   {@link buildProfilePageLoopVideoPrompt} + `profilePageLoopMotionNotesViolatePolicy` from `profileLoopMotionPolicy.ts`
+ *   (tasteful style lock + motion-note filter / sanitize).
  * - **Chat clip videos** (`generate-chat-companion-video`): use {@link buildProfileLoopVideoPrompt}
  *   (richer character context; different policy envelope).
  */
@@ -93,7 +94,7 @@ const EDITOR_MOTION_MAX_FULL = 800;
 const EDITOR_MOTION_MAX_MINIMAL = 600;
 
 function editorMotionBlockFull(notes: string | undefined): string {
-  const t = (notes ?? "").trim();
+  const t = sanitizeProfileLoopUserMotionNotes((notes ?? "").trim()).trim();
   if (!t) return "";
   const clipped = t.length > EDITOR_MOTION_MAX_FULL ? `${t.slice(0, EDITOR_MOTION_MAX_FULL).trimEnd()}…` : t;
   return [
@@ -105,7 +106,7 @@ function editorMotionBlockFull(notes: string | undefined): string {
 }
 
 function editorMotionPrefixMinimal(notes: string | undefined): string {
-  const t = (notes ?? "").trim();
+  const t = sanitizeProfileLoopUserMotionNotes((notes ?? "").trim()).trim();
   if (!t) return "";
   const clipped = t.length > EDITOR_MOTION_MAX_MINIMAL ? `${t.slice(0, EDITOR_MOTION_MAX_MINIMAL).trimEnd()}…` : t;
   return `MANDATORY editor motion (highest priority): ${clipped}. `;
@@ -252,35 +253,6 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>, editor
 export const PROFILE_PAGE_LOOP_STYLE_DIRECTIVE =
   "Generate a beautiful, artistic, SFW-but-seductive vertical loop from the reference portrait. **No nudity, no explicit sexual content, no visible genitals, no pornographic staging.** Stay fully clothed or modestly covered with tasteful sheer or silhouette only when the still already implies it — never escalate beyond elegant tease. The tone is sensual, cinematic, and high-class: graceful movement, smoldering eyes, slow fabric or hair motion, confident posture. Focus on artistic beauty and suggestion, not adult explicitness.";
 
-/** Blocked in **user-supplied** motion / custom instructions for profile loops (substring match, case-insensitive). */
-export const PROFILE_PAGE_LOOP_BLOCKED_SUBSTRINGS = [
-  "pussy",
-  "vagina",
-  "cock",
-  "dick",
-  "penis",
-  "asshole",
-  "cum",
-  "creampie",
-  "ahegao",
-  "hardcore",
-  "explicit",
-  "porn",
-] as const;
-
-/** Returns an error message for the client/API if notes violate the profile-loop word list. */
-export function profilePageLoopMotionNotesViolatePolicy(notes: string): string | null {
-  const t = notes.trim();
-  if (!t) return null;
-  const lower = t.toLowerCase();
-  for (const w of PROFILE_PAGE_LOOP_BLOCKED_SUBSTRINGS) {
-    if (lower.includes(w)) {
-      return `Instructions can't include disallowed wording (“${w}”). Keep requests tasteful and suggestive only.`;
-    }
-  }
-  return null;
-}
-
 /**
  * Profile Discover / companion page looping MP4 — single controlled style directive + optional user notes.
  */
@@ -290,7 +262,7 @@ export function buildProfilePageLoopVideoPrompt(
 ): string {
   const name = sliceStr(row.name, 80) || "Character";
   const tagline = sliceStr(row.tagline, 140);
-  const notes = (editorMotionNotes ?? "").trim();
+  const notes = sanitizeProfileLoopUserMotionNotes((editorMotionNotes ?? "").trim()).trim();
   const notesBlock = notes
     ? `ADDITIONAL CREATIVE DIRECTION (user request — **SFW only**: tasteful, elegant, suggestive; no nudity, no explicit acts, no graphic anatomy):\n${
         notes.length > 800 ? `${notes.slice(0, 800).trimEnd()}…` : notes
@@ -322,7 +294,7 @@ export function buildMinimalProfilePageLoopVideoPrompt(
   editorMotionNotes?: string,
 ): string {
   const name = sliceStr(row.name, 60) || "Character";
-  const notes = (editorMotionNotes ?? "").trim();
+  const notes = sanitizeProfileLoopUserMotionNotes((editorMotionNotes ?? "").trim()).trim();
   const clipped = notes.length > 500 ? `${notes.slice(0, 500).trimEnd()}…` : notes;
   return sanitizePromptForVideoApi(
     [
