@@ -316,6 +316,22 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
       ].join("\n")
     : "";
 
+  /** Shorter ref slice for gallery menu lock so USER-CHOSEN / Requested framing stays inside Imagine budget. */
+  const characterRefPreambleMenu = coreLook
+    ? [
+        "— CHARACTER REFERENCE (likeness text — not the shot location) —",
+        CHARACTER_REFERENCE_INTRO_LINES,
+        "",
+        coreLook.slice(0, 1200),
+        `${coreLook.length > 1200 ? "…" : ""}`,
+        "",
+        "Identity only from this block — do **not** copy any room, furniture, sofa, or pose from a roster JPEG.",
+        "",
+        "---",
+        "",
+      ].join("\n")
+    : "";
+
   const charBlock = coreLook
     ? longAppear && longAppear !== coreLook
       ? `CHARACTER APPEARANCE supplement (must match CHARACTER REFERENCE above — text only, no outfit/scene): ${companion.name}, ${companion.gender}. ${longAppear.slice(0, 1200)}${longAppear.length > 1200 ? "…" : ""}`
@@ -337,17 +353,41 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
     .filter(Boolean)
     .join("\n\n");
 
+  /** Gallery / Moments: short likeness stub then **scene** so Edge clamp + Imagine never miss the user’s place. */
+  const menuLikenessStub = [
+    "— LIKENESS #1 (same person as main portrait) —",
+    `**${companion.name}:** Match roster portrait + CHARACTER APPEARANCE for ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE} and **${art}** — **not** a stock model or lookalike.`,
+    "**Do not** rebuild the profile card’s interior, sofa, bed, gray studio, or catalog three-quarter unless **Requested framing** explicitly names that place.",
+    nexusHybrid
+      ? "**Nexus:** Face, silhouette, species, palette = same individual as vault portrait; menu text wins on location."
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const identityCompactForMenu = [
+    chatLikenessSameSubjectMandate(companion.name),
+    `**Portrait / URL:** Use **only** for ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE} — **never** import ${CHAT_LIKENESS_SCENE_FORBIDDEN_INLINE}.`,
+    "**MENU LOCK:** **Requested framing** is the **sole** authority for environment, wardrobe, pose, props, light, and camera.",
+    nonPhotorealArtLane
+      ? `**Art lane:** Stay in **${art}** discipline; do not flatten to unrelated photoreal unless the menu asks.`
+      : "Coherent anatomy for written species; no accidental chibi unless the menu asks.",
+    "**Never** substitute a generic bedroom, couch glam, or plain room when the menu names a different place.",
+  ].join("\n\n");
+
+  const themingMinimalForMenu = `— WORLD FLAVOR (secondary — never overrides menu location) —\nEra: ${profile.timePeriod}. Use **only** for micro-expression, fabric attitude, and prop micro-detail that still fits the **menu** place — **not** a new set or room.`;
+
   const prompt = (
     menuSceneLock
       ? [
-          strongPortraitLead,
-          characterRefPreamble,
-          "LUSTFORGE MASTER BRIEF — in-session gallery-preset still (scene-first; subject likeness from CHARACTER APPEARANCE + optional roster portrait URL; scene from menu)",
-          antiProfileRemaster,
+          menuLikenessStub,
           scene,
+          characterRefPreambleMenu || characterRefPreamble,
+          "LUSTFORGE MASTER BRIEF — in-session gallery-preset still (Moments / menu)",
+          antiProfileRemaster,
           visualIdentityCapsule ?? "",
-          identity,
-          theming,
+          identityCompactForMenu,
+          themingMinimalForMenu,
           tech,
           charBlock,
           appearanceStripForMenu,

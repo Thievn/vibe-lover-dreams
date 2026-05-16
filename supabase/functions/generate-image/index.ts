@@ -51,6 +51,28 @@ function clampPromptForImagine(prompt: string, maxChars: number): string {
   return `${compact.slice(0, maxChars).trimEnd()}…`;
 }
 
+/** Markers for the execution block so `clampPromptForImagine` (head-only) cannot drop Moments / menu place text. */
+const MENU_PRIMARY_BODY_MARKERS = [
+  "— Requested framing (from menu) —",
+  "— USER-CHOSEN SCENE (EXECUTION PRIORITY #1 — NOT A PORTRAIT REMASTER) —",
+] as const;
+const MAX_MENU_PRIMARY_EXTRACT = 5600;
+
+function extractMenuPrimarySceneBody(fullPrompt: string): string {
+  const f = String(fullPrompt ?? "");
+  let best = -1;
+  for (const m of MENU_PRIMARY_BODY_MARKERS) {
+    const i = f.indexOf(m);
+    if (i >= 0 && (best < 0 || i < best)) best = i;
+  }
+  if (best < 0) return "";
+  const slice = f.slice(best).trim();
+  if (slice.length > MAX_MENU_PRIMARY_EXTRACT) {
+    return `${slice.slice(0, MAX_MENU_PRIMARY_EXTRACT).trimEnd()}…`;
+  }
+  return slice;
+}
+
 async function refundTokens(
   supabase: ReturnType<typeof createClient>,
   userId: string,
@@ -335,7 +357,14 @@ serve(async (req) => {
       const headJoined = [executionHead, anatomyHead].filter((s) => String(s).trim()).join("\n\n");
       const reserved = headJoined.length + 32;
       const rawBudget = Math.max(2000, TOGETHER_IMAGE_PROMPT_SOFT_LIMIT - reserved);
-      const rawClamped = clampPromptForImagine(rawForRewrite, rawBudget);
+      const menuPrimaryExtract = menuSceneLockEffective ? extractMenuPrimarySceneBody(String(prompt)) : "";
+      const rawForMenuClamp =
+        menuPrimaryExtract.length >= 50
+          ? [chatPortraitConsistencyLead, animeRewriteLead, dnaPrefix, menuPrimaryExtract]
+              .filter((s) => String(s).trim())
+              .join("\n\n")
+          : rawForRewrite;
+      const rawClamped = clampPromptForImagine(rawForMenuClamp, rawBudget);
       const fused = [headJoined, rawClamped].filter((s) => String(s).trim()).join("\n\n\n");
       safeRewritten = clampPromptForImagine(fused, TOGETHER_IMAGE_PROMPT_SOFT_LIMIT);
     } else {

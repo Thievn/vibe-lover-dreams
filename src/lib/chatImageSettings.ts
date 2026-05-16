@@ -440,7 +440,7 @@ export function resolveChatImageGenerationPrompt(args: {
       `\n\n**Forge look DNA (not the photograph):** hair, eyes, skin, species, body type, art style — from CHARACTER APPEARANCE + portrait; **not** sofa, wall, or outfit from the card unless the menu says so.\n\n${CHAT_LIKENESS_SCENE_PRIMACY_FOOTER}\n\n**Shot:** Match **Requested framing** literally (place, pose, wardrobe). **No** substitute “pretty person standing in plain room.”\n\n${CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK}`;
     if (styled) {
       const fused = (
-        `— Requested framing (from menu) —\n${subjectAnchor}${styled}\n\n${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}${tierRails}\n\n**Exposure / tone context (not the shot layout):**\n${menu}${coherence}`
+        `— Requested framing (from menu) —\n**PRIMARY SCENE (execute literally — place / pose / wardrobe):**\n${styled}\n\n${subjectAnchor}${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}${tierRails}\n\n**Exposure / tone context (not the shot layout):**\n${menu}${coherence}`
       ).trim();
       return appearanceRef ? wrapFabSceneWithAppearanceLock(fused, appearanceRef) : fused;
     }
