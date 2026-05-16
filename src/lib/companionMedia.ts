@@ -173,5 +173,5 @@ export function shouldShowProfileLoopVideo(
 ): boolean {
   if (!profileLoopVideoEnabled) return false;
   const u = profileAnimatedPortraitUrl(db);
-  return Boolean(u && isVideoPortraitUrl(u));
+  return Boolean(u && isEligibleLoopPortraitVideoUrl(u, true));
 }

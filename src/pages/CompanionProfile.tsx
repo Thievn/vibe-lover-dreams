@@ -45,6 +45,7 @@ import {
 import { prependCanonicalPortraitIfMissing } from "@/lib/companionGalleryWithCanonical";
 import { clearUserPortraitOverrideStill } from "@/lib/clearUserPortraitOverrideStill";
 import { setCompanionPortraitFromGalleryUrl } from "@/lib/setCompanionPortraitFromGallery";
+import { syncProfileLoopVideoToProfile } from "@/lib/syncProfileLoopVideoToProfile";
 import { CompanionGalleryGrid } from "@/components/companion/CompanionGalleryGrid";
 import type { CompanionRarity } from "@/lib/companionRarity";
 import { RarityTierCaption } from "@/components/rarity/RarityTierCaption";
@@ -263,6 +264,28 @@ const CompanionProfile = () => {
       cancelled = true;
     };
   }, [user?.id, id, isOwnForge]);
+
+  /** Attach any existing gallery / job MP4 to profile + override (fixes loops that billed but never showed). */
+  useEffect(() => {
+    if (!user?.id || !id || consumeFeatureLocked) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await syncProfileLoopVideoToProfile(id);
+        if (cancelled || !result.synced) return;
+        void queryClient.invalidateQueries({ queryKey: ["companions"] });
+        void queryClient.invalidateQueries({ queryKey: ["companion-display-override", user.id, id] });
+        void queryClient.invalidateQueries({
+          queryKey: ["companion-generated-images", user.id, id],
+        });
+      } catch {
+        /* sync is best-effort on profile open */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, id, consumeFeatureLocked, queryClient]);
 
   /** e.g. Chat “Live call” can deep-link here with `state: { profileTab: "live" }`. Legacy `gallery` opens the inline gallery. */
   useEffect(() => {

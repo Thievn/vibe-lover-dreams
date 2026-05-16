@@ -1,5 +1,5 @@
 import type { DbCompanion } from "@/hooks/useCompanions";
-import { stablePortraitDisplayUrl } from "@/lib/companionMedia";
+import { isEligibleLoopPortraitVideoUrl, stablePortraitDisplayUrl } from "@/lib/companionMedia";
 
 export type CompanionDisplayOverrideRow = {
   portrait_url: string | null;
@@ -23,12 +23,23 @@ export function mergeCompanionDisplayWithUserOverride(
   const still = stillRaw ? stablePortraitDisplayUrl(stillRaw) ?? stillRaw : null;
   const animRaw = override.animated_portrait_url?.trim() || null;
   const anim = animRaw ? stablePortraitDisplayUrl(animRaw) ?? animRaw : null;
-  const usePrivateLoop = Boolean(override.profile_loop_video_enabled && anim);
+  const overrideLoopOn = Boolean(override.profile_loop_video_enabled && anim);
+
+  const baseAnimRaw = db.animated_image_url?.trim() || null;
+  const baseAnim = baseAnimRaw ? stablePortraitDisplayUrl(baseAnimRaw) ?? baseAnimRaw : null;
+  const baseLoopOn = Boolean(
+    db.profile_loop_video_enabled &&
+      baseAnim &&
+      isEligibleLoopPortraitVideoUrl(baseAnim, true),
+  );
+
+  const usePrivateLoop = overrideLoopOn || (!anim && baseLoopOn);
+  const resolvedAnim = overrideLoopOn ? anim : baseLoopOn ? baseAnim : null;
 
   return {
     ...db,
     ...(still ? { static_image_url: still, image_url: still } : {}),
-    animated_image_url: usePrivateLoop ? anim : null,
+    animated_image_url: usePrivateLoop ? resolvedAnim : null,
     profile_loop_video_enabled: usePrivateLoop,
   };
 }

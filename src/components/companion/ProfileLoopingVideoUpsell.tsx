@@ -71,7 +71,19 @@ export function ProfileLoopingVideoUpsell({
       if (!isAdminUser) {
         body.tokenCost = PROFILE_LOOP_VIDEO_FC;
       }
-      await invokeGenerateProfileLoopVideo(body);
+      await invokeGenerateProfileLoopVideo(body, {
+        onPollStatus: (status) => {
+          const msg =
+            status === "starting"
+              ? "Starting loop video on Grok…"
+              : status === "rendering"
+                ? "Rendering motion (this can take a few minutes)…"
+                : status === "saving"
+                  ? "Saving loop to your profile…"
+                  : "Loop ready.";
+          toast.loading(msg, { id: loadId });
+        },
+      });
       toast.success(hasExistingLoopVideo ? "Loop video updated" : "Looping portrait video saved", {
         id: loadId,
         description: "Added to this companion’s gallery. It may take a moment to show everywhere.",

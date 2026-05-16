@@ -8,7 +8,11 @@ export type GenerateProfileLoopVideoBody = {
   sourceGeneratedImageId?: string;
   /** Returned from the first invoke; client polls with only `jobId` until the video is ready. */
   jobId?: string;
+  /** Server-only: re-attach latest gallery / job MP4 to profile (see syncProfileLoopVideoToProfile). */
+  action?: "sync";
 };
+
+export type ProfileLoopPollStatus = "starting" | "rendering" | "saving" | "complete";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -41,10 +45,15 @@ const PROFILE_LOOP_POLL_MAX = 200;
  */
 export async function invokeGenerateProfileLoopVideo(
   body: GenerateProfileLoopVideoBody,
-  options?: { headers?: Record<string, string> },
+  options?: {
+    headers?: Record<string, string>;
+    onPollStatus?: (status: ProfileLoopPollStatus) => void;
+  },
 ): Promise<{ success: true; publicUrl?: string; durationSeconds?: number }> {
   const headers = options?.headers;
+  const onPollStatus = options?.onPollStatus;
   let nextBody: Record<string, unknown> = { ...body };
+  let pollPhase: ProfileLoopPollStatus = "starting";
 
   for (let i = 0; i < PROFILE_LOOP_POLL_MAX; i++) {
     const { data, error } = await supabase.functions.invoke("generate-profile-loop-video", {
@@ -53,17 +62,21 @@ export async function invokeGenerateProfileLoopVideo(
     });
 
     if (profileLoopVideoResponseSucceeded(data)) {
+      onPollStatus?.("complete");
       return data as { success: true; publicUrl?: string; durationSeconds?: number };
     }
 
     const d = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
     if (d && d.success === true && d.phase === "poll" && typeof d.jobId === "string") {
       nextBody = { jobId: d.jobId };
+      pollPhase = i === 0 ? "starting" : pollPhase === "starting" ? "rendering" : "saving";
+      onPollStatus?.(pollPhase);
       const wait =
         typeof d.pollAfterMs === "number" && Number.isFinite(d.pollAfterMs) && d.pollAfterMs > 200
           ? Math.min(15_000, Math.floor(d.pollAfterMs))
           : 4000;
       await sleep(wait);
+      if (pollPhase === "starting") pollPhase = "rendering";
       continue;
     }
 
