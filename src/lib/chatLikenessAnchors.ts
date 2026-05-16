@@ -3,7 +3,7 @@
  * (face, hair, eyes, lips, hands, legs, body, species, ears, tattoos). Outfit, pose, room,
  * props, and lighting come from the menu / USER SCENE — not the card background.
  *
- * Edge mirror: `supabase/functions/_shared/chatLikenessAnchors.ts` (keep `CHAT_LIKENESS_SUBJECT_FEATURES_INLINE` in sync).
+ * Edge mirror: `supabase/functions/_shared/chatLikenessAnchors.ts` — keep `CHAT_LIKENESS_SUBJECT_FEATURES_INLINE` and `CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK` text in sync.
  */
 
 /** Features safe to mine from roster text or match from a likeness portrait URL. */
@@ -13,6 +13,12 @@ export const CHAT_LIKENESS_SUBJECT_FEATURES_INLINE =
 /** What must not leak from a roster still or old card prose when the menu differs. */
 export const CHAT_LIKENESS_SCENE_FORBIDDEN_INLINE =
   "backdrop, furniture, floor, sky, throne, bench, studio cyclorama, marketing set, props, crop geometry, catalog head-tilt pose, stare-into-lens portrait framing, or costume from that photo or card text";
+
+/**
+ * Image models over-index “boudoir / editorial” into a generic **chair** pose. Bind explicitly for chat stills.
+ * Edge copies this wording in `imageGenerationContentTier.ts` + `safeImagePromptRewriter.ts` — keep in sync.
+ */
+export const CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK = `**No default chair (binding):** Unless the menu or user text **explicitly** names a chair, stool, throne, bench, or vehicle seat, do **not** seat the subject in a generic office chair, dining chair, or velvet armchair. Match the described scene: standing, doorway or wall lean, walking, vanity or mirror arm-length POV, shower steam, bed (surface interaction), balcony railing, gym mirror, kitchen island, car interior, beach, trail, snowfield, etc. A random lone chair as the hero prop is a failure mode unless requested.`;
 
 /** Prepended to free-typed image briefs so identity rails match menu tiles. */
 export const CHAT_LIKENESS_FREEFORM_IDENTITY_LEAD = `**IDENTITY (typed request — same rules as + menu):** You must render **this roster companion only** — the same individual as CHARACTER APPEARANCE and any supplied roster portrait URL (${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE}). **Forbidden:** a different face, a generic catalog model, a “similar vibe” actress, race-swap, or younger/older substitute. **Scene:** the user’s words define **place, weather, architecture, and props** — execute them literally; **do not** replace a requested snowy cabin, beach, gym, car interior, etc. with the sofa, bedroom, or studio backdrop from the roster photo unless they explicitly asked for that same room. **Facial identity** is locked; **environment follows the user.**`;

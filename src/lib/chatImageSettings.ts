@@ -1,5 +1,6 @@
 /** Per-companion: skip "Generate image" confirmation and spend immediately. */
 import {
+  CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK,
   CHAT_LIKENESS_FREEFORM_IDENTITY_LEAD,
   CHAT_LIKENESS_MENU_PRESET_IDENTITY_LEAD,
   CHAT_LIKENESS_SCENE_PRIMACY_FOOTER,
@@ -95,7 +96,7 @@ export const FAB_SELFIE = {
     imagePrompt:
       "Tasteful lewd natural selfie: **must be this exact roster companion** — obey CHARACTER REFERENCE / portrait first for face, hair, eyes, skin tone, body type, tattoos; **do not change facial features**; not a different model. Wardrobe: lingerie, sheer layers, short shorts, tanks, wet fabric with coverage, silk sheets, editorial tease — **never** hardcore staging. Natural selfie: arm-extended or mirror shot — **no phone visible**. **Strong negative:** " +
       CHAT_LEWD_SAFE_IMAGINE_NEGATIVE_LINE +
-      ". **Pose families:** fabric-aware curves, mirror tease, seated lean, steam/sheer silhouette — vary each generation.",
+      ". **Pose families (vary each generation — no default chair):** standing or wall-lean tease, vanity/mirror three-quarter, fabric-aware curves in motion, steam/sheer silhouette — **only** use bed/floor/seated furniture if that surface is clearly implied by the scene text.",
   },
 
   nude: {
@@ -108,7 +109,7 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "Artistic nude natural selfie: **must be this exact roster companion** — fine-art boudoir framing; same person (face, eyes, lips, hair, ears, hands, legs, identity lock); **do not change facial features**; believable photoreal body if reference is stylized. Soft cinematic light, graceful pose, elegant sensuality — **no** graphic anatomy, explicit acts, or obscene angles. Natural or studio light; editorial mood. **Pose families:** draped sheet, profile line, seated twist, modest silhouette — vary set and lens each generation.",
+      "Artistic nude natural selfie: **must be this exact roster companion** — fine-art boudoir framing; same person (face, eyes, lips, hair, ears, hands, legs, identity lock); **do not change facial features**; believable photoreal body if reference is stylized. Soft cinematic light, graceful pose, elegant sensuality — **no** graphic anatomy, explicit acts, or obscene angles. Natural or studio light; editorial mood. **Pose families (vary — no default chair):** draped sheet, standing profile or contrapposto, wall lean, modest silhouette or implied nude — **only** seated-on-surface if the scene names bed, bath, chaise, or similar.",
   },
 } as const;
 
@@ -124,6 +125,8 @@ export const CHAT_STILL_MENU_QUALITY_AND_ANATOMY = `**Generation quality (bindin
 **Likeness vs scene (binding):** strongly match the companion reference for **face, eyes, lips, hair, hands, legs, skin, species marks, and body-type scale** — **outfit, pose, background, props, and lighting** only from this menu line plus the chat scenario; do not remaster the roster packshot layout or copy its wardrobe or backdrop.
 
 ${CHAT_IMAGINE_SELFIE_NO_PHONE_BLOCK}
+
+${CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK}
 
 ${CHAT_LIKENESS_STILL_MENU_IDENTITY_TAIL}`;
 
@@ -433,7 +436,8 @@ export function resolveChatImageGenerationPrompt(args: {
     const coherence =
       "\n\n**FORGE_VISUAL_IDENTITY (in master prompt):** binding for **hair, eyes, lips, skin, hands, legs, species, body type, musculature/curves, and art style (anime vs photoreal vs creature)** — **not** for outfit, room, pose, or “smoke person” mood boards; those follow **Requested framing** (and FORGE_VISUAL_IDENTITY caps atmosphere vs face priority)." +
       `\n\n${CHAT_LIKENESS_SCENE_PRIMACY_FOOTER}` +
-      "\n\n**SHOT GEOMETRY (binding):** If the menu or user text mentions lying, bent over, legs up, bathtub, beach, snowy cabin, winter lodge, forest cabin, car, limousine, gym, office, desk, bed, shower, silk sheets, lingerie, wall, workout, dress, kitchen, etc., the final image must **show that configuration and setting clearly** — not a substitute “same card, different angle” or “pretty subject standing at camera” shot.";
+      "\n\n**SHOT GEOMETRY (binding):** If the menu or user text mentions lying, bent over, legs up, bathtub, beach, snowy cabin, winter lodge, forest cabin, car, limousine, gym, office, desk, bed, shower, silk sheets, lingerie, wall, workout, dress, kitchen, etc., the final image must **show that configuration and setting clearly** — not a substitute “same card, different angle” or “pretty subject standing at camera” shot." +
+      `\n\n${CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK}`;
     if (styled) {
       const fused = (
         `— Requested framing (from menu) —\n${subjectAnchor}${styled}\n\n${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}${tierRails}\n\n**Exposure / tone context (not the shot layout):**\n${menu}${coherence}`

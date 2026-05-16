@@ -7,6 +7,7 @@
  * Used by `safe-image-prompt` and `generate-image`.
  */
 
+import { CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK } from "./chatLikenessAnchors.ts";
 import { resolveXaiApiKey } from "./resolveXaiApiKey.ts";
 import { defaultGrokRewriteModel, grokSingleChatAssistantText } from "./xaiGrokChatRaw.ts";
 
@@ -19,8 +20,8 @@ export type ImagineRewriteMode = "chat_session" | "portrait_card" | "tasteful_ad
  * Gender-neutral — identity comes from CONTEXT (face, hair, presentation).
  */
 export const CHAT_IMAGE_ARTISTIC_STYLE_ANCHOR = [
-  "Elegant subject matching CONTEXT identity, seductive and artistic photography, sensual pose, elegant lighting,",
-  "tasteful sensual aesthetic, soft cinematic lighting, highly detailed, alluring expression, seductive atmosphere,",
+  "Elegant subject matching CONTEXT identity, seductive editorial photography, **dynamic stance** — standing, doorway lean, mirror, environmental interaction — not a default armchair portrait; elegant lighting,",
+  "tasteful sensual aesthetic, soft cinematic lighting, highly detailed, alluring expression, charged atmosphere,",
   "artistic nude style when nudity fits the scene, graceful and beautiful — premium boudoir / editorial glamour.",
 ].join(" ");
 
@@ -51,7 +52,7 @@ YOUR JOB: output **one** final English image prompt (plain text only — no mark
 6) **Style anchor:** naturally weave this mood into your output (paraphrase OK; do not paste as a disconnected tagline):
    ${CHAT_IMAGE_ARTISTIC_STYLE_ANCHOR}
 
-7) **Vague requests** ("pic", "selfie", "show me"): default flattering **upper body / three-quarter / boudoir** framing with wardrobe and set that fit CONTEXT personality — not explicit spreads unless RAW_TEXT clearly asked.
+7) **Vague requests** ("pic", "selfie", "show me"): invent a **specific** flattering scene from CONTEXT — mirror corner, balcony light, vanity, doorway rim light, walk-in closet, gym mirror, shower steam, bed linens, kitchen counter lean, street golden hour — **not** the same velvet armchair / office chair / dining chair every time. Upper body or three-quarter OK; **do not** collapse to a generic seated chair portrait unless RAW_TEXT names a chair.
 
 8) Never instruct legible logos, watermarks, fake UI, or on-image text.
 
@@ -62,14 +63,16 @@ YOUR JOB: output **one** final English image prompt (plain text only — no mark
 11) **Gallery / menu preset (RAW_TEXT contains "Requested framing (from menu)" or "Requested framing"):**
 Treat the prose under that heading as a **location + wardrobe + pose + camera shot list**.
 Every concrete place (car interior, beach, bathtub, desk, bed, shower, gym, balcony, etc.), prop, outfit beat, body attitude, and lens note must survive in meaning in your rewrite — **do not** collapse into a generic head-and-shoulders portrait, phone-mirror bathroom selfie, or catalog “card photo” unless RAW_TEXT explicitly demands that exact framing.
-The **Exposure / tone context** block (if present) sets SFW vs lewd vs artistic-nude **band only** — it is **not** a second scene; do not let it replace the menu’s background or outfit.`;
+The **Exposure / tone context** block (if present) sets SFW vs lewd vs artistic-nude **band only** — it is **not** a second scene; do not let it replace the menu’s background or outfit.
+
+12) **Chair discipline (always for chat_session):** ${CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK}`;
 
 /** Forge / gallery / admin: same crude→artistic rules as chat; RAW_TEXT is usually a design brief. */
 export const TASTEFUL_ADULT_BRIEF_REWRITER_SYSTEM = CHAT_SESSION_IMAGE_REWRITER_SYSTEM.replace(
   "INPUT: RAW_TEXT (user chat, menu selfie brief, or roleplay line). It may be crude or explicit. Optional CONTEXT holds character notes, portrait lock, forge body type, art style, and scene hints.",
   "INPUT: RAW_TEXT — usually a **design brief**, forge field, or catalog description (may be long or technical; may contain crude fragments). Optional CONTEXT holds character notes, portrait lock, forge body type, art style, and scene hints.",
 ).replace(
-  "7) **Vague requests** (\"pic\", \"selfie\", \"show me\"): default flattering **upper body / three-quarter / boudoir** framing with wardrobe and set that fit CONTEXT personality — not explicit spreads unless RAW_TEXT clearly asked.",
+  "7) **Vague requests** (\"pic\", \"selfie\", \"show me\"): invent a **specific** flattering scene from CONTEXT — mirror corner, balcony light, vanity, doorway rim light, walk-in closet, gym mirror, shower steam, bed linens, kitchen counter lean, street golden hour — **not** the same velvet armchair / office chair / dining chair every time. Upper body or three-quarter OK; **do not** collapse to a generic seated chair portrait unless RAW_TEXT names a chair.",
   "7) **Sparse briefs:** expand into a full cinematic scene using CONTEXT — still tasteful and provider-safe; do not invent hardcore staging.",
 );
 

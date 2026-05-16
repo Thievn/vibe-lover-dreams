@@ -25,6 +25,7 @@ import {
 } from "@/lib/characterReferenceImagePrompt";
 import { buildCompanionVisualIdentityCapsule } from "@/lib/buildCompanionVisualIdentityCapsule";
 import {
+  CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK,
   CHAT_LIKENESS_SCENE_FORBIDDEN_INLINE,
   CHAT_LIKENESS_SUBJECT_FEATURES_INLINE,
   chatLikenessSameSubjectMandate,
@@ -159,29 +160,29 @@ function shotVariationBlock(mood: FabSelfieTier, seed: number): string {
     "Slight hip shift + relaxed shoulders; eyes to lens.",
     "Three-quarter turn with chin low — friendly confidence.",
     "One hand in hair, arm-extended POV — **no phone or screen visible**.",
-    "Seated lean-forward — engaged, conspiratorial smile.",
+    "Doorway or wall lean — engaged smile; **no chair** unless scene names one.",
   ] as const;
   const lewdSets = [
-    "Velvet lounge or hotel lamp pool — warm pools of light.",
+    "Warm spotlight in a private interior — standing or lean; avoid random armchair hero props.",
     "Steam-soft bathroom glass or marble — tasteful silhouette beats.",
-    "Neon rim + deep shadow alley or private studio — cinematic tease.",
-    "Sunset balcony with sheer curtain — wind and fabric motion.",
+    "Neon rim + deep shadow alley or corridor — cinematic tease on foot.",
+    "Sunset balcony with sheer curtain — wind and fabric motion at the railing.",
   ] as const;
   const lewdPose = [
     "Torso twist with weight on back foot — curve read without crude staging.",
     "Over-shoulder glance — **tasteful backshot** framing, fabric implying form.",
-    "Seated edge-of-bed lean — knees angled, editorial lingerie grammar.",
+    "Standing at vanity or mirror edge — editorial lingerie grammar; **no dining chair**.",
     "Mirror three-quarter — outfit story legible, face still hero.",
   ] as const;
   const nudeSets = [
-    "Fine-art boudoir: silk-draped chaise, single key light.",
+    "Fine-art boudoir: silk-draped surface or standing key light — **not** a generic office chair.",
     "Moonlit balcony silhouette — body as shape language, not graphic.",
     "Marble / steam atmosphere — highlights on collarbones and spine curve.",
     "Studio fog + black seamless — sculptural nude, graceful contrapposto.",
   ] as const;
   const nudePose = [
     "Arms loose, torso long — breath-in grace, no explicit spread.",
-    "Seated twist, one knee raised — modest triangle composition.",
+    "Standing twist with weight shift — modest triangle composition; **no stool default**.",
     "Standing profile or 3/4 — line of back and neck as focal curve.",
     "Sheet-wrap or fabric drape — implied nude, editorial restraint.",
   ] as const;
@@ -318,6 +319,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
 
   const tech = [
     "— CAPTURE / FRAMING —",
+    CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK,
     menuSceneLock
       ? "Single-subject, vertical 2:3; match camera grammar implied by **Requested framing (from menu)** (natural selfie POV, mirror, tripod, environmental shot, etc.) — **avoid a visible smartphone in hand** — and the time period; premium lens, coherent depth of field."
       : "Single-subject, vertical 2:3 card-style natural selfie POV, mirror, tripod, or partner-held frame — **no phone visible** — matching the time period; premium lens, coherent depth of field.",
