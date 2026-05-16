@@ -1,8 +1,12 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { PORTRAIT_IMAGE_DESIGN_BRIEF } from "./portraitImageDesignBrief.ts";
 import { buildAnatomyImagineKeyRules, buildAnatomyRewriterDirective, resolveAnatomyVariant } from "./anatomyImageRules.ts";
-import type { ImageContentTier } from "./imageGenerationContentTier.ts";
-import { resolveImageContentTier, UNIVERSAL_NON_PREVIEW_IMAGE_BASE } from "./imageGenerationContentTier.ts";
+import {
+  IMAGINE_META_NO_ON_CANVAS_TEXT,
+  resolveImageContentTier,
+  type ImageContentTier,
+  UNIVERSAL_NON_PREVIEW_IMAGE_BASE,
+} from "./imageGenerationContentTier.ts";
 import { rewritePromptForImagine } from "./safeImagePromptRewriter.ts";
 import {
   buildAnimeTemptationStyleLead,
@@ -72,11 +76,12 @@ async function buildFullAdultArtPortraitPrompt(
   return `
 ${animeLead}${dna ? `${dna}\n\n` : ""}${UNIVERSAL_NON_PREVIEW_IMAGE_BASE}
 
-Adults-only companion product. Admin / roster portrait refresh (not Forge live preview). Follow provider content policies; do not depict minors.
+${IMAGINE_META_NO_ON_CANVAS_TEXT}
 
 Create a highly detailed, cinematic, vertical 2:3 portrait of ${baseDescription}.
 
 Visual rules:
+- **No text from this prompt on the canvas:** Do not paint META/policy lines, markdown headers, or slogans as visible typography (including gold captions). Pure portrait scene only.
 - No legible logos, watermarks, UI chrome, or fake app branding in-frame.
 - **Tasteful adult:** sensual nude, lingerie, wet fabric, and strong tease are in-bounds; avoid hardcore pornographic depiction, graphic penetration, or obscene gynecological close-ups — premium boudoir / editorial tone.
 - ${anatomyKey}

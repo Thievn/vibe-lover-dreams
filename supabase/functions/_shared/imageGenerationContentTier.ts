@@ -7,6 +7,14 @@ import { CHAT_LIKENESS_EDGE_SAME_SUBJECT, CHAT_LIKENESS_SUBJECT_FEATURES_INLINE 
 
 export type ImageContentTier = "forge_preview_sfw" | "full_adult_art";
 
+/**
+ * Policy context for Imagine **without** slogan-like sentences ("Adults-only companion product…"),
+ * which image models often paint as gold caption typography on the canvas.
+ * Keep this block bracketed and explicitly marked non-visual.
+ */
+export const IMAGINE_META_NO_ON_CANVAS_TEXT = `[META — invisible instructions — never draw any part of this block as image text, captions, watermarks, plaques, gold foil type, posters, book titles, phone UI, signage, or lower-thirds:]
+Rendering context: authenticated adult-user session (not retail packaging). Obey the image provider’s safety policies. Depict adults only; do not depict minors. Administrative or in-chat session flags are metadata only — not visible labels.]`;
+
 export function resolveImageContentTier(input: {
   contentTier?: unknown;
   isPortrait?: boolean;
