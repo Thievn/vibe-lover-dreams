@@ -11,7 +11,6 @@ import {
 } from "@/lib/chatLikenessAnchors";
 import {
   CHARACTER_REFERENCE_INTRO_LINES,
-  CHAT_LEWD_SAFE_IMAGINE_NEGATIVE_LINE,
   IMAGINE_QUALITY_NEGATIVE_LINE,
   IMAGINE_QUALITY_POSITIVE_LINE,
 } from "@/lib/characterReferenceImagePrompt";
@@ -62,12 +61,38 @@ export function incrementFreeNsfwImagesUsed(userId: string, companionId: string)
 export { CHAT_SHORT_VIDEO_FC as CHAT_VIDEO_TOKEN_COST } from "@/lib/forgeEconomy";
 
 /** Binding for every FAB / gallery still that reads as a “selfie” — keeps Grok from painting a phone in hand. */
-export const CHAT_IMAGINE_SELFIE_NO_PHONE_BLOCK = `**Natural selfie (binding — no phone):** natural selfie, arm extended POV, mirror selfie, tripod timer, or partner-held camera — **do NOT** show a phone in hand; **no phone visible at all** (no smartphone, screen, bezel, case, or selfie stick). Eyes to lens; believable candid energy.`;
+export const CHAT_IMAGINE_SELFIE_NO_PHONE_BLOCK = `**No phone in frame:** arm-extended POV, mirror, tripod, or partner-held camera only — zero smartphone / screen / case visible.`;
 
-/** Sensual tier: suggestive wardrobe / editorial heat; strict negatives (matches product-safe Imagine band). */
-export const CHAT_IMAGINE_LEWD_TASTEFUL_BLOCK = `**Sensual Moments tier — editorial thirst (binding):** lingerie, sheer clothing, silk sheets, wet T-shirt with coverage, short shorts, tank tops, open blouse, steam/sheer silhouette, seductive poses — premium perfume-ad / editorial heat only; **not** pornographic staging.
+/** Sensual tier — short; avoids burying likeness lines elsewhere. */
+export const CHAT_IMAGINE_LEWD_TASTEFUL_BLOCK = `**Sensual tier:** lingerie, sheer with coverage, silk, editorial tease — perfume-ad only; **not** explicit acts. **Hard no:** bare genitals, porn staging, phone in hand, deformed anatomy, extra fingers or duplicated limbs.`;
 
-**Strong negative (binding):** ${CHAT_LEWD_SAFE_IMAGINE_NEGATIVE_LINE}.`;
+/**
+ * Single opening block for Moments / menu + FAB paths: likeness beats everything else.
+ * Placed at the top of the fused “Requested framing” section (before smart-tile scene text).
+ */
+export const CHAT_MOMENTS_LIKENESS_FIRST_BLOCK = `**#1 PRIORITY — SAME PERSON AS MAIN PORTRAIT:** Face, hair, eyes, brows, skin tone, body type, tattoos, species marks, and **art style** must match the roster portrait + CHARACTER APPEARANCE — **not** a generic model, stock face, or “similar” influencer. **Forbidden:** remastering the profile card (same sofa room, catalog chair glam, head-and-shoulders packshot) unless the menu text names that exact place.
+
+${CHAT_LIKENESS_MENU_PRESET_IDENTITY_LEAD}
+
+${CHAT_LIKENESS_SUBJECT_ANCHOR}`;
+
+/** Default human anatomy; fantasy / non-human only when CHARACTER APPEARANCE explicitly says so. */
+export const CHAT_MOMENTS_ANATOMY_DEFAULT_BLOCK = `**#2 ANATOMY (default = human):** Exactly **two arms, two legs**, **five fingers per hand**, one face, natural joint count; **at most one tail** unless appearance text specifies multiple. **Unless CHARACTER APPEARANCE explicitly describes otherwise** (e.g. wings, extra limbs, tentacles, naga lower body, digit count, amputation) — do **not** add extra arms, legs, fingers, mirrored phantom limbs, fused or melted hands, stacked heads, or duplicate faces.`;
+
+/** Appended for Grok Imagine when a chat still tile supplies `styledSceneExtension` (Moments gallery). Likeness + anatomy first so they are not buried under quality fluff. */
+export const CHAT_STILL_MENU_QUALITY_AND_ANATOMY = `${CHAT_MOMENTS_ANATOMY_DEFAULT_BLOCK}
+
+**#3 RENDER QUALITY:** ${IMAGINE_QUALITY_POSITIVE_LINE}
+
+**Avoid:** ${IMAGINE_QUALITY_NEGATIVE_LINE}
+
+**Scene vs card:** Outfit, pose, background, props, light = **this menu + chat** only — do not copy roster packshot wardrobe, room, or crop.
+
+${CHAT_LIKENESS_STILL_MENU_IDENTITY_TAIL}
+
+${CHAT_IMAGINE_SELFIE_NO_PHONE_BLOCK}
+
+${CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK}`;
 
 /** Moments FAB tiers: Selfie (SFW) + Sensual (internal key \`lewd\`). */
 export const FAB_SELFIE = {
@@ -79,11 +104,9 @@ export const FAB_SELFIE = {
       "Show me how you look today 💕",
       "A cute selfie would make my day...",
     ],
-
     imagePrompt:
-      "SFW natural selfie: **must be this exact roster companion** — obey CHARACTER REFERENCE + portrait first for face, eyes, lips, hair, skin, body proportions (not a generic model). **Do not change facial features.** **New outfit and backdrop** for this shot (do not paste their roster/catalog swimsuit or costume unless this scene is explicitly swim/beach). Fully clothed public-safe wardrobe, flattering light, camera-aware pose — **not** lingerie-primary framing. Natural selfie: arm-extended POV or mirror — **no phone visible**. **Pose families:** front smile, three-quarter, tasteful over-shoulder (clothed), mirror fit-check — vary which you pick per generation.",
+      "**Selfie tier (SFW):** Same person as main portrait — face, hair, eyes, body, art style **unchanged**. New outfit + location from **Requested framing** only; fully clothed; no lingerie focus. POV/mirror/tripod — no phone visible. **Reject:** generic model, catalog room remaster, random chair portrait.",
   },
-
   lewd: {
     display: [
       "Send me something hot — surprise me 🔥",
@@ -92,30 +115,12 @@ export const FAB_SELFIE = {
       "Show me a sensual selfie, I'm ready...",
       "Don't be shy... let me see more of you 💋",
     ],
-
     imagePrompt:
-      "Tasteful sensual editorial selfie: **must be this exact roster companion** — obey CHARACTER REFERENCE / portrait first for face, hair, eyes, skin tone, body type, tattoos; **do not change facial features**; not a different model. Wardrobe: lingerie, sheer layers, short shorts, tanks, wet fabric with coverage, silk sheets, editorial tease — **never** hardcore staging. Natural selfie: arm-extended or mirror shot — **no phone visible**. **Strong negative:** " +
-      CHAT_LEWD_SAFE_IMAGINE_NEGATIVE_LINE +
-      ". **Pose families (vary each generation — no default chair):** standing or wall-lean tease, vanity/mirror three-quarter, fabric-aware curves in motion, steam/sheer silhouette — **only** use bed/floor/seated furniture if that surface is clearly implied by the scene text.",
+      "**Sensual tier:** Same person as main portrait — identity locked; not a different body or face. Lingerie / sheer / editorial tease only; no explicit acts; no phone. New pose + set from **Requested framing** only. **Reject:** generic glam model, sofa packshot, extra limbs or bad hands.",
   },
 } as const;
 
 export type FabSelfieTier = keyof typeof FAB_SELFIE;
-
-/** Appended for Grok Imagine when a chat still tile supplies `styledSceneExtension` (Moments gallery). */
-export const CHAT_STILL_MENU_QUALITY_AND_ANATOMY = `**Generation quality (binding):** ${IMAGINE_QUALITY_POSITIVE_LINE}.
-
-**Anti-artifact / anatomy (binding — humans and fantasy):** one coherent subject; **two arms and two legs** unless CHARACTER APPEARANCE explicitly describes a different limb count (insectoid extras, naga lower body, canon amputation, etc.); **human hands: exactly five fingers per hand** unless the written species explicitly calls for another digit count; no fused, duplicated, or melted fingers; no extra arms or legs, no phantom mirrored limbs; **at most one tail** unless appearance text explicitly describes multiple tails; no duplicate faces or stacked heads; avoid low-res blur, heavy JPEG wreckage, and warped perspective.
-
-**Negative prompt (avoid):** ${IMAGINE_QUALITY_NEGATIVE_LINE}
-
-**Likeness vs scene (binding):** strongly match the companion reference for **face, eyes, lips, hair, hands, legs, skin, species marks, and body-type scale** — **outfit, pose, background, props, and lighting** only from this menu line plus the chat scenario; do not remaster the roster packshot layout or copy its wardrobe or backdrop.
-
-${CHAT_IMAGINE_SELFIE_NO_PHONE_BLOCK}
-
-${CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK}
-
-${CHAT_LIKENESS_STILL_MENU_IDENTITY_TAIL}`;
 
 /**
  * Resolves chat line for + menu selfies: random line from `display` when it is an array
@@ -382,17 +387,25 @@ function fabTierImagineRails(menu: string): string {
 function wrapFabSceneWithAppearanceLock(inner: string, identityReference: string): string {
   const ref = identityReference.trim();
   if (!ref) return inner;
+  const lock = `**Likeness lock:** Reproduce **only** ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE} from the reference below — same person as main portrait. **Do not** copy this block's background, furniture, chair, crop, or outfit into the new scene.`;
   return [
+    "══════════════════════════════════════",
+    "**#0 CHARACTER REFERENCE — READ FIRST (identity only)**",
+    "══════════════════════════════════════",
+    "",
     CHARACTER_REFERENCE_INTRO_LINES,
     "",
     ref,
     "",
-    `Keep the exact same ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE} as in the character reference above — likeness only; **not** importing sofa, room, crop, or costume from any roster photo.`,
+    lock,
     "",
-    "Now generate this new scene:",
+    "══════════════════════════════════════",
+    "**SCENE TO RENDER (menu + instructions below)**",
+    "══════════════════════════════════════",
     "",
     inner.trim(),
     "",
+    "**Final check:** Subject = reference above; environment = **Requested framing** only.",
     CHAT_LIKENESS_WRAP_KEEP_LINE,
   ].join("\n");
 }
@@ -417,17 +430,14 @@ export function resolveChatImageGenerationPrompt(args: {
   const appearanceRef =
     (args.characterReference?.trim() || args.appearanceReference?.trim() || "").trim();
   if (menu) {
-    const subjectAnchor = `${CHAT_LIKENESS_MENU_PRESET_IDENTITY_LEAD}\n\n${CHAT_LIKENESS_SUBJECT_ANCHOR}\n\n`;
+    const subjectAnchor = `${CHAT_MOMENTS_LIKENESS_FIRST_BLOCK}\n\n`;
     const lewdLighting =
       menuMatchesFabTier(menu, "lewd")
-        ? "\n\n**Lighting accent (sensual tier):** seductive editorial / key-art lighting — keep the **face sharp and readable**, not blown out by bloom."
+        ? "\n\n**Sensual lighting:** Key the face clearly — no mushy bloom on eyes or mouth."
         : "";
     const tierRails = fabTierImagineRails(menu);
     const coherence =
-      "\n\n**FORGE_VISUAL_IDENTITY (in master prompt):** binding for **hair, eyes, lips, skin, hands, legs, species, body type, musculature/curves, and art style (anime vs photoreal vs creature)** — **not** for outfit, room, pose, or “smoke person” mood boards; those follow **Requested framing** (and FORGE_VISUAL_IDENTITY caps atmosphere vs face priority)." +
-      `\n\n${CHAT_LIKENESS_SCENE_PRIMACY_FOOTER}` +
-      "\n\n**SHOT GEOMETRY (binding):** If the menu or user text mentions lying, bent over, legs up, bathtub, beach, snowy cabin, winter lodge, forest cabin, car, limousine, gym, office, desk, bed, shower, silk sheets, lingerie, wall, workout, dress, kitchen, etc., the final image must **show that configuration and setting clearly** — not a substitute “same card, different angle” or “pretty subject standing at camera” shot." +
-      `\n\n${CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK}`;
+      `\n\n**Forge look DNA (not the photograph):** hair, eyes, skin, species, body type, art style — from CHARACTER APPEARANCE + portrait; **not** sofa, wall, or outfit from the card unless the menu says so.\n\n${CHAT_LIKENESS_SCENE_PRIMACY_FOOTER}\n\n**Shot:** Match **Requested framing** literally (place, pose, wardrobe). **No** substitute “pretty person standing in plain room.”\n\n${CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK}`;
     if (styled) {
       const fused = (
         `— Requested framing (from menu) —\n${subjectAnchor}${styled}\n\n${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}${tierRails}\n\n**Exposure / tone context (not the shot layout):**\n${menu}${coherence}`
