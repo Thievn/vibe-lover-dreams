@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON, inferChatMediaRoute } from "@/lib/chatVisualRouting";
 import { LIVE_CALL_CREDITS_PER_MINUTE } from "@/lib/liveCallBilling";
 import { setChatSessionMode as persistChatSessionMode } from "@/lib/chatSessionMode";
-import { CHAT_IMAGE_LEWD_FC, CHAT_IMAGE_NUDE_FC } from "@/lib/forgeEconomy";
+import { CHAT_IMAGE_LEWD_FC } from "@/lib/forgeEconomy";
 import { DailyFreeMessagesBar } from "@/components/chat/DailyFreeMessagesBar";
 import { CHAT_VIDEO_TOKEN_COST, FAB_SELFIE, setChatAutoSpendImages } from "@/lib/chatImageSettings";
 import { resolveBreedingRitualPartnerB } from "@/lib/breedingRitualPartner";
@@ -406,7 +406,7 @@ export function MobileChatLayout(props: UseChatSessionControllerReturn) {
             tokensBalance={tokensBalance}
             tokenCost={chatDailyQuotaUi.nextMessageFc}
             textQuotaRemaining={user ? chatDailyQuotaUi.remainingFree : null}
-            imageTokenCost={CHAT_IMAGE_NUDE_FC}
+            imageTokenCost={CHAT_IMAGE_LEWD_FC}
             videoTokenCost={CHAT_VIDEO_TOKEN_COST}
             imageSubmitTitle={imageSubmitTitle}
             videoSubmitTitle={videoSubmitTitle}

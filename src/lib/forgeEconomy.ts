@@ -32,11 +32,11 @@ export const LIVE_VOICE_FC_PER_MINUTE = 25;
  */
 export const LIVE_CHAT_FC_PER_MINUTE = 25;
 
-/** Selfie / lewd (non-nude) still from chat. */
+/** Sensual / editorial Moments still from chat (Grok Imagine; same rewriter stack as legacy “lewd” label). */
 export const CHAT_IMAGE_LEWD_FC = 20;
 
-/** Artistic nude / explicit-tier chat still (Grok Imagine; same rewriter stack as lewd). */
-export const CHAT_IMAGE_NUDE_FC = 30;
+/** @deprecated Use `CHAT_IMAGE_LEWD_FC`. Moments stills use a single sensual-tier price. */
+export const CHAT_IMAGE_NUDE_FC = CHAT_IMAGE_LEWD_FC;
 
 /** One companion finalized from Companion Forge. */
 export const FORGE_CREATE_COMPANION_FC = 150;

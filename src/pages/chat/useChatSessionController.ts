@@ -73,7 +73,6 @@ import {
 } from "@/lib/ttsVoicePresets";
 import {
   CHAT_IMAGE_LEWD_FC,
-  CHAT_IMAGE_NUDE_FC,
   CHAT_MESSAGE_FC_AFTER_DAILY_FREE,
   DAILY_FREE_CHAT_MESSAGES,
 } from "@/lib/forgeEconomy";
@@ -794,14 +793,8 @@ export function useChatSessionController() {
         isExplicitImageRequest(genOpts.rawUserMessage) || isExplicitImageRequest(userRequest);
       const freeUsed = getFreeNsfwImagesUsed(userId, companion.id);
       const useFreeNsfwSlot = genOpts.fromMenu && explicit && freeUsed < FREE_NSFW_CHAT_IMAGES;
-      const imageMood = classifyChatImageMood({
-        rawUserMessage: genOpts.rawUserMessage,
-        menuBasePrompt: genOpts.menuImagePrompt,
-      });
-      /** Nude tier still bills separately; all chat stills use Grok Imagine + artistic rewriter (Tensor nude path retired). */
-      const nudeTier = imageMood === "nude";
-      const lewdOrNudeFc = nudeTier ? CHAT_IMAGE_NUDE_FC : CHAT_IMAGE_LEWD_FC;
-      const tokenCost = isAdminUser || useFreeNsfwSlot ? 0 : lewdOrNudeFc;
+      /** Moments stills: single FC tier (sensual uses same price as legacy “lewd”). */
+      const tokenCost = isAdminUser || useFreeNsfwSlot ? 0 : CHAT_IMAGE_LEWD_FC;
 
       const menuSceneLock = genOpts.lockSceneToMenuPreset === true;
       const { prompt: masterPrompt, portraitConsistencyLock, visualIdentityCapsule } = buildMasterChatImagePrompt({
@@ -1855,8 +1848,8 @@ export function useChatSessionController() {
       return;
     }
     if (action === "nude_picture") {
-      void sendMessage(resolveFabDisplay(FAB_SELFIE.nude.display), {
-        imageGenerationPrompt: FAB_SELFIE.nude.imagePrompt,
+      void sendMessage(resolveFabDisplay(FAB_SELFIE.lewd.display), {
+        imageGenerationPrompt: FAB_SELFIE.lewd.imagePrompt,
         bypassImageConfirmation: true,
         imageRequestFromMenu: true,
       });
@@ -1972,12 +1965,7 @@ export function useChatSessionController() {
     const { prompt, rawUserMessage, fromMenu, menuImagePrompt, lockSceneToMenuPreset } = imageGenPending;
     const explicit = isExplicitImageRequest(prompt) || isExplicitImageRequest(rawUserMessage);
     const freeUsed = getFreeNsfwImagesUsed(user.id, companion.id);
-    const menuP = imageGenPending.menuImagePrompt;
-    const pendingMood = classifyChatImageMood({
-      rawUserMessage: imageGenPending.rawUserMessage,
-      menuBasePrompt: menuP,
-    });
-    const pendingImageFc = pendingMood === "nude" ? CHAT_IMAGE_NUDE_FC : CHAT_IMAGE_LEWD_FC;
+    const pendingImageFc = CHAT_IMAGE_LEWD_FC;
     const needTokens = isAdminUser
       ? 0
       : fromMenu && explicit && freeUsed < FREE_NSFW_CHAT_IMAGES
@@ -2092,12 +2080,7 @@ export function useChatSessionController() {
     const explicitReq =
       isExplicitImageRequest(promptForImage) || isExplicitImageRequest(messageText);
     const freeUsed = getFreeNsfwImagesUsed(user.id, companion.id);
-    const menuForCharge = options?.imageGenerationPrompt ?? null;
-    const imageMoodForCharge = classifyChatImageMood({
-      rawUserMessage: messageText,
-      menuBasePrompt: menuForCharge,
-    });
-    const imagePerGenFc = imageMoodForCharge === "nude" ? CHAT_IMAGE_NUDE_FC : CHAT_IMAGE_LEWD_FC;
+    const imagePerGenFc = CHAT_IMAGE_LEWD_FC;
     const imageCharge = isAdminUser
       ? 0
       : imageRequestFromMenu && explicitReq && freeUsed < FREE_NSFW_CHAT_IMAGES
@@ -2426,14 +2409,6 @@ export function useChatSessionController() {
       });
       return;
     }
-    if (fabId === "selfie_nude") {
-      void sendMessage(resolveFabDisplay(FAB_SELFIE.nude.display), {
-        imageGenerationPrompt: FAB_SELFIE.nude.imagePrompt,
-        bypassImageConfirmation: true,
-        imageRequestFromMenu: true,
-      });
-      return;
-    }
     if (fabId === "vibration") {
       if (!hasDevice) {
         toast.error("Connect a Lovense toy first.");
@@ -2542,11 +2517,7 @@ export function useChatSessionController() {
   const rawDraftMediaRoute = input.trim() ? inferChatMediaRoute(input, false) : "text";
   const draftMediaRoute =
     CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON && rawDraftMediaRoute === "video" ? "text" : rawDraftMediaRoute;
-  const draftImageStillFc =
-    draftMediaRoute === "image" &&
-    classifyChatImageMood({ rawUserMessage: input, menuBasePrompt: null }) === "nude"
-      ? CHAT_IMAGE_NUDE_FC
-      : CHAT_IMAGE_LEWD_FC;
+  const draftImageStillFc = CHAT_IMAGE_LEWD_FC;
   const imageSubmitTitle =
     isAdminUser
       ? "Send still"
@@ -2559,14 +2530,7 @@ export function useChatSessionController() {
           : "Send still";
   const videoSubmitTitle = isAdminUser ? "Send clip" : `Send clip (${CHAT_VIDEO_TOKEN_COST} FC)`;
   const pendingExplicit = imageGenPending ? isExplicitImageRequest(imageGenPending.prompt) : false;
-  const pendingGenFc = imageGenPending
-    ? classifyChatImageMood({
-        rawUserMessage: imageGenPending.rawUserMessage,
-        menuBasePrompt: imageGenPending.menuImagePrompt,
-      }) === "nude"
-      ? CHAT_IMAGE_NUDE_FC
-      : CHAT_IMAGE_LEWD_FC
-    : CHAT_IMAGE_LEWD_FC;
+  const pendingGenFc = CHAT_IMAGE_LEWD_FC;
   const pendingImageButtonLabel =
     isAdminUser
       ? "Generate image"

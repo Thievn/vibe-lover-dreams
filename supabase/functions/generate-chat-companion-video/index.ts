@@ -228,7 +228,7 @@ Deno.serve(async (req) => {
     const beat = motionBeats[Math.floor(Math.random() * motionBeats.length)] ?? motionBeats[0];
     const moodLine =
       clipMood === "sfw"
-        ? "SFW / flirty: cute playful motion, outfit stays on, no nudity."
+        ? "SFW / flirty: cute playful motion, outfit stays fully on, modest coverage."
         : clipMood === "nude"
           ? "Explicit-leaning if the still supports it; sensual body motion."
           : "Lewd / lingerie tease, NSFW-leaning, matching the still.";

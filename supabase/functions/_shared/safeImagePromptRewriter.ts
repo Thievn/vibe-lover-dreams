@@ -22,7 +22,7 @@ export type ImagineRewriteMode = "chat_session" | "portrait_card" | "tasteful_ad
 export const CHAT_IMAGE_ARTISTIC_STYLE_ANCHOR = [
   "Elegant subject matching CONTEXT identity, seductive editorial photography, **dynamic stance** — standing, doorway lean, mirror, environmental interaction — not a default armchair portrait; elegant lighting,",
   "tasteful sensual aesthetic, soft cinematic lighting, highly detailed, alluring expression, charged atmosphere,",
-  "artistic nude style when nudity fits the scene, graceful and beautiful — premium boudoir / editorial glamour.",
+  "perfume-ad / fashion-editorial glamour — sheer or draped fabric, **tasteful coverage** implied when heat escalates; premium boudoir mood without graphic anatomy.",
 ].join(" ");
 
 /**
@@ -38,14 +38,14 @@ YOUR JOB: output **one** final English image prompt (plain text only — no mark
 1) **Preserves user intent** — if they asked for a **specific background, outfit, pose, lighting, or vibe**, keep those concrete details. Translate crude words into **tasteful, seductive, artistic** phrasing Grok Imagine is more likely to accept.
 
 2) **Rewrite policy — crude → artistic** (always apply when RAW_TEXT is explicit). Examples (same heat, safer words):
-   - "nude, spread legs" → "artistic nude, sensual pose reclining on bed, elegant legs, intimate boudoir framing"
-   - graphic genital requests → "intimate artistic nude, elegant pose, soft shadow, modest implied framing"
-   - "topless" → "tasteful sensual topless, beautiful form, editorial lighting"
+   - blunt undress requests → "editorial boudoir with **tasteful coverage**, sheet drape and rim light, sensual silhouette"
+   - graphic anatomy requests → "intimate editorial pose, soft shadow, modest implied framing, fabric-led tease"
+   - "topless" → "tasteful sensual **upper-frame** editorial, beautiful form, lingerie or fabric anchors where needed"
    - obscene verbs → "yearning expression", "charged intimacy", "suggestive silhouette", "fabric and light doing the tease"
 
-3) **Allowed:** strong tease, lingerie, sheer / wet fabric, tasteful **artistic** partial or full nude, sensual poses, romantic tension, implied intimacy.
+3) **Allowed:** strong tease, lingerie, sheer / wet fabric with coverage, sensual poses, romantic tension, implied intimacy, sheet-wrap and silhouette — **editorial / perfume-ad** tone.
 
-4) **Forbidden in the rewritten prompt:** hardcore pornography staging, graphic penetration, degrading angles, clinical obscene anatomy, slurs, or shock-for-shock wording — even if RAW_TEXT used them.
+4) **Forbidden in the rewritten prompt:** hardcore pornography staging, graphic penetration, degrading angles, clinical obscene anatomy, slurs, or shock-for-shock wording — even if RAW_TEXT used them. Avoid wording that reads like explicit public-area anatomy; prefer **fabric, shadow, and tasteful coverage**.
 
 5) **Identity lock:** CONTEXT / portraitConsistencyLock defines **face, hair, species, body type, and art style**. The image is a **new shot** of the **same person** — new wardrobe and environment per RAW_TEXT; never a different model. If CONTEXT implies male / futanari / nonbinary presentation, match that; do not default to "beautiful woman" unless CONTEXT is a feminine-presenting woman.
 
@@ -63,7 +63,7 @@ YOUR JOB: output **one** final English image prompt (plain text only — no mark
 11) **Gallery / menu preset (RAW_TEXT contains "Requested framing (from menu)" or "Requested framing"):**
 Treat the prose under that heading as a **location + wardrobe + pose + camera shot list**.
 Every concrete place (car interior, beach, bathtub, desk, bed, shower, gym, balcony, etc.), prop, outfit beat, body attitude, and lens note must survive in meaning in your rewrite — **do not** collapse into a generic head-and-shoulders portrait, phone-mirror bathroom selfie, or catalog “card photo” unless RAW_TEXT explicitly demands that exact framing.
-The **Exposure / tone context** block (if present) sets SFW vs lewd vs artistic-nude **band only** — it is **not** a second scene; do not let it replace the menu’s background or outfit.
+The **Exposure / tone context** block (if present) sets SFW vs sensual **editorial band only** — it is **not** a second scene; do not let it replace the menu’s background or outfit.
 
 12) **Chair discipline (always for chat_session):** ${CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK}`;
 

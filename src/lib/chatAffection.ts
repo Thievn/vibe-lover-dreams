@@ -15,11 +15,11 @@ export function tierToLegacyAffectionPct(tier: number): number {
   return Math.min(100, Math.max(0, Math.round(tier * 20)));
 }
 
-export type AffectionRewardKind = "lewd" | "nude";
+export type AffectionRewardKind = "lewd" | "intimate";
 
 export function rewardKindForNewLevel(newLevel: number): AffectionRewardKind | null {
   if (newLevel === 2 || newLevel === 3) return "lewd";
-  if (newLevel === 4 || newLevel === 5) return "nude";
+  if (newLevel === 4 || newLevel === 5) return "intimate";
   return null;
 }
 
@@ -88,7 +88,7 @@ export function buildAffectionLevelUpCopy(
   const imageCaption =
     reward === "lewd"
       ? `Mmm… I got so turned on talking to you… here, this is what I look like right now 💋`
-      : `I need you to see me. All of me. Right now — only for you 🔥`;
+      : `I need you to feel this with me — closer, hotter, only for you 🔥`;
 
   return { celebration, imageCaption };
 }

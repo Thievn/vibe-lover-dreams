@@ -9,7 +9,7 @@ import {
   buildAnatomyRewriterDirective,
   resolveAnatomyVariant,
 } from "../_shared/anatomyImageRules.ts";
-import { rewritePromptForImagine } from "../_shared/safeImagePromptRewriter.ts";
+import { sanitizeMomentsImaginePromptText } from "../_shared/momentsPromptSanitize.ts";
 import { maybeAppendForgeStyleSceneBlock } from "../_shared/forgePortraitAugmentation.ts";
 import {
   buildAnimeTemptationStyleLead,
@@ -508,8 +508,8 @@ ${adultUniversalBase}
         const adultVisualRules = `Visual rules:
 - **No text from this prompt on the canvas:** Do not paint META lines, policy lines, markdown headers, slogans, product names, the words "private," "gallery," "session," "companion," "adults-only," or any instruction as visible typography — including elegant gold serif captions. Pure environmental photograph only.
 - No legible logos, watermarks, UI chrome, fake app branding, or readable product/store signage in-frame.
-- **Tasteful adult:** sensual nude, lingerie, and strong tease are in-bounds; avoid hardcore pornographic depiction, graphic penetration, or obscene gynecological close-ups — premium boudoir / editorial tone.
-- **Likeness vs outfit:** Keep **one consistent individual** per Character Details / character bible — face, hair, skin, and body type — when any **roster still URL** appears in the prompt, **match that person’s** features and marks while obeying PRIMARY SCENE for **wardrobe, pose, room, props, and lighting** — but **do not** invent wardrobe from an imaginary “card photo.” When PRIMARY SCENE describes lingerie, gym, rain, bed, nude, etc., **invent** scene-accurate clothing or undress per PRIMARY SCENE (no default bikini paste).
+- **Tasteful adult:** lingerie, sheer fabric with coverage, sheet-drape editorial, and strong tease are in-bounds; avoid hardcore pornographic depiction, graphic penetration, or obscene gynecological close-ups — premium boudoir / editorial tone.
+- **Likeness vs outfit:** Keep **one consistent individual** per Character Details / character bible — face, hair, skin, and body type — when any **roster still URL** appears in the prompt, **match that person’s** features and marks while obeying PRIMARY SCENE for **wardrobe, pose, room, props, and lighting** — but **do not** invent wardrobe from an imaginary “card photo.” When PRIMARY SCENE describes lingerie, gym, rain, bed, steam, etc., **invent** scene-accurate clothing and coverage per PRIMARY SCENE (no default bikini paste).
 ${isChatSessionStill && !menuSceneLockEffective ? "- **Chat still (generate, not edit):** Identity from Character Details + any roster portrait URL **in text** — **no** reference image is sent to a photo-edit API, so **PRIMARY SCENE + the user’s words** define location (cabin, snow, beach, gym, etc.). Do **not** default to the portrait’s sofa, bedroom, or studio backdrop unless the user asked for that same room.\n" : ""}
 ${isChatSessionStill && menuSceneLockEffective ? "- **Gallery menu still (generate, not edit):** Identity from the character bible + roster URL in Character Details when present. **Wardrobe, pose, room, props, light, and crop** = PRIMARY SCENE / menu only — **not** a static marketing still, **not** forge packshot prose as a shot list.\n" : ""}
 ${chatMenuSceneLock && isChatSessionStill ? "- **Gallery menu lock:** PRIMARY SCENE must realize the **menu category’s** location and action — **not** a head-and-shoulders glam reskin. If PRIMARY SCENE names a bed, car, tub, desk, beach, shower, gym, etc., the **environment and body–world interaction** must clearly show that place.\n" : ""}
@@ -559,7 +559,8 @@ ${safeRewritten}`.trim();
       corePrompt: finalPromptRaw,
       characterReference: charRefResolved,
     });
-    const finalPrompt = clampPromptForImagine(finalPromptRawEnriched, TOGETHER_IMAGE_PROMPT_SOFT_LIMIT);
+    const finalPromptClamped = clampPromptForImagine(finalPromptRawEnriched, TOGETHER_IMAGE_PROMPT_SOFT_LIMIT);
+    const finalPrompt = isChatSessionStill ? sanitizeMomentsImaginePromptText(finalPromptClamped) : finalPromptClamped;
 
     let imageDataUrl: string;
     try {

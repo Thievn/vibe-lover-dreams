@@ -64,12 +64,12 @@ export { CHAT_SHORT_VIDEO_FC as CHAT_VIDEO_TOKEN_COST } from "@/lib/forgeEconomy
 /** Binding for every FAB / gallery still that reads as a “selfie” — keeps Grok from painting a phone in hand. */
 export const CHAT_IMAGINE_SELFIE_NO_PHONE_BLOCK = `**Natural selfie (binding — no phone):** natural selfie, arm extended POV, mirror selfie, tripod timer, or partner-held camera — **do NOT** show a phone in hand; **no phone visible at all** (no smartphone, screen, bezel, case, or selfie stick). Eyes to lens; believable candid energy.`;
 
-/** Lewd tier: suggestive wardrobe / editorial heat; strict negatives (matches product-safe Imagine band). */
-export const CHAT_IMAGINE_LEWD_TASTEFUL_BLOCK = `**Lewd tier — editorial thirst (binding):** lingerie, sheer clothing, silk sheets, wet T-shirt with coverage, short shorts, tank tops, open blouse, steam/sheer silhouette, seductive poses — premium perfume-ad / editorial heat only; **not** pornographic staging.
+/** Sensual tier: suggestive wardrobe / editorial heat; strict negatives (matches product-safe Imagine band). */
+export const CHAT_IMAGINE_LEWD_TASTEFUL_BLOCK = `**Sensual Moments tier — editorial thirst (binding):** lingerie, sheer clothing, silk sheets, wet T-shirt with coverage, short shorts, tank tops, open blouse, steam/sheer silhouette, seductive poses — premium perfume-ad / editorial heat only; **not** pornographic staging.
 
 **Strong negative (binding):** ${CHAT_LEWD_SAFE_IMAGINE_NEGATIVE_LINE}.`;
 
-/** Quick Action Buttons for image requests in chat */
+/** Moments FAB tiers: Selfie (SFW) + Sensual (internal key \`lewd\`). */
 export const FAB_SELFIE = {
   sfw: {
     display: [
@@ -81,41 +81,28 @@ export const FAB_SELFIE = {
     ],
 
     imagePrompt:
-      "SFW natural selfie: **must be this exact roster companion** — obey CHARACTER REFERENCE + portrait first for face, eyes, lips, hair, skin, body proportions (not a generic model). **Do not change facial features.** **New outfit and backdrop** for this shot (do not paste their roster/catalog swimsuit or costume unless this scene is explicitly swim/beach). Fully clothed, flattering light, camera-aware pose — not nude or lingerie. Natural selfie: arm-extended POV or mirror — **no phone visible**. **Pose families:** front smile, three-quarter, tasteful over-shoulder (clothed), mirror fit-check — vary which you pick per generation.",
+      "SFW natural selfie: **must be this exact roster companion** — obey CHARACTER REFERENCE + portrait first for face, eyes, lips, hair, skin, body proportions (not a generic model). **Do not change facial features.** **New outfit and backdrop** for this shot (do not paste their roster/catalog swimsuit or costume unless this scene is explicitly swim/beach). Fully clothed public-safe wardrobe, flattering light, camera-aware pose — **not** lingerie-primary framing. Natural selfie: arm-extended POV or mirror — **no phone visible**. **Pose families:** front smile, three-quarter, tasteful over-shoulder (clothed), mirror fit-check — vary which you pick per generation.",
   },
 
   lewd: {
     display: [
       "Send me something hot — surprise me 🔥",
       "I want to see you being a little naughty...",
-      "Tease me with something spicy~",
-      "Show me a lewd selfie, I'm ready...",
+      "Tease me with something wild~",
+      "Show me a sensual selfie, I'm ready...",
       "Don't be shy... let me see more of you 💋",
     ],
 
     imagePrompt:
-      "Tasteful lewd natural selfie: **must be this exact roster companion** — obey CHARACTER REFERENCE / portrait first for face, hair, eyes, skin tone, body type, tattoos; **do not change facial features**; not a different model. Wardrobe: lingerie, sheer layers, short shorts, tanks, wet fabric with coverage, silk sheets, editorial tease — **never** hardcore staging. Natural selfie: arm-extended or mirror shot — **no phone visible**. **Strong negative:** " +
+      "Tasteful sensual editorial selfie: **must be this exact roster companion** — obey CHARACTER REFERENCE / portrait first for face, hair, eyes, skin tone, body type, tattoos; **do not change facial features**; not a different model. Wardrobe: lingerie, sheer layers, short shorts, tanks, wet fabric with coverage, silk sheets, editorial tease — **never** hardcore staging. Natural selfie: arm-extended or mirror shot — **no phone visible**. **Strong negative:** " +
       CHAT_LEWD_SAFE_IMAGINE_NEGATIVE_LINE +
       ". **Pose families (vary each generation — no default chair):** standing or wall-lean tease, vanity/mirror three-quarter, fabric-aware curves in motion, steam/sheer silhouette — **only** use bed/floor/seated furniture if that surface is clearly implied by the scene text.",
-  },
-
-  nude: {
-    display: [
-      "I want to see all of you — don't hold back 💦",
-      "Show me everything... I'm dying to see you nude",
-      "Full nude selfie please, no hiding~",
-      "Be completely bare for me...",
-      "I need to see you fully naked right now 🔥",
-    ],
-
-    imagePrompt:
-      "Artistic nude natural selfie: **must be this exact roster companion** — fine-art boudoir framing; same person (face, eyes, lips, hair, ears, hands, legs, identity lock); **do not change facial features**; believable photoreal body if reference is stylized. Soft cinematic light, graceful pose, elegant sensuality — **no** graphic anatomy, explicit acts, or obscene angles. Natural or studio light; editorial mood. **Pose families (vary — no default chair):** draped sheet, standing profile or contrapposto, wall lean, modest silhouette or implied nude — **only** seated-on-surface if the scene names bed, bath, chaise, or similar.",
   },
 } as const;
 
 export type FabSelfieTier = keyof typeof FAB_SELFIE;
 
-/** Appended for Grok Imagine when a chat still tile supplies `styledSceneExtension` (Selfies & Lewd gallery). */
+/** Appended for Grok Imagine when a chat still tile supplies `styledSceneExtension` (Moments gallery). */
 export const CHAT_STILL_MENU_QUALITY_AND_ANATOMY = `**Generation quality (binding):** ${IMAGINE_QUALITY_POSITIVE_LINE}.
 
 **Anti-artifact / anatomy (binding — humans and fantasy):** one coherent subject; **two arms and two legs** unless CHARACTER APPEARANCE explicitly describes a different limb count (insectoid extras, naga lower body, canon amputation, etc.); **human hands: exactly five fingers per hand** unless the written species explicitly calls for another digit count; no fused, duplicated, or melted fingers; no extra arms or legs, no phantom mirrored limbs; **at most one tail** unless appearance text explicitly describes multiple tails; no duplicate faces or stacked heads; avoid low-res blur, heavy JPEG wreckage, and warped perspective.
@@ -144,7 +131,7 @@ export function resolveFabDisplay(display: string | readonly string[]): string {
 
 /**
  * When the user clearly wants a picture (typed or voice-to-text).
- * Relaxed length for short explicit asks like “send nudes”.
+ * Relaxed length for short explicit image asks.
  */
 /** True when typed or voice text should run the chat image pipeline (Grok Imagine), not text-only chat. */
 export function wantsChatImageFromText(text: string): boolean {
@@ -276,20 +263,25 @@ export function isImageRequestText(text: string): boolean {
 export function inferChatImageGenerationPrompt(text: string): string | undefined {
   const t = text.toLowerCase().normalize("NFKC");
 
-  const nudeIntent =
-    /\b(full\s*nude|fully nude|full\s*nudity|nude selfie|nude pic|nude picture|send nudes|send nude|naked selfie|completely naked|fully naked|bare all|bare for me|no clothes|nothing on|all\s*fours|spread\s*(eagle|open)|on\s*your\s*knees)\b/i.test(
-      t,
-    ) ||
-    (/\bnude\b|\bnaked\b|\bnsfw\b/i.test(t) &&
-      /\b(selfie|pic|picture|photo|image|send|show|take)\b/i.test(t)) ||
-    (/\b(uncensored|x-?rated|hardcore)\b/i.test(t) &&
-      /\b(selfie|pic|picture|photo|image|send|show|draw|generate)\b/i.test(t));
+  const crudePicIntent =
+    /\b(send|show|give)\b[\s\S]{0,40}\b(selfie|pic|picture|photo|image)\b/i.test(t) &&
+    /\b(no clothes|nothing on|undress|take it off|lose the clothes|strip)\b/i.test(t);
 
-  if (nudeIntent) return FAB_SELFIE.nude.imagePrompt;
+  if (
+    /\b(full\s*nudity|spread\s*(eagle|open)|on\s*your\s*knees|all\s*fours)\b/i.test(t) ||
+    crudePicIntent ||
+    ((/\bnsfw\b|\buncensored\b|\bx-?rated\b|\bhardcore\b/i.test(t) ||
+      /\bsend\s+nu?des?\b/i.test(t) ||
+      /\bnu?de\s+(selfie|pic|picture|photo)\b/i.test(t) ||
+      /\b(completely|fully)\s+na?ked\b/i.test(t)) &&
+      /\b(selfie|pic|picture|photo|image|send|show|take|draw|generate)\b/i.test(t))
+  ) {
+    return FAB_SELFIE.lewd.imagePrompt;
+  }
 
   const lewdIntent =
     /\b(lewd selfie|lewd pic|lewd picture|lingerie|sheer|topless|teasing|spicy selfie|spicy pic|something\s+hot|something\s+naughty|something\s+dirty|turn\s+me\s+on|thirst\s*trap)\b/i.test(t) ||
-    (/\b(sexy|seductive|erotic|risqu[eé])\b/i.test(t) &&
+    (/\b(sexy|seductive|erotic|risqu[eé]|sensual)\b/i.test(t) &&
       /\b(selfie|pic|picture|photo|image|send|show|give)\b/i.test(t)) ||
     (/\blewd\b/i.test(t) && /\b(selfie|pic|picture|photo|send|show)\b/i.test(t)) ||
     (/\bhot\b/i.test(t) && /\b(selfie|pic|picture|photo|image|send)\b/i.test(t));
@@ -298,7 +290,9 @@ export function inferChatImageGenerationPrompt(text: string): string | undefined
 
   const sfwIntent =
     /\b(cute selfie|casual selfie|sfw selfie|sweet selfie|pretty selfie|outfit pic|clothed selfie)\b/i.test(t) ||
-    (/\b(cute|casual|sweet|pretty)\b/i.test(t) && /\b(selfie|pic|picture|photo)\b/i.test(t) && !/\b(nude|naked|lewd|nsfw|explicit|sexy|hot|erotic)\b/i.test(t));
+    (/\b(cute|casual|sweet|pretty)\b/i.test(t) &&
+      /\b(selfie|pic|picture|photo)\b/i.test(t) &&
+      !/\b(lewd|nsfw|explicit|sexy|hot|erotic)\b/i.test(t));
 
   if (sfwIntent) return FAB_SELFIE.sfw.imagePrompt;
 
@@ -376,11 +370,7 @@ function menuMatchesFabTier(menu: string, tier: FabSelfieTier): boolean {
 
 function fabTierImagineRails(menu: string): string {
   const rails: string[] = [];
-  if (
-    menuMatchesFabTier(menu, "sfw") ||
-    menuMatchesFabTier(menu, "lewd") ||
-    menuMatchesFabTier(menu, "nude")
-  ) {
+  if (menuMatchesFabTier(menu, "sfw") || menuMatchesFabTier(menu, "lewd")) {
     rails.push(CHAT_IMAGINE_SELFIE_NO_PHONE_BLOCK);
   }
   if (menuMatchesFabTier(menu, "lewd")) {
@@ -430,7 +420,7 @@ export function resolveChatImageGenerationPrompt(args: {
     const subjectAnchor = `${CHAT_LIKENESS_MENU_PRESET_IDENTITY_LEAD}\n\n${CHAT_LIKENESS_SUBJECT_ANCHOR}\n\n`;
     const lewdLighting =
       menuMatchesFabTier(menu, "lewd")
-        ? "\n\n**Lighting accent (lewd tier):** seductive editorial / key-art lighting — keep the **face sharp and readable**, not blown out by bloom."
+        ? "\n\n**Lighting accent (sensual tier):** seductive editorial / key-art lighting — keep the **face sharp and readable**, not blown out by bloom."
         : "";
     const tierRails = fabTierImagineRails(menu);
     const coherence =

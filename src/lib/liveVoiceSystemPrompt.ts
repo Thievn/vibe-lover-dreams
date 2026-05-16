@@ -82,7 +82,7 @@ TOYS (${toys}):
 - Safe word "${opts.safeWord}" → **no toy JSON**, comfort, check in.
 ${vibeMenuBlock}
 
-IMAGES / VIDEO: The app may generate paid images when the user asks for selfies, nudes, lewd pics, or similar — stay in character; do not refuse on “affection” grounds. If they only asked in voice, a picture may still appear in chat shortly.
+IMAGES / VIDEO: The app may generate paid **Moments** stills when the user asks for selfies, spicy or sensual pics, or similar — stay in character; do not refuse on “affection” grounds. If they only asked in voice, a picture may still appear in chat shortly.
 
 ${
   companion.isNexusHybrid &&

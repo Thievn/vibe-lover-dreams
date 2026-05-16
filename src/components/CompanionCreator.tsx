@@ -135,6 +135,7 @@ import {
   normalizeForgeArtStyle,
   normalizeForgeScene,
 } from "@/lib/forgePortraitPrompt";
+import { MOMENTS_FORGE_EVERY_STILL_PANEL } from "@/lib/chatMomentsBrand";
 import {
   type IdentityAnatomyDetail,
   IDENTITY_ANATOMY_CHOICES,
@@ -3940,6 +3941,12 @@ User flavor notes: ${extraNotes || "none"}`;
                           ))}
                         </SelectContent>
                       </Select>
+                      <div className="rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2.5 text-[10px] leading-relaxed text-muted-foreground">
+                        <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-foreground/80 mb-1">
+                          What every Moments image uses
+                        </p>
+                        <p className="text-foreground/85 whitespace-pre-line">{MOMENTS_FORGE_EVERY_STILL_PANEL}</p>
+                      </div>
                     </div>
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between gap-2">

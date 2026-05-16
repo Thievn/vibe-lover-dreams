@@ -17,7 +17,6 @@ import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   CHAT_IMAGE_LEWD_FC,
-  CHAT_IMAGE_NUDE_FC,
   CHAT_MESSAGE_FC,
   CHAT_SHORT_VIDEO_FC,
   FORGE_CREATE_COMPANION_FC,
@@ -266,10 +265,8 @@ export default function BuyCredits() {
                       Live Voice today).
                     </li>
                     <li>
-                      <span className="text-white/90 font-semibold">Selfie / lewd still</span> — {CHAT_IMAGE_LEWD_FC} FC
-                      each ·{" "}
-                      <span className="text-white/90 font-semibold">Artistic nude tier (chat)</span> —{" "}
-                      {CHAT_IMAGE_NUDE_FC} FC each (Grok Imagine, tasteful rewrite)
+                      <span className="text-white/90 font-semibold">Moments still</span> (selfie or sensual chat still, Grok
+                      Imagine + tasteful rewrite) — {CHAT_IMAGE_LEWD_FC} FC each
                     </li>
                     <li>
                       <span className="text-white/90 font-semibold">Forge portrait preview</span> — {FORGE_PREVIEW_FC} FC ·{" "}

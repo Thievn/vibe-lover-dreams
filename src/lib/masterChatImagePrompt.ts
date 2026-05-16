@@ -23,6 +23,7 @@ import {
   CHARACTER_REFERENCE_INTRO_LINES,
   resolveEffectiveCharacterReference,
 } from "@/lib/characterReferenceImagePrompt";
+import { MOMENTS_EXPLICIT_TIER_LINE, MOMENTS_SF_TIER_LINE } from "@/lib/chatMomentsImaginePrompt";
 import { buildCompanionVisualIdentityCapsule } from "@/lib/buildCompanionVisualIdentityCapsule";
 import {
   CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK,
@@ -40,22 +41,23 @@ function resolvePersonalityMatrix(companion: Companion): ForgePersonalityProfile
 }
 
 /**
- * SFW / lewd / nude from raw user + optional menu tier.
+ * SFW vs sensual (`lewd` key) from raw user + optional menu tier. Explicit phrasing maps to sensual, not a separate nude tier.
  */
 export function classifyChatImageMood(input: { rawUserMessage: string; menuBasePrompt: string | null }): FabSelfieTier {
   if (input.menuBasePrompt) {
     const m = input.menuBasePrompt.trim();
-    const nudeBase = FAB_SELFIE.nude.imagePrompt;
     const lewdBase = FAB_SELFIE.lewd.imagePrompt;
     const sfwBase = FAB_SELFIE.sfw.imagePrompt;
-    if (m === nudeBase || m.startsWith(`${nudeBase}\n`)) return "nude";
     if (m === lewdBase || m.startsWith(`${lewdBase}\n`)) return "lewd";
     if (m === sfwBase || m.startsWith(`${sfwBase}\n`)) return "sfw";
     return "sfw";
   }
   const t = input.rawUserMessage.toLowerCase();
-  if (/\b(nude|naked|fully nude|send nude|nsfw|explicit|uncensored)\b/i.test(t) && !/\b(cute|clothed|outfit|sfw)\b/i.test(t)) {
-    return "nude";
+  if (
+    /\b(nude|naked|fully nude|send nude|nsfw|explicit|uncensored)\b/i.test(t) &&
+    !/\b(cute|clothed|outfit|sfw)\b/i.test(t)
+  ) {
+    return "lewd";
   }
   if (/\b(lewd|lingerie|topless|sheer|spicy|hot selfie)\b/i.test(t)) return "lewd";
   if (isExplicitImageRequest(input.rawUserMessage) && !/\b(cute|outfit|clothed|sweet)\b/i.test(t)) return "lewd";
@@ -63,11 +65,8 @@ export function classifyChatImageMood(input: { rawUserMessage: string; menuBaseP
 }
 
 function moodNsfwClauses(m: FabSelfieTier): string {
-  if (m === "nude") {
-    return "Artistic intimate nude (Grok Imagine): fine-art boudoir or editorial silhouette — sensual, graceful, soft light; **no** crude anatomy, graphic acts, or pornographic staging. **One** consistent individual per CHARACTER APPEARANCE (face, eyes, lips, hair, hands, legs, skin, build); **do not change facial features**; believable photoreal body. Prefer mirror, tripod, or sheet-drape framing — **no smartphone in hand**. Wardrobe absent only when the scene calls for nude; do not default to swimwear unless USER SCENE is beach/pool.";
-  }
   if (m === "lewd") {
-    return "Tasteful lewd: lingerie, sheer clothing, silk sheets, wet T-shirt with coverage, short shorts, tanks, seductive editorial poses — perfume-ad heat only, **not** porn staging. **Identity:** obey CHARACTER REFERENCE + written profile first (face, hair, eyes, skin tone, body type, tattoos) — **do not change facial features**; **wardrobe, pose, room** only from USER SCENE / menu. **Forbidden:** no nudity, no visible genitals, no explicit sexual acts, no phone or smartphone visible, no deformed anatomy. No generic bikini unless the scene calls for it.";
+    return "Sensual Moments tier (Grok Imagine): lingerie, sheer layers, silk sheets, wet fabric with coverage, short shorts, tanks, steam/sheer silhouette, sheet-drape editorial — perfume-ad / fashion heat only, **not** porn staging. **Identity:** obey CHARACTER REFERENCE + written profile (face, hair, eyes, skin tone, body type, tattoos) — **do not change facial features**; **wardrobe, pose, room** only from USER SCENE / menu. **Forbidden:** no bare skin below tasteful coverage in lower frame, no visible genitals, no explicit sexual acts, no phone or smartphone visible, no deformed anatomy. No generic bikini unless the scene calls for it.";
   }
   return "SFW — flirty, romantic, or cute; fully clothed for public-safe framing. Same individual as the **written** character description (face, eyes, lips, hair, hands, legs, body type); **do not change facial features**. Outfit must fit THIS preset and USER SCENE.";
 }
@@ -99,11 +98,6 @@ const MENU_TEASERS: Record<FabSelfieTier, string[]> = {
     "You want me a little *dirty-cute*? …Fine. Gimme a second — fabric, shadow, and a smile that knows exactly what it’s doing. 😈",
     "Oh? *That* kind of request? I’m warm already. One moment — I’m going to make you regret asking so politely~",
     "Mischief unlocked. Lingerie logic, slow breath, eyes on you. Hold on — this one’s for your imagination, not your innocence~",
-  ],
-  nude: [
-    "Fuck, you don’t play fair, do you? Alright, love — give me a second. I’ll bare everything the way you like. 💋",
-    "Mmm, you *really* want *all* of me on camera. Stay right there. Don’t you dare look away. 🔥",
-    "Okay, darling. Deep breath. I’ll show you *everything* — but only because you beg so pretty~",
   ],
 };
 
@@ -174,27 +168,6 @@ function shotVariationBlock(mood: FabSelfieTier, seed: number): string {
     "Standing at vanity or mirror edge — editorial lingerie grammar; **no dining chair**.",
     "Mirror three-quarter — outfit story legible, face still hero.",
   ] as const;
-  const nudeSets = [
-    "Fine-art boudoir: silk-draped surface or standing key light — **not** a generic office chair.",
-    "Moonlit balcony silhouette — body as shape language, not graphic.",
-    "Marble / steam atmosphere — highlights on collarbones and spine curve.",
-    "Studio fog + black seamless — sculptural nude, graceful contrapposto.",
-  ] as const;
-  const nudePose = [
-    "Arms loose, torso long — breath-in grace, no explicit spread.",
-    "Standing twist with weight shift — modest triangle composition; **no stool default**.",
-    "Standing profile or 3/4 — line of back and neck as focal curve.",
-    "Sheet-wrap or fabric drape — implied nude, editorial restraint.",
-  ] as const;
-
-  if (mood === "nude") {
-    return [
-      "— SHOT VARIATION (randomized per request) —",
-      `Set dressing bias: ${pickVariant(nudeSets, seed, 1)}`,
-      `Pose family: ${pickVariant(nudePose, seed, 2)}`,
-      `Lens / camera: ${pickVariant(lens, seed, 3)}.`,
-    ].join(" ");
-  }
   if (mood === "lewd") {
     return [
       "— SHOT VARIATION (randomized per request) —",
@@ -245,9 +218,7 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
     ? ""
     : shotVariationBlock(mood, variationHash);
   const explicit = isExplicitImageRequest(rawUserMessage) || isExplicitImageRequest(sceneRequest);
-  const tierLine = explicit
-    ? "Provider-safe adult tone: strong tease and artistic nude are fine — stay in **editorial / fine-art boudoir** language; avoid hardcore acts, graphic anatomy, or degrading angles. User crude phrasing will be rewritten server-side; your job is scene fidelity + staying faithful to the **written** character."
-    : "Keep framing tasteful and story-led; default flattering portrait or boudoir tease unless the user clearly escalated.";
+  const tierLine = explicit ? MOMENTS_EXPLICIT_TIER_LINE : MOMENTS_SF_TIER_LINE;
 
   const identity = [
     "— IDENTITY (TEXT BIBLE — ROSTER PORTRAIT = LIKENESS ONLY IF SUPPLIED) —",

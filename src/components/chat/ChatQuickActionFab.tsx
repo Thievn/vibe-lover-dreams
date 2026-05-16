@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 export type FabActionId =
   | "selfie_sfw"
   | "selfie_lewd"
-  | "selfie_nude"
   | "vibration"
   | "praise"
   | "tease"

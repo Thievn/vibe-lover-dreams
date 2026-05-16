@@ -1,6 +1,6 @@
 import { Aperture, Camera, ChevronDown, Sparkles, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CHAT_VIDEO_TIMING_USER_NOTE } from "@/lib/chatVisualRouting";
+import { MOMENTS_GALLERY_SUBTITLE } from "@/lib/chatMomentsBrand";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,7 +55,7 @@ export function ChatMediaRequestBar({
             Photos & clips
           </div>
           <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground/90">
-            Stills = Grok Imagine. {CHAT_VIDEO_TIMING_USER_NOTE} Type in chat is detected automatically — no
+            Stills = Grok Imagine ({MOMENTS_GALLERY_SUBTITLE.toLowerCase()}). {CHAT_VIDEO_TIMING_USER_NOTE} Type in chat is detected automatically — no
             &quot;generating…&quot; spam.
           </p>
         </div>
@@ -161,7 +161,7 @@ export function ChatMediaRequestBar({
               className="inline-flex items-center gap-1.5 rounded-xl border border-fuchsia-500/30 bg-fuchsia-950/25 px-2.5 py-1.5 text-[11px] font-semibold text-fuchsia-100 hover:bg-fuchsia-950/40 disabled:opacity-40 touch-manipulation"
             >
               <Sparkles className="h-3.5 w-3.5 shrink-0" />
-              Nude
+              Sensual
               <ChevronDown className="h-3 w-3 shrink-0 opacity-80" />
             </button>
           </DropdownMenuTrigger>
@@ -176,7 +176,7 @@ export function ChatMediaRequestBar({
               onClick={() => onRequest("nude_picture")}
             >
               <Sparkles className="h-3.5 w-3.5" />
-              Nude picture
+              Sensual picture
               <span className="ml-auto text-[10px] text-muted-foreground">{imageCostLabel}</span>
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -186,7 +186,7 @@ export function ChatMediaRequestBar({
               onClick={() => onRequest("nude_video")}
             >
               <Video className="h-3.5 w-3.5 text-[#00ffd4]" />
-              Nude video
+              Sensual video
               <span className="ml-auto text-[10px] text-[#00ffd4]/80">{videoCostLabel}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>

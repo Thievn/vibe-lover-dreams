@@ -1,8 +1,8 @@
 import type { FabSelfieTier } from "@/lib/chatImageSettings";
 import { CHAT_LIKENESS_SUBJECT_FEATURES_INLINE } from "@/lib/chatLikenessAnchors";
 
-/** Chat still picker tiers (no nude tab in the new UI — billing follows `tier`). */
-export type ChatStillMenuTier = Exclude<FabSelfieTier, "nude">;
+/** Chat still picker tiers — mirrors `FabSelfieTier` (Selfie + Sensual). */
+export type ChatStillMenuTier = FabSelfieTier;
 
 export type ChatStillMenuCategory = {
   id: string;
@@ -16,7 +16,7 @@ const selfie = (scene: string) =>
   `Natural vertical selfie — **this roster companion only** (not a generic lookalike); lock ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE} to CHARACTER APPEARANCE + portrait likeness URL when supplied; gender presentation from CHARACTER APPEARANCE. **No smartphone, screen, or phone case visible** — arm-extended front-camera POV, mirror reflection, tripod/remote, or partner-held frame. ${scene} Outfit, pose, background, and props belong **only** to this scene — do not copy catalog-card wardrobe, backdrop, or packshot pose.`;
 
 const lewd = (scene: string) =>
-  `Tasteful editorial-adult shot — **this roster companion only** (not a generic lookalike); lock ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE} to CHARACTER APPEARANCE + portrait likeness URL when supplied; gender presentation from CHARACTER APPEARANCE. **Suggestive wardrobe only** (lingerie, sheer, short shorts, tanks, wet fabric with coverage, silk sheets) — **no nudity, no visible genitals, no explicit sexual acts, no phone in hand.** ${scene} Wardrobe, pose, and set follow this line only — not the profile marketing still’s environment or costume.`;
+  `Tasteful editorial-adult shot — **this roster companion only** (not a generic lookalike); lock ${CHAT_LIKENESS_SUBJECT_FEATURES_INLINE} to CHARACTER APPEARANCE + portrait likeness URL when supplied; gender presentation from CHARACTER APPEARANCE. **Suggestive wardrobe only** (lingerie, sheer, short shorts, tanks, wet fabric with coverage, silk sheets) — **no bare skin below tasteful coverage, no visible genitals, no explicit sexual acts, no phone in hand.** ${scene} Wardrobe, pose, and set follow this line only — not the profile marketing still’s environment or costume.`;
 
 export const CHAT_SELFIE_STILL_CATEGORIES: readonly ChatStillMenuCategory[] = [
   {
@@ -266,7 +266,7 @@ export const CHAT_LEWD_STILL_CATEGORIES: readonly ChatStillMenuCategory[] = [
     id: "open-shirt",
     label: "Open Shirt",
     tier: "lewd",
-    imagePrompt: lewd("Oversized unbuttoned shirt, implied nude beneath, bedroom morning light."),
+    imagePrompt: lewd("Oversized unbuttoned shirt, implied sheer coverage beneath, bedroom morning light."),
   },
   {
     id: "thigh-highs",
@@ -278,13 +278,13 @@ export const CHAT_LEWD_STILL_CATEGORIES: readonly ChatStillMenuCategory[] = [
     id: "bathtub-arch",
     label: "Bathtub Arch",
     tier: "lewd",
-    imagePrompt: lewd("Arching back in tub, artistic nude-adjacent framing, candles and steam."),
+    imagePrompt: lewd("Arching back in tub, editorial boudoir steam framing, candles and dense bubbles."),
   },
   {
     id: "window-silhouette",
     label: "Window Silhouette",
     tier: "lewd",
-    imagePrompt: lewd("Nude silhouette against tall window, elegant curve read, city glow outside."),
+    imagePrompt: lewd("Silhouette at tall window, elegant curve read through sheer drape, city glow outside."),
   },
   {
     id: "red-lingerie",
@@ -343,10 +343,10 @@ export const CHAT_LEWD_STILL_CATEGORIES: readonly ChatStillMenuCategory[] = [
     imagePrompt: lewd("Seated with hands between thighs, aroused expression, shadowed implied framing."),
   },
   {
-    id: "arching-back-nude",
-    label: "Arching Back Nude",
+    id: "arching-back-editorial",
+    label: "Arching Back Editorial",
     tier: "lewd",
-    imagePrompt: lewd("Full arch nude pose, fine-art silhouette and rim light, graceful not pornographic."),
+    imagePrompt: lewd("Full arch pose, fine-art silhouette and rim light through fabric drape, graceful not graphic."),
   },
   {
     id: "kneeling-pose",
@@ -367,10 +367,10 @@ export const CHAT_LEWD_STILL_CATEGORIES: readonly ChatStillMenuCategory[] = [
     imagePrompt: lewd("From-behind emphasis on curves in lingerie or slip, tasteful bedroom set, no explicit spread."),
   },
   {
-    id: "mirror-nude",
-    label: "Mirror Nude",
+    id: "mirror-boudoir",
+    label: "Mirror Moment",
     tier: "lewd",
-    imagePrompt: lewd("Nude mirror selfie vibe, phone in frame optional, artistic sensual reflections."),
+    imagePrompt: lewd("Mirror boudoir vibe — **no smartphone visible** — artistic sensual reflections, wrap or lingerie."),
   },
   {
     id: "bed-straddle",
@@ -403,10 +403,10 @@ export const CHAT_LEWD_STILL_CATEGORIES: readonly ChatStillMenuCategory[] = [
     imagePrompt: lewd("Low angle looking up, powerful legs-and-torso read, dramatic ceiling light."),
   },
   {
-    id: "bite-lip-nude",
-    label: "Bite Lip Nude",
+    id: "bite-lip-editorial",
+    label: "Bite Lip Editorial",
     tier: "lewd",
-    imagePrompt: lewd("Lip bite while nude-framed, fine-art crop, aroused expression, soft fill."),
+    imagePrompt: lewd("Lip bite in sheet-drape crop, aroused expression, soft fill, tasteful coverage."),
   },
   {
     id: "shower-glass-press",
