@@ -1,7 +1,11 @@
-import { useState } from "react";
-import { ChevronDown, Images, Loader2, Sparkles, Video } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronDown, Images, Loader2, Sparkles, Video, X } from "lucide-react";
 import { toast } from "sonner";
-import { invokeGenerateProfileLoopVideo } from "@/lib/invokeGenerateProfileLoopVideo";
+import {
+  hasPendingProfileLoopJob,
+  invokeGenerateProfileLoopVideo,
+  resumePendingProfileLoopJob,
+} from "@/lib/invokeGenerateProfileLoopVideo";
 import { pickRandomVideoLoadingLine } from "@/lib/chatVisualRouting";
 import { PROFILE_LOOP_VIDEO_FC } from "@/lib/forgeEconomy";
 import { profileLoopMotionInvalidReason } from "@/lib/profileLoopVideoSafety";
@@ -46,6 +50,58 @@ export function ProfileLoopingVideoUpsell({
   const [busy, setBusy] = useState(false);
   const [motionNotes, setMotionNotes] = useState("");
   const [open, setOpen] = useState(false);
+  const [pendingJob, setPendingJob] = useState(() => hasPendingProfileLoopJob(companionId));
+  const abortRef = useRef<AbortController | null>(null);
+  const resumeAttemptedRef = useRef(false);
+
+  useEffect(() => {
+    setPendingJob(hasPendingProfileLoopJob(companionId));
+  }, [companionId]);
+
+  const runGeneration = useCallback(
+    async (body: Record<string, unknown>) => {
+      const loadId = toast.loading(pickRandomVideoLoadingLine());
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setBusy(true);
+      setPendingJob(true);
+      try {
+        await invokeGenerateProfileLoopVideo(body, {
+          signal: controller.signal,
+          onPollStatus: (status) => {
+            const msg =
+              status === "starting"
+                ? "Starting loop video on Grok…"
+                : status === "rendering"
+                  ? "Rendering motion (often 3–8 min)…"
+                  : status === "saving"
+                    ? "Saving loop to your profile…"
+                    : "Loop ready.";
+            toast.loading(msg, { id: loadId });
+          },
+        });
+        toast.success(hasExistingLoopVideo ? "Loop video updated" : "Looping portrait video saved", {
+          id: loadId,
+          description: "Your profile portrait should update in a moment.",
+          duration: 6000,
+        });
+        onSuccess?.();
+        onBalanceMaybeChanged?.();
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "Generation failed";
+        if (!/cancelled/i.test(msg)) {
+          toast.error(msg, { id: loadId });
+        } else {
+          toast.dismiss(loadId);
+        }
+      } finally {
+        abortRef.current = null;
+        setBusy(false);
+        setPendingJob(hasPendingProfileLoopJob(companionId));
+      }
+    },
+    [companionId, hasExistingLoopVideo, onBalanceMaybeChanged, onSuccess],
+  );
 
   const run = async () => {
     if (!companionId.trim() || disabled) return;
@@ -58,45 +114,71 @@ export function ProfileLoopingVideoUpsell({
       toast.error(`You need ${PROFILE_LOOP_VIDEO_FC} FC — you have ${tokensBalance} FC.`);
       return;
     }
-    setBusy(true);
-    const loadId = toast.loading(pickRandomVideoLoadingLine());
-    try {
-      const trimmed = motionNotes.trim().slice(0, MOTION_MAX);
-      const body: Record<string, unknown> = {
-        companionId: companionId.trim(),
-        motionNotes: trimmed || undefined,
-      };
-      const srcId = sourceGeneratedImageId?.trim();
-      if (srcId) body.sourceGeneratedImageId = srcId;
-      if (!isAdminUser) {
-        body.tokenCost = PROFILE_LOOP_VIDEO_FC;
-      }
-      await invokeGenerateProfileLoopVideo(body, {
-        onPollStatus: (status) => {
-          const msg =
-            status === "starting"
-              ? "Starting loop video on Grok…"
-              : status === "rendering"
-                ? "Rendering motion (this can take a few minutes)…"
-                : status === "saving"
-                  ? "Saving loop to your profile…"
-                  : "Loop ready.";
-          toast.loading(msg, { id: loadId });
-        },
-      });
-      toast.success(hasExistingLoopVideo ? "Loop video updated" : "Looping portrait video saved", {
-        id: loadId,
-        description: "Added to this companion’s gallery. It may take a moment to show everywhere.",
-        duration: 6000,
-      });
-      onSuccess?.();
-      onBalanceMaybeChanged?.();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Generation failed", { id: loadId });
-    } finally {
-      setBusy(false);
+    const trimmed = motionNotes.trim().slice(0, MOTION_MAX);
+    const body: Record<string, unknown> = {
+      companionId: companionId.trim(),
+      motionNotes: trimmed || undefined,
+    };
+    const srcId = sourceGeneratedImageId?.trim();
+    if (srcId) body.sourceGeneratedImageId = srcId;
+    if (!isAdminUser) {
+      body.tokenCost = PROFILE_LOOP_VIDEO_FC;
     }
+    await runGeneration(body);
   };
+
+  const cancelPoll = () => {
+    abortRef.current?.abort();
+    setBusy(false);
+    toast.info("Stopped waiting — Grok may still finish. Reopen this profile to resume.");
+  };
+
+  useEffect(() => {
+    if (!companionId.trim() || disabled || resumeAttemptedRef.current) return;
+    if (!hasPendingProfileLoopJob(companionId)) return;
+    resumeAttemptedRef.current = true;
+    setOpen(true);
+    const loadId = toast.loading("Resuming loop video render…");
+    void (async () => {
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setBusy(true);
+      try {
+        const result = await resumePendingProfileLoopJob(companionId, {
+          signal: controller.signal,
+          onPollStatus: (status) => {
+            const msg =
+              status === "starting"
+                ? "Resuming loop video…"
+                : status === "rendering"
+                  ? "Still rendering on Grok…"
+                  : status === "saving"
+                    ? "Saving loop to your profile…"
+                    : "Loop ready.";
+            toast.loading(msg, { id: loadId });
+          },
+        });
+        if (result) {
+          toast.success("Looping portrait video saved", {
+            id: loadId,
+            description: "Your profile portrait should update in a moment.",
+          });
+          onSuccess?.();
+          onBalanceMaybeChanged?.();
+        } else {
+          toast.dismiss(loadId);
+        }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "Resume failed";
+        if (!/cancelled/i.test(msg)) toast.error(msg, { id: loadId });
+        else toast.dismiss(loadId);
+      } finally {
+        abortRef.current = null;
+        setBusy(false);
+        setPendingJob(hasPendingProfileLoopJob(companionId));
+      }
+    })();
+  }, [companionId, disabled, onBalanceMaybeChanged, onSuccess]);
 
   const costSuffix = isAdminUser ? "" : ` — ${PROFILE_LOOP_VIDEO_FC} FC`;
   const primaryCta = hasExistingLoopVideo
@@ -106,6 +188,12 @@ export function ProfileLoopingVideoUpsell({
     : isAdminUser
       ? "Generate loop video"
       : `Generate loop video${costSuffix}`;
+
+  const generateDisabled = busy || disabled || !companionId.trim();
+
+  useEffect(() => {
+    resumeAttemptedRef.current = false;
+  }, [companionId]);
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className={cn("min-w-0", className)}>
@@ -133,10 +221,21 @@ export function ProfileLoopingVideoUpsell({
                     <span className="shrink-0 rounded-full border border-emerald-400/35 bg-emerald-500/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-200/95">
                       Clip on file
                     </span>
+                  ) : pendingJob ? (
+                    <span className="shrink-0 rounded-full border border-amber-400/35 bg-amber-500/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-200/95">
+                      Rendering
+                    </span>
                   ) : null}
                 </div>
                 <p className="mt-0.5 truncate text-[11px] text-muted-foreground/90">
-                  {open ? "Hide" : "Open"} options · {sourceGeneratedImageId ? "gallery still" : "portrait"} · ~8–10s
+                  {busy
+                    ? "Grok is rendering — usually 3–8 min"
+                    : pendingJob
+                      ? "Job in progress — reopen to resume"
+                      : open
+                        ? "Hide"
+                        : "Open"}{" "}
+                  options · {sourceGeneratedImageId ? "gallery still" : "portrait"} · ~8s
                 </p>
               </div>
               <ChevronDown
@@ -205,9 +304,19 @@ export function ProfileLoopingVideoUpsell({
               />
               <p className="text-[10px] text-muted-foreground/75">Max {MOTION_MAX} characters.</p>
             </div>
+            {busy ? (
+              <button
+                type="button"
+                onClick={cancelPoll}
+                className="flex w-full min-h-[40px] items-center justify-center gap-2 rounded-xl border border-white/20 bg-black/50 px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-white/10"
+              >
+                <X className="h-4 w-4" />
+                Cancel waiting (job may still finish)
+              </button>
+            ) : null}
             <button
               type="button"
-              disabled={busy || disabled || !companionId.trim()}
+              disabled={generateDisabled}
               onClick={() => void run()}
               className={cn(
                 "flex w-full min-h-[48px] items-center justify-center gap-2 rounded-xl border border-violet-400/50 bg-gradient-to-r from-violet-600/90 via-fuchsia-600/85 to-violet-700/90 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-violet-900/35 transition-opacity",

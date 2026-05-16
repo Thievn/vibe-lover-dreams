@@ -34,6 +34,8 @@ const corsHeaders = {
 };
 
 const PAID_LOOP_FC = 75;
+/** Reuse in-flight xAI jobs instead of starting duplicates on retry. */
+const IN_FLIGHT_JOB_MS = 45 * 60_000;
 
 function jsonResponse(obj: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(obj), {
@@ -1032,7 +1034,6 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "No public profile image URL — set a static portrait first." }, 400);
   }
 
-  let tokensCharged = false;
   const chargedAmount = shouldCharge ? PAID_LOOP_FC : 0;
 
   if (shouldCharge) {
@@ -1050,22 +1051,27 @@ Deno.serve(async (req) => {
         402,
       );
     }
-    const nextBal = profRow.tokens_balance - PAID_LOOP_FC;
-    const { error: deductErr } = await svc
-      .from("profiles")
-      .update({ tokens_balance: nextBal })
-      .eq("user_id", sessionUser.id);
-    if (deductErr) {
-      return jsonResponse({ error: deductErr.message || "Could not reserve forge credits." }, 500);
-    }
-    tokensCharged = true;
-    await recordFcTransaction(svc, {
-      userId: sessionUser.id,
-      creditsChange: -PAID_LOOP_FC,
-      balanceAfter: nextBal,
-      transactionType: "profile_loop_video",
-      description: "Profile loop video (Grok I2V)",
-      metadata: { companionId, fc: PAID_LOOP_FC },
+  }
+
+  const inFlightSince = new Date(Date.now() - IN_FLIGHT_JOB_MS).toISOString();
+  const { data: existingJob } = await svc
+    .from("profile_loop_video_jobs")
+    .select("id, status")
+    .eq("user_id", sessionUser.id)
+    .eq("companion_id", companionId)
+    .in("status", ["pending", "finalizing"])
+    .gte("created_at", inFlightSince)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingJob?.id) {
+    return jsonResponse({
+      success: true,
+      phase: "poll",
+      jobId: existingJob.id,
+      pollAfterMs: 3000,
+      resumed: true,
     });
   }
 
@@ -1104,7 +1110,7 @@ Deno.serve(async (req) => {
         companion_id: companionId,
         xai_request_id: requestId,
         status: "pending",
-        charge_fc: chargedAmount,
+        charge_fc: 0,
         refunded: false,
         context: {
           table,
@@ -1121,14 +1127,6 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (insErr || !ins?.id) {
-      if (tokensCharged) {
-        await refundProfileLoopFc(
-          svc,
-          sessionUser.id,
-          chargedAmount,
-          insErr?.message ?? "could not create profile loop job (apply DB migration?)",
-        );
-      }
       return jsonResponse(
         {
           error:
@@ -1139,6 +1137,67 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (shouldCharge) {
+      const { data: profRow, error: profRowErr } = await svc
+        .from("profiles")
+        .select("tokens_balance")
+        .eq("user_id", sessionUser.id)
+        .maybeSingle();
+      if (profRowErr || profRow == null) {
+        await svc
+          .from("profile_loop_video_jobs")
+          .update({
+            status: "failed",
+            error_message: "Could not read forge credits balance.",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", ins.id);
+        return jsonResponse({ error: "Could not read forge credits balance." }, 500);
+      }
+      if (profRow.tokens_balance < PAID_LOOP_FC) {
+        await svc
+          .from("profile_loop_video_jobs")
+          .update({
+            status: "failed",
+            error_message: `Not enough forge credits (${PAID_LOOP_FC} required).`,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", ins.id);
+        return jsonResponse(
+          { error: `Not enough forge credits (${PAID_LOOP_FC} required).`, code: "INSUFFICIENT_TOKENS" },
+          402,
+        );
+      }
+      const nextBal = profRow.tokens_balance - PAID_LOOP_FC;
+      const { error: deductErr } = await svc
+        .from("profiles")
+        .update({ tokens_balance: nextBal })
+        .eq("user_id", sessionUser.id);
+      if (deductErr) {
+        await svc
+          .from("profile_loop_video_jobs")
+          .update({
+            status: "failed",
+            error_message: deductErr.message || "Could not reserve forge credits.",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", ins.id);
+        return jsonResponse({ error: deductErr.message || "Could not reserve forge credits." }, 500);
+      }
+      await recordFcTransaction(svc, {
+        userId: sessionUser.id,
+        creditsChange: -PAID_LOOP_FC,
+        balanceAfter: nextBal,
+        transactionType: "profile_loop_video",
+        description: "Profile loop video (Grok I2V)",
+        metadata: { companionId, fc: PAID_LOOP_FC, jobId: ins.id },
+      });
+      await svc
+        .from("profile_loop_video_jobs")
+        .update({ charge_fc: PAID_LOOP_FC, updated_at: new Date().toISOString() })
+        .eq("id", ins.id);
+    }
+
     return jsonResponse({
       success: true,
       phase: "poll",
@@ -1146,14 +1205,6 @@ Deno.serve(async (req) => {
       pollAfterMs: 4000,
     });
   } catch (e) {
-    if (tokensCharged) {
-      await refundProfileLoopFc(
-        svc,
-        sessionUser.id,
-        chargedAmount,
-        e instanceof Error ? e.message : "profile loop video start error",
-      );
-    }
     const msg = e instanceof Error ? e.message : String(e);
     return jsonResponse({ error: msg }, 500);
   }

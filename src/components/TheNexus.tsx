@@ -20,7 +20,7 @@ import {
   nexusCooldownRemainingMs,
 } from "@/lib/nexusMerge";
 import { messageFromFunctionsInvoke } from "@/lib/supabaseFunctionsError";
-import { invokeGenerateProfileLoopVideo } from "@/lib/invokeGenerateProfileLoopVideo";
+import { startProfileLoopVideoInBackground } from "@/lib/invokeGenerateProfileLoopVideo";
 import { normalizeCompanionRarity } from "@/lib/companionRarity";
 import { TierHaloPortraitFrame } from "@/components/rarity/TierHaloPortraitFrame";
 import { AdminLoopingVideoBlock } from "@/components/admin/AdminLoopingVideoBlock";
@@ -632,19 +632,6 @@ export default function TheNexus({
 
       const portraitReady = payload.portraitGenerated !== false;
 
-      if (portraitReady) {
-        setMergeSubphase("video");
-        try {
-          await invokeGenerateProfileLoopVideo(
-            { companionId: payload.childId },
-            { headers: { Authorization: `Bearer ${token}` } },
-          );
-        } catch (ve) {
-          const vm = ve instanceof Error ? ve.message : "Loop video failed — open profile and tap Regenerate loop video.";
-          toast.error(vm.length > 220 ? `${vm.slice(0, 217)}…` : vm);
-        }
-      }
-
       const uuid = payload.childId.replace(/^cc-/, "");
       const { data: row, error: rowErr } = await supabase
         .from("custom_characters")
@@ -659,6 +646,29 @@ export default function TheNexus({
       }
 
       setPhase("revealed");
+
+      if (portraitReady) {
+        toast.info("Loop video rendering in background — open their profile to watch.", { duration: 7000 });
+        startProfileLoopVideoInBackground(
+          { companionId: payload.childId },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            onComplete: () => {
+              toast.success("Loop video saved — refresh their profile to watch.");
+              void queryClient.invalidateQueries({ queryKey: ["companions"] });
+              void queryClient.invalidateQueries({
+                queryKey: ["companion-display-override", userId, payload.childId],
+              });
+            },
+            onError: (msg) => {
+              const vm =
+                msg || "Loop video failed — open profile and tap Regenerate loop video.";
+              toast.error(vm.length > 220 ? `${vm.slice(0, 217)}…` : vm);
+            },
+          },
+        );
+      }
+
       try {
         localStorage.removeItem(NEXUS_PENDING_MERGE_KEY);
       } catch {
