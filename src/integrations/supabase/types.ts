@@ -125,7 +125,6 @@ export type Database = {
           is_active: boolean
           kinks: string[]
           name: string
-          nude_tensor_render_group: string | null
           orientation: string
           personality: string
           rarity: string
@@ -160,7 +159,6 @@ export type Database = {
           is_active?: boolean
           kinks?: string[]
           name: string
-          nude_tensor_render_group?: string | null
           orientation?: string
           personality?: string
           rarity?: string
@@ -195,7 +193,6 @@ export type Database = {
           is_active?: boolean
           kinks?: string[]
           name?: string
-          nude_tensor_render_group?: string | null
           orientation?: string
           personality?: string
           rarity?: string
@@ -242,7 +239,6 @@ export type Database = {
           merge_stats: Json | null
           name: string
           nexus_cooldown_until: string | null
-          nude_tensor_render_group: string | null
           orientation: string
           personality: string
           personality_forge: Json
@@ -291,7 +287,6 @@ export type Database = {
           merge_stats?: Json | null
           name: string
           nexus_cooldown_until?: string | null
-          nude_tensor_render_group?: string | null
           orientation?: string
           personality?: string
           personality_forge?: Json
@@ -339,7 +334,6 @@ export type Database = {
           lineage_parent_names?: string[] | null
           merge_stats?: Json | null
           nexus_cooldown_until?: string | null
-          nude_tensor_render_group?: string | null
           orientation?: string
           personality?: string
           personality_forge?: Json
@@ -747,8 +741,6 @@ export type Database = {
           id: string
           stripe_customer_id: string | null
           tier: string
-          together_image_model: string | null
-          together_video_model: string | null
           tokens_balance: number
           tokens_reset_at: string
           tts_voice_global_override: string | null
@@ -769,8 +761,6 @@ export type Database = {
           id?: string
           stripe_customer_id?: string | null
           tier?: string
-          together_image_model?: string | null
-          together_video_model?: string | null
           tokens_balance?: number
           tokens_reset_at?: string
           tts_voice_global_override?: string | null
@@ -791,8 +781,6 @@ export type Database = {
           id?: string
           stripe_customer_id?: string | null
           tier?: string
-          together_image_model?: string | null
-          together_video_model?: string | null
           tokens_balance?: number
           tokens_reset_at?: string
           tts_voice_global_override?: string | null

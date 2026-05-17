@@ -9,6 +9,7 @@
 
 import { CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK } from "./chatLikenessAnchors.ts";
 import { resolveXaiApiKey } from "./resolveXaiApiKey.ts";
+import { sanitizeGrokImagineLexicon } from "./momentsPromptSanitize.ts";
 import { defaultGrokRewriteModel, grokSingleChatAssistantText } from "./xaiGrokChatRaw.ts";
 
 const getEnv = (name: string) => Deno.env.get(name);
@@ -199,5 +200,5 @@ export async function rewritePromptForImagine(args: RewritePromptForImagineArgs)
   }
 
   const maxChars = mode === "portrait_card" ? 2600 : 3800;
-  return compactPromptText(content, maxChars);
+  return sanitizeGrokImagineLexicon(compactPromptText(content, maxChars));
 }

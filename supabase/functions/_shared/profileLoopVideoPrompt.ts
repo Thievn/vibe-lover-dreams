@@ -3,6 +3,7 @@ import {
   FORGE_ANIME_STYLE_LOCK_REGEX,
   isAnimeTemptationForgeTabId,
 } from "./forgeAnimeStyleDna.ts";
+import { sanitizeGrokImagineLexicon } from "./momentsPromptSanitize.ts";
 import { sanitizeProfileLoopUserMotionNotes } from "./profileLoopMotionPolicy.ts";
 
 /**
@@ -112,12 +113,13 @@ function editorMotionPrefixMinimal(notes: string | undefined): string {
   return `MANDATORY editor motion (highest priority): ${clipped}. `;
 }
 
-/** Strip control chars that can break JSON or confuse upstream parsers. */
+/** Strip control chars, then Grok lexicon (no banned words in final xAI prompts). */
 export function sanitizePromptForVideoApi(s: string): string {
-  return s
+  const stripped = s
     .replace(/\u0000/g, "")
     .replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
     .trim();
+  return sanitizeGrokImagineLexicon(stripped);
 }
 
 /**
@@ -213,7 +215,7 @@ export function buildProfileLoopVideoPrompt(row: Record<string, unknown>, editor
     `Create a ${PROFILE_LOOP_VIDEO_DURATION_SECONDS}-second ultra-smooth vertical portrait loop video (2:3).`,
     "Same person and same overall scene as the source image: lighting, environment, and character identity. Do not invent a new character, new location, or new props that are not implied by the frame.",
     editorBlock ? `${editorBlock}\n` : "",
-    "If you show wardrobe or intimacy beats (tease, undress/redress, explicit or nude content), they must be grounded in what the still already shows or strongly implies, and the clip must return to a matching start state so the loop is seamless: first and last frames nearly identical. Examples: slowly lifting a hem or shirt then lowering it back; unbuttoning and re-buttoning; slipping a strap off and back; turning away and back to camera; a slow caress that ends where it began. The runtime allows a full tease-out and tease-back.",
+    "If you show wardrobe or intimacy beats (tease, undress/redress, explicit or fully revealed styling), they must be grounded in what the still already shows or strongly implies, and the clip must return to a matching start state so the loop is seamless: first and last frames nearly identical. Examples: slowly lifting a hem or shirt then lowering it back; unbuttoning and re-buttoning; slipping a strap off and back; turning away and back to camera; a slow caress that ends where it began. The runtime allows a full tease-out and tease-back.",
     "",
     I2V_MOUTH_STILL_DIRECTIVE,
     "",

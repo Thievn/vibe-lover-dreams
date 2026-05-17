@@ -1,20 +1,9 @@
 /**
- * Chat companion video clips:
- * - **Lewd / SFW** — Grok Imagine image-to-video (`grok-imagine-video` via xAI).
- * - **Nude** — Tensor.art T2V/I2V (dual model per `nude_tensor_render_group`); requires `TENSOR_API_KEY`.
- *
- * Configure: `GROK_*` for lewd/sfw, `TENSOR_API_KEY` + nude model envs for nude, `GROK_CHAT_VIDEO_DURATION_SECONDS` (5–15, default 10).
+ * Chat companion video clips — Grok Imagine image-to-video (`grok-imagine-video` via xAI).
+ * Configure: `XAI_API_KEY` / `GROK_API_KEY`, optional `GROK_VIDEO_MODEL`, `GROK_CHAT_VIDEO_DURATION_SECONDS` (5–15).
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { hasTamsRsaCredentials } from "../_shared/tamsRsaAuth.ts";
-import { pickNudeVideoModelId } from "../_shared/nudeTensorModelPick.server.ts";
-import { resolveNudeRenderGroupForCompanion } from "../_shared/resolveNudeRenderGroupForCompanion.ts";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
-import {
-  DEFAULT_TENSOR_VIDEO_MODEL,
-  runTensorImageToVideoJobWithRetries,
-  sourceImageUrlForTamsUpload,
-} from "../_shared/tensorClient.ts";
 import {
   DEFAULT_GROK_VIDEO_MODEL,
   publicHttpsImageUrlForGrok,
@@ -88,14 +77,13 @@ Deno.serve(async (req) => {
       companionId?: string;
       userId?: string;
       tokenCost?: number;
-      clipMood?: "sfw" | "lewd" | "nude";
+      clipMood?: "sfw" | "lewd";
       motionHint?: string;
     } | null;
 
     const companionId = typeof body?.companionId === "string" ? body.companionId.trim() : "";
     const userId = typeof body?.userId === "string" ? body.userId.trim() : "";
-    const clipMood =
-      body?.clipMood === "sfw" || body?.clipMood === "lewd" || body?.clipMood === "nude" ? body.clipMood : "lewd";
+    const clipMood = body?.clipMood === "sfw" || body?.clipMood === "lewd" ? body.clipMood : "lewd";
     const motionHintRaw = typeof body?.motionHint === "string" ? body.motionHint.trim() : "";
     const motionHint = motionHintRaw.length > 500 ? `${motionHintRaw.slice(0, 497)}…` : motionHintRaw;
 
@@ -164,7 +152,7 @@ Deno.serve(async (req) => {
         creditsChange: -tokenCost,
         balanceAfter: nbal,
         transactionType: "chat_video",
-        description: "Chat: short video clip (Imagine / Tensor)",
+        description: "Chat: short video clip (Grok I2V)",
         metadata: { tokenCost, companionId },
       });
     }
@@ -207,16 +195,6 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: "No fetchable portrait image URL for video source." }, 400);
     }
 
-    const assertTamsVideoModel = (m: string, name: string): string => {
-      const t = m.trim();
-      if (!/^\d{10,24}$/.test(t)) {
-        throw new Error(
-          `Invalid ${name} "${t}". TAMS needs the digits-only model id (tensor.art model page), not a repo name.`,
-        );
-      }
-      return t;
-    };
-
     const motionBeats = [
       "slow sensual hip sway and weight shift returning to center",
       "teasing fabric adjustment — strap, hem, or neckline — then settling back",
@@ -229,9 +207,7 @@ Deno.serve(async (req) => {
     const moodLine =
       clipMood === "sfw"
         ? "SFW / flirty: cute playful motion, outfit stays fully on, modest coverage."
-        : clipMood === "nude"
-          ? "Explicit-leaning if the still supports it; sensual body motion."
-          : "Lewd / lingerie tease, NSFW-leaning, matching the still.";
+        : "Lewd / lingerie tease, spicy-leaning, matching the still.";
 
     const likenessLock =
       "LIKENESS (critical): Same roster character as the source portrait — same face structure, hair, skin tone, age read, silhouette, and body language; never morph into a different person, creature mash-up, or melted features. Motion must read as alive — fabric physics, hair drift, breath, weight shifts, gaze — not a Ken Burns zoom or parallax wobble on a static frame.";
@@ -249,96 +225,6 @@ Deno.serve(async (req) => {
           );
 
     const durationSec = chatVideoDurationSeconds();
-    if (clipMood === "nude") {
-      const tensorKey = (Deno.env.get("TENSOR_API_KEY") ?? "").trim();
-      if (!tensorKey && !hasTamsRsaCredentials()) {
-        if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
-        return jsonResponse(
-          {
-            success: false,
-            error:
-              "Nude video clips use Tensor TAMS — set TENSOR_API_KEY (or TAMS RSA credentials). Lewd/sfw still use Grok; configure both for full + menu support.",
-          },
-          503,
-        );
-      }
-      const tamsSource = sourceImageUrlForTamsUpload(imageUrl);
-      if (!tamsSource) {
-        if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
-        return jsonResponse(
-          { success: false, error: "Profile URL must be a fetchable https URL for Tensor (public storage or a signed link)." },
-          400,
-        );
-      }
-      const nudeGroup = await resolveNudeRenderGroupForCompanion(
-        (k) => Deno.env.get(k) ?? undefined,
-        svc,
-        companionId,
-        row,
-      );
-      const genericV = (Deno.env.get("TENSOR_VIDEO_MODEL") ?? DEFAULT_TENSOR_VIDEO_MODEL).trim();
-      const videoModelTams = pickNudeVideoModelId(
-        (k) => Deno.env.get(k) ?? undefined,
-        nudeGroup,
-        assertTamsVideoModel,
-        assertTamsVideoModel(genericV, "TENSOR_VIDEO_MODEL"),
-      );
-      const tensorI2V = sanitizePromptForVideoApi(
-        `${prompt}\n\n[TAMS nude I2V] Animate the profile still with the motion and mood above; explicit-adult-leaning motion only if the still supports it. ${I2V_MOUTH_STILL_DIRECTIVE_SHORT}`,
-      );
-      let tensorVideoUrl: string;
-      try {
-        if (!tensorKey) {
-          throw new Error("TENSOR_API_KEY is empty — RSA-only path not wired for nude I2V in this build.");
-        }
-        const { videoUrl: vu } = await runTensorImageToVideoJobWithRetries({
-          apiKey: tensorKey,
-          prompt: tensorI2V,
-          sourceImageUrl: tamsSource,
-          durationSeconds: durationSec,
-          model: videoModelTams,
-          timeoutMs: 15 * 60_000,
-          maxAttempts: 3,
-        });
-        if (!vu) throw new Error("Tensor returned no nude video URL");
-        tensorVideoUrl = vu;
-      } catch (e) {
-        if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
-        const msg = e instanceof Error ? e.message : String(e);
-        return jsonResponse({ success: false, error: msg }, 502);
-      }
-      const vidRes2 = await fetch(tensorVideoUrl);
-      if (!vidRes2.ok) {
-        if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
-        return jsonResponse(
-          { success: false, error: `Download from Tensor video failed HTTP ${vidRes2.status}` },
-          502,
-        );
-      }
-      const buf2 = new Uint8Array(await vidRes2.arrayBuffer());
-      const safe2 = companionId.replace(/[^a-zA-Z0-9-_]/g, "_").slice(0, 80);
-      const fileName2 = `chat-videos-tensor/${userId}/${safe2}/${Date.now()}.mp4`;
-      const { error: upErr2 } = await createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY).storage
-        .from("companion-images")
-        .upload(fileName2, buf2, { contentType: "video/mp4", upsert: true });
-      if (upErr2) {
-        if (tokensCharged) await refundTokens(svc, userId, tokenCost, "companion or pipeline");
-        return jsonResponse({ success: false, error: upErr2.message }, 500);
-      }
-      const publicUrl2 = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY).storage
-        .from("companion-images")
-        .getPublicUrl(fileName2).data.publicUrl;
-      const { data: prof2 } = await svc.from("profiles").select("tokens_balance").eq("user_id", userId).maybeSingle();
-      return jsonResponse({
-        success: true,
-        videoUrl: publicUrl2,
-        newTokensBalance: prof2?.tokens_balance ?? null,
-        tokensCharged: tokenCost,
-        source: "tensor-nude",
-        durationSeconds: durationSec,
-        nudeRenderGroup: nudeGroup,
-      });
-    }
 
     const xaiKey = resolveXaiApiKey((n) => Deno.env.get(n) ?? undefined);
     if (!xaiKey) {
@@ -347,7 +233,7 @@ Deno.serve(async (req) => {
         {
           success: false,
           error:
-            "Grok / xAI not configured: set Edge Function secret XAI_API_KEY or GROK_API_KEY for lewd/sfw chat video clips.",
+            "Grok / xAI not configured: set Edge Function secret XAI_API_KEY or GROK_API_KEY for chat video clips.",
         },
         503,
       );

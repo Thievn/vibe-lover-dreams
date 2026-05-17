@@ -14,7 +14,8 @@ import {
   isAnimeTemptationForgeTabId,
 } from "./forgeAnimeStyleDna.ts";
 import { buildForgeStyleDnaPrefix } from "./forgeTabStyleDna.ts";
-import { decodeImageDataUrl } from "./togetherImage.ts";
+import { decodeImageDataUrl } from "./imageDataUrl.ts";
+import { sanitizeGrokImagineLexicon } from "./momentsPromptSanitize.ts";
 import { resolveXaiApiKey } from "./resolveXaiApiKey.ts";
 import { grokGenerateImageDataUrl } from "./xaiGrokImage.ts";
 import { enrichImaginePromptUniversal } from "./characterReferenceImagePrompt.ts";
@@ -83,7 +84,7 @@ Create a highly detailed, cinematic, vertical 2:3 portrait of ${baseDescription}
 Visual rules:
 - **No text from this prompt on the canvas:** Do not paint META/policy lines, markdown headers, or slogans as visible typography (including gold captions). Pure portrait scene only.
 - No legible logos, watermarks, UI chrome, or fake app branding in-frame.
-- **Tasteful adult:** sensual nude, lingerie, wet fabric, and strong tease are in-bounds; avoid hardcore pornographic depiction, graphic penetration, or obscene gynecological close-ups — premium boudoir / editorial tone.
+- **Tasteful adult:** sensual editorial styling, lingerie, wet fabric, and strong tease are in-bounds; avoid hardcore pornographic depiction, graphic penetration, or obscene gynecological close-ups — premium boudoir / editorial tone.
 - ${anatomyKey}
 
 PRIMARY SCENE (authoritative):
@@ -122,10 +123,12 @@ export async function renderPortraitToStorage(opts: {
     String(characterData.character_reference ?? "").trim() ||
     String(characterData.appearance_reference ?? "").trim() ||
     "";
-  const finalPrompt = enrichImaginePromptUniversal({
-    corePrompt: rawFinal,
-    characterReference: ref.length >= 12 ? ref : null,
-  });
+  const finalPrompt = sanitizeGrokImagineLexicon(
+    enrichImaginePromptUniversal({
+      corePrompt: rawFinal,
+      characterReference: ref.length >= 12 ? ref : null,
+    }),
+  );
 
   const apiKey = resolveXaiApiKey(getEnv);
   if (!apiKey) {

@@ -4,7 +4,6 @@ import { inferStylizedArtFromTags } from "@/lib/forgeBodyTypes";
 /** DB fields used to lock chat Imagine to the same visual lane as the card / forge. */
 export type ChatArtStyleDbInput = {
   tags?: string[] | null;
-  nude_tensor_render_group?: "realistic" | "stylized" | string | null;
   image_prompt?: string | null;
   appearance?: string | null;
 };
@@ -33,10 +32,6 @@ export function resolveChatArtStyleLabel(db: ChatArtStyleDbInput | null | undefi
   const tags = db?.tags ?? [];
   const fromTags = inferStylizedArtFromTags(Array.isArray(tags) ? tags : []);
   if (fromTags) return fromTags;
-
-  const group = db?.nude_tensor_render_group;
-  if (group === "stylized") return "Stylized / illustrated (non-photoreal) — match forge card line art and color.";
-  if (group === "realistic") return "Photorealistic";
 
   const fromText = inferFromImagePromptOrAppearance(db?.image_prompt ?? null, db?.appearance ?? null);
   if (fromText) return fromText;

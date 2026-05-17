@@ -1,4 +1,4 @@
-import { Aperture, Camera, ChevronDown, Sparkles, Video } from "lucide-react";
+import { Aperture, Camera, ChevronDown, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MOMENTS_GALLERY_SUBTITLE } from "@/lib/chatMomentsBrand";
 import {
@@ -16,9 +16,7 @@ export type ChatMediaBarAction =
   | "selfie_picture"
   | "selfie_video"
   | "lewd_picture"
-  | "lewd_video"
-  | "nude_picture"
-  | "nude_video";
+  | "lewd_video";
 
 type Props = {
   disabled?: boolean;
@@ -153,44 +151,6 @@ export function ChatMediaRequestBar({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              disabled={disabled}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-fuchsia-500/30 bg-fuchsia-950/25 px-2.5 py-1.5 text-[11px] font-semibold text-fuchsia-100 hover:bg-fuchsia-950/40 disabled:opacity-40 touch-manipulation"
-            >
-              <Sparkles className="h-3.5 w-3.5 shrink-0" />
-              Sensual
-              <ChevronDown className="h-3 w-3 shrink-0 opacity-80" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            className="min-w-[12rem] border border-white/10 bg-[hsl(280_25%_10%)]/98 text-foreground"
-          >
-            <DropdownMenuItem
-              className="cursor-pointer gap-2 text-sm"
-              disabled={disabled}
-              onSelect={(e) => e.preventDefault()}
-              onClick={() => onRequest("nude_picture")}
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              Sensual picture
-              <span className="ml-auto text-[10px] text-muted-foreground">{imageCostLabel}</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="cursor-pointer gap-2 text-sm"
-              disabled={disabled || videoDisabled}
-              onSelect={(e) => e.preventDefault()}
-              onClick={() => onRequest("nude_video")}
-            >
-              <Video className="h-3.5 w-3.5 text-[#00ffd4]" />
-              Sensual video
-              <span className="ml-auto text-[10px] text-[#00ffd4]/80">{videoCostLabel}</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </div>
   );

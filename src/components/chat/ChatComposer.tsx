@@ -89,7 +89,7 @@ type Props = {
   chatImageLewdFc: number;
   videoClipFc: number;
   /** Gallery “clip” with preset hint (motion steered per card). */
-  onGalleryClipRequest?: (p: { mood: "sfw" | "lewd" | "nude"; motionHint: string }) => void;
+  onGalleryClipRequest?: (p: { mood: "sfw" | "lewd"; motionHint: string }) => void;
   autoSpendEnabled: boolean;
   onAutoSpendChange: (v: boolean) => void;
   /** Media controls + auto-still are only for signed-in users (same as legacy bar). */
@@ -452,7 +452,7 @@ function StillStylePicker({
   videoDisabled: boolean;
   onRequest: (a: ChatMediaBarAction) => void;
   onStyledStillRequest: (p: { tier: FabSelfieTier; userLine: string; sceneExtension: string }) => void;
-  onGalleryClipRequest?: (p: { mood: "sfw" | "lewd" | "nude"; motionHint: string }) => void;
+  onGalleryClipRequest?: (p: { mood: "sfw" | "lewd"; motionHint: string }) => void;
   isAdminUser: boolean;
   chatImageLewdFc: number;
   videoClipFc: number;
@@ -462,7 +462,7 @@ function StillStylePicker({
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<StillTab>("selfies");
   const [showDisclaimer, setShowDisclaimer] = useState(false);
-  const [clipMood, setClipMood] = useState<"sfw" | "lewd" | "nude" | null>(null);
+  const [clipMood, setClipMood] = useState<"sfw" | "lewd" | null>(null);
 
   const fmtFc = (n: number) => (isAdminUser ? "Included" : `${n} FC`);
   const stillPrice = fmtFc(chatImageLewdFc);
@@ -487,13 +487,11 @@ function StillStylePicker({
     const motionHint =
       clipMood === "sfw"
         ? "Flattering SFW vertical clip — selfie energy, safe wardrobe, smooth handheld motion."
-        : clipMood === "lewd"
-          ? "Tasteful spicy vertical clip — lingerie / silhouette tease, editorial motion."
-          : "Explicit adult vertical clip — fine-art boudoir motion, intimate framing.";
+        : "Tasteful spicy vertical clip — lingerie / silhouette tease, editorial motion.";
     if (onGalleryClipRequest) {
       onGalleryClipRequest({ mood: clipMood, motionHint });
     } else {
-      onRequest(clipMood === "sfw" ? "selfie_video" : clipMood === "lewd" ? "lewd_video" : "nude_video");
+      onRequest(clipMood === "sfw" ? "selfie_video" : "lewd_video");
     }
     setClipMood(null);
     setOpen(false);
@@ -663,14 +661,6 @@ function StillStylePicker({
                 className="rounded-md border border-rose-500/25 bg-rose-950/20 px-2 py-1 text-[9px] font-medium text-rose-100/95 hover:bg-rose-950/35 disabled:opacity-40"
               >
                 Spicy · {clipPrice}
-              </button>
-              <button
-                type="button"
-                disabled={disabled || videoDisabled}
-                onClick={() => setClipMood("nude")}
-                className="rounded-md border border-violet-500/25 bg-violet-950/25 px-2 py-1 text-[9px] font-medium text-violet-100/95 hover:bg-violet-950/40 disabled:opacity-40"
-              >
-                Explicit · {clipPrice}
               </button>
             </div>
             {CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? (

@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
-import { decodeImageDataUrl } from "../_shared/togetherImage.ts";
+import { decodeImageDataUrl } from "../_shared/imageDataUrl.ts";
 import { grokGenerateImageDataUrl } from "../_shared/xaiGrokImage.ts";
 import { PORTRAIT_IMAGE_DESIGN_BRIEF } from "../_shared/portraitImageDesignBrief.ts";
 import {
@@ -9,7 +9,7 @@ import {
   buildAnatomyRewriterDirective,
   resolveAnatomyVariant,
 } from "../_shared/anatomyImageRules.ts";
-import { sanitizeMomentsImaginePromptText } from "../_shared/momentsPromptSanitize.ts";
+import { sanitizeGrokImagineLexicon } from "../_shared/momentsPromptSanitize.ts";
 import { maybeAppendForgeStyleSceneBlock } from "../_shared/forgePortraitAugmentation.ts";
 import {
   buildAnimeTemptationStyleLead,
@@ -33,6 +33,7 @@ import { publicApiTeaserGuardResponse } from "../_shared/publicApiTeaserGate.ts"
 import { enrichImaginePromptUniversal } from "../_shared/characterReferenceImagePrompt.ts";
 import { resolveCharacterReferenceForImagine } from "../_shared/resolveCharacterReferenceFromDb.ts";
 import { assertUserUnlockedCompanionForSpend } from "../_shared/requireCompanionFcUnlock.ts";
+import { rewritePromptForImagine } from "../_shared/safeImagePromptRewriter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,7 +44,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-const TOGETHER_IMAGE_PROMPT_SOFT_LIMIT = 7600;
+const GROK_IMAGINE_PROMPT_SOFT_LIMIT = 7600;
 
 function clampPromptForImagine(prompt: string, maxChars: number): string {
   const compact = prompt.replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -356,7 +357,7 @@ serve(async (req) => {
         : "";
       const headJoined = [executionHead, anatomyHead].filter((s) => String(s).trim()).join("\n\n");
       const reserved = headJoined.length + 32;
-      const rawBudget = Math.max(2000, TOGETHER_IMAGE_PROMPT_SOFT_LIMIT - reserved);
+      const rawBudget = Math.max(2000, GROK_IMAGINE_PROMPT_SOFT_LIMIT - reserved);
       const menuPrimaryExtract = menuSceneLockEffective ? extractMenuPrimarySceneBody(String(prompt)) : "";
       const rawForMenuClamp =
         menuPrimaryExtract.length >= 50
@@ -366,7 +367,7 @@ serve(async (req) => {
           : rawForRewrite;
       const rawClamped = clampPromptForImagine(rawForMenuClamp, rawBudget);
       const fused = [headJoined, rawClamped].filter((s) => String(s).trim()).join("\n\n\n");
-      safeRewritten = clampPromptForImagine(fused, TOGETHER_IMAGE_PROMPT_SOFT_LIMIT);
+      safeRewritten = clampPromptForImagine(fused, GROK_IMAGINE_PROMPT_SOFT_LIMIT);
     } else {
       try {
         safeRewritten = await rewritePromptForImagine({
@@ -588,8 +589,8 @@ ${safeRewritten}`.trim();
       corePrompt: finalPromptRaw,
       characterReference: charRefResolved,
     });
-    const finalPromptClamped = clampPromptForImagine(finalPromptRawEnriched, TOGETHER_IMAGE_PROMPT_SOFT_LIMIT);
-    const finalPrompt = isChatSessionStill ? sanitizeMomentsImaginePromptText(finalPromptClamped) : finalPromptClamped;
+    const finalPromptClamped = clampPromptForImagine(finalPromptRawEnriched, GROK_IMAGINE_PROMPT_SOFT_LIMIT);
+    const finalPrompt = sanitizeGrokImagineLexicon(finalPromptClamped);
 
     let imageDataUrl: string;
     try {

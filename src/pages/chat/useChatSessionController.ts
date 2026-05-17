@@ -1680,7 +1680,7 @@ export function useChatSessionController() {
    * `silent` = model-appended `lustforge_media_request` (no toasts; immersion-first).
    */
   const generateChatVideoClip = async (opts?: {
-    mood?: "sfw" | "lewd" | "nude";
+    mood?: "sfw" | "lewd";
     silent?: boolean;
     motionHint?: string;
   }) => {
@@ -1720,9 +1720,7 @@ export function useChatSessionController() {
       const caption =
         mood === "sfw"
           ? `*${companion.name} sent you a flirty clip…*`
-          : mood === "nude"
-            ? `*${companion.name} sent you an explicit clip…*`
-            : `*${companion.name} sent you a steamy clip…*`;
+          : `*${companion.name} sent you a steamy clip…*`;
       const clipPrompt = `[LustForge chat] mood=${mood} — 2:3 vertical card clip.`;
       const { data: giRow, error: giErr } = await supabase
         .from("generated_images")
@@ -1823,10 +1821,9 @@ export function useChatSessionController() {
     }
   };
 
-  // --- Phase 1: three dropdowns (Selfie / Lewd / Nude) × (Picture | Video) ---
+  // --- Phase 1: Selfie / Lewd × (Picture | Video) ---
   const handleMediaBarRequest = (action: ChatMediaBarAction) => {
-    const videoMood: "sfw" | "lewd" | "nude" =
-      action === "selfie_video" ? "sfw" : action === "nude_video" ? "nude" : "lewd";
+    const videoMood: "sfw" | "lewd" = action === "selfie_video" ? "sfw" : "lewd";
     if (action.endsWith("_video")) {
       void generateChatVideoClip({ mood: videoMood });
       return;
@@ -1846,13 +1843,6 @@ export function useChatSessionController() {
         imageRequestFromMenu: true,
       });
       return;
-    }
-    if (action === "nude_picture") {
-      void sendMessage(resolveFabDisplay(FAB_SELFIE.lewd.display), {
-        imageGenerationPrompt: FAB_SELFIE.lewd.imagePrompt,
-        bypassImageConfirmation: true,
-        imageRequestFromMenu: true,
-      });
     }
   };
 

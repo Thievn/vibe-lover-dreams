@@ -87,11 +87,10 @@ export function inferChatMediaRoute(messageText: string, menuForcesImage: boolea
 }
 
 /** Maps free-text + menu video buckets to the clip mood sent to `generate-chat-companion-video`. */
-export function inferClipMoodFromUserText(text: string): "sfw" | "lewd" | "nude" {
+export function inferClipMoodFromUserText(text: string): "sfw" | "lewd" {
   const t = text.toLowerCase().normalize("NFKC");
   if (/\b(cute|sfw|sweet|clothed|outfit(\s+check)?|pretty|innocent)\b/i.test(t) && !/\b(nude|naked|explicit|nsfw)\b/i.test(t)) {
     return "sfw";
   }
-  if (/\b(nude|naked|nsfw|explicit|full\s*nudity|bare|no\s*clothes)\b/i.test(t)) return "nude";
   return "lewd";
 }

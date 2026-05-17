@@ -17,8 +17,3 @@ export function lustforgeChatServerSystemPrefix(): string {
     "",
   ].join("\n");
 }
-
-/** @deprecated Use lustforgeChatServerSystemPrefix — kept for legacy imports. */
-export function togetherChatServerSystemPrefix(): string {
-  return lustforgeChatServerSystemPrefix();
-}

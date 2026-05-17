@@ -64,8 +64,6 @@ export interface DbCompanion {
   merge_stats?: Record<string, unknown> | null;
   is_nexus_hybrid?: boolean;
   tcg_stats?: Record<string, unknown> | null;
-  /** Cached: Tensor nude generation model family (server-filled on first nude request). */
-  nude_tensor_render_group?: "realistic" | "stylized" | null;
   /** JSON array of `{ id, inherited? }` for profile + cards. */
   display_traits?: unknown;
 }

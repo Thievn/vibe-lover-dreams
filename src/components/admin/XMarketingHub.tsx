@@ -999,9 +999,7 @@ export default function XMarketingHub() {
       const defaultByTier =
         portraitTierForX === "lewd"
           ? "Lewd teasing marketing still — lingerie / sheer / seductive pose, editorial spice, alluring but brand-safe framing."
-          : portraitTierForX === "nude"
-            ? "Explicit 18+ marketing still — fully nude or highly implied adult art, cinematic erotic lighting, character-accurate anatomy."
-            : "Premium editorial marketing still for X — cinematic lighting, alluring confident expression, SFW, on-brand.";
+          : "Premium editorial marketing still for X — cinematic lighting, alluring confident expression, SFW, on-brand.";
       const scene = marketingScene.trim() || defaultByTier;
       const prompt =
         `${scene}\n\n(Character: ${selected.name}, ${selected.gender}. ${selected.appearance})`.slice(0, 8000);
@@ -1026,7 +1024,6 @@ export default function XMarketingHub() {
           style: "x-marketing",
           artStyleLabel: resolveChatArtStyleLabel({
             tags: selected.tags,
-            nude_tensor_render_group: (selected as Record<string, unknown>).nude_tensor_render_group as string | undefined,
             image_prompt: (selected as Record<string, unknown>).image_prompt as string | undefined,
             appearance: selected.appearance,
           }),

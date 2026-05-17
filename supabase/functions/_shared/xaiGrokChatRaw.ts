@@ -59,11 +59,11 @@ export async function grokChatCompletionRaw(
 }
 
 export function defaultGrokForgeParseModel(): string {
-  return (Deno.env.get("GROK_FORGE_PARSE_MODEL") ?? Deno.env.get("GROK_CHAT_MODEL") ?? "grok-3").trim();
+  return (Deno.env.get("GROK_FORGE_PARSE_MODEL") ?? Deno.env.get("GROK_CHAT_MODEL") ?? "grok-4.3").trim();
 }
 
 export function defaultGrokRewriteModel(getEnv: (name: string) => string | undefined): string {
-  return getEnv("GROK_REWRITE_MODEL")?.trim() || getEnv("GROK_CHAT_MODEL")?.trim() || "grok-3";
+  return getEnv("GROK_REWRITE_MODEL")?.trim() || getEnv("GROK_CHAT_MODEL")?.trim() || "grok-4.3";
 }
 
 /** In-app companion chat, smart replies, teasers — `GROK_CHAT_MODEL` (default grok-4.3). */

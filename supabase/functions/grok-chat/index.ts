@@ -12,7 +12,7 @@ import { assertUserUnlockedCompanionForSpend } from "../_shared/requireCompanion
 import { resolveXaiApiKey } from "../_shared/resolveXaiApiKey.ts";
 import { defaultGrokProductChatModel } from "../_shared/xaiGrokChatRaw.ts";
 import { lustforgeNarrowUserScopeBlock } from "../_shared/lustforgeNarrowUserScope.ts";
-import { lustforgeChatServerSystemPrefix } from "../_shared/togetherRoleplaySystem.ts";
+import { lustforgeChatServerSystemPrefix } from "../_shared/lustforgeChatSystemPrefix.ts";
 import { GROK_VOICE_UNCENSORED_SYSTEM_PREFIX } from "../_shared/grokVoiceUncensoredPrefix.ts";
 
 const corsHeaders = {

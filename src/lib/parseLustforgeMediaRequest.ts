@@ -5,7 +5,7 @@ export type LustforgeMediaRequest = {
   /** Image/video creative brief in plain language (Grok generation pipeline). */
   brief: string;
   /** For video: optional mood bucket for the motion prompt. */
-  mood?: "sfw" | "lewd" | "nude";
+  mood?: "sfw" | "lewd";
 };
 
 /**
@@ -31,7 +31,7 @@ export function parseLustforgeMediaRequest(text: string): {
 
   let kind: "image" | "video" | null = null;
   let brief = "";
-  let mood: "sfw" | "lewd" | "nude" | undefined;
+  let mood: "sfw" | "lewd" | undefined;
 
   try {
     const parsed = JSON.parse(outerBlock) as { lustforge_media_request?: unknown };
@@ -43,7 +43,8 @@ export function parseLustforgeMediaRequest(text: string): {
       const b = o.brief;
       if (typeof b === "string") brief = b.trim();
       const m = o.mood;
-      if (m === "sfw" || m === "lewd" || m === "nude") mood = m;
+      if (m === "sfw" || m === "lewd") mood = m;
+      if (m === "nude") mood = "lewd";
     }
   } catch {
     const innerHead = outerBlock.match(/lustforge_media_request\s*:\s*\{/i);
@@ -55,7 +56,8 @@ export function parseLustforgeMediaRequest(text: string): {
         if (o) {
           if (o.kind === "image" || o.kind === "video") kind = o.kind;
           if (typeof o.brief === "string") brief = o.brief.trim();
-          if (o.mood === "sfw" || o.mood === "lewd" || o.mood === "nude") mood = o.mood;
+          if (o.mood === "sfw" || o.mood === "lewd") mood = o.mood;
+          else if (o.mood === "nude") mood = "lewd";
         }
       }
     }

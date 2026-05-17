@@ -3,7 +3,7 @@
  * and **identity-locked edits** (`/v1/images/edits` with a profile still as reference).
  * @see https://docs.x.ai/docs/guides/image-generations
  */
-import { normalizeTogetherImageToDataUrl } from "./togetherImage.ts";
+import { normalizeB64ImageToDataUrl } from "./imageDataUrl.ts";
 
 function sniffImageMime(bytes: Uint8Array): "image/jpeg" | "image/png" | "image/webp" {
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
@@ -45,7 +45,7 @@ async function grokImageDataFromResponse(
 ): Promise<{ dataUrl: string; modelUsed: string }> {
   const data = (json as { data?: Array<{ b64_json?: string; url?: string }> })?.data?.[0];
   if (data?.b64_json?.trim()) {
-    return { dataUrl: normalizeTogetherImageToDataUrl(data.b64_json.trim()), modelUsed: model };
+    return { dataUrl: normalizeB64ImageToDataUrl(data.b64_json.trim()), modelUsed: model };
   }
   if (data?.url?.trim()) {
     const dataUrl = await fetchHttpsImageUrlAsDataUrl(data.url.trim());

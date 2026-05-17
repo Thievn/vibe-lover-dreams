@@ -14,7 +14,7 @@ export async function invokeGenerateChatVideo(body: {
   userId: string;
   tokenCost?: number;
   /** Passed to `generate-chat-companion-video` to steer the motion prompt. */
-  clipMood?: "sfw" | "lewd" | "nude";
+  clipMood?: "sfw" | "lewd";
   /** Optional gallery preset line — steers motion away from a generic portrait wobble. */
   motionHint?: string;
 }): Promise<{ data: GenerateChatVideoResponse; error: null } | { data: null; error: Error }> {

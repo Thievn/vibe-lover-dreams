@@ -6,9 +6,6 @@ project_id = "tyaplrrlirlbqrfjqryo"
 [functions.generate-image]
 verify_jwt = false
 
-[functions.generate-image-tensor]
-verify_jwt = false
-
 # Newer Supabase projects may issue ES256 session JWTs; Kong verification can fail with "Unsupported JWT algorithm".
 # These functions validate the Authorization bearer inside Deno instead (see _shared/requireSessionUser.ts).
 [functions.admin-companion-chat]
@@ -25,9 +22,6 @@ verify_jwt = false
 
 # Same ES256 / Kong issue as other user-invoked Grok functions — no auth gate here; API key is server-side only.
 [functions.chat-with-companion]
-verify_jwt = false
-
-[functions.together-chat]
 verify_jwt = false
 
 [functions.grok-chat]

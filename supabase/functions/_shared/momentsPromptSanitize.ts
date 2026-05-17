@@ -1,8 +1,8 @@
 /**
- * Moments / chat-session stills: remove provider-risky and product-banned substrings
- * before Grok Imagine. Keeps "sensual / editorial / lingerie / sheer" vocabulary.
+ * Remove provider-risky lexicon before Grok Imagine / video (user text + assembled prompts).
+ * Ban-word patterns here match `nude` / `naked` only to replace them — never send those tokens to xAI.
  */
-export function sanitizeMomentsImaginePromptText(input: string): string {
+export function sanitizeGrokImagineLexicon(input: string): string {
   let s = input;
   s = s.replace(/\bartistic\s+nude\b/gi, "artistic sensual editorial");
   s = s.replace(/\bfull(?:y)?\s+nude\b/gi, "fully styled sensual editorial");
@@ -14,3 +14,6 @@ export function sanitizeMomentsImaginePromptText(input: string): string {
   s = s.replace(/\bnaked\b/gi, "wardrobe-forward clothed or sheer");
   return s;
 }
+
+/** @deprecated Alias for sanitizeGrokImagineLexicon */
+export const sanitizeMomentsImaginePromptText = sanitizeGrokImagineLexicon;
