@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
   cancelProfileLoopVideo,
   clearProfileLoopJobId,
+  dismissProfileLoopToast,
   hasPendingProfileLoopJob,
   invokeGenerateProfileLoopVideo,
   loadProfileLoopJob,
@@ -75,6 +76,13 @@ export function ProfileLoopingVideoUpsell({
 
   useEffect(() => {
     setPendingJob(hasPendingProfileLoopJob(companionId));
+  }, [companionId]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      dismissProfileLoopToast(companionId);
+    };
   }, [companionId]);
 
   const runGeneration = useCallback(
@@ -192,8 +200,13 @@ export function ProfileLoopingVideoUpsell({
         abortRef.current = null;
         setBusy(false);
         setPendingJob(hasPendingProfileLoopJob(companionId));
+        if (!hasPendingProfileLoopJob(companionId)) dismissProfileLoopToast(companionId);
       }
     })();
+    return () => {
+      abortRef.current?.abort();
+      dismissProfileLoopToast(companionId);
+    };
   }, [companionId, disabled, onBalanceMaybeChanged, onSuccess, pollStatusToast, toastId]);
 
   const costSuffix = isAdminUser ? "" : ` — ${PROFILE_LOOP_VIDEO_FC} FC`;

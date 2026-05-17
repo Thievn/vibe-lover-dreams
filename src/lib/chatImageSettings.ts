@@ -420,6 +420,8 @@ export function resolveChatImageGenerationPrompt(args: {
   menuImagePrompt?: string | null;
   /** Merged after tier base when user picks a smart menu style (still uses exact FAB tier string for mood). */
   styledSceneExtension?: string | null;
+  /** Human label from gallery tile (tone / logging; optional). */
+  menuTileLabel?: string | null;
   /** From DB — primary likeness anchor for FAB / media-bar selfie & lewd tiers. */
   appearanceReference?: string | null;
   /** DB `character_reference` — wins over appearanceReference when set. */
@@ -439,8 +441,9 @@ export function resolveChatImageGenerationPrompt(args: {
     const coherence =
       `\n\n**Forge look DNA (not the photograph):** hair, eyes, skin, species, body type, art style — from CHARACTER APPEARANCE + portrait; **not** sofa, wall, or outfit from the card unless the menu says so.\n\n${CHAT_LIKENESS_SCENE_PRIMACY_FOOTER}\n\n**Shot:** Match **Requested framing** literally (place, pose, wardrobe). **No** substitute “pretty person standing in plain room.”\n\n${CHAT_IMAGINE_NO_DEFAULT_CHAIR_BLOCK}`;
     if (styled) {
+      const tileLabel = args.menuTileLabel?.trim();
       const fused = (
-        `— Requested framing (from menu) —\n**PRIMARY SCENE (execute literally — place / pose / wardrobe):**\n${styled}\n\n${subjectAnchor}${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}${tierRails}\n\n**Exposure / tone context (not the shot layout):**\n${menu}${coherence}`
+        `— Requested framing (from menu) —\nMENU_TILE_SCENE:\n${styled}\n\n**PRIMARY SCENE (execute literally — place / pose / wardrobe):**\n${styled}${tileLabel ? `\n\n**Tile:** ${tileLabel}` : ""}\n\n${subjectAnchor}${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}${tierRails}\n\n**Tier tone only (not location):**\n${menu}${coherence}`
       ).trim();
       return appearanceRef ? wrapFabSceneWithAppearanceLock(fused, appearanceRef) : fused;
     }

@@ -34,6 +34,10 @@ import { enrichImaginePromptUniversal } from "../_shared/characterReferenceImage
 import { resolveCharacterReferenceForImagine } from "../_shared/resolveCharacterReferenceFromDb.ts";
 import { assertUserUnlockedCompanionForSpend } from "../_shared/requireCompanionFcUnlock.ts";
 import { rewritePromptForImagine } from "../_shared/safeImagePromptRewriter.ts";
+import {
+  buildMenuScenarioBindingLead,
+  resolveMenuPrimarySceneForImagine,
+} from "../_shared/chatMenuPrimarySceneExtract.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,28 +54,6 @@ function clampPromptForImagine(prompt: string, maxChars: number): string {
   const compact = prompt.replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   if (compact.length <= maxChars) return compact;
   return `${compact.slice(0, maxChars).trimEnd()}…`;
-}
-
-/** Markers for the execution block so `clampPromptForImagine` (head-only) cannot drop Moments / menu place text. */
-const MENU_PRIMARY_BODY_MARKERS = [
-  "— Requested framing (from menu) —",
-  "— USER-CHOSEN SCENE (EXECUTION PRIORITY #1 — NOT A PORTRAIT REMASTER) —",
-] as const;
-const MAX_MENU_PRIMARY_EXTRACT = 5600;
-
-function extractMenuPrimarySceneBody(fullPrompt: string): string {
-  const f = String(fullPrompt ?? "");
-  let best = -1;
-  for (const m of MENU_PRIMARY_BODY_MARKERS) {
-    const i = f.indexOf(m);
-    if (i >= 0 && (best < 0 || i < best)) best = i;
-  }
-  if (best < 0) return "";
-  const slice = f.slice(best).trim();
-  if (slice.length > MAX_MENU_PRIMARY_EXTRACT) {
-    return `${slice.slice(0, MAX_MENU_PRIMARY_EXTRACT).trimEnd()}…`;
-  }
-  return slice;
 }
 
 async function refundTokens(
@@ -284,6 +266,16 @@ serve(async (req) => {
       cd.chatMenuSceneLock === true || cd.chat_menu_scene_lock === true;
     /** Menu tiles must follow PRIMARY SCENE; `/v1/images/edits` anchors on the portrait and often preserves bed/crop/pose. */
     const menuSceneLockEffective = chatMenuSceneLock && isChatSessionStill;
+    const menuTileScenePrompt = String(
+      cd.menu_tile_scene_prompt ?? cd.menuTileScenePrompt ?? "",
+    ).trim();
+    const menuTileLabel = String(cd.menu_tile_label ?? cd.menuTileLabel ?? "").trim();
+    const menuPrimaryExtractForImagine = menuSceneLockEffective
+      ? resolveMenuPrimarySceneForImagine({
+          explicitTileScene: menuTileScenePrompt,
+          fusedPrompt: String(prompt),
+        })
+      : "";
     /** Chat stills use **generations** only — `/v1/images/edits` with the roster portrait locked couch/room/crop and ignored user-requested cabins, beaches, etc. */
     const tabForAnime = cd.selectedForgeTab ?? cd.selected_forge_tab ?? cd.activeForgeTab;
     const isAnime = isAnimeTemptationForgeTabId(tabForAnime);
@@ -358,7 +350,7 @@ serve(async (req) => {
       const headJoined = [executionHead, anatomyHead].filter((s) => String(s).trim()).join("\n\n");
       const reserved = headJoined.length + 32;
       const rawBudget = Math.max(2000, GROK_IMAGINE_PROMPT_SOFT_LIMIT - reserved);
-      const menuPrimaryExtract = menuSceneLockEffective ? extractMenuPrimarySceneBody(String(prompt)) : "";
+      const menuPrimaryExtract = menuPrimaryExtractForImagine;
       const rawForMenuClamp =
         menuPrimaryExtract.length >= 50
           ? [chatPortraitConsistencyLead, animeRewriteLead, dnaPrefix, menuPrimaryExtract]
@@ -561,8 +553,12 @@ ${refLines ? `${refLines}\n` : ""}`;
         const menuFirst =
           menuSceneLockEffective && effectiveTier === "full_adult_art" && isChatSessionStill;
         if (menuFirst) {
+          const scenarioBinding = buildMenuScenarioBindingLead(
+            menuTileScenePrompt || menuPrimaryExtractForImagine,
+            menuTileLabel,
+          );
           return `${adultHead}
-
+${scenarioBinding ? `\n${scenarioBinding}\n` : ""}
 PRIMARY SCENE (authoritative — execute literally; no roster-card remake):
 ${safeRewritten}
 

@@ -126,6 +126,7 @@ type SendMessageOptions = {
   imageGenerationPrompt?: string;
   /** Smart photo menu: merged into the image scene after the tier base (FAB) prompt. */
   styledSceneExtension?: string;
+  menuTileLabel?: string;
   bypassImageConfirmation?: boolean;
   /** True for + menu / media bar / FAB — may use free NSFW slots. Typed free-text requests are always charged. */
   imageRequestFromMenu?: boolean;
@@ -238,6 +239,8 @@ export function useChatSessionController() {
     menuImagePrompt: string | null;
     /** True when user picked a concrete selfie/lewd preset (styled scene) — scene must not follow portrait/packshot. */
     lockSceneToMenuPreset?: boolean;
+    menuTileScenePrompt?: string | null;
+    menuTileLabel?: string | null;
   } | null>(null);
   const [autoSpendChatImages, setAutoSpendChatImages] = useState(false);
   const starterSentRef = useRef(false);
@@ -785,6 +788,8 @@ export function useChatSessionController() {
       rawUserMessage: string;
       menuImagePrompt: string | null;
       lockSceneToMenuPreset?: boolean;
+      menuTileScenePrompt?: string | null;
+      menuTileLabel?: string | null;
     },
   ): Promise<any> => {
     if (!companion || !dbComp) return null;
@@ -867,6 +872,12 @@ export function useChatSessionController() {
           ? { activeForgeTab: forgeTabForImagine, selectedForgeTab: forgeTabForImagine }
           : {}),
         ...(dbComp.is_nexus_hybrid ? { is_nexus_hybrid: true } : {}),
+        ...(menuSceneLock && genOpts.menuTileScenePrompt?.trim()
+          ? { menu_tile_scene_prompt: genOpts.menuTileScenePrompt.trim() }
+          : {}),
+        ...(menuSceneLock && genOpts.menuTileLabel?.trim()
+          ? { menu_tile_label: genOpts.menuTileLabel.trim() }
+          : {}),
       };
 
       const { data, error } = await invokeGenerateImage({
@@ -925,6 +936,7 @@ export function useChatSessionController() {
         messageText: preset.label,
         menuImagePrompt: menuBase,
         styledSceneExtension: preset.imagePrompt,
+        menuTileLabel: preset.label,
         appearanceReference: companion.appearanceReference ?? null,
         characterReference: companion.characterReference ?? null,
       });
@@ -982,6 +994,8 @@ export function useChatSessionController() {
           ? { activeForgeTab: rewardForgeTab, selectedForgeTab: rewardForgeTab }
           : {}),
         ...(dbComp.is_nexus_hybrid ? { is_nexus_hybrid: true } : {}),
+        menu_tile_scene_prompt: preset.imagePrompt,
+        menu_tile_label: preset.label,
       };
       const { data, error } = await invokeGenerateImage({
         prompt,
@@ -1953,7 +1967,15 @@ export function useChatSessionController() {
   const confirmPendingImageGeneration = async () => {
     if (!imageGenPending || !user || !companion) return;
     if (!isAdminUser) await ensureForgeBalanceLoaded();
-    const { prompt, rawUserMessage, fromMenu, menuImagePrompt, lockSceneToMenuPreset } = imageGenPending;
+    const {
+      prompt,
+      rawUserMessage,
+      fromMenu,
+      menuImagePrompt,
+      lockSceneToMenuPreset,
+      menuTileScenePrompt,
+      menuTileLabel,
+    } = imageGenPending;
     const explicit = isExplicitImageRequest(prompt) || isExplicitImageRequest(rawUserMessage);
     const freeUsed = getFreeNsfwImagesUsed(user.id, companion.id);
     const pendingImageFc = CHAT_IMAGE_LEWD_FC;
@@ -1976,6 +1998,8 @@ export function useChatSessionController() {
         rawUserMessage,
         menuImagePrompt,
         lockSceneToMenuPreset: lockSceneToMenuPreset === true,
+        menuTileScenePrompt,
+        menuTileLabel,
       });
       if (imageResult) {
         const rowId = await insertAssistantImageMessage({
@@ -2054,6 +2078,7 @@ export function useChatSessionController() {
       messageText,
       menuImagePrompt: options?.imageGenerationPrompt ?? null,
       styledSceneExtension: options?.styledSceneExtension ?? null,
+      menuTileLabel: options?.menuTileLabel ?? null,
       appearanceReference: companion.appearanceReference ?? null,
       characterReference: companion.characterReference ?? null,
     });
@@ -2182,6 +2207,8 @@ export function useChatSessionController() {
           fromMenu: imageRequestFromMenu,
           menuImagePrompt: options?.imageGenerationPrompt ?? null,
           lockSceneToMenuPreset,
+          menuTileScenePrompt: styledExt ?? null,
+          menuTileLabel: options?.menuTileLabel ?? null,
         });
         return;
       }
@@ -2217,6 +2244,8 @@ export function useChatSessionController() {
           rawUserMessage: messageText,
           menuImagePrompt,
           lockSceneToMenuPreset,
+          menuTileScenePrompt: styledExt ?? null,
+          menuTileLabel: options?.menuTileLabel ?? null,
         });
 
         if (imageResult) {

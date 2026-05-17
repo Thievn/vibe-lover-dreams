@@ -9,14 +9,20 @@ export function NexusMergeRitualOverlay({
   parentA,
   parentB,
   mergeSubphase,
+  ascendantSealed,
+  onDialogueRevealMilestone,
 }: {
   parentA: DbCompanion;
   parentB: DbCompanion;
   mergeSubphase: "fusion" | "video";
+  /** True once nexus-merge API finished — ascendant exists but reveal may wait on dialogue. */
+  ascendantSealed?: boolean;
+  onDialogueRevealMilestone?: () => void;
 }) {
   const phaseTitle = mergeSubphase === "fusion" ? "Twinned veil" : "Living circuit";
-  const phaseSubtitle =
-    mergeSubphase === "fusion"
+  const phaseSubtitle = ascendantSealed
+    ? "The ascendant is sealed in the vault — listen to the threads before they step into the light."
+    : mergeSubphase === "fusion"
       ? "The forge drinks two silhouettes down to one spark — nothing surfaces until the weave is sealed."
       : "Still heat wakes into motion — her loop stitches itself to skin under violet glass.";
 
@@ -59,6 +65,8 @@ export function NexusMergeRitualOverlay({
               active
               surface="nexus_merge"
               estimatedDurationSec={300}
+              revealMilestoneLines={2}
+              onRevealMilestone={onDialogueRevealMilestone}
               className="max-h-[min(52vh,400px)] w-full lg:max-h-[min(56vh,440px)]"
             />
           </div>

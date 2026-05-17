@@ -83,7 +83,12 @@ type Props = {
   /** Stills & clips: same contract as the previous top media bar. */
   onMediaRequest: (action: ChatMediaBarAction) => void;
   /** Stills sheet: FAB tier base + Grok scene line from `chatStillMenuCategories`. */
-  onStyledStillRequest: (p: { tier: FabSelfieTier; userLine: string; sceneExtension: string }) => void;
+  onStyledStillRequest: (p: {
+    tier: FabSelfieTier;
+    userLine: string;
+    sceneExtension: string;
+    menuTileLabel: string;
+  }) => void;
   mediaMenuDisabled: boolean;
   videoMenuDisabled: boolean;
   chatImageLewdFc: number;
@@ -110,7 +115,7 @@ const CLIP_PURCHASE_DISCLAIMER =
   "Short clips are built from her portrait plus the vibe you chose; every now and then framing or motion comes out a little unexpected. Forge coins still apply. Continue?";
 
 /**
- * Glowing field + mic (Web Speech) + stills sheet (Selfies / Lewd), send CTA, auto-spend toggle.
+ * Glowing field + mic (Web Speech) + stills sheet (Selfies / Spicy), send CTA, auto-spend toggle.
  */
 export function ChatComposer({
   input,
@@ -432,7 +437,7 @@ export function ChatComposer({
   );
 }
 
-type StillTab = "selfies" | "lewd";
+type StillTab = "selfies" | "spicy";
 
 function StillStylePicker({
   companionName,
@@ -451,7 +456,12 @@ function StillStylePicker({
   disabled: boolean;
   videoDisabled: boolean;
   onRequest: (a: ChatMediaBarAction) => void;
-  onStyledStillRequest: (p: { tier: FabSelfieTier; userLine: string; sceneExtension: string }) => void;
+  onStyledStillRequest: (p: {
+    tier: FabSelfieTier;
+    userLine: string;
+    sceneExtension: string;
+    menuTileLabel: string;
+  }) => void;
   onGalleryClipRequest?: (p: { mood: "sfw" | "lewd"; motionHint: string }) => void;
   isAdminUser: boolean;
   chatImageLewdFc: number;
@@ -473,11 +483,14 @@ function StillStylePicker({
     [tab],
   );
 
+  const isSpicyTab = tab === "spicy";
+
   const pickStill = (cat: ChatStillMenuCategory) => {
     onStyledStillRequest({
       tier: cat.tier,
       userLine: `${companionName} — "${cat.label}" still for me?`,
       sceneExtension: cat.imagePrompt,
+      menuTileLabel: cat.label,
     });
     setOpen(false);
   };
@@ -504,8 +517,8 @@ function StillStylePicker({
       whileTap={{ scale: 0.97 }}
       disabled={disabled}
       onClick={() => setOpen(true)}
-      title="Selfies & lewd stills"
-      aria-label="Open still gallery — selfies or lewd inside"
+      title="Selfies & Spicy stills"
+      aria-label="Open still gallery — selfies or spicy inside"
       className={cn(
         "inline-flex items-center justify-center text-white transition-[border-color,box-shadow,transform]",
         luxury
@@ -536,29 +549,17 @@ function StillStylePicker({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[min(92vh,44rem)] w-[min(100vw-0.75rem,26rem)] gap-0 overflow-hidden border border-white/[0.1] bg-[hsl(280_18%_6%)]/[0.98] p-0 text-foreground shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-2xl sm:max-w-md">
           <DialogHeader className="space-y-2 border-b border-white/[0.08] bg-gradient-to-br from-fuchsia-950/25 via-black/40 to-cyan-950/20 px-3 py-3 sm:px-4">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex-1 space-y-1">
-                <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45">
-                  Grok stills
-                  {!CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? " · clips below" : ""}
-                </p>
-                <DialogTitle className="font-gothic text-lg font-normal tracking-tight text-white sm:text-xl">
-                  Selfies & Lewd
-                </DialogTitle>
-                <DialogDescription className="text-[11px] leading-snug text-muted-foreground/95">
-                  Tap a tile — she replies first, then the still lands. Dozens of scenes; each changes outfit, pose, and set while face, species marks, and body type stay locked to her.
-                </DialogDescription>
-              </div>
-              <button
-                type="button"
-                className="mt-0.5 shrink-0 rounded-lg border border-white/10 bg-black/30 p-1.5 text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
-                title="About results & pricing"
-                aria-expanded={showDisclaimer}
-                onClick={() => setShowDisclaimer((v) => !v)}
-              >
-                <CircleHelp className="h-4 w-4" aria-hidden />
-                <span className="sr-only">Gallery disclaimer</span>
-              </button>
+            <div className="space-y-1">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45">
+                Moment stills
+                {!CHAT_IN_SESSION_VIDEO_CLIPS_COMING_SOON ? " · clips below" : ""}
+              </p>
+              <DialogTitle className="font-gothic text-lg font-normal tracking-tight text-white sm:text-xl">
+                Selfies & Spicy
+              </DialogTitle>
+              <DialogDescription className="text-[11px] leading-snug text-muted-foreground/95">
+                Tap a tile — she replies first, then the still lands. Dozens of scenes; each changes outfit, pose, and set while face, species marks, and body type stay locked to her.
+              </DialogDescription>
             </div>
             {showDisclaimer ? (
               <p className="rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-[11px] leading-snug text-muted-foreground/95">
@@ -566,7 +567,8 @@ function StillStylePicker({
               </p>
             ) : null}
 
-            <div className="flex rounded-lg border border-white/10 bg-black/35 p-0.5">
+            <div className="flex items-center gap-1.5">
+            <motion.div className="flex flex-1 rounded-lg border border-white/10 bg-black/35 p-0.5">
               <button
                 type="button"
                 onClick={() => setTab("selfies")}
@@ -587,15 +589,15 @@ function StillStylePicker({
               </button>
               <button
                 type="button"
-                onClick={() => setTab("lewd")}
+                onClick={() => setTab("spicy")}
                 className={cn(
                   "relative flex flex-1 items-center justify-center gap-1 rounded-md py-1.5 text-[10px] font-semibold uppercase tracking-wide transition-colors sm:text-[11px]",
-                  tab === "lewd" ? "text-white" : "text-muted-foreground hover:text-foreground/90",
+                  tab === "spicy" ? "text-white" : "text-muted-foreground hover:text-foreground/90",
                 )}
               >
                 <Flame className="h-3 w-3 opacity-80" aria-hidden />
-                Lewd
-                {tab === "lewd" ? (
+                Spicy
+                {tab === "spicy" ? (
                   <motion.span
                     layoutId="stillTabGlow"
                     className="absolute inset-0 -z-10 rounded-md bg-rose-500/20 ring-1 ring-rose-400/30"
@@ -603,16 +605,27 @@ function StillStylePicker({
                   />
                 ) : null}
               </button>
+            </motion.div>
+              <button
+                type="button"
+                className="shrink-0 rounded-lg border border-white/10 bg-black/30 p-1.5 text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
+                title="About results & pricing"
+                aria-expanded={showDisclaimer}
+                onClick={() => setShowDisclaimer((v) => !v)}
+              >
+                <CircleHelp className="h-4 w-4" aria-hidden />
+                <span className="sr-only">Gallery disclaimer</span>
+              </button>
             </div>
           </DialogHeader>
 
           <div className="max-h-[min(62vh,28rem)] overflow-y-auto overscroll-contain px-2.5 pb-2.5 pt-2 sm:max-h-[min(60vh,30rem)] sm:px-3">
             <AnimatePresence mode="wait">
-              <motion.div
+                  <motion.div
                 key={tab}
-                initial={{ opacity: 0, x: tab === "selfies" ? -14 : 14 }}
+                initial={{ opacity: 0, x: isSpicyTab ? 14 : -14 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: tab === "selfies" ? 10 : -10 }}
+                exit={{ opacity: 0, x: isSpicyTab ? -10 : 10 }}
                 transition={{ duration: 0.2, ease: "easeOut" }}
                 className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5"
               >
@@ -629,7 +642,7 @@ function StillStylePicker({
                       "min-h-[4.75rem] rounded-xl border border-white/[0.1] bg-gradient-to-b from-white/[0.09] to-white/[0.03] px-2.5 py-2.5 text-left text-xs font-semibold leading-snug text-foreground/95 shadow-sm transition-all duration-200 sm:min-h-[5rem] sm:py-3 sm:text-[13px]",
                       "hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45)] active:translate-y-0 active:scale-[0.99]",
                       tab === "selfies" && "hover:border-emerald-400/30",
-                      tab === "lewd" && "hover:border-rose-400/35",
+                      tab === "spicy" && "hover:border-rose-400/35",
                       disabled && "pointer-events-none opacity-40",
                     )}
                   >

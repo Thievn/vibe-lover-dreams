@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/integrations/supabase/env";
 import { getEdgeFunctionInvokeMessage } from "@/lib/edgeFunction";
@@ -39,6 +40,25 @@ export function profileLoopJobStorageKey(companionId: string): string {
 
 export function profileLoopToastId(companionId: string): string {
   return `profile-loop-toast:${companionId.trim()}`;
+}
+
+/** Dismiss the profile-loop loading toast for one companion. */
+export function dismissProfileLoopToast(companionId: string): void {
+  toast.dismiss(profileLoopToastId(companionId.trim()));
+}
+
+/** Dismiss every profile-loop toast (e.g. on route change so nothing lingers app-wide). */
+export function dismissAllProfileLoopToasts(): void {
+  try {
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (!key?.startsWith("profile-loop-job:")) continue;
+      const cid = key.slice("profile-loop-job:".length);
+      if (cid) dismissProfileLoopToast(cid);
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 function parseStoredJob(raw: string | null): StoredProfileLoopJob | null {
@@ -341,7 +361,10 @@ async function runProfileLoopPoll(
     }
     const errMsg = d?.error;
     if (typeof errMsg === "string" && errMsg.trim()) {
-      if (resolvedCompanionId) clearProfileLoopJobId(resolvedCompanionId);
+      if (resolvedCompanionId) {
+        clearProfileLoopJobId(resolvedCompanionId);
+        dismissProfileLoopToast(resolvedCompanionId);
+      }
       throw new Error(errMsg.trim());
     }
     throw new Error("Profile loop video did not return success.");

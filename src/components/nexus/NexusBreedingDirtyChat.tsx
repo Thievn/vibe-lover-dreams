@@ -23,6 +23,9 @@ export function NexusBreedingDirtyChat({
   estimatedDurationSec = 160,
   /** Optional override for Grok line count (40–170 server clamp). */
   targetLineCount: targetLineCountProp,
+  onScriptReady,
+  onRevealMilestone,
+  revealMilestoneLines = 2,
 }: {
   parentA: DbCompanion;
   parentB: DbCompanion;
@@ -32,6 +35,9 @@ export function NexusBreedingDirtyChat({
   surface?: NexusBreedingChatSurface;
   estimatedDurationSec?: number;
   targetLineCount?: number;
+  onScriptReady?: () => void;
+  onRevealMilestone?: (lineCount: number) => void;
+  revealMilestoneLines?: number;
 }) {
   const [fetchState, setFetchState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [errMsg, setErrMsg] = useState<string | null>(null);
@@ -39,6 +45,8 @@ export function NexusBreedingDirtyChat({
   const scriptRef = useRef<NexusBreedingScriptLineDto[]>([]);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const scriptReadyFiredRef = useRef(false);
+  const milestoneFiredRef = useRef(false);
 
   const aUrl = galleryStaticPortraitUrl(parentA, parentA.id);
   const bUrl = galleryStaticPortraitUrl(parentB, parentB.id);
@@ -54,6 +62,16 @@ export function NexusBreedingDirtyChat({
     return Math.min(165, Math.max(48, Math.ceil(estimatedDurationSec / 1.42)));
   }, [targetLineCountProp, estimatedDurationSec]);
 
+  const mergeLoadingLine = useMemo(() => {
+    const lines = [
+      "The veil listens — twin voices finding their rhythm…",
+      "Forging whispers between bloodlines under violet glass…",
+      "Grok threads their hunger into words the Nexus can hear…",
+      "Two silhouettes trade secrets before the third steps through…",
+    ];
+    return lines[Math.floor(Math.random() * lines.length)]!;
+  }, [parentA.id, parentB.id, active]);
+
   useEffect(() => {
     if (revealTimerRef.current) {
       clearTimeout(revealTimerRef.current);
@@ -64,6 +82,8 @@ export function NexusBreedingDirtyChat({
       setErrMsg(null);
       setShown([]);
       scriptRef.current = [];
+      scriptReadyFiredRef.current = false;
+      milestoneFiredRef.current = false;
       return;
     }
 
@@ -72,6 +92,8 @@ export function NexusBreedingDirtyChat({
     setErrMsg(null);
     setShown([]);
     scriptRef.current = [];
+    scriptReadyFiredRef.current = false;
+    milestoneFiredRef.current = false;
 
     void (async () => {
       const res = await invokeNexusBreedingDialogue({
@@ -87,6 +109,10 @@ export function NexusBreedingDirtyChat({
       }
       scriptRef.current = res.lines;
       setFetchState("ready");
+      if (!scriptReadyFiredRef.current) {
+        scriptReadyFiredRef.current = true;
+        onScriptReady?.();
+      }
 
       const script = res.lines;
       let i = 0;
@@ -114,7 +140,21 @@ export function NexusBreedingDirtyChat({
         revealTimerRef.current = null;
       }
     };
-  }, [active, parentA.id, parentB.id, resolvedTargetCount, estimatedDurationSec]);
+  }, [active, parentA.id, parentB.id, resolvedTargetCount, estimatedDurationSec, onScriptReady]);
+
+  useEffect(() => {
+    if (milestoneFiredRef.current) return;
+    if (shown.length < revealMilestoneLines) return;
+    milestoneFiredRef.current = true;
+    onRevealMilestone?.(shown.length);
+  }, [shown.length, revealMilestoneLines, onRevealMilestone]);
+
+  useEffect(() => {
+    if (fetchState === "error" && !milestoneFiredRef.current) {
+      milestoneFiredRef.current = true;
+      onRevealMilestone?.(0);
+    }
+  }, [fetchState, onRevealMilestone]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -218,7 +258,11 @@ export function NexusBreedingDirtyChat({
       <div className="min-h-[140px] flex-1 space-y-2.5 overflow-y-auto px-3 py-3 sm:space-y-3 sm:px-4">
         {fetchState === "loading" ? (
           <p className="text-center text-[12px] text-muted-foreground/80 animate-pulse">
-            Spinning a private script between them…
+            {isMergeWeave
+              ? mergeLoadingLine
+              : isRitual
+                ? "The rite summons their voices from the dark…"
+                : "Spinning a private thread between them…"}
           </p>
         ) : null}
         {fetchState === "error" && errMsg ? (

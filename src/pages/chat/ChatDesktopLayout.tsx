@@ -399,6 +399,7 @@ export function ChatDesktopLayout(props: UseChatSessionControllerReturn) {
                   void sendMessage(p.userLine, {
                     imageGenerationPrompt: FAB_SELFIE[p.tier].imagePrompt,
                     styledSceneExtension: p.sceneExtension,
+                    menuTileLabel: p.menuTileLabel,
                     bypassImageConfirmation: true,
                     imageRequestFromMenu: true,
                   })

@@ -380,8 +380,8 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
   const prompt = (
     menuSceneLock
       ? [
-          menuLikenessStub,
           scene,
+          menuLikenessStub,
           characterRefPreambleMenu || characterRefPreamble,
           "LUSTFORGE MASTER BRIEF — in-session gallery-preset still (Moments / menu)",
           antiProfileRemaster,
