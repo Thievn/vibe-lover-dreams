@@ -36,10 +36,15 @@ export function resolveEffectiveCharacterReference(
 export function enrichImaginePromptUniversal(o: {
   corePrompt: string;
   characterReference?: string | null;
+  forceRefPrepend?: boolean;
 }): string {
-  const ref = o.characterReference?.replace(/\s+/g, " ").trim() ?? "";
+  const refFull = o.characterReference?.replace(/\s+/g, " ").trim() ?? "";
+  const ref = o.forceRefPrepend && refFull.length > 1500
+    ? `${refFull.slice(0, 1500).trimEnd()}…`
+    : refFull;
   const body = o.corePrompt.replace(/\s+\n/g, "\n").trim();
   const skipDuplicateRefLock =
+    !o.forceRefPrepend &&
     ref.length > 0 &&
     (/\bCHARACTER REFERENCE \(READ FIRST/i.test(body) ||
       /\bMaintain 100% consistency with the main profile/i.test(body) ||

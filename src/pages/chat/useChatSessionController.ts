@@ -864,7 +864,13 @@ export function useChatSessionController() {
           ? "Wardrobe, undress, pose, and set come **only** from USER SCENE / **Requested framing (from menu)** — not from forge packshots or profile art."
           : "Wardrobe and undress follow PRIMARY SCENE and USER SCENE only. Do not infer outfit from any unstated catalog image — use the written profile + scene text.",
         ...(menuSceneLock && visualIdentityCapsule?.trim()
-          ? { visual_identity_capsule: visualIdentityCapsule.trim() }
+          ? {
+              visual_identity_capsule: visualIdentityCapsule.trim(),
+              menu_identity_capsule: visualIdentityCapsule.trim(),
+            }
+          : {}),
+        ...(menuSceneLock && genOpts.menuImagePrompt?.trim()
+          ? { menu_tier_tone: genOpts.menuImagePrompt.trim().slice(0, 700) }
           : {}),
         ...(likenessRefUrl ? { likeness_reference_image_url: likenessRefUrl } : {}),
         ...(ar ? { character_reference: ar } : {}),
@@ -996,6 +1002,10 @@ export function useChatSessionController() {
         ...(dbComp.is_nexus_hybrid ? { is_nexus_hybrid: true } : {}),
         menu_tile_scene_prompt: preset.imagePrompt,
         menu_tile_label: preset.label,
+        menu_tier_tone: menuBase.slice(0, 700),
+        ...(visualIdentityCapsule?.trim()
+          ? { menu_identity_capsule: visualIdentityCapsule.trim() }
+          : {}),
       };
       const { data, error } = await invokeGenerateImage({
         prompt,

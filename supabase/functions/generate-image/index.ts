@@ -35,6 +35,8 @@ import { resolveCharacterReferenceForImagine } from "../_shared/resolveCharacter
 import { assertUserUnlockedCompanionForSpend } from "../_shared/requireCompanionFcUnlock.ts";
 import { rewritePromptForImagine } from "../_shared/safeImagePromptRewriter.ts";
 import {
+  buildMenuIdentityBindingLead,
+  buildMenuIdentityHeadFromParts,
   buildMenuScenarioBindingLead,
   resolveMenuPrimarySceneForImagine,
 } from "../_shared/chatMenuPrimarySceneExtract.ts";
@@ -270,9 +272,25 @@ serve(async (req) => {
       cd.menu_tile_scene_prompt ?? cd.menuTileScenePrompt ?? "",
     ).trim();
     const menuTileLabel = String(cd.menu_tile_label ?? cd.menuTileLabel ?? "").trim();
+    const menuTierTone = String(cd.menu_tier_tone ?? cd.menuTierTone ?? "").trim();
+    const menuIdentityHead = menuSceneLockEffective
+      ? buildMenuIdentityHeadFromParts({
+          visualIdentityCapsule: String(
+            cd.menu_identity_capsule ?? cd.visual_identity_capsule ?? cd.visualIdentityCapsule ?? "",
+          ),
+          characterReference: String(
+            cd.character_reference ?? cd.characterReference ?? cd.appearance_reference ?? "",
+          ),
+          portraitConsistencyLock: String(
+            cd.portraitConsistencyLock ?? cd.portrait_consistency_lock ?? "",
+          ),
+        })
+      : "";
     const menuPrimaryExtractForImagine = menuSceneLockEffective
       ? resolveMenuPrimarySceneForImagine({
+          identityHead: menuIdentityHead,
           explicitTileScene: menuTileScenePrompt,
+          tierTone: menuTierTone,
           fusedPrompt: String(prompt),
         })
       : "";
@@ -338,11 +356,11 @@ serve(async (req) => {
        * so Imagine fell back to the same standing / card-style shot. Head must be: execution → anatomy → brief.
        */
       const executionHead = [
-        "[EXECUTION — NOT A PORTRAIT REMASTER — READ FIRST]",
+        "[EXECUTION — CHARACTER FIRST, THEN MENU TILE — READ FIRST]",
         CHAT_LIKENESS_EDGE_SAME_SUBJECT,
-        "Render the **Requested framing (from menu)** block **literally**: named **location**, **body configuration / pose**, **wardrobe or undress state**, **props**, and **camera relationship** as written.",
+        "**Step 1 — Identity:** Match FORGE_VISUAL_IDENTITY, CHARACTER REFERENCE, and Character Details — same face, hair, eyes, skin tone, tattoos, piercings, species marks, ears, tail, wings, and body type as the profile / roster portrait. **Not** a substitute model.",
+        "**Step 2 — Scene:** Render **MENU_TILE_SCENE** / **Requested framing (from menu)** literally — location, pose, wardrobe, props, camera — **without** copying the portrait’s room, sofa, or catalog crop.",
         "**Forbidden default:** facing-camera standing glam bust, neutral catalog three-quarter, phone-mirror bathroom headshot, or “same silhouette as a roster card” unless the menu text explicitly demands that.",
-        "**Likeness:** The subject must be the **same individual** as CHARACTER APPEARANCE and any roster portrait URL in Character Details — **not** a substitute model. Output is a **new** photograph in the menu scenario; do not copy the portrait’s backdrop, wardrobe, or crop.",
       ].join("\n\n");
       const anatomyHead = anatomyDirective
         ? `ANATOMY_POLICY (must obey — do not contradict in the image):\n${anatomyDirective}`
@@ -553,13 +571,15 @@ ${refLines ? `${refLines}\n` : ""}`;
         const menuFirst =
           menuSceneLockEffective && effectiveTier === "full_adult_art" && isChatSessionStill;
         if (menuFirst) {
+          const identityBinding = buildMenuIdentityBindingLead(menuIdentityHead);
           const scenarioBinding = buildMenuScenarioBindingLead(
             menuTileScenePrompt || menuPrimaryExtractForImagine,
             menuTileLabel,
           );
           return `${adultHead}
+${identityBinding ? `\n${identityBinding}\n` : ""}
 ${scenarioBinding ? `\n${scenarioBinding}\n` : ""}
-PRIMARY SCENE (authoritative — execute literally; no roster-card remake):
+PRIMARY SCENE (authoritative — identity locked above; execute menu tile literally; no roster-card remake):
 ${safeRewritten}
 
 Create a highly detailed, cinematic, vertical 2:3 (trading-card) image of ${imagingSubjectDescription}.
@@ -584,6 +604,7 @@ ${safeRewritten}`.trim();
     const finalPromptRawEnriched = enrichImaginePromptUniversal({
       corePrompt: finalPromptRaw,
       characterReference: charRefResolved,
+      forceRefPrepend: menuSceneLockEffective && isChatSessionStill,
     });
     const finalPromptClamped = clampPromptForImagine(finalPromptRawEnriched, GROK_IMAGINE_PROMPT_SOFT_LIMIT);
     const finalPrompt = sanitizeGrokImagineLexicon(finalPromptClamped);

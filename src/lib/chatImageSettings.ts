@@ -443,7 +443,7 @@ export function resolveChatImageGenerationPrompt(args: {
     if (styled) {
       const tileLabel = args.menuTileLabel?.trim();
       const fused = (
-        `— Requested framing (from menu) —\nMENU_TILE_SCENE:\n${styled}\n\n**PRIMARY SCENE (execute literally — place / pose / wardrobe):**\n${styled}${tileLabel ? `\n\n**Tile:** ${tileLabel}` : ""}\n\n${subjectAnchor}${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}${tierRails}\n\n**Tier tone only (not location):**\n${menu}${coherence}`
+        `— Requested framing (from menu) —\n${subjectAnchor}${CHAT_STILL_MENU_QUALITY_AND_ANATOMY}${lewdLighting}${tierRails}\n\nMENU_TILE_SCENE:\n${styled}\n\n**PRIMARY SCENE (execute literally — place / pose / wardrobe):**\n${styled}${tileLabel ? `\n\n**Tile:** ${tileLabel}` : ""}\n\n**Tier tone only (not location):**\n${menu}${coherence}`
       ).trim();
       return appearanceRef ? wrapFabSceneWithAppearanceLock(fused, appearanceRef) : fused;
     }

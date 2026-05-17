@@ -380,13 +380,13 @@ export function buildMasterChatImagePrompt(args: MasterImagePromptArgs): {
   const prompt = (
     menuSceneLock
       ? [
-          scene,
           menuLikenessStub,
           characterRefPreambleMenu || characterRefPreamble,
-          "LUSTFORGE MASTER BRIEF — in-session gallery-preset still (Moments / menu)",
-          antiProfileRemaster,
           visualIdentityCapsule ?? "",
           identityCompactForMenu,
+          scene,
+          "LUSTFORGE MASTER BRIEF — in-session gallery-preset still (Moments / menu)",
+          antiProfileRemaster,
           themingMinimalForMenu,
           tech,
           charBlock,
