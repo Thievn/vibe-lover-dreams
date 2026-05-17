@@ -33,8 +33,13 @@ export function mergeCompanionDisplayWithUserOverride(
     db.profile_loop_video_enabled && baseAnim && isLoopVideoStorageUrl(baseAnim),
   );
 
-  const usePrivateLoop = overrideLoopOn || (!anim && baseLoopOn);
-  const resolvedAnim = overrideLoopOn ? anim : baseLoopOn ? baseAnim : null;
+  const usePrivateLoop =
+    overrideLoopOn || (override.profile_loop_video_enabled && !anim && baseLoopOn);
+  const resolvedAnim = overrideLoopOn
+    ? anim
+    : override.profile_loop_video_enabled && baseLoopOn
+      ? baseAnim
+      : null;
 
   return {
     ...db,
