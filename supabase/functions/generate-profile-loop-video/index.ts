@@ -96,10 +96,169 @@ type PersistArgs = {
 };
 
 const FINALIZING_STUCK_MS = 12 * 60_000;
+/** Fail/refund pending jobs stuck longer than this (xAI or client zombie). */
+const PENDING_STUCK_MS = 22 * 60_000;
 
 function isLoopVideoStorageUrl(url: string): boolean {
   const u = url.trim();
   return /\.(mp4|webm|mov)(\?|$)/i.test(u) || u.includes("/profile-loops/");
+}
+
+type ProfileLoopJobRow = Record<string, unknown>;
+
+function parseJobTimestamp(iso: unknown): number {
+  if (typeof iso !== "string" || !iso.trim()) return NaN;
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? t : NaN;
+}
+
+function profileLoopJobAgeMs(job: ProfileLoopJobRow): number {
+  const updated = parseJobTimestamp(job.updated_at);
+  const created = parseJobTimestamp(job.created_at);
+  const anchor = Number.isFinite(updated) ? updated : created;
+  return Number.isFinite(anchor) ? Date.now() - anchor : 0;
+}
+
+function pollWorkerPhaseForJob(job: ProfileLoopJobRow): "rendering" | "saving" {
+  return job.status === "finalizing" ? "saving" : "rendering";
+}
+
+async function resolveLatestGalleryStillUrl(
+  svc: ReturnType<typeof createClient>,
+  companionId: string,
+): Promise<string | null> {
+  const { data: genRows } = await svc
+    .from("generated_images")
+    .select("image_url, created_at")
+    .eq("companion_id", companionId)
+    .eq("is_video", false)
+    .order("created_at", { ascending: false })
+    .limit(10);
+  for (const g of genRows ?? []) {
+    const raw = typeof g.image_url === "string" ? g.image_url.trim() : "";
+    if (!raw || isLoopVideoStorageUrl(raw)) continue;
+    const ready = publicHttpsImageUrlForGrok(raw);
+    if (ready) return ready;
+  }
+  return null;
+}
+
+async function resolveProfileLoopSourceImageUrl(
+  svc: ReturnType<typeof createClient>,
+  sessionUserId: string,
+  companionId: string,
+  row: Record<string, unknown>,
+  sourceOverrideUrl: string | null,
+  adminUser: boolean,
+): Promise<string | null> {
+  if (sourceOverrideUrl) return sourceOverrideUrl;
+  const raw =
+    (typeof row.static_image_url === "string" && row.static_image_url) ||
+    (typeof row.image_url === "string" && row.image_url) ||
+    (typeof row.avatar_url === "string" && row.avatar_url) ||
+    null;
+  let imageUrl = publicHttpsImageUrlForGrok(raw);
+  if (!imageUrl && !adminUser) {
+    const { data: ov } = await svc
+      .from("user_companion_portrait_overrides")
+      .select("portrait_url")
+      .eq("user_id", sessionUserId)
+      .eq("companion_id", companionId)
+      .maybeSingle();
+    const ovUrl = typeof ov?.portrait_url === "string" ? ov.portrait_url.trim() : "";
+    if (ovUrl) imageUrl = publicHttpsImageUrlForGrok(ovUrl);
+  }
+  if (!imageUrl) imageUrl = await resolveLatestGalleryStillUrl(svc, companionId);
+  return imageUrl;
+}
+
+async function resolveBestKnownLoopVideoUrl(
+  svc: ReturnType<typeof createClient>,
+  sessionUserId: string,
+  companionId: string,
+  row: Record<string, unknown>,
+): Promise<string | null> {
+  const { data: jobs } = await svc
+    .from("profile_loop_video_jobs")
+    .select("public_url, xai_video_url, status, created_at")
+    .eq("user_id", sessionUserId)
+    .eq("companion_id", companionId)
+    .order("created_at", { ascending: false })
+    .limit(8);
+  for (const j of jobs ?? []) {
+    const pub = typeof j.public_url === "string" ? j.public_url.trim() : "";
+    if (pub && isLoopVideoStorageUrl(pub)) return pub;
+  }
+  const rowAnim = typeof row.animated_image_url === "string" ? row.animated_image_url.trim() : "";
+  if (rowAnim && isLoopVideoStorageUrl(rowAnim)) return rowAnim;
+  const { data: genRows } = await svc
+    .from("generated_images")
+    .select("image_url")
+    .eq("companion_id", companionId)
+    .eq("is_video", true)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  for (const g of genRows ?? []) {
+    const u = typeof g.image_url === "string" ? g.image_url.trim() : "";
+    if (u && isLoopVideoStorageUrl(u)) return u;
+  }
+  return null;
+}
+
+async function ensureGalleryVideoRow(
+  svc: ReturnType<typeof createClient>,
+  galleryUserId: string,
+  companionId: string,
+  publicUrl: string,
+  motionNotes: string,
+): Promise<void> {
+  const { data: existing } = await svc
+    .from("generated_images")
+    .select("id")
+    .eq("companion_id", companionId)
+    .eq("is_video", true)
+    .eq("image_url", publicUrl)
+    .limit(1)
+    .maybeSingle();
+  if (existing?.id) return;
+  const galleryPrompt = [
+    "Profile loop video (Grok I2V)",
+    motionNotes ? motionNotes.slice(0, 400) : "Portrait-driven motion",
+  ].join(" · ");
+  const { error: gErr } = await svc.from("generated_images").insert({
+    user_id: galleryUserId,
+    companion_id: companionId,
+    image_url: publicUrl,
+    prompt: galleryPrompt.slice(0, 2000),
+    is_video: true,
+    saved_to_companion_gallery: true,
+    saved_to_personal_gallery: false,
+  });
+  if (gErr) console.error("profile_loop gallery insert:", gErr.message);
+}
+
+async function failProfileLoopJob(
+  svc: ReturnType<typeof createClient>,
+  job: ProfileLoopJobRow,
+  sessionUserId: string,
+  reason: string,
+): Promise<void> {
+  const jobId = String(job.id ?? "");
+  if (!jobId) return;
+  const chargeFc = Math.max(0, Math.floor(Number(job.charge_fc ?? 0)));
+  const alreadyRefunded = Boolean(job.refunded);
+  if (chargeFc > 0 && !alreadyRefunded) {
+    await refundProfileLoopFc(svc, sessionUserId, chargeFc, reason);
+  }
+  await svc
+    .from("profile_loop_video_jobs")
+    .update({
+      status: "failed",
+      refunded: chargeFc > 0 && !alreadyRefunded ? true : Boolean(job.refunded),
+      error_message: reason,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", jobId);
 }
 
 async function resolvePortraitStillForLoop(
@@ -126,6 +285,10 @@ async function resolvePortraitStillForLoop(
       (typeof row.avatar_url === "string" && row.avatar_url);
     portraitStill = typeof raw === "string" ? raw.trim() : "";
   }
+  if (!portraitStill) {
+    const fromGallery = await resolveLatestGalleryStillUrl(svc, companionId);
+    if (fromGallery) portraitStill = fromGallery;
+  }
   return portraitStill;
 }
 
@@ -139,7 +302,9 @@ async function upsertUserLoopPortraitOverride(
   sourceGalleryStillUrl: string | null,
 ): Promise<void> {
   const portraitStill = await resolvePortraitStillForLoop(svc, sessionUserId, companionId, row, sourceGalleryStillUrl);
-  if (!portraitStill) return;
+  if (!portraitStill) {
+    throw new Error("Could not resolve a still portrait for your private profile.");
+  }
   const { error: ovErr } = await svc.from("user_companion_portrait_overrides").upsert(
     {
       user_id: sessionUserId,
@@ -346,25 +511,7 @@ async function persistProfileLoopAfterPublicUrl(args: PersistArgs): Promise<void
       : companionId.startsWith("cc-")
         ? (String((row as { user_id?: unknown }).user_id ?? "").trim() || sessionUser.id)
         : sessionUser.id;
-  const galleryPrompt = [
-    "Profile loop video (Grok I2V)",
-    motionNotes ? motionNotes.slice(0, 400) : "Portrait-driven motion",
-  ].join(" · ");
-
-  try {
-    const { error: gErr } = await svc.from("generated_images").insert({
-      user_id: galleryUserId,
-      companion_id: companionId,
-      image_url: publicUrl,
-      prompt: galleryPrompt.slice(0, 2000),
-      is_video: true,
-      saved_to_companion_gallery: true,
-      saved_to_personal_gallery: false,
-    });
-    if (gErr) console.error("profile_loop gallery insert:", gErr.message);
-  } catch (e) {
-    console.error("profile_loop gallery insert", e);
-  }
+  await ensureGalleryVideoRow(svc, galleryUserId, companionId, publicUrl, motionNotes);
 }
 
 async function uploadMp4FromXaiUrl(
@@ -399,8 +546,6 @@ async function uploadMp4FromXaiUrl(
   }
   return { error: upErr };
 }
-
-type ProfileLoopJobRow = Record<string, unknown>;
 
 /** Upload xAI URL → Storage, persist companion + override, mark job complete. */
 async function finalizeProfileLoopJob(
@@ -473,6 +618,207 @@ async function finalizeProfileLoopJob(
   return { publicUrl, durationSeconds: durationSec };
 }
 
+/** Fail or finalize a stale in-flight job so a new generation can start. Returns true if job cleared. */
+async function reconcileStaleInFlightProfileLoopJob(args: {
+  svc: ReturnType<typeof createClient>;
+  sessionUser: { id: string };
+  xaiKey: string;
+  job: ProfileLoopJobRow;
+}): Promise<boolean> {
+  const { svc, sessionUser, xaiKey, job } = args;
+  const jobId = String(job.id ?? "");
+  if (!jobId) return true;
+  const ageMs = profileLoopJobAgeMs(job);
+  if (ageMs < PENDING_STUCK_MS) return false;
+
+  if (job.status === "finalizing") {
+    const xaiStored = typeof job.xai_video_url === "string" ? job.xai_video_url.trim() : "";
+    if (xaiStored) {
+      try {
+        await finalizeProfileLoopJob(svc, sessionUser, job, xaiStored);
+        return true;
+      } catch (e) {
+        console.error("reconcile finalize finalizing job:", e);
+      }
+    }
+    await failProfileLoopJob(svc, job, sessionUser.id, "Profile loop save timed out — try again.");
+    return true;
+  }
+
+  if (job.status !== "pending") return true;
+
+  const rid = String(job.xai_request_id ?? "").trim();
+  if (!rid) {
+    await failProfileLoopJob(svc, job, sessionUser.id, "Invalid job state (missing xAI request id).");
+    return true;
+  }
+
+  const pr = await pollGrokVideoRequestOnce(xaiKey, rid);
+  if (pr.status === "done") {
+    const { data: claimed } = await svc
+      .from("profile_loop_video_jobs")
+      .update({
+        status: "finalizing",
+        xai_video_url: pr.videoUrl,
+        duration_seconds: pr.duration ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", jobId)
+      .eq("status", "pending")
+      .select("*")
+      .maybeSingle();
+    if (claimed?.id) {
+      try {
+        await finalizeProfileLoopJob(svc, sessionUser, claimed as ProfileLoopJobRow, pr.videoUrl);
+        return true;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        await failProfileLoopJob(svc, job, sessionUser.id, msg);
+        return true;
+      }
+    }
+    return true;
+  }
+
+  if (pr.status === "failed" || pr.status === "expired") {
+    const reason =
+      pr.status === "expired" ? "Grok video: request expired before completion." : `Grok video failed: ${pr.message}`;
+    await failProfileLoopJob(svc, job, sessionUser.id, reason);
+    return true;
+  }
+
+  await failProfileLoopJob(svc, job, sessionUser.id, "Grok did not finish in time — try again.");
+  return true;
+}
+
+async function loadCompanionRowForLoop(
+  svc: ReturnType<typeof createClient>,
+  companionId: string,
+  sessionUserId: string,
+  adminUser: boolean,
+): Promise<
+  | { error: Response }
+  | {
+      table: "companions" | "custom_characters";
+      rowPk: string;
+      row: Record<string, unknown>;
+      isDiscoverListedForgeTemplate: boolean;
+    }
+> {
+  if (companionId.startsWith("cc-")) {
+    const rowPk = companionId.slice(3);
+    const { data, error } = await svc.from("custom_characters").select("*").eq("id", rowPk).maybeSingle();
+    if (error) return { error: jsonResponse({ error: error.message }, 500) };
+    if (!data) return { error: jsonResponse({ error: "Companion not found" }, 404) };
+    const row = data as Record<string, unknown>;
+    const ownerId = String(row.user_id ?? "").trim();
+    if (ownerId && ownerId !== sessionUserId && !adminUser) {
+      return { error: jsonResponse({ error: "Forbidden" }, 403) };
+    }
+    const isDiscoverListedForgeTemplate =
+      Boolean((row as { is_public?: unknown }).is_public) &&
+      Boolean((row as { approved?: unknown }).approved);
+    return { table: "custom_characters", rowPk, row, isDiscoverListedForgeTemplate };
+  }
+  const rowPk = companionId;
+  const { data, error } = await svc.from("companions").select("*").eq("id", rowPk).maybeSingle();
+  if (error) return { error: jsonResponse({ error: error.message }, 500) };
+  if (!data) return { error: jsonResponse({ error: "Companion not found" }, 404) };
+  return {
+    table: "companions",
+    rowPk,
+    row: data as Record<string, unknown>,
+    isDiscoverListedForgeTemplate: false,
+  };
+}
+
+async function attachKnownLoopVideoToProfile(args: {
+  svc: ReturnType<typeof createClient>;
+  sessionUser: { id: string };
+  companionId: string;
+  adminUser: boolean;
+  motionNotes?: string;
+}): Promise<Response> {
+  const { svc, sessionUser, companionId, adminUser, motionNotes = "Profile loop sync" } = args;
+
+  const loaded = await loadCompanionRowForLoop(svc, companionId, sessionUser.id, adminUser);
+  if ("error" in loaded) return loaded.error;
+  const { table, rowPk, row, isDiscoverListedForgeTemplate } = loaded;
+
+  const publicUrl = await resolveBestKnownLoopVideoUrl(svc, sessionUser.id, companionId, row);
+  if (!publicUrl || !isLoopVideoStorageUrl(publicUrl)) {
+    return jsonResponse({
+      success: true,
+      synced: false,
+      message: "No saved loop video found for this companion yet.",
+    });
+  }
+
+  try {
+    await persistProfileLoopAfterPublicUrl({
+      svc,
+      sessionUser,
+      companionId,
+      table,
+      rowPk,
+      row,
+      adminUser,
+      sourceGalleryStillUrl: null,
+      publicUrl,
+      tokensCharged: false,
+      chargedAmount: 0,
+      motionNotes,
+      isDiscoverListedForgeTemplate,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return jsonResponse({ error: msg }, 500);
+  }
+
+  return jsonResponse({
+    success: true,
+    phase: "complete",
+    synced: true,
+    publicUrl,
+    source: "sync",
+  });
+}
+
+async function handleCancelProfileLoopVideo(args: {
+  svc: ReturnType<typeof createClient>;
+  sessionUser: { id: string };
+  companionId: string;
+  jobId?: string;
+}): Promise<Response> {
+  const { svc, sessionUser, companionId, jobId } = args;
+  const { data: job, error } = jobId
+    ? await svc
+        .from("profile_loop_video_jobs")
+        .select("*")
+        .eq("id", jobId)
+        .eq("user_id", sessionUser.id)
+        .maybeSingle()
+    : await svc
+        .from("profile_loop_video_jobs")
+        .select("*")
+        .eq("user_id", sessionUser.id)
+        .eq("companion_id", companionId)
+        .in("status", ["pending", "finalizing"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+  if (error) return jsonResponse({ error: error.message }, 500);
+  if (!job) {
+    return jsonResponse({ success: true, cancelled: false, message: "No in-flight loop job to cancel." });
+  }
+  const st = String(job.status ?? "");
+  if (st !== "pending" && st !== "finalizing") {
+    return jsonResponse({ success: true, cancelled: false, message: "Job is not in progress." });
+  }
+  await failProfileLoopJob(svc, job as ProfileLoopJobRow, sessionUser.id, "Cancelled by user.");
+  return jsonResponse({ success: true, cancelled: true });
+}
+
 async function handleProfileLoopJobPoll(args: {
   svc: ReturnType<typeof createClient>;
   sessionUser: { id: string };
@@ -499,6 +845,7 @@ async function handleProfileLoopJobPoll(args: {
       publicUrl: job.public_url.trim(),
       durationSeconds: typeof job.duration_seconds === "number" ? job.duration_seconds : undefined,
       source: "grok",
+      workerPhase: "saving",
     });
   }
   if (job.status === "failed") {
@@ -567,6 +914,7 @@ async function handleProfileLoopJobPoll(args: {
       phase: "poll",
       jobId,
       pollAfterMs: 2500,
+      workerPhase: pollWorkerPhaseForJob(job),
     });
   }
 
@@ -577,12 +925,22 @@ async function handleProfileLoopJobPoll(args: {
 
   const pr = await pollGrokVideoRequestOnce(xaiKey, rid);
   if (pr.status === "processing") {
+    if (job.status === "pending" && profileLoopJobAgeMs(job) > PENDING_STUCK_MS) {
+      await failProfileLoopJob(
+        svc,
+        job,
+        sessionUser.id,
+        "Grok did not finish in time — try again.",
+      );
+      return jsonResponse({ error: "Grok did not finish in time — try again." }, 500);
+    }
     await svc.from("profile_loop_video_jobs").update({ updated_at: new Date().toISOString() }).eq("id", jobId);
     return jsonResponse({
       success: true,
       phase: "poll",
       jobId,
       pollAfterMs: 4500,
+      workerPhase: pollWorkerPhaseForJob(job),
     });
   }
 
@@ -636,7 +994,13 @@ async function handleProfileLoopJobPoll(args: {
         source: "grok",
       });
     }
-    return jsonResponse({ success: true, phase: "poll", jobId, pollAfterMs: 2000 });
+    return jsonResponse({
+      success: true,
+      phase: "poll",
+      jobId,
+      pollAfterMs: 2000,
+      workerPhase: pollWorkerPhaseForJob(job),
+    });
   }
 
   try {
@@ -674,28 +1038,70 @@ async function handleSyncProfileLoopVideo(args: {
   sessionUser: { id: string };
   companionId: string;
   adminUser: boolean;
+  xaiKey: string | null;
+  motionNotes?: string;
 }): Promise<Response> {
-  const { svc, sessionUser, companionId, adminUser } = args;
+  const { svc, sessionUser, companionId, adminUser, xaiKey, motionNotes } = args;
 
-  const { data: stuckFinalizing } = await svc
+  const { data: inFlight } = await svc
     .from("profile_loop_video_jobs")
     .select("*")
     .eq("user_id", sessionUser.id)
     .eq("companion_id", companionId)
-    .eq("status", "finalizing")
+    .in("status", ["pending", "finalizing"])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (stuckFinalizing) {
-    const xaiStored =
-      typeof stuckFinalizing.xai_video_url === "string" ? stuckFinalizing.xai_video_url.trim() : "";
-    if (xaiStored) {
+  if (inFlight && xaiKey) {
+    const xaiStored = typeof inFlight.xai_video_url === "string" ? inFlight.xai_video_url.trim() : "";
+    if (inFlight.status === "pending") {
+      const rid = String(inFlight.xai_request_id ?? "").trim();
+      if (rid) {
+        const pr = await pollGrokVideoRequestOnce(xaiKey, rid);
+        if (pr.status === "done") {
+          const jobId = String(inFlight.id ?? "");
+          const { data: claimed } = await svc
+            .from("profile_loop_video_jobs")
+            .update({
+              status: "finalizing",
+              xai_video_url: pr.videoUrl,
+              duration_seconds: pr.duration ?? null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", jobId)
+            .eq("status", "pending")
+            .select("*")
+            .maybeSingle();
+          if (claimed?.id) {
+            try {
+              const { publicUrl, durationSeconds } = await finalizeProfileLoopJob(
+                svc,
+                sessionUser,
+                claimed as ProfileLoopJobRow,
+                pr.videoUrl,
+              );
+              return jsonResponse({
+                success: true,
+                phase: "complete",
+                synced: true,
+                publicUrl,
+                durationSeconds,
+                source: "grok",
+              });
+            } catch (e) {
+              console.error("sync finalize pending job:", e);
+            }
+          }
+        }
+      }
+    }
+    if (inFlight.status === "finalizing" && xaiStored) {
       try {
         const { publicUrl, durationSeconds } = await finalizeProfileLoopJob(
           svc,
           sessionUser,
-          stuckFinalizing as ProfileLoopJobRow,
+          inFlight as ProfileLoopJobRow,
           xaiStored,
         );
         return jsonResponse({
@@ -707,115 +1113,44 @@ async function handleSyncProfileLoopVideo(args: {
           source: "grok",
         });
       } catch (e) {
-        console.error("sync finalize stuck job:", e);
+        console.error("sync finalize in-flight job:", e);
+      }
+    } else if (xaiKey && profileLoopJobAgeMs(inFlight as ProfileLoopJobRow) >= PENDING_STUCK_MS) {
+      const cleared = await reconcileStaleInFlightProfileLoopJob({
+        svc,
+        sessionUser,
+        xaiKey,
+        job: inFlight as ProfileLoopJobRow,
+      });
+      if (cleared) {
+        const { data: done } = await svc
+          .from("profile_loop_video_jobs")
+          .select("public_url, status")
+          .eq("id", String(inFlight.id ?? ""))
+          .maybeSingle();
+        if (
+          done?.status === "complete" &&
+          typeof done.public_url === "string" &&
+          isLoopVideoStorageUrl(done.public_url)
+        ) {
+          return jsonResponse({
+            success: true,
+            phase: "complete",
+            synced: true,
+            publicUrl: done.public_url.trim(),
+            source: "grok",
+          });
+        }
       }
     }
   }
 
-  let table: "companions" | "custom_characters";
-  let rowPk: string;
-  let row: Record<string, unknown>;
-
-  if (companionId.startsWith("cc-")) {
-    table = "custom_characters";
-    rowPk = companionId.slice(3);
-    const { data, error } = await svc.from("custom_characters").select("*").eq("id", rowPk).maybeSingle();
-    if (error) return jsonResponse({ error: error.message }, 500);
-    if (!data) return jsonResponse({ error: "Companion not found" }, 404);
-    row = data as Record<string, unknown>;
-    const ownerId = String(row.user_id ?? "").trim();
-    if (ownerId && ownerId !== sessionUser.id && !adminUser) {
-      return jsonResponse({ error: "Forbidden" }, 403);
-    }
-  } else {
-    table = "companions";
-    rowPk = companionId;
-    const { data, error } = await svc.from("companions").select("*").eq("id", rowPk).maybeSingle();
-    if (error) return jsonResponse({ error: error.message }, 500);
-    if (!data) return jsonResponse({ error: "Companion not found" }, 404);
-    row = data as Record<string, unknown>;
-  }
-
-  const isDiscoverListedForgeTemplate =
-    table === "custom_characters" &&
-    Boolean((row as { is_public?: unknown }).is_public) &&
-    Boolean((row as { approved?: unknown }).approved);
-
-  let publicUrl = "";
-
-  const { data: completeJob } = await svc
-    .from("profile_loop_video_jobs")
-    .select("public_url")
-    .eq("user_id", sessionUser.id)
-    .eq("companion_id", companionId)
-    .eq("status", "complete")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (completeJob?.public_url && isLoopVideoStorageUrl(String(completeJob.public_url))) {
-    publicUrl = String(completeJob.public_url).trim();
-  }
-
-  if (!publicUrl) {
-    const rowAnim = typeof row.animated_image_url === "string" ? row.animated_image_url.trim() : "";
-    if (rowAnim && isLoopVideoStorageUrl(rowAnim)) {
-      publicUrl = rowAnim;
-    }
-  }
-
-  if (!publicUrl) {
-    const { data: genRows } = await svc
-      .from("generated_images")
-      .select("image_url, created_at")
-      .eq("companion_id", companionId)
-      .eq("is_video", true)
-      .order("created_at", { ascending: false })
-      .limit(5);
-    for (const g of genRows ?? []) {
-      const u = typeof g.image_url === "string" ? g.image_url.trim() : "";
-      if (u && isLoopVideoStorageUrl(u)) {
-        publicUrl = u;
-        break;
-      }
-    }
-  }
-
-  if (!publicUrl) {
-    return jsonResponse({
-      success: true,
-      synced: false,
-      message: "No saved loop video found for this companion yet.",
-    });
-  }
-
-  try {
-    await persistProfileLoopAfterPublicUrl({
-      svc,
-      sessionUser,
-      companionId,
-      table,
-      rowPk,
-      row,
-      adminUser,
-      sourceGalleryStillUrl: null,
-      publicUrl,
-      tokensCharged: false,
-      chargedAmount: 0,
-      motionNotes: "Profile loop sync",
-      isDiscoverListedForgeTemplate,
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return jsonResponse({ error: msg }, 500);
-  }
-
-  return jsonResponse({
-    success: true,
-    phase: "complete",
-    synced: true,
-    publicUrl,
-    source: "sync",
+  return attachKnownLoopVideoToProfile({
+    svc,
+    sessionUser,
+    companionId,
+    adminUser,
+    motionNotes: motionNotes ?? "Profile loop sync",
   });
 }
 
@@ -855,7 +1190,22 @@ Deno.serve(async (req) => {
 
   const jobIdRaw = typeof body.jobId === "string" ? body.jobId.trim() : "";
   const companionIdEarly = typeof body.companionId === "string" ? body.companionId.trim() : "";
-  const actionSync = String(body.action ?? "").trim().toLowerCase() === "sync";
+  const actionRaw = String(body.action ?? "").trim().toLowerCase();
+  const actionSync = actionRaw === "sync" || actionRaw === "repair";
+
+  const xaiKey = resolveXaiApiKey((n) => Deno.env.get(n) ?? undefined);
+
+  if (actionRaw === "cancel") {
+    if (!companionIdEarly) {
+      return jsonResponse({ error: "companionId required for cancel" }, 400);
+    }
+    return await handleCancelProfileLoopVideo({
+      svc,
+      sessionUser,
+      companionId: companionIdEarly,
+      jobId: jobIdRaw || undefined,
+    });
+  }
 
   if (actionSync) {
     if (!companionIdEarly) {
@@ -867,10 +1217,11 @@ Deno.serve(async (req) => {
       sessionUser,
       companionId: companionIdEarly,
       adminUser: adminUserSync,
+      xaiKey: xaiKey ?? null,
+      motionNotes: actionRaw === "repair" ? "Profile loop repair" : "Profile loop sync",
     });
   }
 
-  const xaiKey = resolveXaiApiKey((n) => Deno.env.get(n) ?? undefined);
   if (!xaiKey) {
     return jsonResponse(
       {
@@ -1016,18 +1367,15 @@ Deno.serve(async (req) => {
     }
   }
 
-  if (!sourceOverrideUrl && !adminUser) {
-    const { data: ov } = await svc
-      .from("user_companion_portrait_overrides")
-      .select("portrait_url")
-      .eq("user_id", sessionUser.id)
-      .eq("companion_id", companionId)
-      .maybeSingle();
-    const ovUrl = typeof ov?.portrait_url === "string" ? ov.portrait_url.trim() : "";
-    if (ovUrl) {
-      const ready = publicHttpsImageUrlForGrok(ovUrl);
-      if (ready) imageUrl = ready;
-    }
+  if (!imageUrl) {
+    imageUrl = await resolveProfileLoopSourceImageUrl(
+      svc,
+      sessionUser.id,
+      companionId,
+      row,
+      sourceOverrideUrl,
+      adminUser,
+    );
   }
 
   if (!imageUrl) {
@@ -1056,7 +1404,7 @@ Deno.serve(async (req) => {
   const inFlightSince = new Date(Date.now() - IN_FLIGHT_JOB_MS).toISOString();
   const { data: existingJob } = await svc
     .from("profile_loop_video_jobs")
-    .select("id, status")
+    .select("*")
     .eq("user_id", sessionUser.id)
     .eq("companion_id", companionId)
     .in("status", ["pending", "finalizing"])
@@ -1066,14 +1414,45 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (existingJob?.id) {
-    return jsonResponse({
-      success: true,
-      phase: "poll",
-      jobId: existingJob.id,
-      pollAfterMs: 3000,
-      resumed: true,
-    });
+    const stale = profileLoopJobAgeMs(existingJob as ProfileLoopJobRow) >= PENDING_STUCK_MS;
+    if (stale) {
+      await reconcileStaleInFlightProfileLoopJob({
+        svc,
+        sessionUser,
+        xaiKey,
+        job: existingJob as ProfileLoopJobRow,
+      });
+      const { data: after } = await svc
+        .from("profile_loop_video_jobs")
+        .select("id, status, public_url")
+        .eq("id", String(existingJob.id))
+        .maybeSingle();
+      if (
+        after?.status === "complete" &&
+        typeof after.public_url === "string" &&
+        after.public_url.trim()
+      ) {
+        return jsonResponse({
+          success: true,
+          phase: "complete",
+          publicUrl: after.public_url.trim(),
+          source: "grok",
+        });
+      }
+    } else {
+      return jsonResponse({
+        success: true,
+        phase: "poll",
+        jobId: existingJob.id,
+        pollAfterMs: 3000,
+        resumed: true,
+        workerPhase: pollWorkerPhaseForJob(existingJob as ProfileLoopJobRow),
+      });
+    }
   }
+
+  const isNexusHybrid =
+    table === "custom_characters" && Boolean((row as { is_nexus_hybrid?: unknown }).is_nexus_hybrid);
 
   const isDiscoverListedForgeTemplate =
     table === "custom_characters" &&
@@ -1117,6 +1496,7 @@ Deno.serve(async (req) => {
           rowPk,
           adminUser,
           isDiscoverListedForgeTemplate,
+          is_nexus_hybrid: isNexusHybrid,
           sourceGalleryStillUrl: sourceGalleryStillUrl ?? "",
           sourceGenId,
           motionNotesForGallery: motionNotes,

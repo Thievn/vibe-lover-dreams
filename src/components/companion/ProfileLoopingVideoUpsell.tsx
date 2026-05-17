@@ -2,8 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, Images, Loader2, Sparkles, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import {
+  cancelProfileLoopVideo,
+  clearProfileLoopJobId,
   hasPendingProfileLoopJob,
   invokeGenerateProfileLoopVideo,
+  loadProfileLoopJob,
   markProfileLoopResumeStarted,
   profileLoopToastId,
   resumePendingProfileLoopJob,
@@ -135,8 +138,25 @@ export function ProfileLoopingVideoUpsell({
 
   const cancelPoll = () => {
     abortRef.current?.abort();
-    setBusy(false);
-    toast.info("Stopped waiting — Grok may still finish. Reopen this profile to resume.");
+    const stored = loadProfileLoopJob(companionId);
+    void (async () => {
+      try {
+        if (stored) {
+          await cancelProfileLoopVideo(companionId, stored.jobId);
+        } else {
+          clearProfileLoopJobId(companionId);
+        }
+        toast.info("Loop generation cancelled. You can start a new one when ready.");
+      } catch (e: unknown) {
+        clearProfileLoopJobId(companionId);
+        const msg = e instanceof Error ? e.message : "Could not cancel server job";
+        toast.error(msg);
+      } finally {
+        setBusy(false);
+        setPendingJob(false);
+        toast.dismiss(toastId);
+      }
+    })();
   };
 
   useEffect(() => {

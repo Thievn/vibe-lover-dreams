@@ -12,12 +12,15 @@ export type SyncProfileLoopResult = {
  * Re-attaches the latest saved loop MP4 (jobs table, gallery, or row) to profile + override.
  * No FC charge; does not call xAI unless a stuck finalize job needs upload.
  */
-export async function syncProfileLoopVideoToProfile(companionId: string): Promise<SyncProfileLoopResult> {
+export async function syncProfileLoopVideoToProfile(
+  companionId: string,
+  options?: { repair?: boolean },
+): Promise<SyncProfileLoopResult> {
   const cid = companionId.trim();
   if (!cid) return { synced: false, message: "Missing companion id." };
 
   const { data, error } = await supabase.functions.invoke("generate-profile-loop-video", {
-    body: { companionId: cid, action: "sync" },
+    body: { companionId: cid, action: options?.repair ? "repair" : "sync" },
   });
 
   if (profileLoopVideoResponseSucceeded(data)) {

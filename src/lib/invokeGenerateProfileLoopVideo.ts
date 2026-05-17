@@ -9,7 +9,7 @@ export type GenerateProfileLoopVideoBody = {
   tokenCost?: number;
   sourceGeneratedImageId?: string;
   jobId?: string;
-  action?: "sync";
+  action?: "sync" | "repair" | "cancel";
 };
 
 export type ProfileLoopPollStatus = "starting" | "rendering" | "saving" | "complete";
@@ -23,8 +23,10 @@ export type ProfileLoopVideoResult = {
 const PROFILE_LOOP_INVOKE_TIMEOUT_MS = 90_000;
 const PROFILE_LOOP_WALL_CLOCK_MS = 12 * 60_000;
 const PROFILE_LOOP_POLL_MAX = 150;
+/** Auto-resume stored jobs only if younger than this (avoids zombie "Rendering…"). */
+export const PROFILE_LOOP_RESUME_MAX_MS = 15 * 60_000;
 
-type StoredProfileLoopJob = { jobId: string; companionId: string };
+type StoredProfileLoopJob = { jobId: string; companionId: string; savedAt: number };
 
 /** One poll loop per companion — stops duplicate toasts and duplicate xAI status checks. */
 const inFlightByCompanion = new Map<string, Promise<ProfileLoopVideoResult>>();
@@ -42,16 +44,22 @@ export function profileLoopToastId(companionId: string): string {
 function parseStoredJob(raw: string | null): StoredProfileLoopJob | null {
   if (!raw?.trim()) return null;
   try {
-    const j = JSON.parse(raw) as { jobId?: string; companionId?: string };
+    const j = JSON.parse(raw) as { jobId?: string; companionId?: string; savedAt?: number };
     const jobId = typeof j.jobId === "string" ? j.jobId.trim() : "";
     const companionId = typeof j.companionId === "string" ? j.companionId.trim() : "";
-    if (jobId && companionId) return { jobId, companionId };
+    const savedAt =
+      typeof j.savedAt === "number" && Number.isFinite(j.savedAt) ? j.savedAt : Date.now();
+    if (jobId && companionId) return { jobId, companionId, savedAt };
   } catch {
     /* legacy: plain jobId string */
   }
   const legacy = raw.trim();
   if (/^[0-9a-f-]{36}$/i.test(legacy)) return null;
   return null;
+}
+
+function isStoredJobFresh(stored: StoredProfileLoopJob): boolean {
+  return Date.now() - stored.savedAt < PROFILE_LOOP_RESUME_MAX_MS;
 }
 
 export function saveProfileLoopJobId(companionId: string, jobId: string): void {
@@ -61,7 +69,7 @@ export function saveProfileLoopJobId(companionId: string, jobId: string): void {
   try {
     sessionStorage.setItem(
       profileLoopJobStorageKey(cid),
-      JSON.stringify({ jobId: jid, companionId: cid } satisfies StoredProfileLoopJob),
+      JSON.stringify({ jobId: jid, companionId: cid, savedAt: Date.now() } satisfies StoredProfileLoopJob),
     );
   } catch {
     /* ignore */
@@ -80,9 +88,15 @@ export function loadProfileLoopJob(companionId: string): StoredProfileLoopJob | 
   try {
     const raw = sessionStorage.getItem(profileLoopJobStorageKey(companionId.trim()));
     const parsed = parseStoredJob(raw);
-    if (parsed) return parsed;
+    if (parsed) {
+      if (!isStoredJobFresh(parsed)) {
+        clearProfileLoopJobId(companionId.trim());
+        return null;
+      }
+      return parsed;
+    }
     if (raw?.trim() && /^[0-9a-f-]{36}$/i.test(raw.trim())) {
-      return { jobId: raw.trim(), companionId: companionId.trim() };
+      return { jobId: raw.trim(), companionId: companionId.trim(), savedAt: Date.now() };
     }
   } catch {
     /* ignore */
@@ -296,7 +310,12 @@ async function runProfileLoopPoll(
     if (d && d.success === true && d.phase === "poll" && typeof d.jobId === "string") {
       nextBody = { jobId: d.jobId };
       if (resolvedCompanionId) saveProfileLoopJobId(resolvedCompanionId, d.jobId);
-      if (i === 0) {
+      const serverPhase = d.workerPhase;
+      if (serverPhase === "saving") {
+        pollPhase = "saving";
+      } else if (serverPhase === "rendering") {
+        pollPhase = "rendering";
+      } else if (i === 0) {
         pollPhase = "starting";
       } else if (pollPhase === "starting") {
         pollPhase = "rendering";
@@ -362,6 +381,26 @@ export async function invokeGenerateProfileLoopVideo(
   }
 
   return runProfileLoopPoll(body, options);
+}
+
+export async function cancelProfileLoopVideo(
+  companionId: string,
+  jobId?: string,
+): Promise<{ cancelled: boolean; message?: string }> {
+  const cid = companionId.trim();
+  if (!cid) return { cancelled: false, message: "Missing companion id." };
+  const body: Record<string, unknown> = { companionId: cid, action: "cancel" };
+  if (jobId?.trim()) body.jobId = jobId.trim();
+  const { data, error } = await invokeProfileLoopVideoOnce(body);
+  if (error) {
+    throw new Error(await getEdgeFunctionInvokeMessage(error, data));
+  }
+  const d = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
+  clearProfileLoopJobId(cid);
+  return {
+    cancelled: d?.cancelled === true,
+    message: typeof d?.message === "string" ? d.message : undefined,
+  };
 }
 
 export async function resumePendingProfileLoopJob(
