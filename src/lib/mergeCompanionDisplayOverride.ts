@@ -1,5 +1,5 @@
 import type { DbCompanion } from "@/hooks/useCompanions";
-import { isEligibleLoopPortraitVideoUrl, stablePortraitDisplayUrl } from "@/lib/companionMedia";
+import { isLoopVideoStorageUrl, stablePortraitDisplayUrl } from "@/lib/companionMedia";
 
 export type CompanionDisplayOverrideRow = {
   portrait_url: string | null;
@@ -24,15 +24,13 @@ export function mergeCompanionDisplayWithUserOverride(
   const animRaw = override.animated_portrait_url?.trim() || null;
   const anim = animRaw ? stablePortraitDisplayUrl(animRaw) ?? animRaw : null;
   const overrideLoopOn = Boolean(
-    anim && (override.profile_loop_video_enabled || isEligibleLoopPortraitVideoUrl(anim, true)),
+    anim && override.profile_loop_video_enabled && isLoopVideoStorageUrl(anim),
   );
 
   const baseAnimRaw = db.animated_image_url?.trim() || null;
   const baseAnim = baseAnimRaw ? stablePortraitDisplayUrl(baseAnimRaw) ?? baseAnimRaw : null;
   const baseLoopOn = Boolean(
-    db.profile_loop_video_enabled &&
-      baseAnim &&
-      isEligibleLoopPortraitVideoUrl(baseAnim, true),
+    db.profile_loop_video_enabled && baseAnim && isLoopVideoStorageUrl(baseAnim),
   );
 
   const usePrivateLoop = overrideLoopOn || (!anim && baseLoopOn);

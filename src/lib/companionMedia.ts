@@ -127,8 +127,15 @@ export function profileStillPortraitUrl(db: PortraitDbFields | undefined, id: st
   return galleryStaticPortraitUrl(db, id);
 }
 
+/** Looping profile / chat clip stored in Supabase (`profile-loops/…`) or with a video extension. */
+export function isLoopVideoStorageUrl(url: string): boolean {
+  const u = url.trim();
+  if (!u) return false;
+  return /\.(mp4|webm|mov)(\?|$)/i.test(u) || u.includes("/profile-loops/");
+}
+
 export function isVideoPortraitUrl(url: string): boolean {
-  return /\.(mp4|webm|mov)(\?|$)/i.test(url);
+  return isLoopVideoStorageUrl(url);
 }
 
 /**
@@ -162,7 +169,7 @@ export function resolvePublicLoopPortraitVideoUrlForX(db: {
 export function isEligibleLoopPortraitVideoUrl(url: string | null | undefined, profileLoopVideoEnabled: boolean): boolean {
   if (!url?.trim()) return false;
   const u = url.trim();
-  if (isVideoPortraitUrl(u)) return true;
+  if (isLoopVideoStorageUrl(u)) return true;
   return Boolean(profileLoopVideoEnabled && /^https?:\/\//i.test(u));
 }
 

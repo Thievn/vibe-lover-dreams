@@ -39,6 +39,7 @@ import {
   profileAnimatedPortraitUrl,
   profileStillPortraitUrl,
   isVideoPortraitUrl,
+  isLoopVideoStorageUrl,
   isEligibleLoopPortraitVideoUrl,
   shouldShowProfileLoopVideo,
   portraitUrlsEquivalent,
@@ -184,6 +185,7 @@ const CompanionProfile = () => {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [loopFromGeneratedImageId, setLoopFromGeneratedImageId] = useState<string | null>(null);
   const [loopPrefBusy, setLoopPrefBusy] = useState(false);
+  const [loopPlaybackFailed, setLoopPlaybackFailed] = useState(false);
   const [portraitRevertBusy, setPortraitRevertBusy] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
   const [autoSpendChatImages, setAutoSpendChatImagesState] = useState(false);
@@ -212,7 +214,7 @@ const CompanionProfile = () => {
 
   const loopMp4SourceUrl = useMemo(() => {
     const u = dbCompDisplay?.animated_image_url?.trim();
-    if (u && isVideoPortraitUrl(u)) return u;
+    if (u && isLoopVideoStorageUrl(u)) return u;
     return null;
   }, [dbCompDisplay?.animated_image_url]);
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -313,11 +315,14 @@ const CompanionProfile = () => {
     return 0;
   }, [user?.id, rarity, discoverListFc, discoverFreeCommonClaimed]);
   const animatedPortrait = profileAnimatedPortraitUrl(dbCompDisplay);
+  useEffect(() => {
+    setLoopPlaybackFailed(false);
+  }, [animatedPortrait]);
   const showLoopVideo = shouldShowProfileLoopVideo(dbCompDisplay, dbCompDisplay?.profile_loop_video_enabled);
   const lightboxAnimated =
-    showLoopVideo && animatedPortrait && isVideoPortraitUrl(animatedPortrait)
+    showLoopVideo && animatedPortrait && isLoopVideoStorageUrl(animatedPortrait)
       ? animatedPortrait
-      : animatedPortrait && !isVideoPortraitUrl(animatedPortrait)
+      : animatedPortrait && !isLoopVideoStorageUrl(animatedPortrait)
         ? animatedPortrait
         : undefined;
   const { data: galleryImages = [], isLoading: galleryImagesLoading } = useCompanionGeneratedImages(id, user?.id);
@@ -341,7 +346,10 @@ const CompanionProfile = () => {
   }, [user?.id, canonicalCardStillUrl, stillForProfile]);
 
   const loopVideoActive = Boolean(
-    showLoopVideo && animatedPortrait && isEligibleLoopPortraitVideoUrl(animatedPortrait, true),
+    showLoopVideo &&
+      animatedPortrait &&
+      isEligibleLoopPortraitVideoUrl(animatedPortrait, true) &&
+      !loopPlaybackFailed,
   );
   const portraitAspectClass = loopVideoActive
     ? PROFILE_LOOP_VIDEO_ASPECT_CLASS
@@ -807,7 +815,7 @@ const CompanionProfile = () => {
       userId: user.id,
       companionId: id,
       imageUrl,
-      fallbackLoopVideoUrl: baseAnim && isVideoPortraitUrl(baseAnim) ? baseAnim : null,
+      fallbackLoopVideoUrl: baseAnim && isLoopVideoStorageUrl(baseAnim) ? baseAnim : null,
       fallbackLoopVideoEnabled: Boolean(dbComp.profile_loop_video_enabled),
     });
     await queryClient.invalidateQueries({ queryKey: ["companions"] });
@@ -1194,8 +1202,9 @@ const CompanionProfile = () => {
                       loop
                       playsInline
                       preload="auto"
+                      onError={() => setLoopPlaybackFailed(true)}
                     />
-                  ) : animatedPortrait && !isVideoPortraitUrl(animatedPortrait) ? (
+                  ) : animatedPortrait && !isLoopVideoStorageUrl(animatedPortrait) ? (
                     <img
                       src={animatedPortrait}
                       alt=""

@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { DbCompanion } from "@/hooks/useCompanions";
 import type { CompanionDisplayOverrideRow } from "@/lib/mergeCompanionDisplayOverride";
-import { isVideoPortraitUrl } from "@/lib/companionMedia";
+import { isLoopVideoStorageUrl } from "@/lib/companionMedia";
 
 /**
  * Persists whether the **looping portrait MP4** is shown on profile/chat (vs still only).
@@ -20,8 +20,8 @@ export async function setProfileLoopVideoEnabledForUser(args: {
   const animFromOverride = overrideRow?.animated_portrait_url?.trim() || "";
   const animFromBase = baseDb.animated_image_url?.trim() || "";
   const loopVideoUrl =
-    (animFromOverride && isVideoPortraitUrl(animFromOverride) ? animFromOverride : null) ||
-    (animFromBase && isVideoPortraitUrl(animFromBase) ? animFromBase : null) ||
+    (animFromOverride && isLoopVideoStorageUrl(animFromOverride) ? animFromOverride : null) ||
+    (animFromBase && isLoopVideoStorageUrl(animFromBase) ? animFromBase : null) ||
     "";
 
   if (!loopVideoUrl) {

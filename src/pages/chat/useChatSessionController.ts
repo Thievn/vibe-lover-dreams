@@ -12,6 +12,7 @@ import {
   galleryStaticPortraitUrl,
   profileAnimatedPortraitUrl,
   isVideoPortraitUrl,
+  isLoopVideoStorageUrl,
   shouldShowProfileLoopVideo,
   resolveChatLikenessReferenceHttpsUrl,
 } from "@/lib/companionMedia";
@@ -1085,7 +1086,7 @@ export function useChatSessionController() {
       userId: user.id,
       companionId: id,
       imageUrl,
-      fallbackLoopVideoUrl: baseAnim && isVideoPortraitUrl(baseAnim) ? baseAnim : null,
+      fallbackLoopVideoUrl: baseAnim && isLoopVideoStorageUrl(baseAnim) ? baseAnim : null,
       fallbackLoopVideoEnabled: Boolean(dbComp.profile_loop_video_enabled),
     });
     await queryClient.invalidateQueries({ queryKey: ["companions"] });

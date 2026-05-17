@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { isVideoPortraitUrl, stablePortraitDisplayUrl } from "@/lib/companionMedia";
+import { isLoopVideoStorageUrl, stablePortraitDisplayUrl } from "@/lib/companionMedia";
 
 /**
  * Sets the companion still portrait for **this signed-in user only** (profile + chat hero).
@@ -34,8 +34,8 @@ export async function setCompanionPortraitFromGalleryUrl(args: {
 
   const existingAnim = typeof existing?.animated_portrait_url === "string" ? existing.animated_portrait_url.trim() : "";
   const fallback = typeof fallbackLoopVideoUrl === "string" ? fallbackLoopVideoUrl.trim() : "";
-  const fromOverride = Boolean(existingAnim && isVideoPortraitUrl(existingAnim));
-  const fromFallback = Boolean(!fromOverride && fallback && isVideoPortraitUrl(fallback));
+  const fromOverride = Boolean(existingAnim && isLoopVideoStorageUrl(existingAnim));
+  const fromFallback = Boolean(!fromOverride && fallback && isLoopVideoStorageUrl(fallback));
   const keepStoredLoopFile = fromOverride || fromFallback;
   const animatedToStore = fromOverride ? existingAnim : fromFallback ? fallback : null;
   const loopEnabledToStore = keepStoredLoopFile
