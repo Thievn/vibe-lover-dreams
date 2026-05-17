@@ -24,7 +24,7 @@ export function mergeCompanionDisplayWithUserOverride(
   const animRaw = override.animated_portrait_url?.trim() || null;
   const anim = animRaw ? stablePortraitDisplayUrl(animRaw) ?? animRaw : null;
   const overrideLoopOn = Boolean(
-    anim && override.profile_loop_video_enabled && isLoopVideoStorageUrl(anim),
+    override.profile_loop_video_enabled && anim && isLoopVideoStorageUrl(anim),
   );
 
   const baseAnimRaw = db.animated_image_url?.trim() || null;
@@ -33,7 +33,8 @@ export function mergeCompanionDisplayWithUserOverride(
     db.profile_loop_video_enabled && baseAnim && isLoopVideoStorageUrl(baseAnim),
   );
 
-  const usePrivateLoop = overrideLoopOn || (!anim && baseLoopOn);
+  /** Override row wins when it has a valid loop URL; never leak canonical row loop when override exists but is empty. */
+  const usePrivateLoop = overrideLoopOn || (baseLoopOn && !override.profile_loop_video_enabled);
   const resolvedAnim = overrideLoopOn ? anim : baseLoopOn ? baseAnim : null;
 
   return {

@@ -43,6 +43,7 @@ import {
   isEligibleLoopPortraitVideoUrl,
   shouldShowProfileLoopVideo,
   portraitUrlsEquivalent,
+  stablePortraitDisplayUrl,
 } from "@/lib/companionMedia";
 import { prependCanonicalPortraitIfMissing } from "@/lib/companionGalleryWithCanonical";
 import { clearUserPortraitOverrideStill } from "@/lib/clearUserPortraitOverrideStill";
@@ -186,6 +187,7 @@ const CompanionProfile = () => {
   const [loopFromGeneratedImageId, setLoopFromGeneratedImageId] = useState<string | null>(null);
   const [loopPrefBusy, setLoopPrefBusy] = useState(false);
   const [loopPlaybackFailed, setLoopPlaybackFailed] = useState(false);
+  const loopRepairAttemptedRef = useRef(false);
   const [portraitRevertBusy, setPortraitRevertBusy] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
   const [autoSpendChatImages, setAutoSpendChatImagesState] = useState(false);
@@ -290,6 +292,71 @@ const CompanionProfile = () => {
     };
   }, [user?.id, id, consumeFeatureLocked, queryClient]);
 
+  /** Loop flag set but URL missing from merge — heal wiring without charging. */
+  useEffect(() => {
+    if (!user?.id || !id || consumeFeatureLocked) return;
+    const loopFlagOn = Boolean(
+      displayOverride?.profile_loop_video_enabled ?? dbCompDisplay?.profile_loop_video_enabled,
+    );
+    const hasPlayable = Boolean(
+      loopVideoSrc && isEligibleLoopPortraitVideoUrl(loopVideoSrc, true),
+    );
+    if (!loopFlagOn || hasPlayable) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await syncProfileLoopVideoToProfile(id);
+        if (cancelled || !result.synced) return;
+        void queryClient.invalidateQueries({ queryKey: ["companions"] });
+        void queryClient.invalidateQueries({ queryKey: ["companion-display-override", user.id, id] });
+        void queryClient.invalidateQueries({
+          queryKey: ["companion-generated-images", user.id, id],
+        });
+      } catch {
+        /* best-effort */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    user?.id,
+    id,
+    consumeFeatureLocked,
+    displayOverride?.profile_loop_video_enabled,
+    dbCompDisplay?.profile_loop_video_enabled,
+    loopVideoSrc,
+    queryClient,
+  ]);
+
+  const handleLoopVideoError = useCallback(() => {
+    if (!user?.id || !id) {
+      setLoopPlaybackFailed(true);
+      return;
+    }
+    if (loopRepairAttemptedRef.current) {
+      setLoopPlaybackFailed(true);
+      return;
+    }
+    loopRepairAttemptedRef.current = true;
+    void (async () => {
+      try {
+        const result = await syncProfileLoopVideoToProfile(id, { repair: true });
+        if (result.synced) {
+          void queryClient.invalidateQueries({ queryKey: ["companions"] });
+          void queryClient.invalidateQueries({ queryKey: ["companion-display-override", user.id, id] });
+          void queryClient.invalidateQueries({
+            queryKey: ["companion-generated-images", user.id, id],
+          });
+          return;
+        }
+      } catch {
+        /* fall through */
+      }
+      setLoopPlaybackFailed(true);
+    })();
+  }, [id, queryClient, user?.id]);
+
   /** e.g. Chat “Live call” can deep-link here with `state: { profileTab: "live" }`. Legacy `gallery` opens the inline gallery. */
   useEffect(() => {
     const st = location.state as { profileTab?: "profile" | "gallery" | "live"; discoverPreview?: boolean } | null;
@@ -315,8 +382,13 @@ const CompanionProfile = () => {
     return 0;
   }, [user?.id, rarity, discoverListFc, discoverFreeCommonClaimed]);
   const animatedPortrait = profileAnimatedPortraitUrl(dbCompDisplay);
+  const loopVideoSrc = useMemo(() => {
+    if (!animatedPortrait?.trim()) return null;
+    return stablePortraitDisplayUrl(animatedPortrait) ?? animatedPortrait;
+  }, [animatedPortrait]);
   useEffect(() => {
     setLoopPlaybackFailed(false);
+    loopRepairAttemptedRef.current = false;
   }, [animatedPortrait]);
   const showLoopVideo = shouldShowProfileLoopVideo(dbCompDisplay, dbCompDisplay?.profile_loop_video_enabled);
   const lightboxAnimated =
@@ -347,8 +419,8 @@ const CompanionProfile = () => {
 
   const loopVideoActive = Boolean(
     showLoopVideo &&
-      animatedPortrait &&
-      isEligibleLoopPortraitVideoUrl(animatedPortrait, true) &&
+      loopVideoSrc &&
+      isEligibleLoopPortraitVideoUrl(loopVideoSrc, true) &&
       !loopPlaybackFailed,
   );
   const portraitAspectClass = loopVideoActive
@@ -1191,18 +1263,18 @@ const CompanionProfile = () => {
                           }
                     }
                   />
-                  {loopVideoActive && animatedPortrait ? (
+                  {loopVideoActive && loopVideoSrc ? (
                     <video
-                      key={animatedPortrait}
+                      key={loopVideoSrc}
                       className="absolute inset-0 z-[2] h-full w-full object-cover object-center ring-0 outline-none"
-                      src={animatedPortrait}
+                      src={loopVideoSrc}
                       poster={stillForProfile ?? undefined}
                       autoPlay
                       muted
                       loop
                       playsInline
                       preload="auto"
-                      onError={() => setLoopPlaybackFailed(true)}
+                      onError={handleLoopVideoError}
                     />
                   ) : animatedPortrait && !isLoopVideoStorageUrl(animatedPortrait) ? (
                     <img

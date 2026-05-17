@@ -143,33 +143,65 @@ async function resolveLatestGalleryStillUrl(
   return null;
 }
 
+function rowStillUrlCandidates(row: Record<string, unknown>): string[] {
+  const fields = [row.static_image_url, row.image_url, row.avatar_url];
+  return fields
+    .map((f) => (typeof f === "string" ? f.trim() : ""))
+    .filter((u) => u.length > 0 && !isLoopVideoStorageUrl(u));
+}
+
+/**
+ * Shared still resolution for I2V + override upsert: override portrait first (2:3 private cards),
+ * then gallery pick, then row stills (skip video URLs), then latest gallery still.
+ */
+async function resolvePortraitStillStorageUrl(
+  svc: ReturnType<typeof createClient>,
+  sessionUserId: string,
+  companionId: string,
+  row: Record<string, unknown>,
+  sourceGalleryStillUrl: string | null,
+): Promise<string> {
+  const { data: existingOv } = await svc
+    .from("user_companion_portrait_overrides")
+    .select("portrait_url")
+    .eq("user_id", sessionUserId)
+    .eq("companion_id", companionId)
+    .maybeSingle();
+  const ovUrl = typeof existingOv?.portrait_url === "string" ? existingOv.portrait_url.trim() : "";
+  if (ovUrl && !isLoopVideoStorageUrl(ovUrl)) return ovUrl;
+
+  const galleryPick = sourceGalleryStillUrl?.trim() ?? "";
+  if (galleryPick && !isLoopVideoStorageUrl(galleryPick)) return galleryPick;
+
+  for (const raw of rowStillUrlCandidates(row)) {
+    return raw;
+  }
+
+  const fromGallery = await resolveLatestGalleryStillUrl(svc, companionId);
+  return fromGallery ?? "";
+}
+
 async function resolveProfileLoopSourceImageUrl(
   svc: ReturnType<typeof createClient>,
   sessionUserId: string,
   companionId: string,
   row: Record<string, unknown>,
   sourceOverrideUrl: string | null,
-  adminUser: boolean,
+  _adminUser: boolean,
 ): Promise<string | null> {
-  if (sourceOverrideUrl) return sourceOverrideUrl;
-  const raw =
-    (typeof row.static_image_url === "string" && row.static_image_url) ||
-    (typeof row.image_url === "string" && row.image_url) ||
-    (typeof row.avatar_url === "string" && row.avatar_url) ||
-    null;
-  let imageUrl = publicHttpsImageUrlForGrok(raw);
-  if (!imageUrl && !adminUser) {
-    const { data: ov } = await svc
-      .from("user_companion_portrait_overrides")
-      .select("portrait_url")
-      .eq("user_id", sessionUserId)
-      .eq("companion_id", companionId)
-      .maybeSingle();
-    const ovUrl = typeof ov?.portrait_url === "string" ? ov.portrait_url.trim() : "";
-    if (ovUrl) imageUrl = publicHttpsImageUrlForGrok(ovUrl);
+  if (sourceOverrideUrl?.trim()) {
+    const ready = publicHttpsImageUrlForGrok(sourceOverrideUrl);
+    if (ready) return ready;
   }
-  if (!imageUrl) imageUrl = await resolveLatestGalleryStillUrl(svc, companionId);
-  return imageUrl;
+  const stored = await resolvePortraitStillStorageUrl(
+    svc,
+    sessionUserId,
+    companionId,
+    row,
+    sourceOverrideUrl,
+  );
+  if (!stored) return null;
+  return publicHttpsImageUrlForGrok(stored) ?? stored;
 }
 
 async function resolveBestKnownLoopVideoUrl(
@@ -178,11 +210,23 @@ async function resolveBestKnownLoopVideoUrl(
   companionId: string,
   row: Record<string, unknown>,
 ): Promise<string | null> {
+  const { data: ov } = await svc
+    .from("user_companion_portrait_overrides")
+    .select("animated_portrait_url, profile_loop_video_enabled")
+    .eq("user_id", sessionUserId)
+    .eq("companion_id", companionId)
+    .maybeSingle();
+  const ovAnim = typeof ov?.animated_portrait_url === "string" ? ov.animated_portrait_url.trim() : "";
+  if (ov?.profile_loop_video_enabled && ovAnim && isLoopVideoStorageUrl(ovAnim)) {
+    return ovAnim;
+  }
+
   const { data: jobs } = await svc
     .from("profile_loop_video_jobs")
     .select("public_url, xai_video_url, status, created_at")
     .eq("user_id", sessionUserId)
     .eq("companion_id", companionId)
+    .eq("status", "complete")
     .order("created_at", { ascending: false })
     .limit(8);
   for (const j of jobs ?? []) {
@@ -268,28 +312,7 @@ async function resolvePortraitStillForLoop(
   row: Record<string, unknown>,
   sourceGalleryStillUrl: string | null,
 ): Promise<string> {
-  const { data: existingOv } = await svc
-    .from("user_companion_portrait_overrides")
-    .select("portrait_url")
-    .eq("user_id", sessionUserId)
-    .eq("companion_id", companionId)
-    .maybeSingle();
-  let portraitStill =
-    (typeof existingOv?.portrait_url === "string" && existingOv.portrait_url.trim()) ||
-    (sourceGalleryStillUrl && sourceGalleryStillUrl.trim()) ||
-    "";
-  if (!portraitStill) {
-    const raw =
-      (typeof row.static_image_url === "string" && row.static_image_url) ||
-      (typeof row.image_url === "string" && row.image_url) ||
-      (typeof row.avatar_url === "string" && row.avatar_url);
-    portraitStill = typeof raw === "string" ? raw.trim() : "";
-  }
-  if (!portraitStill) {
-    const fromGallery = await resolveLatestGalleryStillUrl(svc, companionId);
-    if (fromGallery) portraitStill = fromGallery;
-  }
-  return portraitStill;
+  return resolvePortraitStillStorageUrl(svc, sessionUserId, companionId, row, sourceGalleryStillUrl);
 }
 
 /** Ensures profile/chat merge sees the loop (override row). */
